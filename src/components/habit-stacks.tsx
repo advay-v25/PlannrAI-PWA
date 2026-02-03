@@ -17,6 +17,10 @@ import {
     Clock,
     ChevronRight,
     Sparkles,
+    Bot,
+    MessageCircle,
+    Loader2,
+    RefreshCw,
 } from 'lucide-react';
 
 /**
@@ -91,8 +95,8 @@ export function HabitStackCard({ stack, onComplete, onDelete }: HabitStackCardPr
                         onClick={handleComplete}
                         disabled={isCompletedToday || isCompleting}
                         className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${isCompletedToday
-                                ? 'bg-[var(--color-success)] text-white'
-                                : 'bg-[var(--glass-bg)] hover:bg-[var(--color-success-soft)] text-[var(--text-tertiary)]'
+                            ? 'bg-[var(--color-success)] text-white'
+                            : 'bg-[var(--glass-bg)] hover:bg-[var(--color-success-soft)] text-[var(--text-tertiary)]'
                             }`}
                         whileHover={{ scale: isCompletedToday ? 1 : 1.05 }}
                         whileTap={{ scale: isCompletedToday ? 1 : 0.95 }}
@@ -272,10 +276,244 @@ export function CreateHabitStack({ goalId, onCreated, onCancel }: CreateHabitSta
 }
 
 /**
- * Habit Stacks List - Shows all habit stacks
+ * AI-Powered Habit Stack Creator
  */
+function CreateHabitStackWithAI({ onCreated, onCancel }: { onCreated: () => void, onCancel: () => void }) {
+    const [step, setStep] = useState<'input' | 'chat' | 'confirm'>('input');
+    const [habitName, setHabitName] = useState('');
+    const [messages, setMessages] = useState<Array<{ role: 'assistant' | 'user', content: string }>>([]);
+    const [userInput, setUserInput] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [generatedStack, setGeneratedStack] = useState<HabitStack | null>(null);
+    const { addStack } = useHabitStacksStore();
+
+    // Initial message
+    useEffect(() => {
+        if (step === 'chat' && messages.length === 0) {
+            startConversation();
+        }
+    }, [step]);
+
+    const startConversation = async () => {
+        setIsLoading(true);
+        try {
+            const res = await fetch('/api/ai/generate-habit-stack', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ stackName: habitName })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                if (data.data.type === 'questions') {
+                    setMessages([{
+                        role: 'assistant',
+                        content: `${data.data.message}\n\n${data.data.questions.map((q: string) => `• ${q}`).join('\n')}`
+                    }]);
+                }
+            }
+        } catch (error) {
+            console.error('AI Error:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleSendMessage = async () => {
+        if (!userInput.trim()) return;
+
+        const newMessages = [
+            ...messages,
+            { role: 'user' as const, content: userInput }
+        ];
+        setMessages(newMessages);
+        setUserInput('');
+        setIsLoading(true);
+
+        try {
+            const res = await fetch('/api/ai/generate-habit-stack', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    stackName: habitName,
+                    conversationHistory: newMessages,
+                    userAnswers: userInput
+                })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                if (data.data.type === 'questions') {
+                    setMessages(prev => [...prev, {
+                        role: 'assistant',
+                        content: `${data.data.message}\n\n${data.data.questions.map((q: string) => `• ${q}`).join('\n')}`
+                    }]);
+                } else if (data.data.type === 'generated') {
+                    setGeneratedStack(data.data.habitStack);
+                    setStep('confirm');
+                }
+            }
+        } catch (error) {
+            console.error('AI Error:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleConfirm = async () => {
+        if (!generatedStack) return;
+        setIsLoading(true);
+
+        try {
+            // Use existing create API
+            const result = await habitStacksApi.create({
+                trigger_habit: generatedStack.trigger_habit,
+                action_habit: generatedStack.action_habit,
+                action_duration_mins: generatedStack.action_duration_mins,
+            });
+
+            if (result.success && result.data?.stack) {
+                addStack(result.data.stack);
+                onCreated();
+            }
+        } catch (error) {
+            console.error('Failed to create:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+        >
+            <div className="glass-card glass-primary p-5 space-y-5">
+                <div className="flex items-center justify-between">
+                    <h3 className="text-heading flex items-center gap-2">
+                        <Bot className="w-5 h-5 text-[var(--color-primary)]" />
+                        Build with AI
+                    </h3>
+                    <button onClick={onCancel} className="p-2 rounded-full hover:bg-[var(--glass-bg)]">
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+
+                {step === 'input' && (
+                    <div className="space-y-4">
+                        <p className="text-sm text-[var(--text-secondary)]">
+                            Tell me what habit you want to build, and I'll design the perfect stack for you.
+                        </p>
+                        <GlassInput
+                            placeholder="e.g., Daily Meditation, Read more books..."
+                            value={habitName}
+                            onChange={(e) => setHabitName(e.target.value)}
+                            autoFocus
+                        />
+                        <GlassButton
+                            variant="primary"
+                            onClick={() => setStep('chat')}
+                            disabled={!habitName.trim()}
+                            className="w-full"
+                        >
+                            Start Building <Sparkles className="w-4 h-4 ml-2" />
+                        </GlassButton>
+                    </div>
+                )}
+
+                {step === 'chat' && (
+                    <div className="space-y-4">
+                        <div className="max-h-[300px] overflow-y-auto space-y-3 p-2 custom-scrollbar">
+                            {messages.map((msg, i) => (
+                                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                    <div className={`max-w-[85%] p-3 rounded-2xl text-sm ${msg.role === 'user'
+                                        ? 'bg-[var(--color-primary)] text-white'
+                                        : 'bg-[var(--glass-bg)] text-[var(--text-primary)]'
+                                        }`}>
+                                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                                    </div>
+                                </div>
+                            ))}
+                            {isLoading && (
+                                <div className="flex justify-start">
+                                    <div className="bg-[var(--glass-bg)] p-3 rounded-2xl">
+                                        <Loader2 className="w-4 h-4 animate-spin text-[var(--text-tertiary)]" />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex gap-2">
+                            <GlassInput
+                                placeholder="Type your answer..."
+                                value={userInput}
+                                onChange={(e) => setUserInput(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                            />
+                            <GlassButton
+                                variant="primary"
+                                onClick={handleSendMessage}
+                                disabled={!userInput.trim() || isLoading}
+                            >
+                                <ChevronRight className="w-5 h-5" />
+                            </GlassButton>
+                        </div>
+                    </div>
+                )}
+
+                {step === 'confirm' && generatedStack && (
+                    <div className="space-y-4">
+                        <div className="p-4 rounded-xl bg-[var(--glass-bg)] border border-[var(--color-primary)]/30">
+                            <p className="text-xs text-[var(--color-primary)] font-bold uppercase tracking-wider mb-2">
+                                YOUR PERSONALIZED STACK
+                            </p>
+                            <div className="space-y-3">
+                                <div>
+                                    <p className="text-sm text-[var(--text-tertiary)]">When</p>
+                                    <p className="font-medium">{generatedStack.trigger_habit}</p>
+                                </div>
+                                <div className="flex justify-center">
+                                    <ChevronRight className="w-4 h-4 text-[var(--text-tertiary)] rotate-90" />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-[var(--text-tertiary)]">Then</p>
+                                    <p className="font-medium">{generatedStack.action_habit}</p>
+                                </div>
+                                <div className="pt-2 border-t border-[var(--glass-border)] flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                                    <Clock className="w-4 h-4" />
+                                    {generatedStack.action_duration_mins} minutes
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-2">
+                            <GlassButton
+                                variant="ghost"
+                                onClick={() => setStep('input')}
+                                className="flex-1"
+                            >
+                                <RefreshCw className="w-4 h-4 mr-2" />
+                                Try Again
+                            </GlassButton>
+                            <GlassButton
+                                variant="primary"
+                                onClick={handleConfirm}
+                                loading={isLoading}
+                                className="flex-1"
+                            >
+                                <Check className="w-4 h-4 mr-2" />
+                                Save Stack
+                            </GlassButton>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </motion.div>
+    );
+}
 export function HabitStacksList() {
-    const [isCreating, setIsCreating] = useState(false);
+    const [creationMode, setCreationMode] = useState<'manual' | 'ai' | null>(null);
     const { stacks, setStacks, setLoading, isLoading } = useHabitStacksStore();
 
     useEffect(() => {
@@ -313,28 +551,46 @@ export function HabitStacksList() {
                         {completedToday.length} of {stacks.filter(s => s.is_active).length} completed today
                     </p>
                 </div>
-                <GlassButton
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setIsCreating(true)}
-                >
-                    <Plus className="w-4 h-4" />
-                    Add
-                </GlassButton>
+                {!creationMode && (
+                    <div className="flex gap-2">
+                        <GlassButton
+                            variant="primary"
+                            size="sm"
+                            onClick={() => setCreationMode('ai')}
+                        >
+                            <Sparkles className="w-4 h-4" />
+                            AI Assist
+                        </GlassButton>
+                        <GlassButton
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setCreationMode('manual')}
+                        >
+                            <Plus className="w-4 h-4" />
+                            Custom
+                        </GlassButton>
+                    </div>
+                )}
             </div>
 
-            {/* Create Form */}
-            <AnimatePresence>
-                {isCreating && (
+            {/* Create Forms */}
+            <AnimatePresence mode="wait">
+                {creationMode === 'manual' && (
                     <CreateHabitStack
-                        onCreated={() => setIsCreating(false)}
-                        onCancel={() => setIsCreating(false)}
+                        onCreated={() => setCreationMode(null)}
+                        onCancel={() => setCreationMode(null)}
+                    />
+                )}
+                {creationMode === 'ai' && (
+                    <CreateHabitStackWithAI
+                        onCreated={() => setCreationMode(null)}
+                        onCancel={() => setCreationMode(null)}
                     />
                 )}
             </AnimatePresence>
 
             {/* Today's Stacks */}
-            {todaysStacks.length > 0 && (
+            {todaysStacks.length > 0 && !creationMode && (
                 <div className="space-y-3">
                     {todaysStacks.map((stack) => (
                         <HabitStackCard key={stack.id} stack={stack} />
@@ -343,7 +599,7 @@ export function HabitStacksList() {
             )}
 
             {/* Completed Today */}
-            {completedToday.length > 0 && (
+            {completedToday.length > 0 && !creationMode && (
                 <div className="space-y-3">
                     <p className="text-overline text-[var(--color-success)]">✓ Completed today</p>
                     {completedToday.map((stack) => (
@@ -353,16 +609,16 @@ export function HabitStacksList() {
             )}
 
             {/* Empty State */}
-            {stacks.length === 0 && !isLoading && !isCreating && (
+            {stacks.length === 0 && !isLoading && !creationMode && (
                 <div className="glass-card p-8 text-center">
                     <LinkIcon className="w-12 h-12 text-[var(--text-tertiary)] mx-auto mb-4" />
                     <h4 className="font-medium mb-2">No habit stacks yet</h4>
                     <p className="text-caption mb-4">
                         Link new habits to existing ones for easy adoption
                     </p>
-                    <GlassButton variant="primary" onClick={() => setIsCreating(true)}>
+                    <GlassButton variant="primary" onClick={() => setCreationMode('ai')}>
                         <Plus className="w-4 h-4" />
-                        Create First Stack
+                        Create First Stack With AI
                     </GlassButton>
                 </div>
             )}
