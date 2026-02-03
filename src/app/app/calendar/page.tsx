@@ -8,7 +8,7 @@ import { GlassButton } from '@/components/ui/glass-button';
 import { GlassInput } from '@/components/ui/glass-input';
 import { WeekPlanner, PlanWeekFAB } from '@/components/week-planner';
 import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
-import { ChevronLeft, ChevronRight, Check, Minus, X, Sparkles, Calendar as CalendarIcon, AlertTriangle, ZapOff } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Minus, X, Sparkles, Calendar as CalendarIcon, AlertTriangle, ZapOff, Plus, Trash2 } from 'lucide-react';
 import type { ScheduleBlock, BlockStatus, Goal } from '@/types/database';
 import { useScheduleWatchdog } from '@/hooks/use-schedule-watchdog';
 import { useDailyLogStore, useUserStore } from '@/stores';
@@ -29,6 +29,8 @@ export default function CalendarPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [showWeekPlanner, setShowWeekPlanner] = useState(false);
     const [editingBlock, setEditingBlock] = useState<(ScheduleBlock & { goal?: Goal }) | null>(null);
+    const [creatingBlock, setCreatingBlock] = useState<{ start_time: string; end_time: string; context: string } | null>(null);
+    const [isOptimizing, setIsOptimizing] = useState(false);
 
     // Watchdog Integration
     const { profile } = useUserStore();
@@ -54,6 +56,49 @@ export default function CalendarPage() {
                 context: editingBlock.context
             })
             .eq('id', editingBlock.id);
+    };
+
+    const handleDeleteBlock = async () => {
+        if (!editingBlock) return;
+
+        // Optimistic delete
+        setBlocks(prev => prev.filter(b => b.id !== editingBlock.id));
+        setEditingBlock(null);
+
+        await supabase
+            .from('schedule_blocks')
+            .delete()
+            .eq('id', editingBlock.id);
+    };
+
+    const handleCreateBlock = async () => {
+        if (!creatingBlock) return;
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const newBlock = {
+            user_id: user.id,
+            date: format(selectedDate, 'yyyy-MM-dd'),
+            start_time: creatingBlock.start_time,
+            end_time: creatingBlock.end_time,
+            context: creatingBlock.context || 'New Task',
+            status: 'planned' as BlockStatus,
+            goal_id: null
+        };
+
+        // For smoother UX, we'll reload after insert or simulate the ID
+        const { data, error } = await supabase
+            .from('schedule_blocks')
+            .insert(newBlock)
+            .select()
+            .single();
+
+        if (data) {
+            setBlocks(prev => [...prev, data as any].sort((a, b) => a.start_time.localeCompare(b.start_time)));
+        }
+
+        setCreatingBlock(null);
     };
 
     useEffect(() => {
@@ -113,6 +158,56 @@ export default function CalendarPage() {
         setSelectedDate(new Date(selectedDate));
     };
 
+    const handleOptimizeDay = async () => {
+        setIsOptimizing(true);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            // Call API
+            const res = await fetch('/api/ai/optimize-day', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    date: format(selectedDate, 'yyyy-MM-dd'),
+                    blocks,
+                    energyLevel: todayLog?.energy_level || 3
+                })
+            });
+
+            if (!res.ok) throw new Error('Optimization failed');
+
+            const { data } = await res.json();
+
+            // Apply updates
+            const optimizedBlocks = data.optimizedBlocks;
+            const summary = data.summary;
+
+            // Optimistic update
+            const newBlocks = blocks.map(b => {
+                const opt = optimizedBlocks.find((o: any) => o.id === b.id);
+                return opt ? { ...b, start_time: opt.start_time, end_time: opt.end_time } : b;
+            }).sort((a, b) => a.start_time.localeCompare(b.start_time));
+
+            setBlocks(newBlocks);
+
+            // Persist to DB
+            await Promise.all(optimizedBlocks.map((opt: any) =>
+                supabase
+                    .from('schedule_blocks')
+                    .update({ start_time: opt.start_time, end_time: opt.end_time })
+                    .eq('id', opt.id)
+            ));
+
+            console.log("Optimized:", summary);
+
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsOptimizing(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -132,26 +227,37 @@ export default function CalendarPage() {
                             </p>
                         </div>
 
-                        <GlassButton
-                            variant="primary"
-                            onClick={() => setShowWeekPlanner(true)}
-                            className="shadow-lg"
-                        >
-                            <Sparkles className="w-4 h-4" />
-                            Plan Week
-                        </GlassButton>
-
-                        {hasConflicts && (
+                        <div className="flex items-center gap-2">
                             <GlassButton
-                                variant="danger"
-                                size="sm"
-                                onClick={() => {/* TODO: Implement Optimize */ }}
-                                className="ml-2 animate-pulse"
+                                variant="primary"
+                                onClick={() => setShowWeekPlanner(true)}
+                                className="shadow-lg"
                             >
-                                <Sparkles className="w-3 h-3" />
-                                Fix Conflicts
+                                <Sparkles className="w-4 h-4" />
+                                Plan Week
                             </GlassButton>
-                        )}
+
+                            <GlassButton
+                                variant="default"
+                                onClick={() => setCreatingBlock({ start_time: '09:00', end_time: '10:00', context: '' })}
+                            >
+                                <Plus className="w-4 h-4" />
+                                Add
+                            </GlassButton>
+
+                            {hasConflicts && (
+                                <GlassButton
+                                    variant="danger"
+                                    size="sm"
+                                    onClick={handleOptimizeDay}
+                                    loading={isOptimizing}
+                                    className="animate-pulse"
+                                >
+                                    <Sparkles className="w-3 h-3" />
+                                    Fix Conflicts
+                                </GlassButton>
+                            )}
+                        </div>
                     </div>
                 </div>
             </motion.div>
@@ -414,6 +520,12 @@ export default function CalendarPage() {
 
                             <div className="flex gap-2 pt-2">
                                 <GlassButton
+                                    variant="danger"
+                                    onClick={handleDeleteBlock}
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </GlassButton>
+                                <GlassButton
                                     className="flex-1"
                                     variant="ghost"
                                     onClick={() => setEditingBlock(null)}
@@ -432,6 +544,76 @@ export default function CalendarPage() {
                     </motion.div>
                 )}
             </AnimatePresence>
-        </div >
+
+            {/* Create Block Modal */}
+            <AnimatePresence>
+                {creatingBlock && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                        onClick={() => setCreatingBlock(null)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.95, y: 20 }}
+                            className="glass-card p-6 w-full max-w-md space-y-4"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <h3 className="text-lg font-bold">Add Block</h3>
+
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm text-[var(--text-secondary)]">Activity</label>
+                                    <GlassInput
+                                        value={creatingBlock.context}
+                                        onChange={(e) => setCreatingBlock({ ...creatingBlock, context: e.target.value })}
+                                        placeholder="What are you doing?"
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm text-[var(--text-secondary)]">Start</label>
+                                        <GlassInput
+                                            type="time"
+                                            value={creatingBlock.start_time}
+                                            onChange={(e) => setCreatingBlock({ ...creatingBlock, start_time: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-sm text-[var(--text-secondary)]">End</label>
+                                        <GlassInput
+                                            type="time"
+                                            value={creatingBlock.end_time}
+                                            onChange={(e) => setCreatingBlock({ ...creatingBlock, end_time: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-2 pt-2">
+                                <GlassButton
+                                    className="flex-1"
+                                    variant="ghost"
+                                    onClick={() => setCreatingBlock(null)}
+                                >
+                                    Cancel
+                                </GlassButton>
+                                <GlassButton
+                                    className="flex-1"
+                                    variant="primary"
+                                    onClick={handleCreateBlock}
+                                >
+                                    Create Block
+                                </GlassButton>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
     );
 }
