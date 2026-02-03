@@ -73,12 +73,12 @@ export function AIInsightCard({ onDismiss, className = '' }: AIInsightCardProps)
             >
                 <GlassCard className="relative overflow-hidden">
                     {/* AI Glow Effect */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-transparent to-purple-500/10 pointer-events-none" />
+                    <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 via-transparent to-red-500/10 pointer-events-none" />
 
                     {/* Header */}
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-400 to-purple-500 flex items-center justify-center">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center">
                                 <Sparkles className="w-4 h-4 text-white" />
                             </div>
                             <span className="text-sm font-medium text-[var(--text-secondary)]">
@@ -107,7 +107,7 @@ export function AIInsightCard({ onDismiss, className = '' }: AIInsightCardProps)
                     {/* Content */}
                     {loading ? (
                         <div className="flex items-center justify-center py-8">
-                            <Loader2 className="w-6 h-6 animate-spin text-cyan-400" />
+                            <Loader2 className="w-6 h-6 animate-spin text-orange-400" />
                             <span className="ml-2 text-sm text-[var(--text-secondary)]">Analyzing your day...</span>
                         </div>
                     ) : error ? (
@@ -128,14 +128,14 @@ export function AIInsightCard({ onDismiss, className = '' }: AIInsightCardProps)
 
                             {/* Focus Suggestion */}
                             <div className="flex items-start gap-2 p-3 rounded-lg bg-[var(--glass-bg)]">
-                                <ChevronRight className="w-4 h-4 text-cyan-400 mt-0.5 flex-shrink-0" />
+                                <ChevronRight className="w-4 h-4 text-orange-400 mt-0.5 flex-shrink-0" />
                                 <p className="text-sm text-[var(--text-primary)]">
                                     {insight.focusSuggestion}
                                 </p>
                             </div>
 
                             {/* Encouragement */}
-                            <p className="text-sm text-cyan-400 font-medium">
+                            <p className="text-sm text-orange-400 font-medium">
                                 {insight.encouragement}
                             </p>
                         </div>

@@ -80,7 +80,7 @@ export function MorningBriefing() {
                             {/* Background Ambient Glow */}
                             <div className={`absolute top-0 right-0 w-64 h-64 rounded-full opacity-20 blur-[100px] pointer-events-none 
                                 ${data.tone === 'energetic' ? 'bg-orange-500' :
-                                    data.tone === 'calm' ? 'bg-blue-500' : 'bg-purple-500'}`} />
+                                    data.tone === 'calm' ? 'bg-orange-500' : 'bg-purple-500'}`} />
 
                             <div className="relative z-10 space-y-8">
                                 {/* Header */}

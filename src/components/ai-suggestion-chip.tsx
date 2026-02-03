@@ -47,10 +47,10 @@ export function AISuggestionChip({
     if (dismissed) return null;
 
     const typeColors = {
-        goal: 'from-purple-500/20 to-cyan-500/20 border-purple-500/30',
-        habit: 'from-green-500/20 to-cyan-500/20 border-green-500/30',
-        task: 'from-orange-500/20 to-yellow-500/20 border-orange-500/30',
-        schedule: 'from-blue-500/20 to-cyan-500/20 border-blue-500/30',
+        goal: 'from-purple-500/20 to-orange-500/20 border-purple-500/30',
+        habit: 'from-green-500/20 to-orange-500/20 border-green-500/30',
+        task: 'from-red-500/20 to-orange-500/20 border-red-500/30',
+        schedule: 'from-orange-500/20 to-amber-500/20 border-orange-500/30',
     };
 
     const typeIcons = {
@@ -88,7 +88,7 @@ export function AISuggestionChip({
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 mb-0.5">
-                            <Sparkles className="w-3 h-3 text-cyan-400" />
+                            <Sparkles className="w-3 h-3 text-orange-400" />
                             <span className="text-xs text-[var(--text-tertiary)] uppercase tracking-wider">
                                 AI Suggestion
                             </span>

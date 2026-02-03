@@ -1,102 +1,98 @@
 @import "tailwindcss";
 
 /* ========================================
-   PlannrAI - Premium Design System V2
-   Apple-Inspired, Liquid Glass Aesthetic
+   PlannrAI - Lumix Theme V1
+   Deep Space, Vibrant Orange, Heavy Glass
    ======================================== */
 
 :root {
   /* ═══════════════════════════════════════
-     COLOR SYSTEM - Dark Mode First
+     COLOR SYSTEM - Lumix Dark Mode
      ═══════════════════════════════════════ */
 
-  /* Background Layers - Deep Space */
-  --color-bg-primary: hsl(240, 30%, 4%);
-  /* Darker, slightly more violet tint */
-  --color-bg-secondary: hsl(240, 25%, 8%);
-  --color-bg-tertiary: hsl(240, 20%, 12%);
-  --color-bg-elevated: hsl(240, 20%, 16%);
+  /* Background Layers - Abyssal */
+  --color-bg-primary: hsl(0, 0%, 3%);
+  /* True Black */
+  --color-bg-secondary: hsl(0, 0%, 6%);
+  /* Soft Black */
+  --color-bg-tertiary: hsl(15, 10%, 8%);
+  /* Warm Black */
+  --color-bg-elevated: hsl(15, 10%, 10%);
 
-  /* Glass System - Liquid Glass */
-  --glass-bg: rgba(20, 20, 30, 0.4);
-  /* Slightly tinted for depth */
-  --glass-bg-hover: rgba(30, 30, 45, 0.5);
-  --glass-bg-active: rgba(40, 40, 60, 0.6);
-  --glass-bg-elevated: rgba(25, 25, 40, 0.5);
+  /* Glass System - Heavy Magma Glass */
+  --glass-bg: rgba(20, 15, 15, 0.6);
+  /* Warmer tint */
+  --glass-bg-hover: rgba(35, 25, 25, 0.7);
+  --glass-bg-active: rgba(50, 30, 30, 0.8);
+  --glass-bg-elevated: rgba(30, 20, 20, 0.7);
   --glass-border: rgba(255, 255, 255, 0.08);
   --glass-border-subtle: rgba(255, 255, 255, 0.04);
-  --glass-border-hover: rgba(255, 255, 255, 0.15);
-  --glass-blur: 30px;
-  --glass-blur-intense: 50px;
+  --glass-border-hover: rgba(255, 91, 34, 0.3);
+  /* Orange Tint on Hover */
+  --glass-blur: 40px;
+  --glass-blur-intense: 60px;
 
-  /* Shadows - Luminance */
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.4), 0 0 0 1px inset rgba(255, 255, 255, 0.05);
-  --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 0 1px inset rgba(255, 255, 255, 0.05);
-  --shadow-xl: 0 40px 80px rgba(0, 0, 0, 0.7), 0 0 0 1px inset rgba(255, 255, 255, 0.05);
-  --shadow-glow: 0 0 30px rgba(56, 189, 248, 0.1);
-  --shadow-glow-intense: 0 0 50px rgba(56, 189, 248, 0.2);
+  /* Shadows - Warm Glows */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.8);
+  --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.6), 0 0 0 1px inset rgba(255, 255, 255, 0.05);
+  --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 0 1px inset rgba(255, 255, 255, 0.05);
+  --shadow-xl: 0 40px 80px rgba(0, 0, 0, 0.9), 0 0 0 1px inset rgba(255, 255, 255, 0.05);
+  --shadow-glow: 0 0 30px rgba(255, 91, 34, 0.15);
+  --shadow-glow-intense: 0 0 50px rgba(255, 91, 34, 0.3);
 
-  /* Primary - Starlight Cyan */
-  --color-primary: hsl(190, 100%, 50%);
-  --color-primary-hover: hsl(190, 100%, 60%);
-  --color-primary-soft: hsl(190, 80%, 40%);
-  --color-primary-muted: hsla(190, 100%, 50%, 0.1);
-  --color-primary-glow: hsla(190, 100%, 50%, 0.3);
+  /* Primary - Lumix Orange */
+  --color-primary: hsl(16, 100%, 55%);
+  /* #FF5B22 */
+  --color-primary-hover: hsl(16, 100%, 65%);
+  --color-primary-soft: hsl(16, 90%, 40%);
+  --color-primary-muted: hsla(16, 100%, 55%, 0.1);
+  --color-primary-glow: hsla(16, 100%, 55%, 0.4);
 
-  /* Category Accents - Nebula Colors */
-  --color-mind: hsl(260, 100%, 65%);
-  /* Electric Violet */
-  --color-mind-soft: hsla(260, 100%, 65%, 0.1);
-  --color-body: hsl(160, 100%, 45%);
-  /* Neon Mint */
-  --color-body-soft: hsla(160, 100%, 45%, 0.1);
-  --color-future: hsl(35, 100%, 60%);
-  /* Amber Burst */
-  --color-future-soft: hsla(35, 100%, 60%, 0.1);
+  /* Category Accents - Magma/Ember Colors */
+  --color-mind: hsl(270, 80%, 60%);
+  /* Deep Violet (remains for contrast) */
+  --color-mind-soft: hsla(270, 80%, 60%, 0.1);
+  --color-body: hsl(35, 100%, 50%);
+  /* Gold/Amber */
+  --color-body-soft: hsla(35, 100%, 50%, 0.1);
+  --color-future: hsl(200, 90%, 50%);
+  /* Ice Blue (for cool contrast) */
+  --color-future-soft: hsla(200, 90%, 50%, 0.1);
 
   /* Status Colors */
-  --color-success: hsl(150, 80%, 45%);
-  --color-success-soft: hsla(150, 80%, 45%, 0.1);
-  --color-warning: hsl(40, 90%, 50%);
-  --color-warning-soft: hsla(40, 90%, 50%, 0.1);
-  --color-error: hsl(350, 80%, 60%);
-  --color-error-soft: hsla(350, 80%, 60%, 0.1);
-  --color-muted: hsl(240, 10%, 40%);
+  --color-success: hsl(150, 90%, 40%);
+  --color-success-soft: hsla(150, 90%, 40%, 0.1);
+  --color-warning: hsl(40, 100%, 50%);
+  --color-warning-soft: hsla(40, 100%, 50%, 0.1);
+  --color-error: hsl(0, 90%, 60%);
+  --color-error-soft: hsla(0, 90%, 60%, 0.1);
+  --color-muted: hsl(240, 5%, 35%);
 
   /* Text Hierarchy */
-  --text-primary: hsl(0, 0%, 98%);
-  --text-secondary: hsl(0, 0%, 70%);
-  --text-tertiary: hsl(0, 0%, 50%);
+  --text-primary: hsl(0, 0%, 95%);
+  --text-secondary: hsl(0, 0%, 75%);
+  --text-tertiary: hsl(0, 0%, 55%);
   --text-muted: hsl(0, 0%, 35%);
 
   /* ═══════════════════════════════════════
-     TYPOGRAPHY - SF Pro Inspired
+     TYPOGRAPHY - SF Pro
      ═══════════════════════════════════════ */
 
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
   --font-display: var(--font-sans);
   --font-mono: "SF Mono", ui-monospace, monospace;
 
-  /* Type Scale - Major Third (1.25) */
+  /* Type Scale */
   --text-xs: 0.64rem;
-  /* 10.24px */
   --text-sm: 0.8rem;
-  /* 12.8px */
   --text-base: 1rem;
-  /* 16px */
   --text-lg: 1.25rem;
-  /* 20px */
   --text-xl: 1.563rem;
-  /* 25px */
   --text-2xl: 1.953rem;
-  /* 31.25px */
   --text-3xl: 2.441rem;
-  /* 39px */
   --text-4xl: 3.052rem;
-  /* 48.83px */
-  --text-display: 4rem;
-  /* 64px */
+  --text-display: 4.5rem;
+  /* Larger display */
 
   /* Font Weights */
   --font-light: 300;
@@ -119,66 +115,52 @@
   --leading-relaxed: 1.625;
 
   /* ═══════════════════════════════════════
-     SPACING & LAYOUT
+     SPACING
      ═══════════════════════════════════════ */
 
   --space-1: 0.25rem;
-  /* 4px */
   --space-2: 0.5rem;
-  /* 8px */
   --space-3: 0.75rem;
-  /* 12px */
   --space-4: 1rem;
-  /* 16px */
   --space-5: 1.25rem;
-  /* 20px */
   --space-6: 1.5rem;
-  /* 24px */
   --space-8: 2rem;
-  /* 32px */
   --space-10: 2.5rem;
-  /* 40px */
   --space-12: 3rem;
-  /* 48px */
   --space-16: 4rem;
-  /* 64px */
   --space-20: 5rem;
-  /* 80px */
 
-  /* Border Radius - Rounded */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
-  --radius-2xl: 28px;
+  /* Border Radius */
+  --radius-sm: 4px;
+  /* Sharper */
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
   --radius-full: 9999px;
 
   /* ═══════════════════════════════════════
-     MOTION - Fluid Animations
+     MOTION
      ═══════════════════════════════════════ */
 
-  /* Durations */
   --duration-instant: 50ms;
   --duration-fast: 150ms;
   --duration-normal: 250ms;
   --duration-slow: 400ms;
   --duration-slower: 600ms;
 
-  /* Easings - Apple-style */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-bounce: cubic-bezier(0.68, -0.55, 0.27, 1.55);
 
-  /* Composite Transitions */
   --transition-colors: color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
   --transition-transform: transform var(--duration-normal) var(--ease-spring);
   --transition-all: all var(--duration-normal) var(--ease-out);
 }
 
 /* ═══════════════════════════════════════
-   THEME CONFIG - CSS Custom Properties
-   (Tailwind v4 theme integration)
+   THEME CONFIG
    ═══════════════════════════════════════ */
 
 :root {
@@ -216,43 +198,32 @@ body {
   overflow-x: hidden;
 }
 
-/* Premium Ambient Background */
+/* Lumix Ambient Background (Lava Lamp Effect) */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -2;
   background:
-    radial-gradient(circle at 15% 15%, hsla(260, 40%, 20%, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 85% 15%, hsla(190, 40%, 20%, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 50% 50%, hsla(240, 40%, 15%, 0.1) 0%, transparent 60%),
-    radial-gradient(circle at 15% 85%, hsla(35, 30%, 15%, 0.1) 0%, transparent 50%),
-    radial-gradient(circle at 85% 85%, hsla(160, 30%, 15%, 0.1) 0%, transparent 50%);
+    radial-gradient(circle at 50% -20%, hsla(16, 60%, 40%, 0.15) 0%, transparent 60%),
+    /* Top Center Glow */
+    radial-gradient(circle at 10% 20%, hsla(350, 50%, 30%, 0.1) 0%, transparent 50%),
+    /* Top Left Red */
+    radial-gradient(circle at 90% 80%, hsla(30, 60%, 30%, 0.1) 0%, transparent 50%);
+  /* Bottom Right Gold */
   opacity: 1;
-  filter: blur(80px);
-  animation: nebulaPulse 10s ease-in-out infinite alternate;
+  filter: blur(100px);
+  animation: magmaPulse 15s ease-in-out infinite alternate;
 }
 
-@keyframes nebulaPulse {
+@keyframes magmaPulse {
   0% {
-    opacity: 0.8;
+    opacity: 0.6;
     transform: scale(1);
   }
 
   100% {
-    opacity: 1;
-    transform: scale(1.05);
-  }
-}
-
-@keyframes ambientShift {
-  0% {
-    opacity: 1;
-    transform: scale(1);
-  }
-
-  100% {
-    opacity: 0.7;
+    opacity: 0.9;
     transform: scale(1.1);
   }
 }
@@ -263,8 +234,9 @@ body::after {
   position: fixed;
   inset: 0;
   z-index: -1;
-  opacity: 0.015;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  /* Slightly more noise for grit */
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
   pointer-events: none;
 }
 
@@ -275,8 +247,8 @@ body::after {
 /* Base Glass */
 .glass {
   background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.2);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.1);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.1);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-xl);
   transition: var(--transition-all);
@@ -285,13 +257,14 @@ body::after {
 .glass:hover {
   background: var(--glass-bg-hover);
   border-color: var(--glass-border-hover);
+  box-shadow: 0 0 15px rgba(255, 91, 34, 0.05);
 }
 
 /* Elevated Glass Card */
 .glass-card {
   background: var(--glass-bg-elevated);
-  backdrop-filter: blur(var(--glass-blur-intense)) saturate(1.3);
-  -webkit-backdrop-filter: blur(var(--glass-blur-intense)) saturate(1.3);
+  backdrop-filter: blur(var(--glass-blur-intense)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--glass-blur-intense)) saturate(1.2);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-lg);
@@ -316,11 +289,11 @@ body::after {
 
 /* Glass with Primary Glow */
 .glass-primary {
-  border-color: hsla(195, 95%, 55%, 0.2);
+  border-color: hsla(16, 100%, 55%, 0.3);
 }
 
 .glass-primary:hover {
-  border-color: hsla(195, 95%, 55%, 0.4);
+  border-color: hsla(16, 100%, 55%, 0.5);
   box-shadow: var(--shadow-lg), var(--shadow-glow-intense);
 }
 
@@ -354,10 +327,10 @@ body::after {
   transform: scale(0.97);
 }
 
-/* Primary Button */
+/* Primary Button - Orange Gradient */
 .btn-primary {
   background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-soft) 100%);
-  color: hsl(222, 35%, 8%);
+  color: hsl(0, 0%, 98%);
   box-shadow: var(--shadow-md), 0 0 20px var(--color-primary-glow);
 }
 
@@ -468,7 +441,7 @@ body::after {
 }
 
 .text-gradient {
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-mind) 50%, var(--color-body) 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-mind) 60%, var(--color-body) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -582,7 +555,7 @@ body::after {
 
 ::selection {
   background: var(--color-primary-muted);
-  color: var(--text-primary);
+  color: white;
 }
 
 /* ═══════════════════════════════════════
@@ -602,7 +575,7 @@ body::after {
 /* Mobile adjustments */
 @media (max-width: 768px) {
   :root {
-    --glass-blur: 20px;
+    --glass-blur: 30px;
     --text-display: 2.5rem;
   }
 
@@ -672,7 +645,7 @@ body::after {
   inset: 0;
   background: linear-gradient(90deg,
       transparent 0%,
-      hsla(195, 100%, 70%, 0.05) 50%,
+      hsla(16, 100%, 70%, 0.1) 50%,
       transparent 100%);
   transform: translateX(-100%);
   animation: shimmer 3s ease-in-out infinite;

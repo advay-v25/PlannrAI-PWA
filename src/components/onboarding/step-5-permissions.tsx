@@ -30,7 +30,7 @@ export function Step5Permissions() {
                 />
 
                 <PermissionCard
-                    icon={<Network className="w-5 h-5 text-blue-400" />}
+                    icon={<Network className="w-5 h-5 text-orange-400" />}
                     title="Pattern Recognition"
                     description="Enable analysis of behavioral data to identify optimal working rhythms."
                     checked={data.ai_can_analyze}

@@ -36,7 +36,7 @@ const PRESET_GOALS = {
 const CATEGORIES = [
     { id: 'mind', label: 'Mind', icon: <Brain className="w-5 h-5" />, color: 'text-purple-400', bg: 'bg-purple-900/20', border: 'border-purple-500/30' },
     { id: 'body', label: 'Body', icon: <Dumbbell className="w-5 h-5" />, color: 'text-orange-400', bg: 'bg-orange-900/20', border: 'border-orange-500/30' },
-    { id: 'future', label: 'Future', icon: <Rocket className="w-5 h-5" />, color: 'text-blue-400', bg: 'bg-blue-900/20', border: 'border-blue-500/30' },
+    { id: 'future', label: 'Future', icon: <Rocket className="w-5 h-5" />, color: 'text-amber-400', bg: 'bg-amber-900/20', border: 'border-amber-500/30' },
 ];
 
 export function Step3Goals() {
