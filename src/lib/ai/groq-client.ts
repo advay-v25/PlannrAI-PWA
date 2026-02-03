@@ -704,12 +704,29 @@ interface YesterdayLog {
     wins?: string[];
 }
 
+interface StagnantGoal {
+    title: string;
+    days_inactive: number;
+}
+
+interface HabitStreak {
+    name: string;
+    streak: number;
+}
+
+interface OverdueTask {
+    title: string;
+}
+
 export async function generateMorningBriefing(
     data: {
         userName: string;
         blocks: DailyBlock[];
         goals: DailyGoal[];
         yesterdayLog?: YesterdayLog;
+        stagnantGoals?: StagnantGoal[];
+        highStreaks?: HabitStreak[];
+        overdueTasks?: OverdueTask[];
     },
     userId: string
 ): Promise<{
@@ -726,33 +743,44 @@ export async function generateMorningBriefing(
     const hasMindGoal = data.goals.some(g => g.category === 'mind');
 
     const prompt = `
+YOU ARE DONNA PAULSEN: The sharp, witty, high-EQ executive assistant from Suits.
+Your boss (the user) relies on you to see around corners.
+
+CONTEXT:
 User: ${data.userName}
 Date: ${new Date().toLocaleDateString()}
 
-Schedule Today:
-${data.blocks.map(b => `- ${b.start_time}: ${b.context || 'Task'} (${b.id})`).join('\n') || 'No blocks scheduled.'}
+SCHEDULE TODAY:
+${data.blocks.map(b => `- ${b.start_time}: ${b.context || 'Task'} (${b.id})`).join('\n') || 'Open schedule today.'}
 
-Active Goals (High Priority):
-${data.goals.filter(g => g.importance === 'high').map(g => `- ${g.title} [${g.category}]`).join('\n') || 'None.'}
+YESTERDAY'S VIBE:
+${data.yesterdayLog ? `Energy: ${data.yesterdayLog.energy_level}/5. Wins: ${data.yesterdayLog.wins?.join(', ') || 'None recorded'}.` : 'No data logged.'}
 
-All Goals:
-${data.goals.map(g => `- ${g.title} [${g.category}] ${g.notes ? `(Notes: ${g.notes})` : ''}`).join('\n') || 'None.'}
+PROACTIVE INTELLIGENCE (Signals to act on):
+${data.stagnantGoals && data.stagnantGoals.length > 0 ? `⚠️ STAGNATION ALERT: ${data.stagnantGoals.map(g => `"${g.title}" untouched for ${g.days_inactive} days`).join(', ')}.` : ''}
+${data.highStreaks && data.highStreaks.length > 0 ? `🔥 ON FIRE: ${data.highStreaks.map(h => `"${h.name}" (${h.streak} day streak)`).join(', ')}.` : ''}
+${data.overdueTasks && data.overdueTasks.length > 0 ? `🛑 OVERDUE: ${data.overdueTasks.map(t => `"${t.title}"`).join(', ')}.` : ''}
 
-Yesterday's Context:
-${data.yesterdayLog ? `Energy: ${data.yesterdayLog.energy_level}/5. Wins: ${data.yesterdayLog.wins?.join(', ')}` : 'No data.'}
+GOALS:
+${data.goals.map(g => `- ${g.title} [${g.category}]`).join('\n')}
 
-Goal Focus Areas: ${hasBodyGoal ? 'Body/Fitness' : ''} ${hasMindGoal ? 'Mind/Learning' : ''}
+YOUR MISSION:
+Generate a morning briefing that feels like YOU walking into my office.
+1. Greeting: Personal, sharp.
+2. Insight: Connect the dots. (e.g., "Your energy was low yesterday, maybe push the gym to tomorrow?" or "You're on a roll with meditation, keep that momentum.")
+3. Tone: "energetic" | "calm" | "focused" based on the context.
+4. Priorities: The 3 things that actually matter today.
 
-Generate a personalized morning briefing as JSON with these fields:
-- greeting: Warm, personalized greeting
-- agenda: Array of {time, task, status} for today's blocks
-- priorities: Top 3 things to focus on today
-- insight: One motivational insight based on yesterday and goals
-- tone: "calm", "energetic", or "focused"
-- suggestedBreakfast: A healthy breakfast idea that supports their goals (high protein if body goals, brain-boosting if mind goals)
-- morningRoutineTips: Array of 2-3 quick morning routine tips to start the day right based on their goals
-
-Return ONLY valid JSON.
+Return JSON:
+{
+  "greeting": "string",
+  "agenda": [{"time": "HH:MM", "task": "string", "status": "planned"}],
+  "priorities": ["string"],
+  "insight": "string",
+  "tone": "string",
+  "suggestedBreakfast": "string",
+  "morningRoutineTips": ["string"]
+}
 `;
 
     try {

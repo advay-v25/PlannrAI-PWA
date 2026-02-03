@@ -49,12 +49,47 @@ export async function POST(request: Request) {
             .eq('log_date', yesterdayStr)
             .single();
 
-        // 5. Generate Briefing
+        // 5. Get Stagnant Goals (Not updated in 7 days)
+        const sevenDaysAgo = subDays(new Date(), 7).toISOString();
+        const { data: stagnantGoals } = await supabase
+            .from('goals')
+            .select('title, updated_at')
+            .eq('user_id', user.id)
+            .eq('is_paused', false)
+            .lt('updated_at', sevenDaysAgo);
+
+        // 6. Get High Streaks
+        const { data: habitStacks } = await supabase
+            .from('habit_stacks')
+            .select('action_habit, current_streak')
+            .eq('user_id', user.id)
+            .gte('current_streak', 3);
+
+        // 7. Get Overdue Tasks (from yesterday)
+        const { data: overdueBlocks } = await supabase
+            .from('schedule_blocks')
+            .select('context')
+            .eq('user_id', user.id)
+            .eq('date', yesterdayStr)
+            .neq('status', 'done');
+
+        // 8. Generate Briefing
         const briefing = await generateMorningBriefing({
             userName,
             blocks: blocks || [],
             goals: goals || [],
-            yesterdayLog
+            yesterdayLog,
+            stagnantGoals: stagnantGoals?.map(g => ({
+                title: g.title,
+                days_inactive: Math.floor((new Date().getTime() - new Date(g.updated_at).getTime()) / (1000 * 60 * 60 * 24))
+            })) || [],
+            highStreaks: habitStacks?.map(h => ({
+                name: h.action_habit,
+                streak: h.current_streak
+            })) || [],
+            overdueTasks: overdueBlocks?.map(b => ({
+                title: b.context || 'Untitled Task'
+            })) || []
         }, user.id);
 
         return NextResponse.json({ success: true, briefing });
