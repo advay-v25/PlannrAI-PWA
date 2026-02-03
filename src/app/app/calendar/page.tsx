@@ -8,8 +8,10 @@ import { GlassButton } from '@/components/ui/glass-button';
 import { GlassInput } from '@/components/ui/glass-input';
 import { WeekPlanner, PlanWeekFAB } from '@/components/week-planner';
 import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
-import { ChevronLeft, ChevronRight, Check, Minus, X, Sparkles, Calendar as CalendarIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Minus, X, Sparkles, Calendar as CalendarIcon, AlertTriangle, ZapOff } from 'lucide-react';
 import type { ScheduleBlock, BlockStatus, Goal } from '@/types/database';
+import { useScheduleWatchdog } from '@/hooks/use-schedule-watchdog';
+import { useDailyLogStore, useUserStore } from '@/stores';
 
 const STATUS_CONFIG: Record<BlockStatus, { icon: React.ReactNode; color: string; label: string }> = {
     planned: { icon: null, color: 'var(--color-text-muted)', label: 'Planned' },
@@ -27,6 +29,15 @@ export default function CalendarPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [showWeekPlanner, setShowWeekPlanner] = useState(false);
     const [editingBlock, setEditingBlock] = useState<(ScheduleBlock & { goal?: Goal }) | null>(null);
+
+    // Watchdog Integration
+    const { profile } = useUserStore();
+    const { todayLog } = useDailyLogStore();
+    const { conflicts, hasConflicts } = useScheduleWatchdog({
+        blocks,
+        energyLevel: isSameDay(selectedDate, new Date()) ? todayLog?.energy_level : undefined,
+        lowEnergyMode: profile?.low_energy_mode
+    });
 
     const handleUpdateBlock = async () => {
         if (!editingBlock) return;
@@ -129,6 +140,18 @@ export default function CalendarPage() {
                             <Sparkles className="w-4 h-4" />
                             Plan Week
                         </GlassButton>
+
+                        {hasConflicts && (
+                            <GlassButton
+                                variant="danger"
+                                size="sm"
+                                onClick={() => {/* TODO: Implement Optimize */ }}
+                                className="ml-2 animate-pulse"
+                            >
+                                <Sparkles className="w-3 h-3" />
+                                Fix Conflicts
+                            </GlassButton>
+                        )}
                     </div>
                 </div>
             </motion.div>
@@ -224,6 +247,10 @@ export default function CalendarPage() {
                                     ? 'var(--color-body)'
                                     : 'var(--color-future)';
 
+                            const conflict = conflicts.find(c => c.blockId === block.id);
+                            const isOverlap = conflict?.type === 'overlap';
+                            const isEnergyIssue = conflict?.type === 'energy_mismatch';
+
                             return (
                                 <motion.div
                                     key={block.id}
@@ -232,7 +259,14 @@ export default function CalendarPage() {
                                     transition={{ delay: index * 0.05 }}
                                     className={`transition-opacity ${block.status === 'missed' ? 'opacity-50' : ''}`}
                                 >
-                                    <GlassCard padding="md">
+                                    <GlassCard
+                                        padding="md"
+                                        className={`
+                                            transition-all duration-300
+                                            ${isOverlap ? 'ring-2 ring-[var(--color-error)] border-[var(--color-error)]/20' : ''}
+                                            ${isEnergyIssue ? 'ring-2 ring-[var(--color-warning)] border-[var(--color-warning)]/20' : ''}
+                                        `}
+                                    >
                                         <div
                                             className="flex items-start gap-4 cursor-pointer"
                                             onClick={() => setEditingBlock(block)}
@@ -258,6 +292,13 @@ export default function CalendarPage() {
                                                     <p className="text-sm text-[var(--text-tertiary)] mt-0.5">
                                                         {block.context}
                                                     </p>
+                                                )}
+                                                {conflict && (
+                                                    <div className={`flex items-center gap-1 mt-1 text-xs font-medium 
+                                                        ${isOverlap ? 'text-[var(--color-error)]' : 'text-[var(--color-warning)]'}`}>
+                                                        {isOverlap ? <AlertTriangle className="w-3 h-3" /> : <ZapOff className="w-3 h-3" />}
+                                                        {conflict.message}
+                                                    </div>
                                                 )}
                                             </div>
 
@@ -391,6 +432,6 @@ export default function CalendarPage() {
                     </motion.div>
                 )}
             </AnimatePresence>
-        </div>
+        </div >
     );
 }
