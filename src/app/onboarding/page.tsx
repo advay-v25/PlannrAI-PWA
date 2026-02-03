@@ -55,6 +55,8 @@ export default function OnboardingPage() {
                 .from('profiles')
                 .upsert({
                     id: user.id,
+                    full_name: data.full_name,
+                    preferred_name: data.full_name?.split(' ')[0] || data.full_name, // First name for greeting
                     timezone: data.timezone,
                     sleep_start: data.sleep_start,
                     sleep_end: data.sleep_end,
