@@ -166,16 +166,48 @@ export default function SettingsPage() {
                     <h2 className="font-medium">Profile</h2>
                 </div>
 
-                <GlassCard padding="md">
-                    <div className="flex items-center gap-3">
+                <GlassCard padding="md" className="space-y-4">
+                    <div className="flex items-center gap-3 pb-4 border-b border-[var(--glass-border)]">
                         <div className="w-12 h-12 rounded-full bg-[var(--color-primary)]/20 flex items-center justify-center">
                             <User className="w-6 h-6 text-[var(--color-primary)]" />
                         </div>
                         <div>
-                            <p className="font-medium">{profile?.full_name || userEmail}</p>
+                            <p className="font-medium">{profile?.preferred_name || profile?.full_name || userEmail}</p>
                             <p className="text-sm text-[var(--color-text-muted)]">
-                                {userEmail} • {userEmail.includes('gmail') ? 'Google' : 'Email'}
+                                {userEmail}
                             </p>
+                        </div>
+                    </div>
+
+                    {/* Editable Name Fields */}
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm text-[var(--color-text-secondary)] mb-2">
+                                What should I call you?
+                            </label>
+                            <input
+                                type="text"
+                                value={profile?.preferred_name || ''}
+                                onChange={(e) => handleUpdate({ preferred_name: e.target.value })}
+                                placeholder="e.g., Advay"
+                                className="w-full px-3 py-2 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]"
+                            />
+                            <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                                Used in greetings like "Good morning, {profile?.preferred_name || 'Friend'}"
+                            </p>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm text-[var(--color-text-secondary)] mb-2">
+                                Full name
+                            </label>
+                            <input
+                                type="text"
+                                value={profile?.full_name || ''}
+                                onChange={(e) => handleUpdate({ full_name: e.target.value })}
+                                placeholder="Your full name"
+                                className="w-full px-3 py-2 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]"
+                            />
                         </div>
                     </div>
                 </GlassCard>
