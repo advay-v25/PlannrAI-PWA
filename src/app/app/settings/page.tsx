@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useUserStore } from '@/stores';
+import { useToast } from '@/components/ui/toast';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
 import { GlassToggle, GlassSlider } from '@/components/ui/glass-toggle';
@@ -28,11 +29,17 @@ import type { Profile } from '@/types/database';
 export default function SettingsPage() {
     const router = useRouter();
     const supabase = createClient();
+    const { showToast } = useToast();
     const { profile, setProfile, updateProfile } = useUserStore();
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [isSigningOut, setIsSigningOut] = useState(false);
     const [userEmail, setUserEmail] = useState('');
     const [aiUsage, setAiUsage] = useState<{ daily: number; monthly: number; limit: number } | null>(null);
+
+    // Local state for debounced inputs
+    const [localPreferredName, setLocalPreferredName] = useState('');
+    const [localFullName, setLocalFullName] = useState('');
 
     useEffect(() => {
         async function loadData() {
@@ -47,7 +54,11 @@ export default function SettingsPage() {
                 .eq('id', user.id)
                 .single();
 
-            if (data) setProfile(data);
+            if (data) {
+                setProfile(data);
+                setLocalPreferredName(data.preferred_name || '');
+                setLocalFullName(data.full_name || '');
+            }
 
             // Fetch AI usage
             try {
@@ -79,9 +90,12 @@ export default function SettingsPage() {
         }
 
         setIsSaving(false);
+        showToast('✅ Settings saved', 'success');
     };
 
     const handleSignOut = async () => {
+        setIsSigningOut(true);
+        showToast('👋 Signing out...', 'info');
         await supabase.auth.signOut();
         router.push('/login');
     };
@@ -114,6 +128,7 @@ export default function SettingsPage() {
         a.download = `plannrai-export-${new Date().toISOString().split('T')[0]}.json`;
         a.click();
         URL.revokeObjectURL(url);
+        showToast('📦 Data exported!', 'success');
     };
 
     const handleDeleteAccount = async () => {
@@ -139,7 +154,7 @@ export default function SettingsPage() {
             window.location.href = '/login';
         } catch (error) {
             console.error('Delete failed:', error);
-            alert('Failed to delete account. Please try again.');
+            showToast('Failed to delete account', 'error');
         }
     };
 
@@ -189,13 +204,18 @@ export default function SettingsPage() {
                             </label>
                             <input
                                 type="text"
-                                value={profile?.preferred_name || ''}
-                                onChange={(e) => handleUpdate({ preferred_name: e.target.value })}
+                                value={localPreferredName}
+                                onChange={(e) => setLocalPreferredName(e.target.value)}
+                                onBlur={() => {
+                                    if (localPreferredName !== (profile?.preferred_name || '')) {
+                                        handleUpdate({ preferred_name: localPreferredName });
+                                    }
+                                }}
                                 placeholder="e.g., Advay"
-                                className="w-full px-3 py-2 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]"
+                                className="w-full px-3 py-2 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:ring-1 focus:ring-[var(--color-primary)] transition-all"
                             />
                             <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                                Used in greetings like "Good morning, {profile?.preferred_name || 'Friend'}"
+                                Used in greetings like "Good morning, {localPreferredName || 'Friend'}"
                             </p>
                         </div>
 
@@ -205,10 +225,15 @@ export default function SettingsPage() {
                             </label>
                             <input
                                 type="text"
-                                value={profile?.full_name || ''}
-                                onChange={(e) => handleUpdate({ full_name: e.target.value })}
+                                value={localFullName}
+                                onChange={(e) => setLocalFullName(e.target.value)}
+                                onBlur={() => {
+                                    if (localFullName !== (profile?.full_name || '')) {
+                                        handleUpdate({ full_name: localFullName });
+                                    }
+                                }}
                                 placeholder="Your full name"
-                                className="w-full px-3 py-2 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]"
+                                className="w-full px-3 py-2 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:ring-1 focus:ring-[var(--color-primary)] transition-all"
                             />
                         </div>
                     </div>
@@ -361,6 +386,7 @@ export default function SettingsPage() {
             <GlassButton
                 variant="ghost"
                 onClick={handleSignOut}
+                loading={isSigningOut}
                 className="w-full"
             >
                 <LogOut className="w-4 h-4" />

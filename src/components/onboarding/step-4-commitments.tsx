@@ -4,26 +4,24 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOnboardingStore } from '@/stores';
 import { Plus, X, Anchor } from 'lucide-react';
-import { CommitmentModal } from '@/components/goals/commitment-modal'; // Assuming this uses DB, but for onboarding we need local store update
-// Wait, the shared CommitmentModal writes to DB directly.
-// We need it to either support local update or we accept DB writes during Onboarding (User is Auth'd).
-// Manifest says: "Persist progress immediately after login". So writing to DB is fine/good.
-// However, the OnboardingStore holds state. We should sync the store after DB write.
-// I'll assume CommitmentModal has an `onSuccess` prop.
+import { CommitmentModal } from '@/components/goals/commitment-modal';
 
 export function Step4Commitments() {
-    const { data, addCommitment, removeCommitment } = useOnboardingStore(); // We'll need to fetch real commitments if we want to show them from DB
-    // Actually, OnboardingStore has `commitments` array.
-    // If we use the shared modal which writes to DB, we should also update the local store to reflect it in UI.
-
+    const { data, addCommitment, removeCommitment } = useOnboardingStore();
     const [isAdding, setIsAdding] = useState(false);
 
-    // Mock refreshing from DB or just using the store's addCommitment
-    // Since the Modal writes to DB, we can manually add to store for UI display.
-    // We'll pass a hacky "onSuccess" to fetch or just manual push.
-
-    // Correction: I should update CommitmentModal to allow "onSave" override like AddGoalModal if I wanted pure local state,
-    // but DB persistence is preferred. So I will just add to local store after success.
+    const handleCommitmentSuccess = (commitmentData: {
+        title: string;
+        start_time: string;
+        end_time: string;
+        days_of_week: number[];
+    }) => {
+        // Sync the saved commitment to the OnboardingStore for display
+        addCommitment({
+            ...commitmentData,
+            is_active: true,
+        });
+    };
 
     return (
         <div className="h-full flex flex-col items-center w-full max-w-2xl mx-auto">
@@ -56,10 +54,8 @@ export function Step4Commitments() {
                                 </p>
                             </div>
                             <button
-                                onClick={() => removeCommitment(i)} // This only removes from store. DB deletion?
-                                // For MVP Onboarding, let's assume valid flow. 
-                                // Real app would need sync. I'll stick to store manipulation ensuring visual correctness.
-                                className="p-2 hover:bg-white/10 rounded-full transition-colors hidden group-hover:block"
+                                onClick={() => removeCommitment(i)}
+                                className="p-2 hover:bg-white/10 rounded-full transition-colors opacity-0 group-hover:opacity-100"
                             >
                                 <X className="w-4 h-4 text-red-400" />
                             </button>
@@ -85,11 +81,7 @@ export function Step4Commitments() {
                 {isAdding && (
                     <CommitmentModal
                         onClose={() => setIsAdding(false)}
-                    // We need to capture the data to update the local store too
-                    // Ideally CommitmentModal returns the data it saved
-                    // I'll assume for now I can just refetch or ignore local sync mismatch since we navigate away soon
-                    // BETTER: Update CommitmentModal to support onSave override too? 
-                    // Or just modify Implementation 
+                        onSuccess={handleCommitmentSuccess}
                     />
                 )}
             </AnimatePresence>

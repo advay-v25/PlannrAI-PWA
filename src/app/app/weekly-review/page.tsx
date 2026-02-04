@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
+import { useToast } from '@/components/ui/toast';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
 import {
@@ -21,6 +22,7 @@ import type { WeeklyReview, ReviewResponse } from '@/types/database';
 
 export default function WeeklyReviewPage() {
     const supabase = createClient();
+    const { showToast } = useToast();
     const [review, setReview] = useState<WeeklyReview | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
@@ -68,11 +70,14 @@ export default function WeeklyReviewPage() {
             const data = await response.json();
             if (data.review) {
                 setReview(data.review);
+                showToast('✨ Review generated!', 'success');
             } else {
                 setError('Failed to generate review');
+                showToast('Failed to generate review', 'error');
             }
         } catch (err) {
             setError('Failed to generate review');
+            showToast('Failed to generate review', 'error');
         } finally {
             setIsGenerating(false);
         }
@@ -87,6 +92,13 @@ export default function WeeklyReviewPage() {
             .from('weekly_reviews')
             .update({ user_response: response })
             .eq('id', review.id);
+
+        const responseLabels = {
+            accepted: '✅ Suggestion accepted',
+            edited: '✏️ Marked for editing',
+            ignored: '⏭️ Skipped'
+        };
+        showToast(responseLabels[response], 'info');
     };
 
     const getTrendIcon = (trend: string) => {

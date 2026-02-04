@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { GlassButton } from '@/components/ui/glass-button';
 import { GlassInput } from '@/components/ui/glass-input';
+import { useToast } from '@/components/ui/toast';
 import { Anchor, Clock, CalendarDays, X, Check } from 'lucide-react';
 
 const DAYS = [
@@ -17,11 +18,24 @@ const DAYS = [
     { id: 0, label: 'S' },
 ];
 
-export function CommitmentModal({ onClose, onSuccess }: { onClose: () => void, onSuccess?: () => void }) {
+interface CommitmentData {
+    title: string;
+    start_time: string;
+    end_time: string;
+    days_of_week: number[];
+}
+
+interface CommitmentModalProps {
+    onClose: () => void;
+    onSuccess?: (data: CommitmentData) => void;
+}
+
+export function CommitmentModal({ onClose, onSuccess }: CommitmentModalProps) {
     const supabase = createClient();
+    const { showToast } = useToast();
     const [title, setTitle] = useState('');
     const [startTime, setStartTime] = useState('09:00');
-    const [duration, setDuration] = useState(60); // minutes
+    const [endTime, setEndTime] = useState('10:00');
     const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5]);
     const [loading, setLoading] = useState(false);
 
@@ -33,36 +47,67 @@ export function CommitmentModal({ onClose, onSuccess }: { onClose: () => void, o
         }
     };
 
+    // Validate end time is after start time
+    const isValidTimeRange = () => {
+        const [startH, startM] = startTime.split(':').map(Number);
+        const [endH, endM] = endTime.split(':').map(Number);
+        const startMinutes = startH * 60 + startM;
+        const endMinutes = endH * 60 + endM;
+        return endMinutes > startMinutes;
+    };
+
     const handleSubmit = async () => {
-        if (!title.trim() || selectedDays.length === 0) return;
+        if (!title.trim()) {
+            showToast('Please enter a title', 'error');
+            return;
+        }
+        if (selectedDays.length === 0) {
+            showToast('Please select at least one day', 'error');
+            return;
+        }
+        if (!isValidTimeRange()) {
+            showToast('End time must be after start time', 'error');
+            return;
+        }
+
         setLoading(true);
 
         try {
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+            if (!user) {
+                showToast('Not authenticated', 'error');
+                return;
+            }
 
-            // Calculate end time
-            const [hours, minutes] = startTime.split(':').map(Number);
-            const totalStartMins = hours * 60 + minutes;
-            const totalEndMins = totalStartMins + duration;
-            const endHour = Math.floor(totalEndMins / 60) % 24;
-            const endMinute = totalEndMins % 60;
-            const endTime = `${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}`;
-
-            const { error } = await supabase.from('commitments').insert({
-                user_id: user.id,
-                title,
+            const commitmentData: CommitmentData = {
+                title: title.trim(),
                 start_time: startTime,
                 end_time: endTime,
                 days_of_week: selectedDays,
+            };
+
+            const { error } = await supabase.from('commitments').insert({
+                user_id: user.id,
+                title: commitmentData.title,
+                start_time: commitmentData.start_time,
+                end_time: commitmentData.end_time,
+                days_of_week: commitmentData.days_of_week,
                 is_active: true
             });
 
             if (error) throw error;
-            if (onSuccess) onSuccess();
+
+            showToast('⚓ Anchor set!', 'success');
+
+            // Callback with the data for store sync
+            if (onSuccess) {
+                onSuccess(commitmentData);
+            }
+
             onClose();
         } catch (e) {
             console.error(e);
+            showToast('Failed to save anchor', 'error');
         } finally {
             setLoading(false);
         }
@@ -80,9 +125,11 @@ export function CommitmentModal({ onClose, onSuccess }: { onClose: () => void, o
                 <div className="flex justify-between items-center mb-6">
                     <div className="flex items-center gap-2">
                         <Anchor className="w-5 h-5 text-[var(--color-primary)]" />
-                        <h2 className="text-xl font-bold">New Commitment</h2>
+                        <h2 className="text-xl font-bold">New Anchor</h2>
                     </div>
-                    <button onClick={onClose}><X className="w-5 h-5 opacity-50 hover:opacity-100" /></button>
+                    <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/10 transition-colors">
+                        <X className="w-5 h-5 opacity-50 hover:opacity-100" />
+                    </button>
                 </div>
 
                 <div className="space-y-6">
@@ -97,7 +144,7 @@ export function CommitmentModal({ onClose, onSuccess }: { onClose: () => void, o
                         />
                     </div>
 
-                    {/* Time & Duration */}
+                    {/* Time Range - Start and End */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <label className="text-xs uppercase text-[var(--text-tertiary)] font-bold flex items-center gap-1">
@@ -107,28 +154,25 @@ export function CommitmentModal({ onClose, onSuccess }: { onClose: () => void, o
                                 type="time"
                                 value={startTime}
                                 onChange={(e) => setStartTime(e.target.value)}
-                                className="w-full bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-xl p-3 text-center text-lg font-mono outline-none focus:border-[var(--color-primary)]"
+                                className="w-full bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-xl p-3 text-center text-lg font-mono outline-none focus:border-[var(--color-primary)] transition-colors"
                             />
                         </div>
                         <div className="space-y-2">
                             <label className="text-xs uppercase text-[var(--text-tertiary)] font-bold flex items-center gap-1">
-                                <Clock className="w-3 h-3" /> Duration
+                                <Clock className="w-3 h-3" /> End Time
                             </label>
-                            <select
-                                value={duration}
-                                onChange={(e) => setDuration(Number(e.target.value))}
-                                className="w-full bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-xl p-3 outline-none focus:border-[var(--color-primary)] appearance-none"
-                            >
-                                <option value={15}>15m</option>
-                                <option value={30}>30m</option>
-                                <option value={45}>45m</option>
-                                <option value={60}>1h</option>
-                                <option value={90}>1.5h</option>
-                                <option value={120}>2h</option>
-                                <option value={180}>3h</option>
-                                <option value={240}>4h</option>
-                                <option value={480}>8h</option>
-                            </select>
+                            <input
+                                type="time"
+                                value={endTime}
+                                onChange={(e) => setEndTime(e.target.value)}
+                                className={`w-full bg-[var(--glass-bg)] border rounded-xl p-3 text-center text-lg font-mono outline-none transition-colors ${!isValidTimeRange() && endTime !== startTime
+                                        ? 'border-red-500/50 focus:border-red-500'
+                                        : 'border-[var(--glass-border)] focus:border-[var(--color-primary)]'
+                                    }`}
+                            />
+                            {!isValidTimeRange() && endTime !== startTime && (
+                                <p className="text-xs text-red-400">End time must be after start</p>
+                            )}
                         </div>
                     </div>
 
@@ -160,7 +204,7 @@ export function CommitmentModal({ onClose, onSuccess }: { onClose: () => void, o
                         variant="primary"
                         className="w-full py-4 text-base mt-2"
                         onClick={handleSubmit}
-                        disabled={!title || selectedDays.length === 0 || loading}
+                        disabled={!title.trim() || selectedDays.length === 0 || !isValidTimeRange() || loading}
                         loading={loading}
                     >
                         <Check className="w-4 h-4 mr-2" />

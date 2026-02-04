@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { useGoalsStore, useUserStore } from '@/stores';
+import { useToast } from '@/components/ui/toast';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
 import { AddGoalModal } from '@/components/goals/add-goal-modal';
@@ -41,6 +42,7 @@ export default function GoalsPage() {
     const supabase = createClient();
     const { goals, setGoals, addGoal, updateGoal, removeGoal, setLoading } = useGoalsStore();
     const { profile } = useUserStore();
+    const { showToast } = useToast();
 
     // UI State
     const [isAdding, setIsAdding] = useState(false);
@@ -116,6 +118,12 @@ export default function GoalsPage() {
     const handleUpdate = async (id: string, updates: Partial<Goal>) => {
         // Optimistic
         updateGoal(id, updates);
+
+        // Show feedback for significant updates
+        if ('status' in updates) {
+            showToast(updates.status === 'paused' ? '⏸️ Goal paused' : '▶️ Goal resumed', 'info');
+        }
+
         // DB
         await supabase.from('goals').update(updates).eq('id', id);
     };
@@ -124,6 +132,7 @@ export default function GoalsPage() {
         if (!confirm('Are you sure you want to delete this goal?')) return;
         removeGoal(id);
         await supabase.from('goals').delete().eq('id', id);
+        showToast('🗑️ Goal deleted', 'info');
     };
 
     return (
@@ -232,6 +241,11 @@ export default function GoalsPage() {
                         goal={selectedStrategyGoal}
                         isOpen={true}
                         onClose={() => setSelectedStrategyGoal(null)}
+                        onStrategyGenerated={(strategy) => {
+                            if (selectedStrategyGoal) {
+                                updateGoal(selectedStrategyGoal.id, { ai_strategy: strategy });
+                            }
+                        }}
                     />
                 )}
             </AnimatePresence>
@@ -265,13 +279,25 @@ function GoalCard({ goal, isExpanded, onExpand, onUpdate, onDelete, onStrategy, 
                 <div className="flex items-center gap-3">
                     <div className={`w-1 h-8 rounded-full`} style={{ backgroundColor: isPaused ? 'var(--text-disabled)' : pillarColor }} />
                     <div>
-                        <h3 className={`font-medium ${isPaused ? 'text-[var(--text-tertiary)] line-through' : ''}`}>{goal.title}</h3>
+                        <div className="flex items-center gap-2">
+                            <h3 className={`font-medium ${isPaused ? 'text-[var(--text-tertiary)] line-through' : ''}`}>{goal.title}</h3>
+                            {goal.ai_strategy && Object.keys(goal.ai_strategy).length > 0 && (
+                                <span className="px-1.5 py-0.5 text-[8px] uppercase font-bold bg-[var(--color-primary)]/20 text-[var(--color-primary)] rounded" title="AI Strategy Active">
+                                    AI
+                                </span>
+                            )}
+                        </div>
                         {!isExpanded && (
                             <div className="flex items-center gap-2 text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider mt-0.5">
                                 <span>{goal.minutes_per_day}m</span>
                                 <span>·</span>
                                 <span>{goal.energy_demand}</span>
                                 {isPaused && <span className="text-[var(--color-warning)]">· Paused</span>}
+                                {goal.ai_strategy?.strategy_one_liner && (
+                                    <span className="text-[var(--color-primary)] truncate max-w-[150px]" title={goal.ai_strategy.strategy_one_liner}>
+                                        · "{goal.ai_strategy.strategy_one_liner.slice(0, 20)}..."
+                                    </span>
+                                )}
                             </div>
                         )}
                     </div>
@@ -280,8 +306,11 @@ function GoalCard({ goal, isExpanded, onExpand, onUpdate, onDelete, onStrategy, 
                 <div className="flex items-center gap-2">
                     <button
                         onClick={(e) => { e.stopPropagation(); onStrategy(); }}
-                        className="p-1.5 rounded-full hover:bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
-                        title="Consult Expert"
+                        className={`p-1.5 rounded-full transition-all ${goal.ai_strategy && Object.keys(goal.ai_strategy).length > 0
+                            ? 'bg-[var(--color-primary)]/20 text-[var(--color-primary)] shadow-[0_0_10px_var(--color-primary)] animate-pulse'
+                            : 'hover:bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
+                            }`}
+                        title={goal.ai_strategy ? "View Expert Strategy" : "Generate Strategy"}
                     >
                         <Sparkles className="w-4 h-4" />
                     </button>

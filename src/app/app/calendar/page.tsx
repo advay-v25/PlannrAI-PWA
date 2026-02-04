@@ -6,9 +6,10 @@ import { createClient } from '@/lib/supabase/client';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
 import { GlassInput } from '@/components/ui/glass-input';
+import { useToast } from '@/components/ui/toast';
 import { WeekPlanner, PlanWeekFAB } from '@/components/week-planner';
 import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
-import { ChevronLeft, ChevronRight, Check, Minus, X, Sparkles, Calendar as CalendarIcon, AlertTriangle, ZapOff, Plus, Trash2, Anchor, Repeat, Brain } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Minus, X, Sparkles, Calendar as CalendarIcon, AlertTriangle, ZapOff, Plus, Trash2, Anchor, Repeat, Brain, ListChecks, Square, CheckSquare } from 'lucide-react';
 import type { ScheduleBlock, BlockStatus, Goal } from '@/types/database';
 import { useScheduleWatchdog } from '@/hooks/use-schedule-watchdog';
 import { useDailyLogStore, useUserStore } from '@/stores';
@@ -22,6 +23,7 @@ const STATUS_CONFIG: Record<BlockStatus, { icon: React.ReactNode; color: string;
 
 export default function CalendarPage() {
     const supabase = createClient();
+    const { showToast } = useToast();
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [weekStart, setWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
     const [blocks, setBlocks] = useState<(ScheduleBlock & { goal?: Goal })[]>([]);
@@ -51,9 +53,11 @@ export default function CalendarPage() {
             .update({
                 start_time: editingBlock.start_time,
                 end_time: editingBlock.end_time,
-                context: editingBlock.context
+                context: editingBlock.context,
+                checklist: editingBlock.checklist || null
             })
             .eq('id', editingBlock.id);
+        showToast('✅ Block updated', 'success');
     };
 
     const handleDeleteBlock = async () => {
@@ -61,63 +65,108 @@ export default function CalendarPage() {
         setBlocks(prev => prev.filter(b => b.id !== editingBlock.id));
         setEditingBlock(null);
         await supabase.from('schedule_blocks').delete().eq('id', editingBlock.id);
+        showToast('🗑️ Block deleted', 'info');
     };
 
     const handleCreateBlock = async () => {
         if (!creatingBlock) return;
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        const newBlock = {
-            user_id: user.id,
-            date: format(selectedDate, 'yyyy-MM-dd'),
-            start_time: creatingBlock.start_time,
-            end_time: creatingBlock.end_time,
-            context: creatingBlock.context || 'New Task',
-            status: 'planned' as BlockStatus,
-            block_type: 'goal',
-            goal_id: null
-        };
-        const { data } = await supabase.from('schedule_blocks').insert(newBlock).select().single();
-        if (data) setBlocks(prev => [...prev, data as any].sort((a, b) => a.start_time.localeCompare(b.start_time)));
-        setCreatingBlock(null);
+        if (!user) {
+            showToast('Not authenticated', 'error');
+            return;
+        }
+        try {
+            const newBlock = {
+                user_id: user.id,
+                date: format(selectedDate, 'yyyy-MM-dd'),
+                start_time: creatingBlock.start_time,
+                end_time: creatingBlock.end_time,
+                context: creatingBlock.context || 'New Task',
+                status: 'planned' as BlockStatus,
+                block_type: 'goal',
+                goal_id: null
+            };
+            const { data, error } = await supabase.from('schedule_blocks').insert(newBlock).select().single();
+            if (error) throw error;
+            if (data) setBlocks(prev => [...prev, data as any].sort((a, b) => a.start_time.localeCompare(b.start_time)));
+            showToast('✅ Block added', 'success');
+            setCreatingBlock(null);
+        } catch (e) {
+            console.error(e);
+            showToast('Failed to create block', 'error');
+        }
     };
 
     const handleCreateAnchor = async () => {
-        if (!creatingAnchor) return;
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        const { error } = await supabase.from('commitments').insert({
-            user_id: user.id,
-            title: creatingAnchor.title,
-            start_time: creatingAnchor.start_time,
-            end_time: creatingAnchor.end_time,
-            days_of_week: creatingAnchor.days
-        });
-        if (error) {
-            console.error(error);
+        if (!creatingAnchor || !creatingAnchor.title.trim()) {
+            showToast('Please enter a title', 'error');
             return;
         }
-        await handleOptimizeDay();
-        setCreatingAnchor(null);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+            showToast('Not authenticated', 'error');
+            return;
+        }
+        try {
+            const { error } = await supabase.from('commitments').insert({
+                user_id: user.id,
+                title: creatingAnchor.title,
+                start_time: creatingAnchor.start_time,
+                end_time: creatingAnchor.end_time,
+                days_of_week: creatingAnchor.days,
+                is_active: true
+            });
+            if (error) throw error;
+            showToast('⚓ Anchor set! Optimizing schedule...', 'success');
+            await handleOptimizeDay();
+            setCreatingAnchor(null);
+        } catch (e) {
+            console.error(e);
+            showToast('Failed to create anchor', 'error');
+        }
     };
 
     useEffect(() => {
         async function loadData() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
+
+            // Fetch goals
             const { data: goalsData } = await supabase.from('goals').select('*').eq('user_id', user.id);
             if (goalsData) setGoals(goalsData);
-            const dateStr = format(selectedDate, 'yyyy-MM-dd');
-            const { data: blocksData } = await supabase.from('schedule_blocks').select('*, goal:goals(*)').eq('user_id', user.id).eq('date', dateStr).order('start_time');
-            if (blocksData) setBlocks(blocksData);
+
+            // Fetch blocks for ENTIRE visible week (not just selectedDate)
+            const startDateStr = format(weekStart, 'yyyy-MM-dd');
+            const endDateStr = format(addDays(weekStart, 6), 'yyyy-MM-dd');
+            const { data: blocksData } = await supabase
+                .from('schedule_blocks')
+                .select('*, goal:goals(*)')
+                .eq('user_id', user.id)
+                .gte('date', startDateStr)
+                .lte('date', endDateStr)
+                .order('date')
+                .order('start_time');
+
+            // Filter to selected date for display
+            const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+            const filteredBlocks = (blocksData || []).filter(b => b.date === selectedDateStr);
+            setBlocks(filteredBlocks);
             setIsLoading(false);
         }
         loadData();
-    }, [supabase, selectedDate]);
+    }, [supabase, weekStart, selectedDate]);
 
     const handleStatusChange = async (blockId: string, newStatus: BlockStatus) => {
         setBlocks((prev) => prev.map((b) => (b.id === blockId ? { ...b, status: newStatus } : b)));
         await supabase.from('schedule_blocks').update({ status: newStatus }).eq('id', blockId);
+
+        const statusLabels: Record<BlockStatus, string> = {
+            done: '✅ Completed!',
+            partial: '🟡 Partial progress',
+            missed: '❌ Marked as missed',
+            planned: '📅 Reset to planned'
+        };
+        showToast(statusLabels[newStatus], newStatus === 'done' ? 'success' : 'info');
     };
 
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -128,13 +177,15 @@ export default function CalendarPage() {
     };
 
     const handlePlanApplied = () => {
-        setIsLoading(true);
         setShowWeekPlanner(false);
-        setSelectedDate(new Date(selectedDate));
+        setIsLoading(true);
+        // Force re-fetch by updating weekStart to trigger useEffect
+        setWeekStart(new Date(weekStart));
     };
 
     const handleOptimizeDay = async () => {
         setIsOptimizing(true);
+        showToast('✨ Optimizing your day...', 'info');
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
@@ -150,9 +201,10 @@ export default function CalendarPage() {
             if (!res.ok) throw new Error('Optimization failed');
             const { data } = await res.json();
             setBlocks(data.optimizedBlocks.sort((a: { start_time: string }, b: { start_time: string }) => a.start_time.localeCompare(b.start_time)));
+            showToast('🚀 Day optimized!', 'success');
         } catch (error: any) {
             console.error(error);
-            alert(error.message || "Optimization error.");
+            showToast(error.message || 'Optimization failed', 'error');
         } finally {
             setIsOptimizing(false);
         }
@@ -234,43 +286,94 @@ export default function CalendarPage() {
             <div className="space-y-3">
                 <h2 className="text-sm font-medium text-[var(--text-secondary)]">{format(selectedDate, 'EEEE, MMMM d')}</h2>
                 {isLoading ? (
-                    <div className="flex justify-center py-12"><div className="w-6 h-6 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" /></div>
+                    <div className="space-y-2">
+                        {[1, 2, 3].map((i) => (
+                            <div key={i} className="h-16 rounded-2xl bg-white/5 animate-pulse" />
+                        ))}
+                    </div>
                 ) : blocks.length === 0 ? (
                     <GlassCard padding="lg" className="text-center">
-                        <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-4"><CalendarIcon className="w-8 h-8 opacity-20" /></div>
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[var(--color-primary)]/20 to-[var(--color-future)]/20 flex items-center justify-center mx-auto mb-4">
+                            <CalendarIcon className="w-8 h-8 opacity-40" />
+                        </div>
                         <h3 className="font-semibold mb-1">No blocks scheduled</h3>
                         <p className="text-sm text-[var(--text-tertiary)] mb-4">Let AI plan your week based on your goals</p>
                         <GlassButton variant="primary" onClick={() => setShowWeekPlanner(true)}><Sparkles className="w-4 h-4" /> Plan My Week</GlassButton>
                     </GlassCard>
                 ) : (
                     <div className="space-y-2">
-                        {blocks.map((block, index) => (
-                            <motion.div key={block.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.05 }}>
-                                <GlassCard padding="md" interactive onClick={() => setEditingBlock(block)} className={block.status === 'missed' ? 'opacity-50' : ''}>
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 text-center flex-shrink-0">
-                                            <p className="text-sm font-bold">{block.start_time.slice(0, 5)}</p>
+                        {blocks.map((block, index) => {
+                            const blockTypeColor = block.block_type === 'routine' ? 'var(--color-future)'
+                                : block.block_type === 'anchor' ? 'var(--color-warning)'
+                                    : block.block_type === 'meal' ? 'var(--color-success)'
+                                        : 'var(--color-primary)';
+                            return (
+                                <motion.div key={block.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.05 }}>
+                                    <GlassCard
+                                        padding="md"
+                                        interactive
+                                        onClick={() => setEditingBlock(block)}
+                                        className={`border-l-2 ${block.status === 'missed' ? 'opacity-50' : ''} ${block.status === 'done' ? 'border-l-[var(--color-success)]' : ''}`}
+                                        style={{ borderLeftColor: block.status !== 'done' ? blockTypeColor : undefined }}
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-20 text-center flex-shrink-0">
+                                                <p className="text-sm font-bold font-mono">{block.start_time.slice(0, 5)}</p>
+                                                <p className="text-[10px] text-[var(--text-tertiary)] font-mono">→ {block.end_time.slice(0, 5)}</p>
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-medium truncate">{block.goal?.title || block.context || 'Untitled'}</p>
+                                                    {/* Checklist Badge */}
+                                                    {block.checklist && block.checklist.length > 0 && (
+                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/10 text-[var(--text-secondary)]">
+                                                            <ListChecks className="w-3 h-3" />
+                                                            {block.checklist.filter((c: any) => c.completed).length}/{block.checklist.length}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {block.block_type && block.block_type !== 'goal' && (
+                                                    <p className="text-[10px] uppercase tracking-widest text-[var(--text-tertiary)] mt-0.5">{block.block_type}</p>
+                                                )}
+                                            </div>
+                                            <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                                                {(['done', 'missed'] as BlockStatus[]).map((status) => (
+                                                    <button
+                                                        key={status}
+                                                        onClick={() => handleStatusChange(block.id, status)}
+                                                        className={`p-2 rounded-lg transition-colors ${block.status === status ? 'bg-white/10' : 'opacity-40 hover:opacity-100'}`}
+                                                    >
+                                                        {status === 'done' ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-medium truncate">{block.goal?.title || block.context || 'Untitled'}</p>
-                                        </div>
-                                        <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                                            {(['done', 'missed'] as BlockStatus[]).map((status) => (
-                                                <button
-                                                    key={status}
-                                                    onClick={() => handleStatusChange(block.id, status)}
-                                                    className={`p-2 rounded-lg transition-colors ${block.status === status ? 'bg-white/10' : 'opacity-40 hover:opacity-100'}`}
-                                                >
-                                                    {status === 'done' ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </GlassCard>
-                            </motion.div>
-                        ))}
+                                    </GlassCard>
+                                </motion.div>
+                            )
+                        })}
                     </div>
                 )}
+
+                {/* Quick Add Buttons */}
+                <div className="flex gap-3 mt-4">
+                    <GlassButton
+                        variant="ghost"
+                        className="flex-1"
+                        onClick={() => setCreatingBlock({ start_time: '09:00', end_time: '10:00', context: '' })}
+                    >
+                        <Plus className="w-4 h-4" />
+                        Add Block
+                    </GlassButton>
+                    <GlassButton
+                        variant="ghost"
+                        className="flex-1"
+                        onClick={() => setCreatingAnchor({ title: '', start_time: '09:00', end_time: '17:00', days: [1, 2, 3, 4, 5] })}
+                    >
+                        <Anchor className="w-4 h-4" />
+                        Add Anchor
+                    </GlassButton>
+                </div>
             </div>
 
             {/* Modals */}
@@ -282,14 +385,263 @@ export default function CalendarPage() {
                 )}
                 {editingBlock && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={() => setEditingBlock(null)}>
-                        <GlassCard className="w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
-                            <h3 className="text-xl font-bold">Edit Entry</h3>
-                            <GlassInput value={editingBlock.context || ''} onChange={e => setEditingBlock({ ...editingBlock, context: e.target.value })} />
-                            <div className="flex gap-2">
-                                <GlassButton variant="danger" onClick={handleDeleteBlock}><Trash2 className="w-4 h-4" /></GlassButton>
-                                <GlassButton className="flex-1" variant="primary" onClick={handleUpdateBlock}>Save</GlassButton>
-                            </div>
-                        </GlassCard>
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                            transition={{ duration: 0.2 }}
+                            onClick={e => e.stopPropagation()}
+                            className="w-full max-w-md"
+                        >
+                            <GlassCard padding="lg" className="space-y-6">
+                                {/* Header */}
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h3 className="text-xl font-bold">Edit Entry</h3>
+                                        {editingBlock.block_type && editingBlock.block_type !== 'goal' && (
+                                            <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest text-[var(--text-tertiary)] mt-1">
+                                                {editingBlock.block_type === 'routine' && <Repeat className="w-3 h-3" />}
+                                                {editingBlock.block_type === 'anchor' && <Anchor className="w-3 h-3" />}
+                                                {editingBlock.block_type}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <button onClick={() => setEditingBlock(null)} className="p-2 rounded-lg hover:bg-white/10 transition-colors">
+                                        <X className="w-5 h-5 text-[var(--text-tertiary)]" />
+                                    </button>
+                                </div>
+
+                                {/* Title/Context Input */}
+                                <GlassInput
+                                    label="Title"
+                                    value={editingBlock.context || ''}
+                                    onChange={e => setEditingBlock({ ...editingBlock, context: e.target.value })}
+                                    placeholder="What are you doing?"
+                                />
+
+                                {/* Time Inputs */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <GlassInput
+                                        label="Start Time"
+                                        type="time"
+                                        value={editingBlock.start_time?.slice(0, 5) || ''}
+                                        onChange={e => setEditingBlock({ ...editingBlock, start_time: e.target.value + ':00' })}
+                                    />
+                                    <GlassInput
+                                        label="End Time"
+                                        type="time"
+                                        value={editingBlock.end_time?.slice(0, 5) || ''}
+                                        onChange={e => setEditingBlock({ ...editingBlock, end_time: e.target.value + ':00' })}
+                                    />
+                                </div>
+
+                                {/* Goal Badge (if linked) */}
+                                {editingBlock.goal && (
+                                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20">
+                                        <Brain className="w-4 h-4 text-[var(--color-primary)]" />
+                                        <span className="text-sm font-medium">Linked to: {editingBlock.goal.title}</span>
+                                    </div>
+                                )}
+
+                                {/* Checklist Section */}
+                                {editingBlock.checklist && editingBlock.checklist.length > 0 && (
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-xs uppercase text-[var(--text-tertiary)] flex items-center gap-1">
+                                                <ListChecks className="w-3 h-3" />
+                                                Checklist ({editingBlock.checklist.filter((c: any) => c.completed).length}/{editingBlock.checklist.length})
+                                            </label>
+                                        </div>
+                                        <div className="space-y-1 max-h-40 overflow-y-auto">
+                                            {editingBlock.checklist.map((item: any, idx: number) => (
+                                                <button
+                                                    key={item.id || idx}
+                                                    onClick={() => {
+                                                        const updatedChecklist = (editingBlock.checklist || []).map((c: any, i: number) =>
+                                                            i === idx ? { ...c, completed: !c.completed } : c
+                                                        );
+                                                        setEditingBlock({ ...editingBlock, checklist: updatedChecklist });
+                                                    }}
+                                                    className={`w-full flex items-center gap-2 p-2 rounded-lg transition-colors hover:bg-white/5 text-left ${item.completed ? 'opacity-60' : ''
+                                                        }`}
+                                                >
+                                                    {item.completed ? (
+                                                        <CheckSquare className="w-4 h-4 text-[var(--color-success)] flex-shrink-0" />
+                                                    ) : (
+                                                        <Square className="w-4 h-4 text-[var(--text-tertiary)] flex-shrink-0" />
+                                                    )}
+                                                    <span className={`text-sm ${item.completed ? 'line-through text-[var(--text-tertiary)]' : ''}`}>
+                                                        {item.text}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Actions */}
+                                <div className="flex gap-3 pt-2">
+                                    <GlassButton variant="danger" onClick={handleDeleteBlock} className="px-4">
+                                        <Trash2 className="w-4 h-4" />
+                                    </GlassButton>
+                                    <GlassButton className="flex-1" variant="primary" onClick={handleUpdateBlock}>
+                                        Save Changes
+                                    </GlassButton>
+                                </div>
+                            </GlassCard>
+                        </motion.div>
+                    </div>
+                )}
+
+                {/* Create Block Modal */}
+                {creatingBlock && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={() => setCreatingBlock(null)}>
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                            transition={{ duration: 0.2 }}
+                            onClick={e => e.stopPropagation()}
+                            className="w-full max-w-md"
+                        >
+                            <GlassCard padding="lg" className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h3 className="text-xl font-bold">New Block</h3>
+                                        <p className="text-xs text-[var(--text-tertiary)]">{format(selectedDate, 'EEEE, MMMM d')}</p>
+                                    </div>
+                                    <button onClick={() => setCreatingBlock(null)} className="p-2 rounded-lg hover:bg-white/10 transition-colors">
+                                        <X className="w-5 h-5 text-[var(--text-tertiary)]" />
+                                    </button>
+                                </div>
+
+                                <GlassInput
+                                    label="What are you doing?"
+                                    value={creatingBlock.context}
+                                    onChange={e => setCreatingBlock({ ...creatingBlock, context: e.target.value })}
+                                    placeholder="e.g. Deep Work, Exercise, Reading..."
+                                    autoFocus
+                                />
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <GlassInput
+                                        label="Start Time"
+                                        type="time"
+                                        value={creatingBlock.start_time}
+                                        onChange={e => setCreatingBlock({ ...creatingBlock, start_time: e.target.value })}
+                                    />
+                                    <GlassInput
+                                        label="End Time"
+                                        type="time"
+                                        value={creatingBlock.end_time}
+                                        onChange={e => setCreatingBlock({ ...creatingBlock, end_time: e.target.value })}
+                                    />
+                                </div>
+
+                                <GlassButton variant="primary" className="w-full" onClick={handleCreateBlock}>
+                                    <Plus className="w-4 h-4" />
+                                    Add Block
+                                </GlassButton>
+                            </GlassCard>
+                        </motion.div>
+                    </div>
+                )}
+
+                {/* Create Anchor Modal */}
+                {creatingAnchor && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={() => setCreatingAnchor(null)}>
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                            transition={{ duration: 0.2 }}
+                            onClick={e => e.stopPropagation()}
+                            className="w-full max-w-md"
+                        >
+                            <GlassCard padding="lg" className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Anchor className="w-5 h-5 text-[var(--color-warning)]" />
+                                        <h3 className="text-xl font-bold">New Anchor</h3>
+                                    </div>
+                                    <button onClick={() => setCreatingAnchor(null)} className="p-2 rounded-lg hover:bg-white/10 transition-colors">
+                                        <X className="w-5 h-5 text-[var(--text-tertiary)]" />
+                                    </button>
+                                </div>
+                                <p className="text-sm text-[var(--text-secondary)]">
+                                    Anchors are fixed, recurring time blocks where no other tasks can be scheduled.
+                                </p>
+
+                                <GlassInput
+                                    label="Title"
+                                    value={creatingAnchor.title}
+                                    onChange={e => setCreatingAnchor({ ...creatingAnchor, title: e.target.value })}
+                                    placeholder="e.g. Work, School, Meeting..."
+                                    autoFocus
+                                />
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <GlassInput
+                                        label="Start Time"
+                                        type="time"
+                                        value={creatingAnchor.start_time}
+                                        onChange={e => setCreatingAnchor({ ...creatingAnchor, start_time: e.target.value })}
+                                    />
+                                    <GlassInput
+                                        label="End Time"
+                                        type="time"
+                                        value={creatingAnchor.end_time}
+                                        onChange={e => setCreatingAnchor({ ...creatingAnchor, end_time: e.target.value })}
+                                    />
+                                </div>
+
+                                {/* Day Selector */}
+                                <div className="space-y-2">
+                                    <label className="text-xs uppercase text-[var(--text-tertiary)] font-bold">Repeats On</label>
+                                    <div className="flex gap-2 justify-between">
+                                        {[
+                                            { id: 1, label: 'M' },
+                                            { id: 2, label: 'T' },
+                                            { id: 3, label: 'W' },
+                                            { id: 4, label: 'T' },
+                                            { id: 5, label: 'F' },
+                                            { id: 6, label: 'S' },
+                                            { id: 0, label: 'S' },
+                                        ].map(day => {
+                                            const isSelected = creatingAnchor.days.includes(day.id);
+                                            return (
+                                                <button
+                                                    key={day.id}
+                                                    onClick={() => {
+                                                        if (isSelected) {
+                                                            setCreatingAnchor({ ...creatingAnchor, days: creatingAnchor.days.filter(d => d !== day.id) });
+                                                        } else {
+                                                            setCreatingAnchor({ ...creatingAnchor, days: [...creatingAnchor.days, day.id] });
+                                                        }
+                                                    }}
+                                                    className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${isSelected
+                                                        ? 'bg-[var(--color-warning)] text-black shadow-lg shadow-[var(--color-warning)]/20'
+                                                        : 'bg-[var(--glass-bg)] text-[var(--text-tertiary)] hover:bg-[var(--glass-bg-hover)]'
+                                                        }`}
+                                                >
+                                                    {day.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                <GlassButton
+                                    variant="primary"
+                                    className="w-full"
+                                    onClick={handleCreateAnchor}
+                                    disabled={!creatingAnchor.title.trim() || creatingAnchor.days.length === 0}
+                                >
+                                    <Anchor className="w-4 h-4" />
+                                    Set Anchor
+                                </GlassButton>
+                            </GlassCard>
+                        </motion.div>
                     </div>
                 )}
             </AnimatePresence>
