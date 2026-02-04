@@ -6,7 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useOnboardingStore } from '@/stores';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
-import { Target, Brain, Dumbbell, Rocket, Plus, X, Check, Sparkles, Zap, Flame } from 'lucide-react';
+import { AddGoalModal } from '@/components/goals/add-goal-modal';
+import { Target, Brain, Dumbbell, Rocket, Plus, X, Check, Sparkles, Zap, Flame, Briefcase } from 'lucide-react';
 import type { GoalCategory, GoalImportance } from '@/types/database';
 
 // Preset goals organized by category
@@ -25,7 +26,7 @@ const PRESET_GOALS = {
         { title: 'Sleep', emoji: '😴' },
         { title: 'Hydration', emoji: '💧' },
     ],
-    future: [
+    craft: [
         { title: 'Side Project', emoji: '🚀' },
         { title: 'Networking', emoji: '🤝' },
         { title: 'Finance', emoji: '💰' },
@@ -36,7 +37,7 @@ const PRESET_GOALS = {
 const CATEGORIES = [
     { id: 'mind', label: 'Mind', icon: <Brain className="w-5 h-5" />, color: 'text-purple-400', bg: 'bg-purple-900/20', border: 'border-purple-500/30' },
     { id: 'body', label: 'Body', icon: <Dumbbell className="w-5 h-5" />, color: 'text-orange-400', bg: 'bg-orange-900/20', border: 'border-orange-500/30' },
-    { id: 'future', label: 'Future', icon: <Rocket className="w-5 h-5" />, color: 'text-amber-400', bg: 'bg-amber-900/20', border: 'border-amber-500/30' },
+    { id: 'craft', label: 'Craft', icon: <Briefcase className="w-5 h-5" />, color: 'text-amber-400', bg: 'bg-amber-900/20', border: 'border-amber-500/30' },
 ];
 
 export function Step3Goals() {
@@ -58,14 +59,8 @@ export function Step3Goals() {
         setModalData({ minutes: 30, importance: 'medium' });
     };
 
-    const handleConfirm = () => {
-        if (!editingGoal) return;
-        addGoal({
-            title: editingGoal.title,
-            category: editingGoal.category,
-            minutes_per_day: modalData.minutes,
-            importance: modalData.importance,
-        });
+    const handleConfirm = (goalData: any) => {
+        addGoal(goalData);
         setEditingGoal(null);
     };
 
@@ -159,89 +154,16 @@ export function Step3Goals() {
 
             {/* Config Modal (Overlay) */}
             <AnimatePresence>
-                {editingGoal && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="absolute inset-0 z-50 flex items-end md:items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-                    >
-                        <motion.div
-                            initial={{ y: 50, scale: 0.9 }}
-                            animate={{ y: 0, scale: 1 }}
-                            exit={{ y: 50, scale: 0.9 }}
-                            className="w-full max-w-sm bg-[#0a0a0a] border border-[var(--glass-border)] rounded-2xl p-6 shadow-2xl relative overflow-hidden"
-                        >
-                            {/* Glow */}
-                            <div className="absolute -top-20 -right-20 w-40 h-40 bg-[var(--color-primary)]/20 blur-[50px] rounded-full pointer-events-none" />
-
-                            <div className="relative space-y-6">
-                                <div>
-                                    <label className="text-xs text-[var(--color-text-tertiary)] uppercase tracking-wider mb-2 block">Protocol Name</label>
-                                    {editingGoal.title ? (
-                                        <h3 className="text-xl font-bold">{editingGoal.title}</h3>
-                                    ) : (
-                                        <input
-                                            autoFocus
-                                            value={customGoalTitle}
-                                            onChange={e => {
-                                                setCustomGoalTitle(e.target.value);
-                                                setEditingGoal(prev => prev ? { ...prev, title: e.target.value } : null);
-                                            }}
-                                            placeholder="Enter protocol name..."
-                                            className="w-full bg-transparent border-b border-[var(--glass-border)] focus:border-[var(--color-primary)] outline-none text-xl font-bold pb-2"
-                                        />
-                                    )}
-                                </div>
-
-                                {/* Resource Allocation */}
-                                <div>
-                                    <label className="text-xs text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3 block flex items-center gap-2">
-                                        <Zap className="w-3 h-3" /> Resource Allocation (Daily)
-                                    </label>
-                                    <div className="flex gap-2">
-                                        {[15, 30, 45, 60, 90].map(m => (
-                                            <button
-                                                key={m}
-                                                onClick={() => setModalData(prev => ({ ...prev, minutes: m }))}
-                                                className={`flex-1 py-2 rounded-lg text-sm font-mono transition-colors ${modalData.minutes === m ? 'bg-[var(--color-primary)] text-white' : 'bg-[var(--glass-bg)] text-[var(--color-text-secondary)] hover:bg-[var(--glass-bg-hover)]'}`}
-                                            >
-                                                {m}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Priority */}
-                                <div>
-                                    <label className="text-xs text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3 block flex items-center gap-2">
-                                        <Flame className="w-3 h-3" /> Priority Level
-                                    </label>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {(['low', 'medium', 'high'] as const).map(p => (
-                                            <button
-                                                key={p}
-                                                onClick={() => setModalData(prev => ({ ...prev, importance: p }))}
-                                                className={`py-2 rounded-lg text-sm capitalize transition-colors ${modalData.importance === p
-                                                    ? 'bg-white text-black font-bold'
-                                                    : 'bg-[var(--glass-bg)] text-[var(--color-text-secondary)] hover:bg-[var(--glass-bg-hover)]'
-                                                    }`}
-                                            >
-                                                {p}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="flex gap-3 pt-4">
-                                    <GlassButton variant="ghost" className="flex-1" onClick={() => { setEditingGoal(null); setCustomGoalTitle(''); }}>Cancel</GlassButton>
-                                    <GlassButton variant="primary" className="flex-1" onClick={() => { handleConfirm(); setCustomGoalTitle(''); }} disabled={!editingGoal.title}>Confirm</GlassButton>
-
-                                </div>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
+                {/* Config Modal (Overlay) - Replaced with Shared AddGoalModal */}
+                <AnimatePresence>
+                    {editingGoal && (
+                        <AddGoalModal
+                            initialValues={editingGoal}
+                            onClose={() => setEditingGoal(null)}
+                            onSave={handleConfirm}
+                        />
+                    )}
+                </AnimatePresence>
             </AnimatePresence>
         </div>
     );

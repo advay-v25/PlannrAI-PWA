@@ -57,8 +57,25 @@ export const POST = secureApiRoute(
         const { data: goals } = await supabase
             .from('goals')
             .select('title, category, importance')
+            .select('title, category, importance')
             .eq('user_id', context.userId)
             .eq('is_paused', false);
+
+        // Get latest scan signals (Bio-Context)
+        const { data: latestScan } = await supabase
+            .from('scan_sessions')
+            .select('signals, created_at')
+            .eq('user_id', context.userId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+        // Get profile context (Sleep)
+        const { data: userProfile } = await supabase
+            .from('profiles')
+            .select('sleep_start, sleep_end')
+            .eq('id', context.userId)
+            .single();
 
         // Get recent brain dumps for immediate context
         const { data: dumps } = await supabase
@@ -80,6 +97,8 @@ export const POST = secureApiRoute(
                         importance: g.importance,
                     })),
                     recentDumps: dumps?.map(d => d.content) || [],
+                    scanSignals: latestScan?.signals || [],
+                    sleepWindow: userProfile ? `${userProfile.sleep_end} - ${userProfile.sleep_start}` : undefined
                 },
                 context.userId
             );

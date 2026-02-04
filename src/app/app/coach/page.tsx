@@ -255,7 +255,7 @@ function CoachResponse({ response, onReply }: {
             <div>
                 <p className="text-[10px] font-bold text-[var(--color-accent-mind)] uppercase tracking-wider mb-1 flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent-mind)]" />
-                    Insight
+                    Decision
                 </p>
                 <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed italic">
                     "{response.interpretation}"
@@ -266,7 +266,7 @@ function CoachResponse({ response, onReply }: {
             <div>
                 <p className="text-[10px] font-bold text-[var(--color-accent-body)] uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent-body)]" />
-                    Strategy
+                    Options
                 </p>
                 <div className="space-y-2">
                     {response.options.map((option, i) => (

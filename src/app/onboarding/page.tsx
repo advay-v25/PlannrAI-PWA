@@ -11,20 +11,24 @@ import { GlassButton } from '@/components/ui/glass-button';
 // Step Components
 import { Step1Framing } from '@/components/onboarding/step-1-framing';
 import { Step2Time } from '@/components/onboarding/step-2-time';
-import { Step3Goals } from '@/components/onboarding/step-3-goals';
-import { Step4Baseline } from '@/components/onboarding/step-4-baseline';
-import { Step5Permissions } from '@/components/onboarding/step-5-permissions';
-import { Step6Complete } from '@/components/onboarding/step-6-complete';
+import { Step3Meals } from '@/components/onboarding/step-3-meals';
+import { Step4Commitments } from '@/components/onboarding/step-4-commitments';
+import { Step5Body } from '@/components/onboarding/step-5-body';
+import { Step3Goals } from '@/components/onboarding/step-3-goals'; // Now Step 6
+import { Step7Scan } from '@/components/onboarding/step-7-scan';
+import { Step8Generate } from '@/components/onboarding/step-8-generate';
 
-import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2, Check } from 'lucide-react';
 
 const STEPS = [
     { id: 'framing', title: 'Initialization', component: Step1Framing },
     { id: 'time', title: 'Circadian Rhythm', component: Step2Time },
-    { id: 'goals', title: 'Ambitions', component: Step3Goals },
-    { id: 'baseline', title: 'System Calibration', component: Step4Baseline },
-    { id: 'permissions', title: 'Neural Link', component: Step5Permissions },
-    { id: 'complete', title: 'Launch Sequence', component: Step6Complete },
+    { id: 'meals', title: 'Fuel & Space', component: Step3Meals },
+    { id: 'commitments', title: 'Anchors', component: Step4Commitments },
+    { id: 'body', title: 'Body Baseline', component: Step5Body },
+    { id: 'goals', title: 'Time Investment', component: Step3Goals }, // Reusing Step3Goals component logic
+    { id: 'scan', title: 'Bio-Calibration', component: Step7Scan },
+    { id: 'generate', title: 'Day Synthesis', component: Step8Generate },
 ];
 
 export default function OnboardingPage() {
@@ -72,11 +76,12 @@ export default function OnboardingPage() {
             if (profileError) throw profileError;
 
             // 1.5 Update Auth Metadata (Name)
-            const { error: authError } = await supabase.auth.updateUser({
-                data: { full_name: data.full_name }
-            });
-
-            if (authError) throw authError;
+            if (data.full_name) {
+                const { error: authError } = await supabase.auth.updateUser({
+                    data: { full_name: data.full_name }
+                });
+                if (authError) console.warn('Auth update failed', authError);
+            }
 
             if (profileError) throw profileError;
 
@@ -102,7 +107,7 @@ export default function OnboardingPage() {
                 const commitmentsToInsert = data.commitments.map((c) => ({
                     user_id: user.id,
                     title: c.title,
-                    day_of_week: c.day_of_week,
+                    days_of_week: c.days_of_week,
                     start_time: c.start_time,
                     end_time: c.end_time,
                 }));
@@ -114,21 +119,49 @@ export default function OnboardingPage() {
                 if (commitmentsError) throw commitmentsError;
             }
 
-            // 4. Generate AI Plan
+            // 4. Trigger Initial Schedule Generation (AI or Template)
             try {
-                await fetch('/api/ai/plan-week', {
+                const response = await fetch('/api/ai/plan-week', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ week_start: new Date().toISOString() })
+                    body: JSON.stringify({
+                        week_start: new Date().toISOString().split('T')[0],
+                        regenerate: true
+                    })
                 });
-            } catch (aiError) {
-                console.error('Initial AI planning failed:', aiError);
+
+                if (response.ok) {
+                    const result = await response.json();
+
+                    // 5. Apply the plan to the calendar immediately
+                    if (result.success && result.data?.plan) {
+                        await fetch('/api/ai/plan-week', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                plan: result.data.plan,
+                                week_start: result.data.week_start
+                            })
+                        });
+                    }
+                }
+            } catch (e) {
+                console.warn('Initial planning failed, user can try again on dashboard', e);
             }
 
+            // 6. Complete Onboarding
+            await supabase.auth.updateUser({
+                data: { onboarding_complete: true }
+            });
+            await supabase.from('profiles').update({ onboarding_complete: true }).eq('id', user.id); // Redundant but safe
+
+            // Clear store
             reset();
+
+            // Redirect to Home (Dashboard)
             router.push('/app');
-        } catch (err: any) {
-            setError(err.message || 'Failed to save. Please try again.');
+        } catch (error) {
+            console.error('Onboarding sync failed:', error);
         } finally {
             setIsSaving(false);
         }
@@ -213,10 +246,12 @@ export default function OnboardingPage() {
                         loading={isSaving}
                     >
                         {isLastStep ? (
-                            isSaving ? 'INITIALIZING...' : 'BEGIN JOURNEY'
+                            isSaving ? 'GENERATING...' : 'APPLY SCHEDULE'
+                        ) : isFirstStep ? (
+                            <span className="flex items-center gap-2">START <ArrowRight className="w-4 h-4" /></span>
                         ) : (
                             <span className="flex items-center gap-2">
-                                PROCEED <ArrowRight className="w-4 h-4" />
+                                NEXT <ArrowRight className="w-4 h-4" />
                             </span>
                         )}
                     </GlassButton>

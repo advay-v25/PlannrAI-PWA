@@ -10,9 +10,11 @@ import { logAIRequest } from '@/lib/security/audit-logger';
 
 interface GoalSuggestion {
     title: string;
-    category: 'mind' | 'body' | 'career';
+    category: 'mind' | 'body' | 'craft';
     why: string;
-    importance: 'core' | 'growth' | 'maintenance';
+    importance: 'high' | 'medium' | 'low';
+    minutes_per_day?: number;
+    energy_demand?: 'light' | 'medium' | 'heavy';
 }
 
 interface SuggestionsResponse {
@@ -119,10 +121,12 @@ Avoid suggesting duplicates of existing goals.
                 result = {
                     suggestions: [
                         {
-                            title: 'Start a daily journaling practice',
+                            title: 'Journaling',
                             category: 'mind',
-                            why: 'Helps process thoughts from brain dumps',
-                            importance: 'growth',
+                            why: 'Helps process thoughts',
+                            importance: 'high',
+                            minutes_per_day: 15,
+                            energy_demand: 'light'
                         },
                     ],
                     insight: 'Consider adding balance to your goals.',
@@ -142,16 +146,20 @@ Avoid suggesting duplicates of existing goals.
             return apiSuccess({
                 suggestions: [
                     {
-                        title: 'Establish a morning routine',
+                        title: 'Morning Routine',
                         category: 'mind',
-                        why: 'A consistent start sets the tone for the day',
-                        importance: 'core',
+                        why: 'Sets the tone for the day',
+                        importance: 'high',
+                        minutes_per_day: 30,
+                        energy_demand: 'medium'
                     },
                     {
-                        title: 'Move for 30 minutes daily',
+                        title: 'Daily Walk',
                         category: 'body',
                         why: 'Physical movement supports mental clarity',
-                        importance: 'core',
+                        importance: 'medium',
+                        minutes_per_day: 30,
+                        energy_demand: 'light'
                     },
                 ],
                 insight: 'Here are some foundational goals to consider.',

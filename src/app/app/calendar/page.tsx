@@ -8,7 +8,7 @@ import { GlassButton } from '@/components/ui/glass-button';
 import { GlassInput } from '@/components/ui/glass-input';
 import { WeekPlanner, PlanWeekFAB } from '@/components/week-planner';
 import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
-import { ChevronLeft, ChevronRight, Check, Minus, X, Sparkles, Calendar as CalendarIcon, AlertTriangle, ZapOff, Plus, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Minus, X, Sparkles, Calendar as CalendarIcon, AlertTriangle, ZapOff, Plus, Trash2, Anchor, Repeat } from 'lucide-react';
 import type { ScheduleBlock, BlockStatus, Goal } from '@/types/database';
 import { useScheduleWatchdog } from '@/hooks/use-schedule-watchdog';
 import { useDailyLogStore, useUserStore } from '@/stores';
@@ -30,6 +30,7 @@ export default function CalendarPage() {
     const [showWeekPlanner, setShowWeekPlanner] = useState(false);
     const [editingBlock, setEditingBlock] = useState<(ScheduleBlock & { goal?: Goal }) | null>(null);
     const [creatingBlock, setCreatingBlock] = useState<{ start_time: string; end_time: string; context: string } | null>(null);
+    const [creatingAnchor, setCreatingAnchor] = useState<{ title: string; start_time: string; end_time: string; days: number[] } | null>(null);
     const [isOptimizing, setIsOptimizing] = useState(false);
 
     // Watchdog Integration
@@ -84,11 +85,11 @@ export default function CalendarPage() {
             end_time: creatingBlock.end_time,
             context: creatingBlock.context || 'New Task',
             status: 'planned' as BlockStatus,
+            block_type: 'goal', // Manual tasks are flexible (Level 3/4)
             goal_id: null
         };
 
-        // For smoother UX, we'll reload after insert or simulate the ID
-        const { data, error } = await supabase
+        const { data } = await supabase
             .from('schedule_blocks')
             .insert(newBlock)
             .select()
@@ -99,6 +100,33 @@ export default function CalendarPage() {
         }
 
         setCreatingBlock(null);
+    };
+
+    const handleCreateAnchor = async () => {
+        if (!creatingAnchor) return;
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // 1. Insert into Commitments (Source of Truth)
+        const { error } = await supabase
+            .from('commitments')
+            .insert({
+                user_id: user.id,
+                title: creatingAnchor.title,
+                start_time: creatingAnchor.start_time,
+                end_time: creatingAnchor.end_time,
+                days_of_week: creatingAnchor.days
+            });
+
+        if (error) {
+            console.error(error);
+            return;
+        }
+
+        // 2. Refresh Day (Trigger Optimizer to place the new anchor)
+        await handleOptimizeDay();
+        setCreatingAnchor(null);
     };
 
     useEffect(() => {
@@ -175,34 +203,32 @@ export default function CalendarPage() {
                 })
             });
 
-            if (!res.ok) throw new Error('Optimization failed');
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.error || 'Optimization failed');
+            }
 
             const { data } = await res.json();
 
             // Apply updates
             const optimizedBlocks = data.optimizedBlocks;
             const summary = data.summary;
+            const warning = data.message; // "You've planned more than fits..."
 
-            // Optimistic update
-            const newBlocks = blocks.map(b => {
-                const opt = optimizedBlocks.find((o: any) => o.id === b.id);
-                return opt ? { ...b, start_time: opt.start_time, end_time: opt.end_time } : b;
-            }).sort((a, b) => a.start_time.localeCompare(b.start_time));
+            // Update local state immediately (API has already persisted)
+            setBlocks(optimizedBlocks.sort((a: any, b: any) => a.start_time.localeCompare(b.start_time)));
 
-            setBlocks(newBlocks);
+            // Show feedback
+            if (warning) {
+                alert(warning); // Simple alert as per manifesto requirement for visibility
+            } else {
+                console.log("Optimized:", summary);
+            }
 
-            // Persist to DB
-            await Promise.all(optimizedBlocks.map((opt: any) =>
-                supabase
-                    .from('schedule_blocks')
-                    .update({ start_time: opt.start_time, end_time: opt.end_time })
-                    .eq('id', opt.id)
-            ));
-
-            console.log("Optimized:", summary);
-
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
+            // Manifesto Rule: Show specific error message
+            alert(error.message || "I can't place two blocks at the same time. Adjust goals or intensity.");
         } finally {
             setIsOptimizing(false);
         }
@@ -243,6 +269,13 @@ export default function CalendarPage() {
                             >
                                 <Plus className="w-4 h-4" />
                                 Add
+                            </GlassButton>
+
+                            <GlassButton
+                                variant="ghost"
+                                onClick={() => setCreatingAnchor({ title: '', start_time: '09:00', end_time: '17:00', days: [1, 2, 3, 4, 5] })}
+                            >
+                                <Anchor className="w-4 h-4" />
                             </GlassButton>
 
                             {hasConflicts && (
@@ -347,11 +380,20 @@ export default function CalendarPage() {
                     <div className="space-y-2">
                         {blocks.map((block, index) => {
                             const statusConfig = STATUS_CONFIG[block.status];
-                            const categoryColor = block.goal?.category === 'mind'
+                            let categoryColor = block.goal?.category === 'mind'
                                 ? 'var(--color-mind)'
                                 : block.goal?.category === 'body'
                                     ? 'var(--color-body)'
-                                    : 'var(--color-future)';
+                                    : 'var(--color-craft)'; // Renamed future -> craft
+
+                            // Visual Hierarchy Overrides
+                            const isAnchor = block.block_type === 'anchor';
+                            const isMeal = block.block_type === 'meal';
+                            const isRoutine = block.block_type === 'routine';
+
+                            if (isAnchor) categoryColor = 'var(--text-secondary)'; // Boring/Stable
+                            if (isMeal) categoryColor = 'var(--color-accent-2)'; // Organic
+                            if (isRoutine) categoryColor = '#34d399'; // Emerald-400 (Bio/Alive)
 
                             const conflict = conflicts.find(c => c.blockId === block.id);
                             const isOverlap = conflict?.type === 'overlap';
@@ -371,6 +413,8 @@ export default function CalendarPage() {
                                             transition-all duration-300
                                             ${isOverlap ? 'ring-2 ring-[var(--color-error)] border-[var(--color-error)]/20' : ''}
                                             ${isEnergyIssue ? 'ring-2 ring-[var(--color-warning)] border-[var(--color-warning)]/20' : ''}
+                                            ${isAnchor ? 'border-l-4 border-l-[var(--text-secondary)] bg-[var(--glass-bg-subtle)]' : ''}
+                                            ${isRoutine ? 'border-l-4 border-l-emerald-500 bg-emerald-500/10' : ''}
                                         `}
                                     >
                                         <div
@@ -608,6 +652,95 @@ export default function CalendarPage() {
                                     onClick={handleCreateBlock}
                                 >
                                     Create Block
+                                </GlassButton>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {/* Create Anchor Modal */}
+            <AnimatePresence>
+                {creatingAnchor && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                        onClick={() => setCreatingAnchor(null)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.95, y: 20 }}
+                            className="glass-card p-6 w-full max-w-md space-y-4"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex items-center gap-2 mb-4">
+                                <Anchor className="w-5 h-5 text-[var(--text-secondary)]" />
+                                <h3 className="text-lg font-bold">Add Anchor</h3>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm text-[var(--text-secondary)]">Commitment</label>
+                                    <GlassInput
+                                        value={creatingAnchor.title}
+                                        onChange={(e) => setCreatingAnchor({ ...creatingAnchor, title: e.target.value })}
+                                        placeholder="e.g. Work, Class (Fixed)"
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm text-[var(--text-secondary)]">Start</label>
+                                        <GlassInput type="time" value={creatingAnchor.start_time} onChange={(e) => setCreatingAnchor({ ...creatingAnchor, start_time: e.target.value })} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-sm text-[var(--text-secondary)]">End</label>
+                                        <GlassInput type="time" value={creatingAnchor.end_time} onChange={(e) => setCreatingAnchor({ ...creatingAnchor, end_time: e.target.value })} />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-sm text-[var(--text-secondary)] flex items-center gap-2">
+                                        <Repeat className="w-3 h-3" /> Repeats on
+                                    </label>
+                                    <div className="flex justify-between gap-1">
+                                        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                                            <button
+                                                key={i}
+                                                onClick={() => {
+                                                    const days = creatingAnchor.days.includes(i)
+                                                        ? creatingAnchor.days.filter(d => d !== i)
+                                                        : [...creatingAnchor.days, i];
+                                                    setCreatingAnchor({ ...creatingAnchor, days });
+                                                }}
+                                                className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${creatingAnchor.days.includes(i)
+                                                    ? 'bg-[var(--text-secondary)] text-[var(--color-bg-primary)]'
+                                                    : 'bg-[var(--glass-bg)] text-[var(--text-tertiary)] hover:bg-[var(--glass-bg-hover)]'
+                                                    }`}
+                                            >
+                                                {d}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-2 pt-4">
+                                <GlassButton
+                                    className="flex-1"
+                                    variant="ghost"
+                                    onClick={() => setCreatingAnchor(null)}
+                                >
+                                    Cancel
+                                </GlassButton>
+                                <GlassButton
+                                    className="flex-1"
+                                    variant="primary"
+                                    onClick={handleCreateAnchor}
+                                >
+                                    Save Anchor
                                 </GlassButton>
                             </div>
                         </motion.div>

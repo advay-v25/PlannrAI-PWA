@@ -16,10 +16,34 @@ export interface Profile {
     low_energy_mode: boolean;
     full_name?: string;
     preferred_name?: string;
+    meal_preferences?: {
+        breakfast: string;
+        lunch: string;
+        dinner: string;
+    };
+    // Onboarding V3 Fields
+    body_preferences?: {
+        activity_types: string[]; // e.g., ['gym', 'walk']
+        preferred_time: string;   // 'morning', 'afternoon', 'evening'
+        duration_mins: number;
+    };
+    buffer_config?: {
+        gap_mins: number;
+        type: 'light' | 'normal' | 'spacious';
+    };
+    wind_down_mins?: number;
+    meals_per_day?: number;
+    meal_windows?: {
+        breakfast?: string;
+        lunch: string;
+        dinner: string;
+    };
 }
 
-export type GoalCategory = 'mind' | 'body' | 'future';
+export type GoalCategory = 'mind' | 'body' | 'craft';
 export type GoalImportance = 'low' | 'medium' | 'high';
+export type EnergyDemand = 'light' | 'medium' | 'heavy';
+export type GoalStatus = 'active' | 'paused' | 'archived';
 
 export interface Goal {
     id: string;
@@ -30,7 +54,9 @@ export interface Goal {
     category: GoalCategory;
     minutes_per_day: number;
     importance: GoalImportance;
-    is_paused: boolean;
+    energy_demand: EnergyDemand;
+    status: GoalStatus;
+    is_paused?: boolean; // deprecated
     // V2 fields - subtasks and AI
     parent_id?: string | null;
     constraints?: Record<string, unknown>;
@@ -67,9 +93,10 @@ export interface Commitment {
     id: string;
     user_id: string;
     title: string;
-    day_of_week: number[]; // 0=Sun, 6=Sat
-    start_time: string;
-    end_time: string;
+    days_of_week: number[]; // 0=Sun, 6=Sat
+    start_time: string; // "HH:MM"
+    end_time: string;   // "HH:MM"
+    is_active: boolean;
 }
 
 export type BlockStatus = 'planned' | 'done' | 'partial' | 'missed';
@@ -82,6 +109,7 @@ export interface ScheduleBlock {
     start_time: string;
     end_time: string;
     status: BlockStatus;
+    block_type?: 'anchor' | 'goal' | 'meal' | 'buffer' | 'routine';
     context: string | null;
     created_at: string;
     // Joined data
@@ -160,9 +188,26 @@ export interface OnboardingData {
     ai_can_suggest: boolean;
     ai_can_analyze: boolean;
     ai_can_draft: boolean;
-    full_name: string;
+    full_name: string; // Restored
+    // V3 Fields
+    wind_down_mins: number;
+    meals_per_day: number;
+    meal_windows: {
+        breakfast: string;
+        lunch: string;
+        dinner: string;
+    };
+    buffer_config: {
+        gap_mins: number;
+        type: 'light' | 'normal' | 'spacious';
+    };
+    body_preferences: {
+        activity_types: string[];
+        preferred_time: string;
+        duration_mins: number;
+    };
+    scan_skipped: boolean;
 }
-
 // UI types
 export interface DailyOverview {
     date: string;
@@ -224,4 +269,40 @@ export interface InterventionLog {
     status: 'pending' | 'dismissed' | 'accepted';
     created_at: string;
     action_taken_at?: string;
+}
+
+export interface ScanSession {
+    id: string;
+    user_id: string;
+    created_at: string;
+    store_mode: 'signals_only' | 'store_image';
+    image_url: string | null;
+    signals: any[]; // JSONB
+    confidence_score: number;
+    readable: boolean;
+    notes?: string;
+}
+
+export interface RoutineRecommendation {
+    id: string;
+    user_id: string;
+    created_at: string;
+    routine_type: 'morning' | 'night' | 'workout';
+    source: 'scan' | 'context' | 'mixed';
+    routine: RoutineOutput;
+    accepted: boolean;
+    calendar_event_id?: string | null;
+}
+
+export interface RoutineOutput {
+    routine_type: 'morning' | 'night' | 'workout';
+    name: string;
+    duration_minutes: number;
+    goal: 'mobility' | 'activation' | 'recovery' | 'downshift' | 'strength' | 'cardio' | 'mixed';
+    intensity: 'low' | 'medium';
+    steps: string[];
+    avoid_today?: string;
+    best_time_window: string;
+    confidence_score: number;
+    questions?: string[];
 }

@@ -19,7 +19,9 @@ import {
     Moon,
     Sun,
     Loader2,
-    Sparkles
+    Sparkles,
+    Activity,
+    ArrowLeft
 } from 'lucide-react';
 import type { Profile } from '@/types/database';
 
@@ -250,6 +252,26 @@ export default function SettingsPage() {
                 </GlassCard>
             </section>
 
+            {/* Bio-Calibration Link */}
+            <section className="space-y-3">
+                <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-[var(--color-text-muted)]" />
+                    <h2 className="font-medium">Bio-Calibration</h2>
+                </div>
+                <GlassCard padding="md" className="flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors" onClick={() => router.push('/app/settings/bio-calibration')}>
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                            <Activity className="w-5 h-5 text-emerald-400" />
+                        </div>
+                        <div>
+                            <p className="font-medium">Routines & Scans</p>
+                            <p className="text-xs text-[var(--color-text-muted)]">Analyze posture and generate protocols</p>
+                        </div>
+                    </div>
+                    <ArrowLeft className="w-4 h-4 rotate-180 text-[var(--text-tertiary)]" />
+                </GlassCard>
+            </section>
+
             {/* AI Permissions */}
             <section className="space-y-3">
                 <div className="flex items-center gap-2">
@@ -349,6 +371,6 @@ export default function SettingsPage() {
             <p className="text-center text-xs text-[var(--color-text-muted)]">
                 PlannrAI v1.0.0 · Your data is private
             </p>
-        </div >
+        </div>
     );
 }

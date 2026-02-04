@@ -1,6 +1,3 @@
-
-'use client';
-
 import { motion } from 'framer-motion';
 import { useOnboardingStore } from '@/stores';
 import { GlassInput } from '@/components/ui/glass-input';

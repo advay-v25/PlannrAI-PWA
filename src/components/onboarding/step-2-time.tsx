@@ -52,16 +52,29 @@ export function Step2Time() {
                 />
             </div>
 
-            {/* Visualizer (Abstract) */}
-            <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.6 }}
-                className="w-full h-2 bg-[var(--glass-border)] rounded-full overflow-hidden relative"
-            >
-                {/* This would ideally visualize the sleep block on a linear timeline */}
-                <div className="absolute inset-0 opacity-30 bg-gradient-to-r from-indigo-500 via-amber-500 to-indigo-500" />
-            </motion.div>
+            {/* Wind Down Input */}
+            <div className="w-full max-w-2xl px-6 py-4 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <span className="text-2xl">🌬️</span>
+                    <div>
+                        <p className="font-bold text-sm">Wind-down Protocol</p>
+                        <p className="text-xs text-[var(--color-text-secondary)]">Disconnect before sleep</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-4 flex-1 justify-end">
+                    <input
+                        type="range"
+                        min={15} max={120} step={15}
+                        value={data.wind_down_mins || 45}
+                        onChange={(e) => updateData({ wind_down_mins: Number(e.target.value) })}
+                        className="w-32 accent-indigo-400"
+                    />
+                    <span className="font-mono font-bold w-12 text-right">{data.wind_down_mins || 45}m</span>
+                </div>
+            </div>
+
+            {/* Visualizer (Concrete Day Frame) */}
+            <DayFrameVisualizer sleepStart={data.sleep_start} sleepEnd={data.sleep_end} windDown={data.wind_down_mins || 45} />
         </div>
     );
 }
@@ -98,4 +111,33 @@ function TimeCard({ icon, label, sublabel, value, onChange, delay, gradient }: a
             </div>
         </motion.div>
     );
+}
+
+function DayFrameVisualizer({ sleepStart, sleepEnd, windDown }: { sleepStart: string, sleepEnd: string, windDown: number }) {
+    // Simple visual representation of the 24h cycle
+    // We assume standard day for visualization: 00:00 to 24:00
+    // But since it's a cycle, we can just show a bar: Sleep -> Wake -> [Active] -> WindDown -> Sleep
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full space-y-2"
+        >
+            <div className="flex justify-between text-xs text-[var(--text-tertiary)] font-mono uppercase">
+                <span>{sleepEnd} Wake</span>
+                <span className="text-indigo-300">-{windDown}m Wind Down</span>
+                <span>{sleepStart} Sleep</span>
+            </div>
+            <div className="h-4 w-full bg-[var(--glass-border)] rounded-full overflow-hidden flex">
+                {/* This matches a "Linear" day from Wake to Sleep for simplicity in this context */}
+                {/* Actually, let's just show a simple static bar representing "Energy Capacity" */}
+                <div className="h-full bg-gradient-to-r from-amber-500 via-orange-400 to-indigo-400 flex-1 opacity-80" />
+                <div className="h-full bg-indigo-900 w-[10%] opacity-50 border-l border-white/10" title="Wind Down" />
+            </div>
+            <p className="text-center text-xs text-[var(--text-tertiary)] pt-2">
+                Your calibration creates a human day frame.
+            </p>
+        </motion.div>
+    )
 }

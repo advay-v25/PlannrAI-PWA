@@ -49,13 +49,16 @@
   --color-primary-glow: hsla(16, 100%, 55%, 0.4);
 
   /* Category Accents - Magma/Ember Colors */
-  --color-mind: hsl(270, 80%, 60%);
+  --color-mind: #8B5CF6;
   /* Deep Violet (remains for contrast) */
   --color-mind-soft: hsla(270, 80%, 60%, 0.1);
-  --color-body: hsl(35, 100%, 50%);
+  --color-body: #10B981;
   /* Gold/Amber */
   --color-body-soft: hsla(35, 100%, 50%, 0.1);
-  --color-future: hsl(200, 90%, 50%);
+  --color-craft: #EC4899;
+  /* Renamed from future */
+  --color-future: #EC4899;
+  /* Legacy support */
   /* Ice Blue (for cool contrast) */
   --color-future-soft: hsla(200, 90%, 50%, 0.1);
 

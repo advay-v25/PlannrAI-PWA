@@ -58,31 +58,132 @@ function getPersonaInstruction(energyLevel?: number): string {
 
 // System prompts for different use cases
 export const SYSTEM_PROMPTS = {
-    COACH: `You are a world-class performance coach (like a warmer, deeper Wendy Rhoades or a sharp, empathetic Donna Paulsen).
-Your Goal: Help the user gain clarity, momentum, and peace.
+    COACH: `🧠 SYSTEM PROMPT — PLANNRAI AI COACH
 
-CORE PRINCIPLES:
-1. **Validate First**: Always acknowledge the user's state/emotion before solving. ("It makes sense you're tired...")
-2. **Be Proactive**: Connect their current issue to their known goals/patterns. ("This sounds like the friction you had with the Marathon goal.")
-3. **Ask, Don't Tell**: Use Socratic questioning to help them solve it. ("What would 'easy' look like right now?")
-4. **Bio-Feedback Aware**: If they seem stressed, check their energy. If excited, channel it.
-5. **Action Oriented**: If a clear step emerges (like "Do deep work" or "Add a goal"), suggest it as a concrete system action.
+You are the AI Coach for PlannrAI.
 
-RESPONSE STRUCTURE (MANDATORY - follow exactly):
-1. **Facts**: What is objectively happening based on what the user shared.
-2. **Interpretation**: What this might mean (be tentative, not diagnostic).
-3. **Options**: 2-3 possible paths forward.
-4. **Permission Check**: End with "Would you like me to..." (must be a question).
-5. **Action Payload**: If a specific app action helps, output a JSON block at the very end.
-   Format: { "type": "schedule_block" | "create_goal", "params": { ... } }
+You are a schedule strategist and deviation analyst, not a therapist, motivator, or conversational assistant.
 
-JSON Section (at the very end, invisible to user):
-**Facts**: [Extracted objective facts]
-**Interpretation**: [Your internal analysis]
-**Options**: [List of 2-3 short suggested replies/actions for the user]
-**Permission**: [String to ask if they want to proceed with a specific intervention]
-**Action**: { "type": "schedule_block", "params": { "title": "Focus Block", "duration_mins": 60 } }
-(Only include **Action** if relevant. Otherwise omit it.)`,
+Your purpose is to reduce cognitive load by converting reality into clear, actionable choices.
+
+⸻
+
+CORE RULES (NON-NEGOTIABLE)
+1. You speak only when the user initiates
+2. You never act autonomously
+3. You never modify data without explicit approval
+4. You never explain your reasoning unless explicitly asked
+5. You never use metaphors, empathy language, or motivational talk
+6. You never exceed what is necessary to decide the next move
+
+⸻
+
+INTERNAL THINKING (HIDDEN)
+
+For every user message, silently perform the following steps:
+1. Identify the primary pillar affected:
+   • Mind
+   • Body
+   • Future
+2. Classify deviation into one category only:
+   • Unavoidable
+   • Structural overload
+   • Energy mismatch
+   • Skill bottleneck
+   • Avoidance pattern
+3. Evaluate risk to:
+   • Today
+   • This week
+   • Long-term trajectory
+4. Select exactly one next-move category:
+   • Resume as planned
+   • Shift intensity
+   • Pause & recover
+
+Do NOT expose this reasoning unless asked.
+
+⸻
+
+RESPONSE FORMAT (MANDATORY)
+
+Every response must follow this exact structure and end immediately after the control question.
+
+Line 1 — Reality (factual, 1 sentence)
+
+State what has happened based on data.
+
+Example:
+"You've logged low energy and missed two planned blocks today."
+
+⸻
+
+Line 2 — Decision (1 sentence)
+
+State whether change is needed.
+
+Example:
+"Continuing as planned will likely exhaust you."
+
+OR
+
+"No schedule adjustment is needed."
+
+⸻
+
+Line 3 — Options (bullet list, max 3)
+
+Each option must be concrete and actionable.
+
+Example:
+Options:
+• Reduce today's workload by 30%
+• Push low-priority tasks to tomorrow
+• Pause remaining tasks and recover
+
+⸻
+
+Line 4 — Control Question (mandatory)
+
+Ask which option to apply.
+
+Example:
+"Which should I apply?"
+
+⸻
+
+UI INTEGRATION RULES
+• Options must be rendered as buttons
+• No text input required from user
+• No follow-up questions unless user initiates
+
+⸻
+
+TASK VISIBILITY LOGIC
+
+You may propose hiding a task only if:
+• Priority is low
+• Effort is high
+• User energy is low
+• Task is not time-bound
+
+Hiding always requires user approval.
+
+⸻
+
+FAILURE MODE
+
+If data is insufficient:
+• Default to conservative action
+• Offer "Resume as planned" as first option
+
+⸻
+
+SUCCESS DEFINITION
+
+A response is successful if:
+• The user can decide in under 3 seconds
+• The app feels lighter after the interaction
+• No additional thinking is required`,
 
     BRAIN_DUMP_EXTRACTION: `You are an invisible assistant analyzing a brain dump.
 The user will NOT see this response directly, it will be parsed by the system.
@@ -502,6 +603,8 @@ export async function generateCoachResponse(
         lowEnergyMode?: boolean;
         goals?: Array<{ title: string; category: string; importance: string }>;
         recentDumps?: string[];
+        scanSignals?: any[];
+        sleepWindow?: string;
     },
     userId: string
 ): Promise<{
@@ -524,6 +627,8 @@ ${memoryContext || 'No permanent records yet.'}
 Current Session Context:
 - Low Energy Mode: ${context.lowEnergyMode ? 'Enabled - be extra gentle' : 'Normal'}
 - Active Goals: ${context.goals?.map(g => `${g.title} (${g.category}, ${g.importance})`).join(', ') || 'None set'}
+- Latest Scan Signals: ${JSON.stringify(context.scanSignals) || 'None'}
+- Sleep Window: ${context.sleepWindow || 'Unknown'}
 
 User Message: ${message}
 `;
@@ -540,38 +645,93 @@ User Message: ${message}
     let structured = null;
 
     try {
-        const factsMatch = response.match(/\*\*Facts?\*\*:?\s*([\s\S]*?)(?=\*\*Interpretation|$)/i);
-        const interpMatch = response.match(/\*\*Interpretation\*\*:?\s*([\s\S]*?)(?=\*\*Options?|$)/i);
-        const optionsMatch = response.match(/\*\*Options?\*\*:?\s*([\s\S]*?)(?=\*\*Permission|$)/i);
-        const permMatch = response.match(/\*\*Permission\s*Check?\*\*:?\s*([\s\S]*?)(?=\*\*Action|$)/i);
-        const actionMatch = response.match(/\*\*Action\*\*:?\s*(\{[\s\S]*?\})/i);
+        // Parse the 4-line 4-part structure
+        // Line 1 — Reality
+        // Line 2 — Decision
+        // Line 3 — Options (bullet points)
+        // Line 4 — Control Question
 
-        if (factsMatch && interpMatch && optionsMatch) {
-            const optionsText = optionsMatch[1].trim();
-            const options = optionsText
-                .split(/\d+\.\s*/)
-                .filter(Boolean)
-                .map(o => o.trim());
+        const lines = response.split('\n').filter(l => l.trim().length > 0);
 
-            let suggestedAction = undefined;
-            if (actionMatch) {
-                try {
-                    suggestedAction = JSON.parse(actionMatch[1]);
-                } catch (e) {
-                    console.error('Failed to parse suggested action JSON', e);
-                }
+        // Simple heuristic parser based on the requested output format
+        let reality = "";
+        let decision = "";
+        let options: string[] = [];
+        let questions = "";
+
+        // Find sections by looking for markers or assuming order if markers are missing
+        // This is resilient to slight AI variations
+
+        let currentSection = "reality";
+        let optionsBuffer: string[] = [];
+
+        for (const line of lines) {
+            const lowerRequest = line.toLowerCase();
+
+            if (lowerRequest.includes("line 1") || lowerRequest.includes("reality")) {
+                currentSection = "reality";
+                continue;
+            } else if (lowerRequest.includes("line 2") || lowerRequest.includes("decision")) {
+                currentSection = "decision";
+                continue;
+            } else if (lowerRequest.includes("line 3") || lowerRequest.includes("options")) {
+                currentSection = "options";
+                continue;
+            } else if (lowerRequest.includes("line 4") || lowerRequest.includes("control question")) {
+                currentSection = "question";
+                continue;
             }
 
-            structured = {
-                facts: factsMatch[1].trim(),
-                interpretation: interpMatch[1].trim(),
-                options: options.length > 0 ? options : [optionsText],
-                permissionCheck: permMatch ? permMatch[1].trim() : "Would you like to proceed?",
-                suggestedAction
-            };
+            // Content extraction
+            if (currentSection === "reality") {
+                if (line.trim().length > 0) reality += line + " ";
+            } else if (currentSection === "decision") {
+                if (line.trim().length > 0) decision += line + " ";
+            } else if (currentSection === "options") {
+                if (line.trim().startsWith("•") || line.trim().startsWith("-") || line.trim().match(/^\d+\./)) {
+                    optionsBuffer.push(line.replace(/^[•\-\d\.]+\s*/, "").trim());
+                }
+            } else if (currentSection === "question") {
+                if (line.trim().length > 0) questions += line + " ";
+            }
         }
-    } catch {
-        // If parsing fails, return formatted response only
+
+        // Fallback: If heuristic failed (AI didn't use headings), try positional
+        if (!reality && !decision && optionsBuffer.length === 0) {
+            // Assume strict paragraph order: Reality, Decision, Options List, Question
+            const paragraphs = response.split(/\n\s*\n/); // Split by double newline
+            if (paragraphs.length >= 3) {
+                reality = paragraphs[0].trim();
+                decision = paragraphs[1].trim();
+
+                // Find list items in the middle
+                const bullets = response.match(/[•-]\s+(.+)/g);
+                if (bullets) {
+                    optionsBuffer = bullets.map(b => b.replace(/[•-]\s+/, "").trim());
+                }
+
+                // Last paragraph is likely the question
+                questions = paragraphs[paragraphs.length - 1].trim();
+            }
+        }
+
+        structured = {
+            facts: reality.trim() || response.slice(0, 100) + "...",
+            interpretation: decision.trim() || "Review options below.",
+            options: optionsBuffer.length > 0 ? optionsBuffer : ["Resume as planned"],
+            permissionCheck: questions.trim() || "Which option?",
+            suggestedAction: undefined // Deprecated in this mode for now, purely conversational strategy
+        };
+
+    } catch (e) {
+        console.error("Coach parsing error", e);
+        // Fallback structure
+        structured = {
+            facts: "Analysis complete.",
+            interpretation: response.slice(0, 100) + "...",
+            options: ["Resume as planned"],
+            permissionCheck: "How would you like to proceed?"
+        };
     }
 
     return { structured, formatted: response };

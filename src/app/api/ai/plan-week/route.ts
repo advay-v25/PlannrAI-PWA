@@ -52,9 +52,9 @@ export const POST = secureApiRoute(
         // Get all active goals
         const { data: goals, error: goalsError } = await supabase
             .from('goals')
-            .select('id, title, category, minutes_per_day, importance, ai_routine')
+            .select('id, title, category, minutes_per_day, importance, energy_demand, status')
             .eq('user_id', context.userId)
-            .eq('is_paused', false);
+            .eq('status', 'active');
 
         if (goalsError) {
             return apiError('Failed to fetch goals', 500);
@@ -78,7 +78,7 @@ export const POST = secureApiRoute(
         // Get user profile
         const { data: profile } = await supabase
             .from('profiles')
-            .select('sleep_start, sleep_end, low_energy_mode, timezone')
+            .select('sleep_start, sleep_end, low_energy_mode, timezone, buffer_config, body_preferences, happy_meal_windows:meal_windows, wind_down_mins')
             .eq('id', context.userId)
             .single();
 
@@ -109,6 +109,19 @@ export const POST = secureApiRoute(
             ? energyLogs.reduce((sum, log) => sum + (log.energy_level || 3), 0) / energyLogs.length
             : 3;
 
+
+        // Get existing Bio-Routines (treated as fixed constraints) for the target week
+        const { data: existingRoutines } = await supabase
+            .from('schedule_blocks')
+            .select('*')
+            .eq('user_id', context.userId)
+            .eq('block_type', 'routine')
+            .gte('date', startDate.toISOString().split('T')[0]);
+
+        const routineConstraints = existingRoutines?.map(r =>
+            `- ${r.context} (Bio-Routine): ${r.date} ${r.start_time}-${r.end_time}`
+        ).join('\n') || '';
+
         // Check if Groq is configured
         const groqKey = process.env.GROQ_API_KEY;
         if (!groqKey || groqKey === 'your_groq_api_key_here') {
@@ -137,14 +150,21 @@ export const POST = secureApiRoute(
 User Context:
 - Wakes at: ${profile?.sleep_end || '07:00'}
 - Sleeps at: ${profile?.sleep_start || '23:00'}
+- Wind Down: ${profile?.wind_down_mins || 45} mins before sleep
 - Low energy mode: ${profile?.low_energy_mode ? 'Yes (reduce load)' : 'No'}
 - Average energy this week: ${avgEnergy.toFixed(1)}/5
+- Meal Windows: Breakfast around ${profile?.happy_meal_windows?.breakfast || '08:00'}, Lunch ${profile?.happy_meal_windows?.lunch || '13:00'}, Dinner ${profile?.happy_meal_windows?.dinner || '19:00'}
+- Buffer Preference: ${profile?.buffer_config?.type || 'normal'} (${profile?.buffer_config?.gap_mins || 10} mins)
+- Body/Movement Preference: ${profile?.body_preferences?.activity_types?.join(', ') || 'Walk'} (${profile?.body_preferences?.duration_mins || 30} mins, ${profile?.body_preferences?.preferred_time || 'morning'})
 
 Goals to schedule (Use these UUIDs):
 ${goals.map(g => `- ID: ${g.id} | ${g.title} (${g.category}, ${g.minutes_per_day} min/day, ${g.importance} priority)`).join('\n')}
 
-Fixed commitments:
-${commitments?.map(c => `- ${c.title}: ${c.day_of_week} ${c.start_time}-${c.end_time}`).join('\n') || 'None'}
+Fixed commitments (Anchors):
+${commitments?.map(c => `- ${c.title}: ${c.days_of_week.join(',')} ${c.start_time}-${c.end_time}`).join('\n') || 'None'}
+
+Bio-Routines (Fixed Constraints - DO NOT OVERLAP):
+${routineConstraints || 'None'}
 
 Recent brain dump signals:
 ${signals}
@@ -268,7 +288,8 @@ export const PUT = secureApiRoute(
             .eq('user_id', context.userId)
             .gte('date', week_start)
             .lte('date', endDate.toISOString().split('T')[0])
-            .eq('status', 'planned'); // Only clear planned, keep done/partial/missed
+            .eq('status', 'planned') // Only clear planned, keep done/partial/missed
+            .neq('block_type', 'routine'); // CRITICAL: Protect Bio-Routines (treated as anchors)
 
         // Insert new blocks
         const { data, error } = await supabase
@@ -301,7 +322,7 @@ function getNextMonday(): Date {
 function generateStaticWeekPlan(
     goals: Array<{ id: string; title: string; category: string; minutes_per_day: number; importance: string }>,
     profile: { sleep_end?: string; sleep_start?: string; low_energy_mode?: boolean } | null,
-    commitments: Array<{ day_of_week: number; start_time: string; end_time: string }>
+    commitments: Array<{ days_of_week: number[]; start_time: string; end_time: string }>
 ) {
     const wakeTime = profile?.sleep_end || '07:00';
     const sleepTime = profile?.sleep_start || '23:00';
@@ -311,7 +332,7 @@ function generateStaticWeekPlan(
     const categoryTimes: Record<string, string> = {
         body: '07:30',
         mind: '09:00',
-        future: '19:00',
+        craft: '19:00',
     };
 
     const schedule: Record<string, Array<{ time: string; end_time: string; title: string; goal_id: string; type: string }>> = {

@@ -56,6 +56,24 @@ const defaultOnboardingData: OnboardingData = {
     ai_can_analyze: true,
     ai_can_draft: true,
     full_name: '',
+    // V3 Defaults
+    wind_down_mins: 45,
+    meals_per_day: 3,
+    meal_windows: {
+        breakfast: '08:00',
+        lunch: '13:00',
+        dinner: '19:00',
+    },
+    buffer_config: {
+        gap_mins: 10,
+        type: 'normal',
+    },
+    body_preferences: {
+        activity_types: ['walk'],
+        preferred_time: 'morning',
+        duration_mins: 30,
+    },
+    scan_skipped: false,
 };
 
 export const useOnboardingStore = create<OnboardingState>()(
