@@ -8,7 +8,7 @@ import { GlassButton } from '@/components/ui/glass-button';
 import { GlassInput } from '@/components/ui/glass-input';
 import { WeekPlanner, PlanWeekFAB } from '@/components/week-planner';
 import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
-import { ChevronLeft, ChevronRight, Check, Minus, X, Sparkles, Calendar as CalendarIcon, AlertTriangle, ZapOff, Plus, Trash2, Anchor, Repeat } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Minus, X, Sparkles, Calendar as CalendarIcon, AlertTriangle, ZapOff, Plus, Trash2, Anchor, Repeat, Brain } from 'lucide-react';
 import type { ScheduleBlock, BlockStatus, Goal } from '@/types/database';
 import { useScheduleWatchdog } from '@/hooks/use-schedule-watchdog';
 import { useDailyLogStore, useUserStore } from '@/stores';
@@ -233,6 +233,41 @@ export default function CalendarPage() {
             setIsOptimizing(false);
         }
     };
+
+    // Analyze Day Feature
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+
+    const handleAnalyzeDay = async () => {
+        setIsAnalyzing(true);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            // Reuse Coach API but contextually focused on today's schedule
+            const res = await fetch('/api/coach', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: `Analyze my schedule for today (${format(selectedDate, 'yyyy-MM-dd')}). Here are my blocks: ${JSON.stringify(blocks.map(b => ({
+                        time: b.start_time,
+                        activity: b.context,
+                        type: b.block_type
+                    })))}. Brief me on potential friction points or energy risks. Keep it under 50 words.`
+                })
+            });
+
+            const data = await res.json();
+            if (data.formatted) {
+                setAnalysisResult(data.formatted);
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+
 
     return (
         <div className="space-y-6">

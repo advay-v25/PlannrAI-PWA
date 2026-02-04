@@ -95,24 +95,27 @@ Respond as Donna would. Be sharp, warm, and genuinely helpful.`;
                 profile.energy_level
             );
 
-            // Parse any extracted actions
+            // Parse any extracted actions with robust regex handling (case insensitive, optional brackets)
             let cleanResponse = response;
             let extractedActions: Array<{ task: string; priority: string }> = [];
 
-            const actionsMatch = response.match(/\[ACTIONS_EXTRACTED\]([\s\S]*?)\[END_ACTIONS\]/);
+            // Regex allows for missing brackets or slight hallucinations
+            const actionsMatch = response.match(/\[?ACTIONS_EXTRACTED\]?([\s\S]*?)\[?END_ACTIONS\]?/i);
+
             if (actionsMatch) {
-                cleanResponse = response.replace(/\[ACTIONS_EXTRACTED\][\s\S]*?\[END_ACTIONS\]/, '').trim();
+                // Strip the entire block from the user-facing response
+                cleanResponse = response.replace(/\[?ACTIONS_EXTRACTED\]?[\s\S]*?\[?END_ACTIONS\]?/i, '').trim();
 
                 // Parse YAML-like actions
-                const actionLines = actionsMatch[1].split('\n').filter(l => l.includes('task:'));
+                const actionLines = actionsMatch[1].split('\n').filter(l => l.trim().includes('task:'));
                 extractedActions = actionLines.map(line => {
-                    const taskMatch = line.match(/task:\s*["']?([^"'\n]+)["']?/);
-                    const priorityMatch = line.match(/priority:\s*["']?(\w+)["']?/);
+                    const taskMatch = line.match(/task:\s*["']?([^"'\n]+)["']?/i);
+                    const priorityMatch = line.match(/priority:\s*["']?(\w+)["']?/i);
                     return {
                         task: taskMatch?.[1] || '',
                         priority: priorityMatch?.[1] || 'medium'
                     };
-                }).filter(a => a.task);
+                }).filter(a => a.task && a.task.length > 0);
             }
 
             // Log successful AI request

@@ -135,8 +135,8 @@ export default function SettingsPage() {
             localStorage.clear();
             await supabase.auth.signOut();
 
-            // Force redirect to onboarding/login
-            router.push('/login');
+            // Force redirect to onboarding/login via hard reload to clear memory
+            window.location.href = '/login';
         } catch (error) {
             console.error('Delete failed:', error);
             alert('Failed to delete account. Please try again.');

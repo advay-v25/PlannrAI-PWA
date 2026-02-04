@@ -9,6 +9,7 @@ import { GlassButton } from '@/components/ui/glass-button';
 import { AddGoalModal } from '@/components/goals/add-goal-modal';
 import { CommitmentModal } from '@/components/goals/commitment-modal';
 import { ClearGoalsDialog } from '@/components/goals/clear-goals-dialog';
+import { GoalStrategyModal } from '@/components/goals/goal-strategy-modal';
 import { GlassInput } from '@/components/ui/glass-input';
 import {
     Brain,
@@ -45,6 +46,7 @@ export default function GoalsPage() {
     const [isAdding, setIsAdding] = useState(false);
     const [creatingAnchor, setCreatingAnchor] = useState(false);
     const [clearingGoals, setClearingGoals] = useState(false);
+    const [selectedStrategyGoal, setSelectedStrategyGoal] = useState<Goal | null>(null);
 
     // UI State for editing
     const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null);
@@ -200,6 +202,7 @@ export default function GoalsPage() {
                                     onExpand={() => setExpandedGoalId(expandedGoalId === goal.id ? null : goal.id)}
                                     onUpdate={(updates) => handleUpdate(goal.id, updates)}
                                     onDelete={() => handleDelete(goal.id)}
+                                    onStrategy={() => setSelectedStrategyGoal(goal)}
                                     pillarColor={pillar.color}
                                 />
                             ))}
@@ -224,6 +227,13 @@ export default function GoalsPage() {
                 {clearingGoals && (
                     <ClearGoalsDialog onClose={() => setClearingGoals(false)} />
                 )}
+                {selectedStrategyGoal && (
+                    <GoalStrategyModal
+                        goal={selectedStrategyGoal}
+                        isOpen={true}
+                        onClose={() => setSelectedStrategyGoal(null)}
+                    />
+                )}
             </AnimatePresence>
 
         </div>
@@ -234,12 +244,13 @@ export default function GoalsPage() {
 // Sub-components (Inline for now, can move to separate files)
 // ------------------------------------------------------------------
 
-function GoalCard({ goal, isExpanded, onExpand, onUpdate, onDelete, pillarColor }: {
+function GoalCard({ goal, isExpanded, onExpand, onUpdate, onDelete, onStrategy, pillarColor }: {
     goal: Goal;
     isExpanded: boolean;
     onExpand: () => void;
     onUpdate: (u: Partial<Goal>) => void;
     onDelete: () => void;
+    onStrategy: () => void;
     pillarColor: string;
 }) {
     const isPaused = goal.status === 'paused';
@@ -267,6 +278,13 @@ function GoalCard({ goal, isExpanded, onExpand, onUpdate, onDelete, pillarColor 
                 </div>
 
                 <div className="flex items-center gap-2">
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onStrategy(); }}
+                        className="p-1.5 rounded-full hover:bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
+                        title="Consult Expert"
+                    >
+                        <Sparkles className="w-4 h-4" />
+                    </button>
                     <span className={`text-[10px] px-2 py-0.5 rounded-full border ${goal.importance === 'high' ? 'border-[var(--color-primary)] text-[var(--color-primary)]' : 'border-[var(--glass-border)] text-[var(--text-tertiary)]'
                         }`}>
                         {goal.importance}
@@ -290,6 +308,16 @@ function GoalCard({ goal, isExpanded, onExpand, onUpdate, onDelete, pillarColor 
                                 onChange={(e) => onUpdate({ title: e.target.value })}
                                 className="font-bold"
                             />
+
+                            {/* AI Strategy Button (Large) */}
+                            <GlassButton
+                                variant="ghost"
+                                className="w-full justify-center border border-dashed border-[var(--color-primary)]/30 text-[var(--color-primary)]"
+                                onClick={onStrategy}
+                            >
+                                <Sparkles className="w-4 h-4 mr-2" />
+                                Open Expert Strategy
+                            </GlassButton>
 
                             {/* Sliders & Selectors */}
                             <div className="grid grid-cols-2 gap-4">

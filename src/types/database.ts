@@ -67,6 +67,7 @@ export interface Goal {
     sort_order?: number;
     notes?: string; // User-provided context for AI
     description?: string; // Longer description
+    ai_strategy?: any; // JSONB cache for AI plan (Phase 7)
 }
 
 export interface GoalAIPlan {
@@ -110,6 +111,7 @@ export interface ScheduleBlock {
     end_time: string;
     status: BlockStatus;
     block_type?: 'anchor' | 'goal' | 'meal' | 'buffer' | 'routine';
+    checklist?: { id: string; text: string; completed: boolean }[]; // JSONB
     context: string | null;
     created_at: string;
     // Joined data
