@@ -1,10 +1,10 @@
 'use client';
 
-import { forwardRef } from 'react';
+import { forwardRef, HTMLAttributes } from 'react';
 import { motion, HTMLMotionProps } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
-interface GlassCardProps extends HTMLMotionProps<'div'> {
+interface GlassCardProps extends HTMLAttributes<HTMLDivElement> {
     variant?: 'default' | 'glow' | 'deep' | 'outline' | 'breathe';
     padding?: 'none' | 'sm' | 'md' | 'lg';
     interactive?: boolean;
@@ -46,7 +46,7 @@ export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
                 )}
                 whileHover={interactive ? { y: -2 } : undefined}
                 whileTap={interactive ? { scale: 0.98 } : undefined}
-                {...props}
+                {...(props as any)}
             >
                 {variant === 'glow' && (
                     <div className="absolute inset-0 bg-gradient-to-br from-[var(--color-primary)]/5 to-transparent pointer-events-none" />
@@ -70,7 +70,7 @@ export function StaticGlassCard({
         <div
             className={cn(
                 'relative overflow-hidden border backdrop-blur-md rounded-[var(--radius-2xl)]',
-                variants[variant],
+                variants[variant as keyof typeof variants],
                 paddingClasses[padding as keyof typeof paddingClasses],
                 className
             )}
