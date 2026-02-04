@@ -3,11 +3,13 @@
 import { forwardRef, HTMLAttributes } from 'react';
 import { motion, HTMLMotionProps } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { ReactNode } from 'react';
 
-interface GlassCardProps extends HTMLAttributes<HTMLDivElement> {
+interface GlassCardProps extends HTMLMotionProps<'div'> {
     variant?: 'default' | 'glow' | 'deep' | 'outline' | 'breathe';
     padding?: 'none' | 'sm' | 'md' | 'lg';
     interactive?: boolean;
+    children?: ReactNode;
 }
 
 const paddingClasses = {
@@ -46,7 +48,7 @@ export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
                 )}
                 whileHover={interactive ? { y: -2 } : undefined}
                 whileTap={interactive ? { scale: 0.98 } : undefined}
-                {...(props as any)}
+                {...props}
             >
                 {variant === 'glow' && (
                     <div className="absolute inset-0 bg-gradient-to-br from-[var(--color-primary)]/5 to-transparent pointer-events-none" />
@@ -65,7 +67,7 @@ export function StaticGlassCard({
     padding = 'md',
     children,
     ...props
-}: any) {
+}: HTMLAttributes<HTMLDivElement> & { variant?: string; padding?: string }) {
     return (
         <div
             className={cn(

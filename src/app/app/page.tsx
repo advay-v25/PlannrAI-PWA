@@ -24,7 +24,7 @@ import {
     Calendar,
 } from 'lucide-react';
 import Link from 'next/link';
-import type { Goal, ScheduleBlock, InterventionLog } from '@/types/database';
+import type { Goal, ScheduleBlock, InterventionLog, Profile } from '@/types/database';
 import { InterventionCard } from '@/components/dashboard/intervention-card';
 import { checkInterventionsAction } from '@/app/actions/interventions';
 import { MorningBriefing } from '@/components/dashboard/morning-briefing';

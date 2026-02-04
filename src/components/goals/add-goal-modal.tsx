@@ -22,7 +22,7 @@ const PILLARS = [
 export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
     onClose: () => void,
     onSuccess?: () => void,
-    onSave?: (goal: Partial<any>) => void,
+    onSave?: (goal: Record<string, unknown>) => void,
     initialValues?: { title?: string, category?: GoalCategory }
 }) {
     const supabase = createClient();
@@ -37,7 +37,6 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
     const [energy, setEnergy] = useState<EnergyDemand>('medium');
 
     // AI Suggestions
-    const [suggestions, setSuggestions] = useState<any[]>([]);
     const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
     // Debounce for AI suggestions
@@ -89,6 +88,7 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
 
         // Optimistic update locally? Or wait for DB?
         // Let's insert to DB then add to store
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore - Supabase types might be slightly off
         const { data, error } = await supabase.from('goals').insert(newGoal).select().single();
 

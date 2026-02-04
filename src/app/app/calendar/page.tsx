@@ -31,7 +31,7 @@ export default function CalendarPage() {
     const [editingBlock, setEditingBlock] = useState<(ScheduleBlock & { goal?: Goal }) | null>(null);
     const [creatingBlock, setCreatingBlock] = useState<{ start_time: string; end_time: string; context: string } | null>(null);
     const [creatingAnchor, setCreatingAnchor] = useState<{ title: string; start_time: string; end_time: string; days: number[] } | null>(null);
-    const [isOptimizing, setIsLoadingOptimizing] = useState(false);
+    const [isOptimizing, setIsOptimizing] = useState(false);
 
     // Watchdog Integration
     const { profile } = useUserStore();
@@ -134,7 +134,7 @@ export default function CalendarPage() {
     };
 
     const handleOptimizeDay = async () => {
-        setIsLoadingOptimizing(true);
+        setIsOptimizing(true);
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
@@ -149,12 +149,12 @@ export default function CalendarPage() {
             });
             if (!res.ok) throw new Error('Optimization failed');
             const { data } = await res.json();
-            setBlocks(data.optimizedBlocks.sort((a: any, b: any) => a.start_time.localeCompare(b.start_time)));
+            setBlocks(data.optimizedBlocks.sort((a: { start_time: string }, b: { start_time: string }) => a.start_time.localeCompare(b.start_time)));
         } catch (error: any) {
             console.error(error);
             alert(error.message || "Optimization error.");
         } finally {
-            setIsLoadingOptimizing(false);
+            setIsOptimizing(false);
         }
     };
 
