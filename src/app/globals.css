@@ -10,92 +10,82 @@
      COLOR SYSTEM - Lumix Dark Mode
      ═══════════════════════════════════════ */
 
-  /* Background Layers - Abyssal */
-  --color-bg-primary: hsl(0, 0%, 3%);
-  /* True Black */
-  --color-bg-secondary: hsl(0, 0%, 6%);
-  /* Soft Black */
-  --color-bg-tertiary: hsl(15, 10%, 8%);
-  /* Warm Black */
-  --color-bg-elevated: hsl(15, 10%, 10%);
+  /* Background Layers - Abyssal with Mesh Depth */
+  --color-bg-primary: hsl(240, 10%, 2%);
+  --color-bg-secondary: hsl(240, 10%, 4%);
+  --color-bg-tertiary: hsl(240, 10%, 6%);
+  --color-bg-elevated: hsl(240, 10%, 8%);
 
-  /* Glass System - Heavy Magma Glass */
-  --glass-bg: rgba(20, 15, 15, 0.6);
-  /* Warmer tint */
-  --glass-bg-hover: rgba(35, 25, 25, 0.7);
-  --glass-bg-active: rgba(50, 30, 30, 0.8);
-  --glass-bg-elevated: rgba(30, 20, 20, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-border-subtle: rgba(255, 255, 255, 0.04);
-  --glass-border-hover: rgba(255, 91, 34, 0.3);
-  /* Orange Tint on Hover */
-  --glass-blur: 40px;
-  --glass-blur-intense: 60px;
+  /* Glass System - Luxury Quartz Glass */
+  --glass-bg: rgba(10, 10, 12, 0.4);
+  --glass-bg-hover: rgba(20, 20, 25, 0.5);
+  --glass-bg-active: rgba(30, 30, 35, 0.6);
+  --glass-bg-elevated: rgba(15, 15, 20, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.05);
+  --glass-border-subtle: rgba(255, 255, 255, 0.02);
+  --glass-border-hover: rgba(255, 255, 255, 0.15);
+  --glass-blur: 24px;
+  --glass-blur-intense: 40px;
 
-  /* Shadows - Warm Glows */
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.8);
-  --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.6), 0 0 0 1px inset rgba(255, 255, 255, 0.05);
-  --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 0 1px inset rgba(255, 255, 255, 0.05);
-  --shadow-xl: 0 40px 80px rgba(0, 0, 0, 0.9), 0 0 0 1px inset rgba(255, 255, 255, 0.05);
-  --shadow-glow: 0 0 30px rgba(255, 91, 34, 0.15);
-  --shadow-glow-intense: 0 0 50px rgba(255, 91, 34, 0.3);
+  /* Premium Shadows */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 16px rgba(0, 0, 0, 0.5), 0 0 0 1px inset rgba(255, 255, 255, 0.03);
+  --shadow-lg: 0 16px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px inset rgba(255, 255, 255, 0.03);
+  --shadow-xl: 0 32px 64px rgba(0, 0, 0, 0.7), 0 0 0 1px inset rgba(255, 255, 255, 0.04);
+  --shadow-glow: 0 0 40px rgba(255, 91, 34, 0.1);
+  --shadow-glow-intense: 0 0 60px rgba(255, 91, 34, 0.2);
 
-  /* Primary - Lumix Orange */
-  --color-primary: hsl(16, 100%, 55%);
-  /* #FF5B22 */
+  /* Primary - Vivid Lumix Orange */
+  --color-primary: hsl(16, 100%, 60%);
   --color-primary-hover: hsl(16, 100%, 65%);
-  --color-primary-soft: hsl(16, 90%, 40%);
-  --color-primary-muted: hsla(16, 100%, 55%, 0.1);
-  --color-primary-glow: hsla(16, 100%, 55%, 0.4);
+  --color-primary-soft: hsl(16, 100%, 45%);
+  --color-primary-muted: hsla(16, 100%, 60%, 0.05);
+  --color-primary-glow: hsla(16, 100%, 60%, 0.3);
 
-  /* Category Accents - Magma/Ember Colors */
-  --color-mind: #8B5CF6;
-  /* Deep Violet (remains for contrast) */
-  --color-mind-soft: hsla(270, 80%, 60%, 0.1);
+  /* Category Accents - Luxury Vibrant Palettes */
+  --color-mind: #A855F7;
+  /* Vibrant Purple */
   --color-body: #10B981;
-  /* Gold/Amber */
-  --color-body-soft: hsla(35, 100%, 50%, 0.1);
-  --color-craft: #EC4899;
-  /* Renamed from future */
-  --color-future: #EC4899;
-  /* Legacy support */
-  /* Ice Blue (for cool contrast) */
-  --color-future-soft: hsla(200, 90%, 50%, 0.1);
+  /* Emerald Green */
+  --color-craft: #F43F5E;
+  /* Rose Red */
+
+  /* Luxury Overlays */
+  --mesh-gradient:
+    radial-gradient(at 0% 0%, hsla(16, 100%, 60%, 0.1) 0, transparent 50%),
+    radial-gradient(at 100% 0%, hsla(270, 80%, 60%, 0.08) 0, transparent 50%),
+    radial-gradient(at 100% 100%, hsla(150, 80%, 40%, 0.06) 0, transparent 50%),
+    radial-gradient(at 0% 100%, hsla(330, 80%, 60%, 0.08) 0, transparent 50%);
 
   /* Status Colors */
-  --color-success: hsl(150, 90%, 40%);
-  --color-success-soft: hsla(150, 90%, 40%, 0.1);
-  --color-warning: hsl(40, 100%, 50%);
-  --color-warning-soft: hsla(40, 100%, 50%, 0.1);
-  --color-error: hsl(0, 90%, 60%);
-  --color-error-soft: hsla(0, 90%, 60%, 0.1);
-  --color-muted: hsl(240, 5%, 35%);
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+  --color-muted: #6B7280;
 
-  /* Text Hierarchy */
-  --text-primary: hsl(0, 0%, 95%);
-  --text-secondary: hsl(0, 0%, 75%);
-  --text-tertiary: hsl(0, 0%, 55%);
-  --text-muted: hsl(0, 0%, 35%);
+  /* Text Hierarchy - High Legibility */
+  --text-primary: #FFFFFF;
+  --text-secondary: #A1A1AA;
+  --text-tertiary: #52525B;
+  --text-muted: #3F3F46;
 
   /* ═══════════════════════════════════════
-     TYPOGRAPHY - SF Pro
+     TYPOGRAPHY - SF Pro with Luxury Spacing
      ═══════════════════════════════════════ */
 
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
   --font-display: var(--font-sans);
-  --font-mono: "SF Mono", ui-monospace, monospace;
 
   /* Type Scale */
-  --text-xs: 0.64rem;
-  --text-sm: 0.8rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
   --text-base: 1rem;
-  --text-lg: 1.25rem;
-  --text-xl: 1.563rem;
-  --text-2xl: 1.953rem;
-  --text-3xl: 2.441rem;
-  --text-4xl: 3.052rem;
-  --text-display: 4.5rem;
-  /* Larger display */
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 2rem;
+  --text-4xl: 2.5rem;
+  --text-display: 3.5rem;
 
   /* Font Weights */
   --font-light: 300;
@@ -105,15 +95,15 @@
   --font-bold: 700;
 
   /* Letter Spacing */
-  --tracking-tight: -0.025em;
+  --tracking-tight: -0.011em;
   --tracking-normal: 0;
-  --tracking-wide: 0.025em;
-  --tracking-caps: 0.1em;
+  --tracking-wide: 0.01em;
+  --tracking-caps: 0.06em;
 
   /* Line Heights */
   --leading-none: 1;
-  --leading-tight: 1.25;
-  --leading-snug: 1.375;
+  --leading-tight: 1.2;
+  --leading-snug: 1.33;
   --leading-normal: 1.5;
   --leading-relaxed: 1.625;
 
@@ -201,33 +191,55 @@ body {
   overflow-x: hidden;
 }
 
-/* Lumix Ambient Background (Lava Lamp Effect) */
+/* Luxury Mesh Background */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -2;
-  background:
-    radial-gradient(circle at 50% -20%, hsla(16, 60%, 40%, 0.15) 0%, transparent 60%),
-    /* Top Center Glow */
-    radial-gradient(circle at 10% 20%, hsla(350, 50%, 30%, 0.1) 0%, transparent 50%),
-    /* Top Left Red */
-    radial-gradient(circle at 90% 80%, hsla(30, 60%, 30%, 0.1) 0%, transparent 50%);
-  /* Bottom Right Gold */
+  background: var(--mesh-gradient);
+  background-color: var(--color-bg-primary);
   opacity: 1;
-  filter: blur(100px);
-  animation: magmaPulse 15s ease-in-out infinite alternate;
 }
 
-@keyframes magmaPulse {
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(circle at 50% 50%, transparent 20%, var(--color-bg-primary) 100%);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+@keyframes float {
   0% {
-    opacity: 0.6;
-    transform: scale(1);
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-10px);
   }
 
   100% {
-    opacity: 0.9;
-    transform: scale(1.1);
+    transform: translateY(0px);
+  }
+}
+
+@keyframes glow {
+  0% {
+    opacity: 0.5;
+    filter: blur(40px);
+  }
+
+  50% {
+    opacity: 1;
+    filter: blur(60px);
+  }
+
+  100% {
+    opacity: 0.5;
+    filter: blur(40px);
   }
 }
 

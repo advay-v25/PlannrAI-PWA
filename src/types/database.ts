@@ -56,6 +56,7 @@ export interface Goal {
     importance: GoalImportance;
     energy_demand: EnergyDemand;
     status: GoalStatus;
+    days_per_week: number; // 1-7
     is_paused?: boolean; // deprecated
     // V2 fields - subtasks and AI
     parent_id?: string | null;

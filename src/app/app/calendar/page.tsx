@@ -272,516 +272,513 @@ export default function CalendarPage() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="relative"
-            >
-                <div className="absolute inset-0 bg-gradient-to-r from-[var(--color-future)]/10 via-transparent to-transparent rounded-3xl blur-2xl" />
-
-                <div className="relative glass-card p-6">
-                    <div className="flex items-start justify-between">
-                        <div>
-                            <h1 className="text-title text-gradient mb-1">Calendar</h1>
-                            <p className="text-caption">
-                                Track reality, not aspiration
-                            </p>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            <GlassButton
-                                variant="primary"
-                                onClick={() => setShowWeekPlanner(true)}
-                                className="shadow-lg"
-                            >
-                                <Sparkles className="w-4 h-4" />
-                                Plan Week
-                            </GlassButton>
-
-                            <GlassButton
-                                variant="default"
-                                onClick={() => setCreatingBlock({ start_time: '09:00', end_time: '10:00', context: '' })}
-                            >
-                                <Plus className="w-4 h-4" />
-                                Add
-                            </GlassButton>
-
-                            <GlassButton
-                                variant="ghost"
-                                onClick={() => setCreatingAnchor({ title: '', start_time: '09:00', end_time: '17:00', days: [1, 2, 3, 4, 5] })}
-                            >
-                                <Anchor className="w-4 h-4" />
-                            </GlassButton>
-
-                            {hasConflicts && (
-                                <GlassButton
-                                    variant="danger"
-                                    size="sm"
-                                    onClick={handleOptimizeDay}
-                                    loading={isOptimizing}
-                                    className="animate-pulse"
-                                >
-                                    <Sparkles className="w-3 h-3" />
-                                    Fix Conflicts
-                                </GlassButton>
-                            )}
-                        </div>
+            return (
+            <div className="space-y-8 pb-12">
+                {/* Minimalist Navigation & Action Center */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div>
+                        <h1 className="text-4xl font-bold tracking-tight text-gradient">Timeline</h1>
+                        <p className="text-sm text-[var(--text-tertiary)] tracking-wide uppercase mt-1">
+                            Precision Execution • {format(selectedDate, 'MMMM yyyy')}
+                        </p>
                     </div>
-                </div>
-            </motion.div>
 
-            {/* Week Navigation */}
-            <GlassCard padding="md">
-                <div className="flex items-center justify-between mb-4">
-                    <button
-                        onClick={() => navigateWeek('prev')}
-                        className="p-2 rounded-lg hover:bg-[var(--glass-bg)] transition-colors"
-                    >
-                        <ChevronLeft className="w-5 h-5" />
-                    </button>
-                    <span className="font-medium">
-                        {format(weekStart, 'MMM d')} - {format(addDays(weekStart, 6), 'MMM d, yyyy')}
-                    </span>
-                    <button
-                        onClick={() => navigateWeek('next')}
-                        className="p-2 rounded-lg hover:bg-[var(--glass-bg)] transition-colors"
-                    >
-                        <ChevronRight className="w-5 h-5" />
-                    </button>
-                </div>
-
-                {/* Day Pills */}
-                <div className="flex justify-between gap-1">
-                    {weekDays.map((day) => {
-                        const isSelected = isSameDay(day, selectedDate);
-                        const isToday = isSameDay(day, new Date());
-
-                        return (
+                    <div className="flex items-center gap-3">
+                        <GlassCard padding="none" className="flex items-center overflow-hidden border-white/5 bg-white/5">
                             <button
-                                key={day.toISOString()}
-                                onClick={() => setSelectedDate(day)}
-                                className={`flex-1 flex flex-col items-center py-3 px-2 rounded-xl transition-all ${isSelected
-                                    ? 'bg-[var(--color-primary)] text-white shadow-lg'
-                                    : isToday
-                                        ? 'bg-[var(--color-primary)]/20 border border-[var(--color-primary)]'
-                                        : 'hover:bg-[var(--glass-bg)]'
-                                    }`}
+                                onClick={() => navigateWeek('prev')}
+                                className="p-3 hover:bg-white/10 transition-colors border-r border-white/5"
                             >
-                                <span className={`text-xs ${isSelected ? 'opacity-80' : 'text-[var(--text-tertiary)]'}`}>
-                                    {format(day, 'EEE')}
-                                </span>
-                                <span className={`text-lg font-bold ${isToday && !isSelected ? 'text-[var(--color-primary)]' : ''}`}>
-                                    {format(day, 'd')}
-                                </span>
+                                <ChevronLeft className="w-4 h-4" />
                             </button>
-                        );
-                    })}
-                </div>
-            </GlassCard>
+                            <button
+                                onClick={() => setSelectedDate(new Date())}
+                                className="px-4 py-2 text-xs font-bold tracking-widest uppercase hover:bg-white/10 transition-colors"
+                            >
+                                Today
+                            </button>
+                            <button
+                                onClick={() => navigateWeek('next')}
+                                className="p-3 hover:bg-white/10 transition-colors border-l border-white/5"
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                            </button>
+                        </GlassCard>
 
-            {/* Timeline */}
-            <div className="space-y-3">
-                <h2 className="text-sm font-medium text-[var(--text-secondary)]">
-                    {format(selectedDate, 'EEEE, MMMM d')}
-                </h2>
+                        <div className="h-8 w-[1px] bg-white/10 mx-1" />
 
-                {isLoading ? (
-                    <div className="flex justify-center py-12">
-                        <div className="w-6 h-6 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+                        <GlassButton
+                            variant="primary"
+                            onClick={() => setShowWeekPlanner(true)}
+                            className="shadow-glow"
+                        >
+                            <Sparkles className="w-4 h-4" />
+                            Optimize Week
+                        </GlassButton>
                     </div>
-                ) : blocks.length === 0 ? (
+                </div>
+
+                {/* Horizontal Sleek Day Selector */}
+                <GlassCard padding="sm" variant="deep" className="border-white/5 shadow-2xl">
+                    <div className="flex justify-between gap-2 overflow-x-auto pb-2 no-scrollbar">
+                        {weekDays.map((day) => {
+                            const isSelected = isSameDay(day, selectedDate);
+                            const isToday = isSameDay(day, new Date());
+
+                            return (
+                                <button
+                                    key={day.toISOString()}
+                                    onClick={() => setSelectedDate(day)}
+                                    className={`flex-1 min-w-[70px] flex flex-col items-center py-4 rounded-2xl transition-all duration-500 relative ${isSelected
+                                        ? 'bg-white text-black shadow-[0_10px_30px_rgba(255,255,255,0.2)]'
+                                        : 'hover:bg-white/5 text-[var(--text-secondary)]'
+                                        }`}
+                                >
+                                    <span className={`text-[10px] font-bold tracking-tighter mb-1 ${isSelected ? 'opacity-60' : 'text-[var(--text-tertiary)]'}`}>
+                                        {format(day, 'EEE').toUpperCase()}
+                                    </span>
+                                    <span className="text-xl font-bold font-mono">
+                                        {format(day, 'd')}
+                                    </span>
+                                    {isToday && !isSelected && (
+                                        <div className="absolute bottom-2 w-1 h-1 rounded-full bg-[var(--color-primary)] shadow-glow" />
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </GlassCard>
+
+                {/* Proactive Tools */}
+                {hasConflicts && (
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                     >
-                        <GlassCard padding="lg" className="text-center">
-                            <div className="w-16 h-16 rounded-full bg-[var(--color-future)]/20 flex items-center justify-center mx-auto mb-4">
-                                <CalendarIcon className="w-8 h-8 text-[var(--color-future)]" />
+                        <GlassCard variant="glow" padding="md" className="flex items-center justify-between border-[var(--color-error)]/20 animate-pulse-slow">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg bg-[var(--color-error)]/10">
+                                    <AlertTriangle className="w-5 h-5 text-[var(--color-error)]" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-bold">Schedule Friction Detected</p>
+                                    <p className="text-xs text-[var(--text-secondary)]">Overlaps identified in your flow.</p>
+                                </div>
                             </div>
-                            <h3 className="font-semibold mb-1">No blocks scheduled</h3>
-                            <p className="text-sm text-[var(--text-tertiary)] mb-4">
-                                Let AI plan your week based on your goals
-                            </p>
                             <GlassButton
                                 variant="primary"
-                                onClick={() => setShowWeekPlanner(true)}
+                                size="sm"
+                                onClick={handleOptimizeDay}
+                                loading={isOptimizing}
                             >
-                                <Sparkles className="w-4 h-4" />
-                                Plan My Week
+                                Auto-Resolve
                             </GlassButton>
                         </GlassCard>
                     </motion.div>
-                ) : (
-                    <div className="space-y-2">
-                        {blocks.map((block, index) => {
-                            const statusConfig = STATUS_CONFIG[block.status];
-                            let categoryColor = block.goal?.category === 'mind'
-                                ? 'var(--color-mind)'
-                                : block.goal?.category === 'body'
-                                    ? 'var(--color-body)'
-                                    : 'var(--color-craft)'; // Renamed future -> craft
+                )}
 
-                            // Visual Hierarchy Overrides
-                            const isAnchor = block.block_type === 'anchor';
-                            const isMeal = block.block_type === 'meal';
-                            const isRoutine = block.block_type === 'routine';
+                {/* Timeline */}
+                <div className="space-y-3">
+                    <h2 className="text-sm font-medium text-[var(--text-secondary)]">
+                        {format(selectedDate, 'EEEE, MMMM d')}
+                    </h2>
 
-                            if (isAnchor) categoryColor = 'var(--text-secondary)'; // Boring/Stable
-                            if (isMeal) categoryColor = 'var(--color-accent-2)'; // Organic
-                            if (isRoutine) categoryColor = '#34d399'; // Emerald-400 (Bio/Alive)
-
-                            const conflict = conflicts.find(c => c.blockId === block.id);
-                            const isOverlap = conflict?.type === 'overlap';
-                            const isEnergyIssue = conflict?.type === 'energy_mismatch';
-
-                            return (
-                                <motion.div
-                                    key={block.id}
-                                    initial={{ opacity: 0, x: -20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: index * 0.05 }}
-                                    className={`transition-opacity ${block.status === 'missed' ? 'opacity-50' : ''}`}
+                    {isLoading ? (
+                        <div className="flex justify-center py-12">
+                            <div className="w-6 h-6 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+                        </div>
+                    ) : blocks.length === 0 ? (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                        >
+                            <GlassCard padding="lg" className="text-center">
+                                <div className="w-16 h-16 rounded-full bg-[var(--color-future)]/20 flex items-center justify-center mx-auto mb-4">
+                                    <CalendarIcon className="w-8 h-8 text-[var(--color-future)]" />
+                                </div>
+                                <h3 className="font-semibold mb-1">No blocks scheduled</h3>
+                                <p className="text-sm text-[var(--text-tertiary)] mb-4">
+                                    Let AI plan your week based on your goals
+                                </p>
+                                <GlassButton
+                                    variant="primary"
+                                    onClick={() => setShowWeekPlanner(true)}
                                 >
-                                    <GlassCard
-                                        padding="md"
-                                        className={`
+                                    <Sparkles className="w-4 h-4" />
+                                    Plan My Week
+                                </GlassButton>
+                            </GlassCard>
+                        </motion.div>
+                    ) : (
+                        <div className="space-y-2">
+                            {blocks.map((block, index) => {
+                                const statusConfig = STATUS_CONFIG[block.status];
+                                let categoryColor = block.goal?.category === 'mind'
+                                    ? 'var(--color-mind)'
+                                    : block.goal?.category === 'body'
+                                        ? 'var(--color-body)'
+                                        : 'var(--color-craft)'; // Renamed future -> craft
+
+                                // Visual Hierarchy Overrides
+                                const isAnchor = block.block_type === 'anchor';
+                                const isMeal = block.block_type === 'meal';
+                                const isRoutine = block.block_type === 'routine';
+
+                                if (isAnchor) categoryColor = 'var(--text-secondary)'; // Boring/Stable
+                                if (isMeal) categoryColor = 'var(--color-accent-2)'; // Organic
+                                if (isRoutine) categoryColor = '#34d399'; // Emerald-400 (Bio/Alive)
+
+                                const conflict = conflicts.find(c => c.blockId === block.id);
+                                const isOverlap = conflict?.type === 'overlap';
+                                const isEnergyIssue = conflict?.type === 'energy_mismatch';
+
+                                return (
+                                    <motion.div
+                                        key={block.id}
+                                        initial={{ opacity: 0, x: -20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: index * 0.05 }}
+                                        className={`transition-opacity ${block.status === 'missed' ? 'opacity-50' : ''}`}
+                                    >
+                                        <GlassCard
+                                            padding="md"
+                                            className={`
                                             transition-all duration-300
                                             ${isOverlap ? 'ring-2 ring-[var(--color-error)] border-[var(--color-error)]/20' : ''}
                                             ${isEnergyIssue ? 'ring-2 ring-[var(--color-warning)] border-[var(--color-warning)]/20' : ''}
                                             ${isAnchor ? 'border-l-4 border-l-[var(--text-secondary)] bg-[var(--glass-bg-subtle)]' : ''}
                                             ${isRoutine ? 'border-l-4 border-l-emerald-500 bg-emerald-500/10' : ''}
                                         `}
-                                    >
-                                        <div
-                                            className="flex items-start gap-4 cursor-pointer"
-                                            onClick={() => setEditingBlock(block)}
                                         >
-                                            {/* Time Column */}
-                                            <div className="text-center w-14 flex-shrink-0">
-                                                <p className="text-sm font-medium">{block.start_time.slice(0, 5)}</p>
-                                                <p className="text-xs text-[var(--text-tertiary)]">{block.end_time.slice(0, 5)}</p>
-                                            </div>
-
-                                            {/* Category Bar */}
                                             <div
-                                                className="w-1 h-full min-h-[40px] rounded-full flex-shrink-0"
-                                                style={{ backgroundColor: categoryColor }}
-                                            />
-
-                                            {/* Content */}
-                                            <div className="flex-1 min-w-0">
-                                                <p className="font-medium truncate">
-                                                    {block.goal?.title || block.context || 'Untitled Block'}
-                                                </p>
-                                                {block.context && block.goal?.title && (
-                                                    <p className="text-sm text-[var(--text-tertiary)] mt-0.5">
-                                                        {block.context}
-                                                    </p>
-                                                )}
-                                                {conflict && (
-                                                    <div className={`flex items-center gap-1 mt-1 text-xs font-medium 
-                                                        ${isOverlap ? 'text-[var(--color-error)]' : 'text-[var(--color-warning)]'}`}>
-                                                        {isOverlap ? <AlertTriangle className="w-3 h-3" /> : <ZapOff className="w-3 h-3" />}
-                                                        {conflict.message}
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Status Buttons */}
-                                            <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                                                {(['done', 'partial', 'missed'] as BlockStatus[]).map((status) => {
-                                                    const config = STATUS_CONFIG[status];
-                                                    const isActive = block.status === status;
-
-                                                    return (
-                                                        <motion.button
-                                                            key={status}
-                                                            onClick={() => handleStatusChange(block.id, status)}
-                                                            className={`p-2 rounded-xl transition-all ${isActive
-                                                                ? 'bg-[var(--glass-bg-active)]'
-                                                                : 'hover:bg-[var(--glass-bg)]'
-                                                                }`}
-                                                            style={{ color: isActive ? config.color : 'var(--text-tertiary)' }}
-                                                            title={config.label}
-                                                            whileHover={{ scale: 1.1 }}
-                                                            whileTap={{ scale: 0.9 }}
-                                                        >
-                                                            {config.icon || <div className="w-3 h-3 rounded-full border-2" style={{ borderColor: 'currentColor' }} />}
-                                                        </motion.button>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    </GlassCard>
-                                </motion.div>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
-
-            {/* Floating Action Button for Week Planner */}
-            <PlanWeekFAB onClick={() => setShowWeekPlanner(true)} />
-
-            {/* Week Planner Modal */}
-            <AnimatePresence>
-                {showWeekPlanner && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-                        onClick={() => setShowWeekPlanner(false)}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.95, y: 20 }}
-                            animate={{ scale: 1, y: 0 }}
-                            exit={{ scale: 0.95, y: 20 }}
-                            className="w-full max-w-lg max-h-[85vh] overflow-y-auto"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <WeekPlanner
-                                onClose={() => setShowWeekPlanner(false)}
-                                onApply={handlePlanApplied}
-                            />
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* Edit Block Modal */}
-            <AnimatePresence>
-                {editingBlock && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-                        onClick={() => setEditingBlock(null)}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.95, y: 20 }}
-                            animate={{ scale: 1, y: 0 }}
-                            exit={{ scale: 0.95, y: 20 }}
-                            className="glass-card p-6 w-full max-w-md space-y-4"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <h3 className="text-lg font-bold">Edit Block</h3>
-
-                            <div className="space-y-4">
-                                <div className="space-y-2">
-                                    <label className="text-sm text-[var(--text-secondary)]">Activity</label>
-                                    <GlassInput
-                                        value={editingBlock.context || ''}
-                                        onChange={(e) => setEditingBlock({ ...editingBlock, context: e.target.value })}
-                                        placeholder="What are you doing?"
-                                    />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <label className="text-sm text-[var(--text-secondary)]">Start</label>
-                                        <GlassInput
-                                            type="time"
-                                            value={editingBlock.start_time.slice(0, 5)}
-                                            onChange={(e) => setEditingBlock({ ...editingBlock, start_time: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm text-[var(--text-secondary)]">End</label>
-                                        <GlassInput
-                                            type="time"
-                                            value={editingBlock.end_time.slice(0, 5)}
-                                            onChange={(e) => setEditingBlock({ ...editingBlock, end_time: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="flex gap-2 pt-2">
-                                <GlassButton
-                                    variant="danger"
-                                    onClick={handleDeleteBlock}
-                                >
-                                    <Trash2 className="w-4 h-4" />
-                                </GlassButton>
-                                <GlassButton
-                                    className="flex-1"
-                                    variant="ghost"
-                                    onClick={() => setEditingBlock(null)}
-                                >
-                                    Cancel
-                                </GlassButton>
-                                <GlassButton
-                                    className="flex-1"
-                                    variant="primary"
-                                    onClick={handleUpdateBlock}
-                                >
-                                    Save Changes
-                                </GlassButton>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* Create Block Modal */}
-            <AnimatePresence>
-                {creatingBlock && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-                        onClick={() => setCreatingBlock(null)}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.95, y: 20 }}
-                            animate={{ scale: 1, y: 0 }}
-                            exit={{ scale: 0.95, y: 20 }}
-                            className="glass-card p-6 w-full max-w-md space-y-4"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <h3 className="text-lg font-bold">Add Block</h3>
-
-                            <div className="space-y-4">
-                                <div className="space-y-2">
-                                    <label className="text-sm text-[var(--text-secondary)]">Activity</label>
-                                    <GlassInput
-                                        value={creatingBlock.context}
-                                        onChange={(e) => setCreatingBlock({ ...creatingBlock, context: e.target.value })}
-                                        placeholder="What are you doing?"
-                                        autoFocus
-                                    />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <label className="text-sm text-[var(--text-secondary)]">Start</label>
-                                        <GlassInput
-                                            type="time"
-                                            value={creatingBlock.start_time}
-                                            onChange={(e) => setCreatingBlock({ ...creatingBlock, start_time: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm text-[var(--text-secondary)]">End</label>
-                                        <GlassInput
-                                            type="time"
-                                            value={creatingBlock.end_time}
-                                            onChange={(e) => setCreatingBlock({ ...creatingBlock, end_time: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="flex gap-2 pt-2">
-                                <GlassButton
-                                    className="flex-1"
-                                    variant="ghost"
-                                    onClick={() => setCreatingBlock(null)}
-                                >
-                                    Cancel
-                                </GlassButton>
-                                <GlassButton
-                                    className="flex-1"
-                                    variant="primary"
-                                    onClick={handleCreateBlock}
-                                >
-                                    Create Block
-                                </GlassButton>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-            {/* Create Anchor Modal */}
-            <AnimatePresence>
-                {creatingAnchor && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-                        onClick={() => setCreatingAnchor(null)}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.95, y: 20 }}
-                            animate={{ scale: 1, y: 0 }}
-                            exit={{ scale: 0.95, y: 20 }}
-                            className="glass-card p-6 w-full max-w-md space-y-4"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <div className="flex items-center gap-2 mb-4">
-                                <Anchor className="w-5 h-5 text-[var(--text-secondary)]" />
-                                <h3 className="text-lg font-bold">Add Anchor</h3>
-                            </div>
-
-                            <div className="space-y-4">
-                                <div className="space-y-2">
-                                    <label className="text-sm text-[var(--text-secondary)]">Commitment</label>
-                                    <GlassInput
-                                        value={creatingAnchor.title}
-                                        onChange={(e) => setCreatingAnchor({ ...creatingAnchor, title: e.target.value })}
-                                        placeholder="e.g. Work, Class (Fixed)"
-                                        autoFocus
-                                    />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <label className="text-sm text-[var(--text-secondary)]">Start</label>
-                                        <GlassInput type="time" value={creatingAnchor.start_time} onChange={(e) => setCreatingAnchor({ ...creatingAnchor, start_time: e.target.value })} />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm text-[var(--text-secondary)]">End</label>
-                                        <GlassInput type="time" value={creatingAnchor.end_time} onChange={(e) => setCreatingAnchor({ ...creatingAnchor, end_time: e.target.value })} />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-sm text-[var(--text-secondary)] flex items-center gap-2">
-                                        <Repeat className="w-3 h-3" /> Repeats on
-                                    </label>
-                                    <div className="flex justify-between gap-1">
-                                        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
-                                            <button
-                                                key={i}
-                                                onClick={() => {
-                                                    const days = creatingAnchor.days.includes(i)
-                                                        ? creatingAnchor.days.filter(d => d !== i)
-                                                        : [...creatingAnchor.days, i];
-                                                    setCreatingAnchor({ ...creatingAnchor, days });
-                                                }}
-                                                className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${creatingAnchor.days.includes(i)
-                                                    ? 'bg-[var(--text-secondary)] text-[var(--color-bg-primary)]'
-                                                    : 'bg-[var(--glass-bg)] text-[var(--text-tertiary)] hover:bg-[var(--glass-bg-hover)]'
-                                                    }`}
+                                                className="flex items-start gap-4 cursor-pointer"
+                                                onClick={() => setEditingBlock(block)}
                                             >
-                                                {d}
-                                            </button>
-                                        ))}
+                                                {/* Time Column */}
+                                                <div className="text-center w-14 flex-shrink-0">
+                                                    <p className="text-sm font-medium">{block.start_time.slice(0, 5)}</p>
+                                                    <p className="text-xs text-[var(--text-tertiary)]">{block.end_time.slice(0, 5)}</p>
+                                                </div>
+
+                                                {/* Category Bar */}
+                                                <div
+                                                    className="w-1 h-full min-h-[40px] rounded-full flex-shrink-0"
+                                                    style={{ backgroundColor: categoryColor }}
+                                                />
+
+                                                {/* Content */}
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-medium truncate">
+                                                        {block.goal?.title || block.context || 'Untitled Block'}
+                                                    </p>
+                                                    {block.context && block.goal?.title && (
+                                                        <p className="text-sm text-[var(--text-tertiary)] mt-0.5">
+                                                            {block.context}
+                                                        </p>
+                                                    )}
+                                                    {conflict && (
+                                                        <div className={`flex items-center gap-1 mt-1 text-xs font-medium 
+                                                        ${isOverlap ? 'text-[var(--color-error)]' : 'text-[var(--color-warning)]'}`}>
+                                                            {isOverlap ? <AlertTriangle className="w-3 h-3" /> : <ZapOff className="w-3 h-3" />}
+                                                            {conflict.message}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Status Buttons */}
+                                                <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                                                    {(['done', 'partial', 'missed'] as BlockStatus[]).map((status) => {
+                                                        const config = STATUS_CONFIG[status];
+                                                        const isActive = block.status === status;
+
+                                                        return (
+                                                            <motion.button
+                                                                key={status}
+                                                                onClick={() => handleStatusChange(block.id, status)}
+                                                                className={`p-2 rounded-xl transition-all ${isActive
+                                                                    ? 'bg-[var(--glass-bg-active)]'
+                                                                    : 'hover:bg-[var(--glass-bg)]'
+                                                                    }`}
+                                                                style={{ color: isActive ? config.color : 'var(--text-tertiary)' }}
+                                                                title={config.label}
+                                                                whileHover={{ scale: 1.1 }}
+                                                                whileTap={{ scale: 0.9 }}
+                                                            >
+                                                                {config.icon || <div className="w-3 h-3 rounded-full border-2" style={{ borderColor: 'currentColor' }} />}
+                                                            </motion.button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </GlassCard>
+                                    </motion.div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                {/* Floating Action Button for Week Planner */}
+                <PlanWeekFAB onClick={() => setShowWeekPlanner(true)} />
+
+                {/* Week Planner Modal */}
+                <AnimatePresence>
+                    {showWeekPlanner && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                            onClick={() => setShowWeekPlanner(false)}
+                        >
+                            <motion.div
+                                initial={{ scale: 0.95, y: 20 }}
+                                animate={{ scale: 1, y: 0 }}
+                                exit={{ scale: 0.95, y: 20 }}
+                                className="w-full max-w-lg max-h-[85vh] overflow-y-auto"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <WeekPlanner
+                                    onClose={() => setShowWeekPlanner(false)}
+                                    onApply={handlePlanApplied}
+                                />
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Edit Block Modal */}
+                <AnimatePresence>
+                    {editingBlock && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                            onClick={() => setEditingBlock(null)}
+                        >
+                            <motion.div
+                                initial={{ scale: 0.95, y: 20 }}
+                                animate={{ scale: 1, y: 0 }}
+                                exit={{ scale: 0.95, y: 20 }}
+                                className="glass-card p-6 w-full max-w-md space-y-4"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <h3 className="text-lg font-bold">Edit Block</h3>
+
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm text-[var(--text-secondary)]">Activity</label>
+                                        <GlassInput
+                                            value={editingBlock.context || ''}
+                                            onChange={(e) => setEditingBlock({ ...editingBlock, context: e.target.value })}
+                                            placeholder="What are you doing?"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="text-sm text-[var(--text-secondary)]">Start</label>
+                                            <GlassInput
+                                                type="time"
+                                                value={editingBlock.start_time.slice(0, 5)}
+                                                onChange={(e) => setEditingBlock({ ...editingBlock, start_time: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm text-[var(--text-secondary)]">End</label>
+                                            <GlassInput
+                                                type="time"
+                                                value={editingBlock.end_time.slice(0, 5)}
+                                                onChange={(e) => setEditingBlock({ ...editingBlock, end_time: e.target.value })}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div className="flex gap-2 pt-4">
-                                <GlassButton
-                                    className="flex-1"
-                                    variant="ghost"
-                                    onClick={() => setCreatingAnchor(null)}
-                                >
-                                    Cancel
-                                </GlassButton>
-                                <GlassButton
-                                    className="flex-1"
-                                    variant="primary"
-                                    onClick={handleCreateAnchor}
-                                >
-                                    Save Anchor
-                                </GlassButton>
-                            </div>
+                                <div className="flex gap-2 pt-2">
+                                    <GlassButton
+                                        variant="danger"
+                                        onClick={handleDeleteBlock}
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </GlassButton>
+                                    <GlassButton
+                                        className="flex-1"
+                                        variant="ghost"
+                                        onClick={() => setEditingBlock(null)}
+                                    >
+                                        Cancel
+                                    </GlassButton>
+                                    <GlassButton
+                                        className="flex-1"
+                                        variant="primary"
+                                        onClick={handleUpdateBlock}
+                                    >
+                                        Save Changes
+                                    </GlassButton>
+                                </div>
+                            </motion.div>
                         </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
+                    )}
+                </AnimatePresence>
+
+                {/* Create Block Modal */}
+                <AnimatePresence>
+                    {creatingBlock && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                            onClick={() => setCreatingBlock(null)}
+                        >
+                            <motion.div
+                                initial={{ scale: 0.95, y: 20 }}
+                                animate={{ scale: 1, y: 0 }}
+                                exit={{ scale: 0.95, y: 20 }}
+                                className="glass-card p-6 w-full max-w-md space-y-4"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <h3 className="text-lg font-bold">Add Block</h3>
+
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm text-[var(--text-secondary)]">Activity</label>
+                                        <GlassInput
+                                            value={creatingBlock.context}
+                                            onChange={(e) => setCreatingBlock({ ...creatingBlock, context: e.target.value })}
+                                            placeholder="What are you doing?"
+                                            autoFocus
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="text-sm text-[var(--text-secondary)]">Start</label>
+                                            <GlassInput
+                                                type="time"
+                                                value={creatingBlock.start_time}
+                                                onChange={(e) => setCreatingBlock({ ...creatingBlock, start_time: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm text-[var(--text-secondary)]">End</label>
+                                            <GlassInput
+                                                type="time"
+                                                value={creatingBlock.end_time}
+                                                onChange={(e) => setCreatingBlock({ ...creatingBlock, end_time: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-2 pt-2">
+                                    <GlassButton
+                                        className="flex-1"
+                                        variant="ghost"
+                                        onClick={() => setCreatingBlock(null)}
+                                    >
+                                        Cancel
+                                    </GlassButton>
+                                    <GlassButton
+                                        className="flex-1"
+                                        variant="primary"
+                                        onClick={handleCreateBlock}
+                                    >
+                                        Create Block
+                                    </GlassButton>
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+                {/* Create Anchor Modal */}
+                <AnimatePresence>
+                    {creatingAnchor && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                            onClick={() => setCreatingAnchor(null)}
+                        >
+                            <motion.div
+                                initial={{ scale: 0.95, y: 20 }}
+                                animate={{ scale: 1, y: 0 }}
+                                exit={{ scale: 0.95, y: 20 }}
+                                className="glass-card p-6 w-full max-w-md space-y-4"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <div className="flex items-center gap-2 mb-4">
+                                    <Anchor className="w-5 h-5 text-[var(--text-secondary)]" />
+                                    <h3 className="text-lg font-bold">Add Anchor</h3>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm text-[var(--text-secondary)]">Commitment</label>
+                                        <GlassInput
+                                            value={creatingAnchor.title}
+                                            onChange={(e) => setCreatingAnchor({ ...creatingAnchor, title: e.target.value })}
+                                            placeholder="e.g. Work, Class (Fixed)"
+                                            autoFocus
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="text-sm text-[var(--text-secondary)]">Start</label>
+                                            <GlassInput type="time" value={creatingAnchor.start_time} onChange={(e) => setCreatingAnchor({ ...creatingAnchor, start_time: e.target.value })} />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm text-[var(--text-secondary)]">End</label>
+                                            <GlassInput type="time" value={creatingAnchor.end_time} onChange={(e) => setCreatingAnchor({ ...creatingAnchor, end_time: e.target.value })} />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-sm text-[var(--text-secondary)] flex items-center gap-2">
+                                            <Repeat className="w-3 h-3" /> Repeats on
+                                        </label>
+                                        <div className="flex justify-between gap-1">
+                                            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                                                <button
+                                                    key={i}
+                                                    onClick={() => {
+                                                        const days = creatingAnchor.days.includes(i)
+                                                            ? creatingAnchor.days.filter(d => d !== i)
+                                                            : [...creatingAnchor.days, i];
+                                                        setCreatingAnchor({ ...creatingAnchor, days });
+                                                    }}
+                                                    className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${creatingAnchor.days.includes(i)
+                                                        ? 'bg-[var(--text-secondary)] text-[var(--color-bg-primary)]'
+                                                        : 'bg-[var(--glass-bg)] text-[var(--text-tertiary)] hover:bg-[var(--glass-bg-hover)]'
+                                                        }`}
+                                                >
+                                                    {d}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-2 pt-4">
+                                    <GlassButton
+                                        className="flex-1"
+                                        variant="ghost"
+                                        onClick={() => setCreatingAnchor(null)}
+                                    >
+                                        Cancel
+                                    </GlassButton>
+                                    <GlassButton
+                                        className="flex-1"
+                                        variant="primary"
+                                        onClick={handleCreateAnchor}
+                                    >
+                                        Save Anchor
+                                    </GlassButton>
+                                </div>
+                            </motion.div>
+                        </motion.div>
+            </div>
+        </AnimatePresence>
     );
 }

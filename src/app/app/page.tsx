@@ -178,40 +178,75 @@ export default function HomePage() {
     }
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <p className="text-caption">{formatDate(new Date())}</p>
-                    <h1 className="text-display">
-                        {getGreeting()}, {profile?.preferred_name || profile?.full_name?.split(' ')[0] || 'Friend'}
+        <div className="space-y-10 pb-12">
+            {/* Enchanting Nexus Header */}
+            <header className="relative py-8">
+                <div className="absolute -top-20 -left-20 w-64 h-64 bg-[var(--color-primary)]/10 rounded-full blur-[100px] animate-pulse" />
+                <div className="absolute top-0 right-0 w-48 h-48 bg-[var(--color-mind)]/5 rounded-full blur-[80px]" />
+
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="relative z-10 space-y-2"
+                >
+                    <p className="text-overline tracking-[0.2em] opacity-60">
+                        {formatDate(new Date()).toUpperCase()}
+                    </p>
+                    <h1 className="text-display tracking-tight bg-clip-text text-transparent bg-gradient-to-br from-white via-white to-white/40">
+                        {getGreeting()}, <br />
+                        <span className="text-gradient font-bold">{profile?.preferred_name || profile?.full_name?.split(' ')[0] || 'Friend'}</span>
                     </h1>
-                </div>
+                </motion.div>
+
                 {todayLog && (
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--glass-bg)]"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="absolute top-10 right-0"
                     >
-                        <Zap className={`w-4 h-4 ${todayLog.energy_level >= 4 ? 'text-[var(--color-success)]' :
-                            todayLog.energy_level >= 3 ? 'text-[var(--color-primary)]' :
-                                'text-[var(--color-warning)]'
-                            }`} />
-                        <span className="text-sm font-medium">{todayLog.energy_level}/5</span>
+                        <GlassCard variant="deep" padding="sm" className="flex items-center gap-3 px-4 backdrop-blur-3xl border-white/5">
+                            <div className="relative">
+                                <Zap className={`w-5 h-5 ${todayLog.energy_level >= 4 ? 'text-[var(--color-success)]' :
+                                    todayLog.energy_level >= 3 ? 'text-[var(--color-primary)]' :
+                                        'text-[var(--color-warning)]'
+                                    } animate-pulse`} />
+                                <div className="absolute inset-0 blur-md bg-current opacity-30" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] text-overline opacity-50">Energy Status</p>
+                                <p className="text-sm font-bold">{todayLog.energy_level}/5</p>
+                            </div>
+                        </GlassCard>
                     </motion.div>
                 )}
+            </header>
+
+            {/* Morning Briefing & Proactive Intelligence */}
+            <div className="relative">
+                <AnimatePresence mode="wait">
+                    {activeIntervention ? (
+                        <motion.div
+                            key="intervention"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                        >
+                            <InterventionCard
+                                intervention={activeIntervention}
+                                onDismiss={() => setActiveIntervention(null)}
+                            />
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="briefing"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                        >
+                            <MorningBriefing />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
-
-            {/* Morning Briefing Overlay */}
-            <MorningBriefing />
-
-            {/* Proactive Intervention (Highest Priority) */}
-            {activeIntervention && (
-                <InterventionCard
-                    intervention={activeIntervention}
-                    onDismiss={() => setActiveIntervention(null)}
-                />
-            )}
 
             {/* Energy Check (if not logged today) */}
             <AnimatePresence>

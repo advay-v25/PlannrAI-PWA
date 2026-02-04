@@ -1,11 +1,11 @@
 'use client';
 
-import { forwardRef, HTMLAttributes } from 'react';
+import { forwardRef } from 'react';
 import { motion, HTMLMotionProps } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 interface GlassCardProps extends HTMLMotionProps<'div'> {
-    variant?: 'default' | 'glow' | 'breathe';
+    variant?: 'default' | 'glow' | 'deep' | 'outline' | 'breathe';
     padding?: 'none' | 'sm' | 'md' | 'lg';
     interactive?: boolean;
 }
@@ -17,6 +17,14 @@ const paddingClasses = {
     lg: 'p-5 md:p-6',
 };
 
+const variants = {
+    default: "bg-[var(--glass-bg)] border-[var(--glass-border)] shadow-md",
+    glow: "bg-[var(--glass-bg)] border-[var(--color-primary)]/20 shadow-glow",
+    deep: "bg-[var(--color-bg-elevated)]/40 border-[var(--glass-border)] backdrop-blur-xl shadow-xl",
+    outline: "bg-transparent border-[var(--glass-border)]",
+    breathe: "bg-[var(--glass-bg)] border-[var(--glass-border)] animate-pulse shadow-glow",
+};
+
 export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
     ({
         className,
@@ -26,24 +34,23 @@ export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
         children,
         ...props
     }, ref) => {
-        const baseClasses = cn(
-            'glass border border-[var(--glass-border)] shadow-lg backdrop-blur-xl',
-            variant === 'glow' && 'shadow-[0_0_30px_var(--color-primary-muted)] border-[var(--color-primary-muted)]',
-            variant === 'breathe' && 'animate-pulse',
-            paddingClasses[padding],
-            interactive && 'cursor-pointer hover:border-[var(--glass-border-hover)] hover:bg-[var(--glass-bg-hover)] transition-all duration-300',
-            className
-        );
-
         return (
             <motion.div
                 ref={ref}
-                className={baseClasses}
-                whileHover={interactive ? { scale: 1.01, y: -2 } : undefined}
-                whileTap={interactive ? { scale: 0.99 } : undefined}
-                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                className={cn(
+                    'relative overflow-hidden border backdrop-blur-md rounded-[var(--radius-2xl)] transition-all duration-300 ease-out',
+                    variants[variant],
+                    paddingClasses[padding],
+                    interactive && "cursor-pointer hover:border-[var(--glass-border-hover)] hover:translate-y-[-2px] active:scale-[0.98]",
+                    className
+                )}
+                whileHover={interactive ? { y: -2 } : undefined}
+                whileTap={interactive ? { scale: 0.98 } : undefined}
                 {...props}
             >
+                {variant === 'glow' && (
+                    <div className="absolute inset-0 bg-gradient-to-br from-[var(--color-primary)]/5 to-transparent pointer-events-none" />
+                )}
                 {children}
             </motion.div>
         );
@@ -52,26 +59,19 @@ export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
 
 GlassCard.displayName = 'GlassCard';
 
-// Simple non-animated version for server components
-interface StaticGlassCardProps extends HTMLAttributes<HTMLDivElement> {
-    variant?: 'default' | 'glow' | 'breathe';
-    padding?: 'none' | 'sm' | 'md' | 'lg';
-}
-
 export function StaticGlassCard({
     className,
     variant = 'default',
     padding = 'md',
     children,
     ...props
-}: StaticGlassCardProps) {
+}: any) {
     return (
         <div
             className={cn(
-                'glass',
-                variant === 'glow' && 'glass-glow',
-                variant === 'breathe' && 'glass-breathe',
-                paddingClasses[padding],
+                'relative overflow-hidden border backdrop-blur-md rounded-[var(--radius-2xl)]',
+                variants[variant],
+                paddingClasses[padding as keyof typeof paddingClasses],
                 className
             )}
             {...props}

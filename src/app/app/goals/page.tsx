@@ -332,6 +332,19 @@ function GoalCard({ goal, isExpanded, onExpand, onUpdate, onDelete, onStrategy, 
                                     <div className="text-right text-xs font-mono">{goal.minutes_per_day}m</div>
                                 </div>
                                 <div className="space-y-1">
+                                    <label className="text-[10px] uppercase text-[var(--text-tertiary)]">Frequency (days/wk)</label>
+                                    <input
+                                        type="range" min={1} max={7} step={1}
+                                        value={goal.days_per_week || 7}
+                                        onChange={(e) => onUpdate({ days_per_week: Number(e.target.value) })}
+                                        className="w-full accent-[var(--color-primary)]"
+                                    />
+                                    <div className="text-right text-xs font-mono">{(goal.days_per_week || 7)}d / wk</div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
                                     <label className="text-[10px] uppercase text-[var(--text-tertiary)]">Energy</label>
                                     <div className="flex gap-1">
                                         {(['light', 'medium', 'heavy'] as EnergyDemand[]).map(e => (
@@ -345,9 +358,6 @@ function GoalCard({ goal, isExpanded, onExpand, onUpdate, onDelete, onStrategy, 
                                         ))}
                                     </div>
                                 </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
                                     <label className="text-[10px] uppercase text-[var(--text-tertiary)]">Priority</label>
                                     <div className="flex gap-1">
@@ -358,20 +368,6 @@ function GoalCard({ goal, isExpanded, onExpand, onUpdate, onDelete, onStrategy, 
                                                 className={`flex-1 text-xs py-1 rounded ${goal.importance === p ? 'bg-[var(--glass-border)] text-white' : 'text-[var(--text-tertiary)]'}`}
                                             >
                                                 {p}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-[10px] uppercase text-[var(--text-tertiary)]">Pillar</label>
-                                    <div className="flex gap-1">
-                                        {PILLARS.map(p => (
-                                            <button
-                                                key={p.id}
-                                                onClick={() => onUpdate({ category: p.id })}
-                                                className={`flex-1 text-xs py-1 rounded ${goal.category === p.id ? 'bg-[var(--glass-border)] text-white' : 'text-[var(--text-tertiary)]'}`}
-                                            >
-                                                {p.label[0]}
                                             </button>
                                         ))}
                                     </div>

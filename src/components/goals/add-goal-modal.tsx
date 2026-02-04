@@ -8,7 +8,7 @@ import { GlassButton } from '@/components/ui/glass-button';
 import { GlassInput } from '@/components/ui/glass-input'; // Ensure this exists or use html input
 import {
     Brain, Dumbbell, Briefcase, // Pillars
-    Clock, Zap, Sparkles, X, Plus
+    Clock, Zap, Sparkles, X, Plus, CalendarDays
 } from 'lucide-react';
 import type { GoalCategory, GoalImportance, EnergyDemand } from '@/types/database';
 
@@ -32,6 +32,7 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
     const [title, setTitle] = useState(initialValues?.title || '');
     const [category, setCategory] = useState<GoalCategory>(initialValues?.category || 'mind');
     const [minutes, setMinutes] = useState(30);
+    const [daysPerWeek, setDaysPerWeek] = useState(7);
     const [importance, setImportance] = useState<GoalImportance>('medium');
     const [energy, setEnergy] = useState<EnergyDemand>('medium');
 
@@ -66,6 +67,7 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
             title,
             category,
             minutes_per_day: minutes,
+            days_per_week: daysPerWeek,
             importance,
             energy_demand: energy,
             status: 'active'
@@ -158,26 +160,45 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
                         </div>
                     </div>
 
-                    {/* 3. Time & Energy */}
+                    {/* 3. Time, Frequency & Energy */}
                     <div className="space-y-4 p-4 bg-[var(--glass-bg)] rounded-xl border border-[var(--glass-border)]">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Clock className="w-4 h-4 text-[var(--color-primary)]" />
-                                <span className="text-sm font-medium">Daily Investment</span>
+                        <div className="grid grid-cols-2 gap-6">
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Clock className="w-4 h-4 text-[var(--color-primary)]" />
+                                        <span className="text-sm font-medium">Daily Mins</span>
+                                    </div>
+                                    <span className="font-mono text-sm font-bold">{minutes}m</span>
+                                </div>
+                                <input
+                                    type="range" min={5} max={180} step={5}
+                                    value={minutes}
+                                    onChange={(e) => setMinutes(Number(e.target.value))}
+                                    className="w-full accent-[var(--color-primary)]"
+                                />
                             </div>
-                            <span className="font-mono text-lg font-bold">{minutes}m</span>
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <CalendarDays className="w-4 h-4 text-[var(--color-primary)]" />
+                                        <span className="text-sm font-medium">Days / Week</span>
+                                    </div>
+                                    <span className="font-mono text-sm font-bold">{daysPerWeek}d</span>
+                                </div>
+                                <input
+                                    type="range" min={1} max={7} step={1}
+                                    value={daysPerWeek}
+                                    onChange={(e) => setDaysPerWeek(Number(e.target.value))}
+                                    className="w-full accent-[var(--color-primary)]"
+                                />
+                            </div>
                         </div>
-                        <input
-                            type="range" min={5} max={180} step={5}
-                            value={minutes}
-                            onChange={(e) => setMinutes(Number(e.target.value))}
-                            className="w-full accent-[var(--color-primary)]"
-                        />
 
-                        <div className="flex items-center justify-between pt-2">
+                        <div className="flex items-center justify-between pt-2 border-t border-[var(--glass-border)]">
                             <div className="flex items-center gap-2">
                                 <Zap className="w-4 h-4 text-[var(--color-warning)]" />
-                                <span className="text-sm font-medium">Energy Demand</span>
+                                <span className="text-sm font-medium">Energy</span>
                             </div>
                             <div className="flex gap-1 bg-[var(--glass-bg-subtle)] p-1 rounded-lg">
                                 {(['light', 'medium', 'heavy'] as EnergyDemand[]).map(e => (
