@@ -136,6 +136,15 @@ function CalendarContent() {
     };
 
     useEffect(() => {
+        const handleRefresh = () => {
+            // Re-trigger loadData logic
+            setWeekStart(new Date(weekStart));
+        };
+        window.addEventListener('calendar-refresh', handleRefresh);
+        return () => window.removeEventListener('calendar-refresh', handleRefresh);
+    }, [weekStart]);
+
+    useEffect(() => {
         async function loadData() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;

@@ -73,41 +73,44 @@ export function CommitmentModal({ onClose, onSuccess }: CommitmentModalProps) {
         setLoading(true);
 
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                showToast('Not authenticated', 'error');
-                return;
-            }
-
-            const commitmentData: CommitmentData = {
-                title: title.trim(),
-                start_time: startTime,
-                end_time: endTime,
-                days_of_week: selectedDays,
-            };
-
-            const { error } = await supabase.from('commitments').insert({
-                user_id: user.id,
-                title: commitmentData.title,
-                start_time: commitmentData.start_time,
-                end_time: commitmentData.end_time,
-                days_of_week: commitmentData.days_of_week,
-                is_active: true
+            // Updated to use Server Implementation for Validation & Logging
+            const response = await fetch('/api/anchors', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    title: title.trim(),
+                    start_time: startTime,
+                    end_time: endTime,
+                    days_of_week: selectedDays,
+                }),
             });
 
-            if (error) throw error;
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || 'Failed to create anchor');
+            }
+
+            const { data } = await response.json();
+            const commitment = data.commitment;
 
             showToast('⚓ Anchor set!', 'success');
 
-            // Callback with the data for store sync
+            // Swift UI Update
             if (onSuccess) {
-                onSuccess(commitmentData);
+                onSuccess({
+                    title: commitment.title,
+                    start_time: commitment.start_time,
+                    end_time: commitment.end_time,
+                    days_of_week: commitment.days_of_week
+                });
             }
 
             onClose();
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            showToast('Failed to save anchor', 'error');
+            showToast(e.message || 'Failed to save anchor', 'error');
         } finally {
             setLoading(false);
         }
@@ -166,8 +169,8 @@ export function CommitmentModal({ onClose, onSuccess }: CommitmentModalProps) {
                                 value={endTime}
                                 onChange={(e) => setEndTime(e.target.value)}
                                 className={`w-full bg-[var(--glass-bg)] border rounded-xl p-3 text-center text-lg font-mono outline-none transition-colors ${!isValidTimeRange() && endTime !== startTime
-                                        ? 'border-red-500/50 focus:border-red-500'
-                                        : 'border-[var(--glass-border)] focus:border-[var(--color-primary)]'
+                                    ? 'border-red-500/50 focus:border-red-500'
+                                    : 'border-[var(--glass-border)] focus:border-[var(--color-primary)]'
                                     }`}
                             />
                             {!isValidTimeRange() && endTime !== startTime && (

@@ -74,6 +74,7 @@ const defaultOnboardingData: OnboardingData = {
         duration_mins: 30,
     },
     scan_skipped: false,
+    bio_scan_url: undefined,
 };
 
 export const useOnboardingStore = create<OnboardingState>()(

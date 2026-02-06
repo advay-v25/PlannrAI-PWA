@@ -26,6 +26,7 @@ export interface AgentContext {
     currentSchedule?: any[]; // Snapshot of the day/week
     recentMemories?: any[]; // Recent chat/system logs
     recentSignals?: any[]; // Recent behavioral signals (rejections/acceptances)
+    behaviorPatterns?: any; // Phase 4: Learned Preferences
 }
 
 // --- 1. PLANNER AGENT TYPES ---
@@ -62,7 +63,7 @@ export const PlannerOutputSchema = z.object({
     scope: z.enum(['block', 'day', 'week']),
     urgency: z.enum(['low', 'medium', 'high']),
     requires_calendar_change: z.boolean(),
-    strategy: z.enum(['move', 'swap', 'rebuild', 'compress', 'hide_low_priority', 'ask_sacrifice', 'none', 'add_constraint', 'add_task']),
+    strategy: z.enum(['move', 'swap', 'rebuild', 'compress', 'hide_low_priority', 'ask_sacrifice', 'none', 'add_constraint', 'add_task', 'shorten', 'cancel']),
     questions_needed: z.array(z.string()).optional()
 });
 

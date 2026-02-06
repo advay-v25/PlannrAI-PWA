@@ -1,27 +1,75 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useOnboardingStore } from '@/stores';
 import { Camera, Upload, ShieldCheck, SkipForward } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { useToast } from '@/components/ui/toast';
 
 export function Step7Scan() {
     const { updateData, nextStep } = useOnboardingStore();
     const [uploading, setUploading] = useState(false);
+    const { showToast } = useToast(); // Assuming standard toast hook usage
+    const supabase = createClient();
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleSkip = () => {
         updateData({ scan_skipped: true });
         nextStep();
     };
 
-    const handleUpload = () => {
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
         setUploading(true);
-        // Mock upload delay
-        setTimeout(() => {
-            setUploading(false);
-            // Mock success -> proceed
-            // Ideally we'd store a 'scan_id' or 'signals'
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error("No user found");
+
+            // 1. Upload to Storage
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('bio_uploads')
+                .upload(fileName, file);
+
+            if (uploadError) throw uploadError;
+
+            // 2. Get Secure URL (Signed URL for 1 year or just private path)
+            // For now, let's store the path. Analysis agent can read it.
+            // Or generate a signed URL if we need to show it back.
+            // Let's store the path in profile.
+
+            const { error: updateError } = await supabase
+                .from('profiles')
+                .update({
+                    bio_scan_url: fileName,
+                    bio_data: {
+                        uploaded_at: new Date().toISOString(),
+                        status: 'pending_analysis'
+                    }
+                })
+                .eq('id', user.id);
+
+            if (updateError) throw updateError;
+
+            showToast("Scan uploaded successfully", 'success');
+
+            // 3. Update Local Store
+            updateData({
+                bio_scan_url: fileName
+            });
+
             nextStep();
-        }, 1500);
+
+        } catch (error: any) {
+            console.error('Upload failed:', error);
+            showToast(error.message || "Upload failed", 'error');
+        } finally {
+            setUploading(false);
+        }
     };
 
     return (
@@ -42,14 +90,23 @@ export function Step7Scan() {
                     <span>Secure execution. Data processed locally then discarded.</span>
                 </div>
 
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    accept="image/*"
+                />
+
                 <button
-                    onClick={handleUpload}
+                    onClick={() => fileInputRef.current?.click()}
                     disabled={uploading}
                     className="w-full py-6 rounded-xl border border-dashed border-[var(--glass-border)] hover:border-[var(--color-primary)] hover:bg-[var(--glass-bg-hover)] transition-all group relative overflow-hidden"
                 >
                     {uploading ? (
                         <span className="flex items-center justify-center gap-2 animate-pulse text-[var(--color-primary)]">
-                            Analyzing points...
+                            <Upload className="w-5 h-5 animate-bounce" />
+                            Uploading & Encrypting...
                         </span>
                     ) : (
                         <div className="flex flex-col items-center gap-2">

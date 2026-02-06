@@ -53,7 +53,8 @@ export function findNextAvailableSlot(
     searchEnd.setHours(constraints.workEndHour, 0, 0, 0);
 
     // If current time is past start, search from now (rounded up to next 15 min)
-    let cursor = new Date(Math.max(Date.now(), searchStart.getTime()));
+    // We use referenceDate as "now" if it falls within the day, effectively making the function pure.
+    let cursor = new Date(Math.max(referenceDate.getTime(), searchStart.getTime()));
     const remainder = cursor.getMinutes() % 15;
     if (remainder !== 0) {
         cursor = addMinutes(cursor, 15 - remainder);

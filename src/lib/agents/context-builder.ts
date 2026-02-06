@@ -39,6 +39,10 @@ export class ContextBuilder {
 
         const recentSignals = await MemoryService.getRecentSignals(userId, 5, supabase);
 
+        // 5. Fetch Behavior Patterns (Phase 4)
+        const { BehaviorService } = await import('@/lib/services/behavior-service');
+        const behaviorPatterns = await BehaviorService.getPatterns(userId);
+
         return {
             userId,
             now,
@@ -46,7 +50,8 @@ export class ContextBuilder {
             userState,
             currentSchedule: events || [],
             recentMemories,
-            recentSignals // Injected!
+            recentSignals,
+            behaviorPatterns // Injected!
         };
     }
 }

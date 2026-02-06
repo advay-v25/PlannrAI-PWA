@@ -77,11 +77,8 @@ export const POST = secureApiRoute(
                 const { MemoryService } = await import('@/lib/services/memory-service');
 
                 // 1. Create/Get Session
-                let conversation = await MemoryService.getLatestConversation(context.userId, 'brain_dump');
-                // For Brain Dump, we might want a new conversation per dump, OR one big log.
-                // Let's create a NEW one per dump for clearer history separation, or append to a "Daily Journal".
-                // Given the metadata, let's create a new one linked to this dump.
-                conversation = await MemoryService.createConversation(context.userId, 'brain_dump', `Brain Dump ${new Date().toLocaleDateString()}`);
+                // For Brain Dump, we create a NEW one per dump for clearer history separation.
+                const conversation = await MemoryService.createConversation(context.userId, 'brain_dump', `Brain Dump ${new Date().toLocaleDateString()}`);
 
                 if (conversation) {
                     // 2. User Input
@@ -91,12 +88,15 @@ export const POST = secureApiRoute(
                         { dumpId }
                     );
 
-                    // 3. AI Analysis
+                    // 3. AI Analysis (Impact Summary + Signals)
                     await MemoryService.addMessage(
                         context.userId, conversation.id, 'assistant',
-                        // Summarize the analysis in text for context
-                        `Analyzed dump. Found ${analysis.signals.length} signals. Recommended actions: ${analysis.recommended_actions.length}.`,
-                        { analysis } // Store full JSON
+                        analysis.summary, // Fixed property
+                        {
+                            signals: analysis.signals.length,
+                            constraints: analysis.signals.filter(s => s.type === 'constraint').length,
+                            sentiment: analysis.sentiment // Fixed property
+                        }
                     );
                 }
             } catch (memError) {

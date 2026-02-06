@@ -238,6 +238,7 @@ export interface OnboardingData {
         duration_mins: number;
     };
     scan_skipped: boolean;
+    bio_scan_url?: string;
 }
 // UI types
 export interface DailyOverview {

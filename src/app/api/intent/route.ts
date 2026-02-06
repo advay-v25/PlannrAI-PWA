@@ -69,7 +69,27 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Database persistence failed' }, { status: 500 });
         }
 
-        // 5. Return Frontend-Safe Response
+        // 5. Save to Memory (Long-term Context)
+        try {
+            const { MemoryService } = await import('@/lib/services/memory-service');
+            const convo = await MemoryService.createConversation(user.id, 'coach'); // Get/Create latest
+
+            if (convo) {
+                // Save User Message
+                await MemoryService.addMessage(user.id, convo.id, 'user', message);
+
+                // Save Assistant Response
+                await MemoryService.addMessage(user.id, convo.id, 'assistant', result.summary, {
+                    options_generated: insertedOptions.length,
+                    planner_intent: result.planner.intent
+                });
+            }
+        } catch (memError) {
+            console.error("Failed to save memory", memError);
+            // Non-blocking error
+        }
+
+        // 6. Return Frontend-Safe Response
         return NextResponse.json({
             message: result.summary || "Options generated.",
             planner_summary: `Detected intent: ${result.planner.intent}`,
