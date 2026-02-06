@@ -23,7 +23,9 @@ export interface AgentContext {
     now: Date;
     timezone: string;
     userState?: UserState; // Injected State
-    currentSchedule?: any[]; // Snapshot of the day/week (Any to be typed better)
+    currentSchedule?: any[]; // Snapshot of the day/week
+    recentMemories?: any[]; // Recent chat/system logs
+    recentSignals?: any[]; // Recent behavioral signals (rejections/acceptances)
 }
 
 // --- 1. PLANNER AGENT TYPES ---

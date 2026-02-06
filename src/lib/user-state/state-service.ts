@@ -93,7 +93,7 @@ export class StateService {
             cognitive_load: nextState.cognitive_load,
             emotional_bandwidth: nextState.emotional_bandwidth,
             current_mode: nextState.current_mode,
-            emotional_state: nextState.emotional_state,
+            // emotional_state: nextState.emotional_state, // TODO: Add column to DB
             updated_at: now.toISOString()
         });
 

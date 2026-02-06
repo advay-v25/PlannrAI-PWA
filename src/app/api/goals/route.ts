@@ -135,6 +135,14 @@ export const POST = secureApiRoute(
             return apiError('Failed to create goal', 500);
         }
 
+        // Trigger Reactive Scheduling (One Engine)
+        try {
+            const { ReactiveGoalService } = await import('@/lib/services/reactive-goal-service');
+            await ReactiveGoalService.onGoalUpdated(context.userId, goal.id, supabase);
+        } catch (scheduleError) {
+            console.error('Reactive Scheduling Failed:', scheduleError);
+        }
+
         return apiSuccess({ goal }, 201);
     },
     { requireAuth: true, auditAction: 'goal_create' }
@@ -228,6 +236,18 @@ export const PUT = secureApiRoute(
 
         if (error) {
             return apiError('Failed to update goal', 500);
+        }
+
+        // Trigger Reactive Scheduling (One Engine)
+        try {
+            const { ReactiveGoalService } = await import('@/lib/services/reactive-goal-service');
+            // We fire and forget this to not block the UI response, 
+            // OR await it if we want immediate feedback. 
+            // For now, let's await to ensure consistency during testing.
+            await ReactiveGoalService.onGoalUpdated(context.userId, goal.id, supabase);
+        } catch (scheduleError) {
+            console.error('Reactive Scheduling Failed:', scheduleError);
+            // Non-blocking error
         }
 
         return apiSuccess({ goal });

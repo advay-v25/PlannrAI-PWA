@@ -104,6 +104,38 @@ export const POST = secureApiRoute(
                 // Don't fail the request
             }
 
+            // ---------------------------------------------------------
+            // ACTION ENRICHMENT (Talk = Action)
+            // ---------------------------------------------------------
+            // If the analysis suggests actions but patches are missing/empty, generate them.
+            if (analysis.recommended_actions && analysis.recommended_actions.length > 0) {
+                const { ContextBuilder } = await import('@/lib/agents/context-builder');
+                const { generateAIPatch } = await import('@/lib/ai/groq-client');
+
+                // Build context for the Patcher (needs schedule)
+                const agentContext = await ContextBuilder.build(context.userId, supabase);
+
+                for (const action of analysis.recommended_actions) {
+                    // specific check: if patch is empty or dummy
+                    if (!action.patch || action.patch.changes.length === 0) {
+                        try {
+                            const generatedPatch = await generateAIPatch(
+                                action.label,
+                                { reason: action.reasoning }, // Intent
+                                { currentSchedule: agentContext.currentSchedule },
+                                context.userId
+                            );
+
+                            if (generatedPatch && !generatedPatch.error) {
+                                action.patch = generatedPatch;
+                            }
+                        } catch (e) {
+                            console.error("Failed to enrich action with patch", e);
+                        }
+                    }
+                }
+            }
+
             return apiSuccess({ success: true, analysis });
 
         } catch (error) {

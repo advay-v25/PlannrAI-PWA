@@ -15,17 +15,22 @@ CREATE TABLE IF NOT EXISTS public.commitments (
 -- 2. Add RLS Policies for Commitments
 ALTER TABLE public.commitments ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view their own commitments" ON public.commitments
-    FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert their own commitments" ON public.commitments
-    FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update their own commitments" ON public.commitments
-    FOR UPDATE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own commitments" ON public.commitments
-    FOR DELETE USING (auth.uid() = user_id);
+do $$
+begin
+    if not exists (select 1 from pg_policies where tablename = 'commitments' and policyname = 'Users can view their own commitments') then
+        CREATE POLICY "Users can view their own commitments" ON public.commitments FOR SELECT USING (auth.uid() = user_id);
+    end if;
+    if not exists (select 1 from pg_policies where tablename = 'commitments' and policyname = 'Users can insert their own commitments') then
+        CREATE POLICY "Users can insert their own commitments" ON public.commitments FOR INSERT WITH CHECK (auth.uid() = user_id);
+    end if;
+    if not exists (select 1 from pg_policies where tablename = 'commitments' and policyname = 'Users can update their own commitments') then
+        CREATE POLICY "Users can update their own commitments" ON public.commitments FOR UPDATE USING (auth.uid() = user_id);
+    end if;
+    if not exists (select 1 from pg_policies where tablename = 'commitments' and policyname = 'Users can delete their own commitments') then
+        CREATE POLICY "Users can delete their own commitments" ON public.commitments FOR DELETE USING (auth.uid() = user_id);
+    end if;
+end
+$$;
 
 -- 3. Update Profiles for Meal Preferences (Level 2: Human Needs)
 ALTER TABLE public.profiles 

@@ -49,13 +49,33 @@ alter table public.behavior_events enable row level security;
 alter table public.behavior_patterns enable row level security;
 alter table public.patch_runs enable row level security;
 
-create policy "Users can view own behavior events" on public.behavior_events for select using (auth.uid() = user_id);
-create policy "Users can insert own behavior events" on public.behavior_events for insert with check (auth.uid() = user_id);
+do $$
+begin
+    if not exists (select 1 from pg_policies where tablename = 'behavior_events' and policyname = 'Users can view own behavior events') then
+        create policy "Users can view own behavior events" on public.behavior_events for select using (auth.uid() = user_id);
+    end if;
+    if not exists (select 1 from pg_policies where tablename = 'behavior_events' and policyname = 'Users can insert own behavior events') then
+        create policy "Users can insert own behavior events" on public.behavior_events for insert with check (auth.uid() = user_id);
+    end if;
 
-create policy "Users can view own behavior patterns" on public.behavior_patterns for select using (auth.uid() = user_id);
-create policy "Users can update own behavior patterns" on public.behavior_patterns for update using (auth.uid() = user_id);
-create policy "Users can insert own behavior patterns" on public.behavior_patterns for insert with check (auth.uid() = user_id);
+    if not exists (select 1 from pg_policies where tablename = 'behavior_patterns' and policyname = 'Users can view own behavior patterns') then
+        create policy "Users can view own behavior patterns" on public.behavior_patterns for select using (auth.uid() = user_id);
+    end if;
+    if not exists (select 1 from pg_policies where tablename = 'behavior_patterns' and policyname = 'Users can update own behavior patterns') then
+        create policy "Users can update own behavior patterns" on public.behavior_patterns for update using (auth.uid() = user_id);
+    end if;
+    if not exists (select 1 from pg_policies where tablename = 'behavior_patterns' and policyname = 'Users can insert own behavior patterns') then
+        create policy "Users can insert own behavior patterns" on public.behavior_patterns for insert with check (auth.uid() = user_id);
+    end if;
 
-create policy "Users can view own patch runs" on public.patch_runs for select using (auth.uid() = user_id);
-create policy "Users can insert own patch runs" on public.patch_runs for insert with check (auth.uid() = user_id);
-create policy "Users can update own patch runs" on public.patch_runs for update using (auth.uid() = user_id);
+    if not exists (select 1 from pg_policies where tablename = 'patch_runs' and policyname = 'Users can view own patch runs') then
+        create policy "Users can view own patch runs" on public.patch_runs for select using (auth.uid() = user_id);
+    end if;
+    if not exists (select 1 from pg_policies where tablename = 'patch_runs' and policyname = 'Users can insert own patch runs') then
+        create policy "Users can insert own patch runs" on public.patch_runs for insert with check (auth.uid() = user_id);
+    end if;
+    if not exists (select 1 from pg_policies where tablename = 'patch_runs' and policyname = 'Users can update own patch runs') then
+        create policy "Users can update own patch runs" on public.patch_runs for update using (auth.uid() = user_id);
+    end if;
+end
+$$;

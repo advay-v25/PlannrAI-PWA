@@ -3,6 +3,14 @@ ALTER TABLE user_states
 ADD COLUMN IF NOT EXISTS emotional_state text DEFAULT 'coasting';
 
 -- Constraint to ensure valid enum values
-ALTER TABLE user_states 
-ADD CONSTRAINT check_emotional_state 
-CHECK (emotional_state IN ('overwhelmed', 'avoidant', 'coasting', 'focused', 'burnt', 'motivated'));
+do $$
+begin
+    if not exists (
+        select 1 from pg_constraint where conname = 'check_emotional_state'
+    ) then
+        ALTER TABLE user_states 
+        ADD CONSTRAINT check_emotional_state 
+        CHECK (emotional_state IN ('overwhelmed', 'avoidant', 'coasting', 'focused', 'burnt', 'motivated'));
+    end if;
+end
+$$;

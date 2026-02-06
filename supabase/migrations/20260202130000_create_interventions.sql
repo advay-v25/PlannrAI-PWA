@@ -19,8 +19,18 @@ create table if not exists intervention_logs (
 -- RLS
 alter table intervention_logs enable row level security;
 
-create policy "Users can see own interventions" on intervention_logs
-  for all using (auth.uid() = user_id);
+do $$
+begin
+    if not exists (
+        select 1 from pg_policies 
+        where tablename = 'intervention_logs' 
+        and policyname = 'Users can see own interventions'
+    ) then
+        create policy "Users can see own interventions" on intervention_logs
+            for all using (auth.uid() = user_id);
+    end if;
+end
+$$;
 
 -- Index for fast lookup of recent interventions
 create index if not exists idx_intervention_logs_user_recent 

@@ -1,17 +1,23 @@
 import { createClient } from '@/lib/supabase/server';
 import { BehaviorEvent, BehaviorPattern } from '@/types/database';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 export class BehaviorService {
     /**
      * Record a raw behavior event
      */
-    static async record(userId: string, event: Omit<BehaviorEvent, 'id' | 'created_at' | 'user_id'>) {
-        const supabase = await createClient();
+    static async record(userId: string, event: Omit<BehaviorEvent, 'id' | 'created_at' | 'user_id'>, injectedClient?: SupabaseClient) {
+        console.log("   [BehaviorService] record called. Has Client:", !!injectedClient);
+        const supabase = injectedClient ?? await createClient();
 
-        await supabase.from('behavior_events').insert({
+        const { error } = await supabase.from('behavior_events').insert({
             user_id: userId,
             ...event
         });
+
+        if (error) {
+            console.error("   [BehaviorService] Insert Error:", error);
+        }
     }
 
     /**

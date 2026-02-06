@@ -12,6 +12,7 @@ export class PlannerAgent extends BaseAgent<string, PlannerOutput> {
         User Message: "${userMessage}"
         Current Time: ${context.now.toISOString()}
         Timezone: ${context.timezone}
+        Recent Context/Memory: ${JSON.stringify(context.recentMemories?.map(m => ({ role: m.role, content: m.content })) || [])}
 
         Analyze the user's intent. 
         - If they mention a time, create a constraint.

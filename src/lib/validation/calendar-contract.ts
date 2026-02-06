@@ -180,7 +180,7 @@ export type Sacrifice = z.infer<typeof SacrificeSchema>;
 // IMMUTABILITY LOGIC (Pure Function)
 // ============================================
 
-export const IMMUTABLE_BLOCK_TYPES = ['anchor', 'sleep', 'wind_down'] as const;
+export const IMMUTABLE_BLOCK_TYPES = ['anchor', 'sleep', 'wind_down', 'meal', 'routine'] as const;
 
 export function isImmutable(block: {
     block_type?: string | null;

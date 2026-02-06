@@ -1,6 +1,6 @@
 
 import { createClient } from '@/lib/supabase/server';
-import { PostgrestSingleResponse } from '@supabase/supabase-js';
+import { PostgrestSingleResponse, SupabaseClient } from '@supabase/supabase-js';
 
 // Types (should eventually move to database.types.ts)
 export interface Conversation {
@@ -98,8 +98,8 @@ export class MemoryService {
     /**
      * Gets the recent history for a conversation.
      */
-    static async getHistory(conversationId: string, limit = 30): Promise<ConversationMessage[]> {
-        const supabase = await createClient();
+    static async getHistory(conversationId: string, limit = 30, injectedClient?: SupabaseClient): Promise<ConversationMessage[]> {
+        const supabase = injectedClient ?? await createClient();
 
         const { data } = await supabase
             .from('conversation_messages')
@@ -114,8 +114,11 @@ export class MemoryService {
     /**
      * Gets the most recent conversation of a type.
      */
-    static async getLatestConversation(userId: string, type: 'coach' | 'brain_dump'): Promise<Conversation | null> {
-        const supabase = await createClient();
+    /**
+     * Gets the most recent conversation of a type.
+     */
+    static async getLatestConversation(userId: string, type: 'coach' | 'brain_dump', injectedClient?: SupabaseClient): Promise<Conversation | null> {
+        const supabase = injectedClient ?? await createClient();
 
         const { data } = await supabase
             .from('conversations')
@@ -127,5 +130,52 @@ export class MemoryService {
             .single();
 
         return (data as Conversation) || null;
+    }
+
+    /**
+     * Log a behavioral signal (Talk = Action).
+     */
+    static async logSignal(
+        userId: string,
+        type: 'rejection' | 'acceptance' | 'ignore',
+        content: string,
+        metadata: any = {},
+        injectedClient?: SupabaseClient
+    ) {
+        console.log("   [MemoryService] logSignal called. Has Client:", !!injectedClient);
+        const { BehaviorService } = await import('./behavior-service');
+
+        let actionType: any = 'miss'; // default fallout
+        if (type === 'rejection') actionType = 'reject_suggestion';
+        if (type === 'acceptance') actionType = 'accept_suggestion';
+        if (type === 'ignore') actionType = 'miss'; // 'ignore' maps to miss/delete? Or maybe a new type?
+        // For now, let's map 'ignore' to 'reject_suggestion' with meta 'silent'.
+        if (type === 'ignore') {
+            actionType = 'reject_suggestion';
+            metadata.silent = true;
+        }
+
+        await BehaviorService.record(userId, {
+            action_type: actionType,
+            meta: { ...metadata, content, signal_type: type }
+        }, injectedClient);
+    }
+
+    /**
+     * Get recent behavioral signals to inject into Context.
+     */
+    static async getRecentSignals(userId: string, limit = 10, injectedClient?: SupabaseClient) {
+        const supabase = injectedClient ?? await createClient();
+
+        // Fetch last N events of relevant types
+        const { data } = await supabase
+            .from('behavior_events')
+            .select('*')
+            .eq('user_id', userId)
+            .in('action_type', ['accept_suggestion', 'reject_suggestion'])
+            .order('created_at', { ascending: false })
+            .limit(limit);
+
+        return data || [];
     }
 }

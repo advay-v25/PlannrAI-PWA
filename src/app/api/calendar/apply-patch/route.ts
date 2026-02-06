@@ -75,8 +75,9 @@ export const POST = secureApiRoute(async (context: SecureApiContext, body: any) 
                     const target = existingBlocks?.find(b => b.id === change.event_id);
                     if (!target) throw new Error(`Block ${change.event_id} not found`);
 
+                    // STRICT: Anchor Enforcement
                     if (isImmutable(target)) {
-                        throw new Error(`Cannot move immutable block: ${target.context || 'Untitled'}`);
+                        throw new Error(`Cannot move immutable block: ${target.context || target.block_type || 'Untitled'}`);
                     }
 
                     updates.push({
@@ -98,7 +99,9 @@ export const POST = secureApiRoute(async (context: SecureApiContext, body: any) 
                 case 'RESIZE': {
                     const target = existingBlocks?.find(b => b.id === change.event_id);
                     if (!target) throw new Error(`Block ${change.event_id} not found`);
-                    if (isImmutable(target)) throw new Error(`Cannot resize immutable block`);
+
+                    // STRICT: Anchor Enforcement
+                    if (isImmutable(target)) throw new Error(`Cannot resize immutable block: ${target.block_type}`);
 
                     const fullStart = parseISO(`${patch.affected_date}T${target.start_time}`);
                     const newEnd = addMinutes(fullStart, change.duration_minutes);

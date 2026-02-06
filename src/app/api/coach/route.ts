@@ -68,8 +68,26 @@ export const POST = secureApiRoute(
             conversation = await MemoryService.createConversation(context.userId, 'coach', 'General Coaching');
         }
 
-        // 2. Add User Message to History (Fire and forget, or wait?)
-        // We wait to ensure consistency.
+        // Detect "Ignored" suggestions from previous turn
+        if (conversation) {
+            const history = await MemoryService.getHistory(conversation.id, 5, supabase);
+            const lastAssistantMsg = [...history].reverse().find(m => m.role === 'assistant');
+
+            if (lastAssistantMsg?.metadata?.options) {
+                const options = lastAssistantMsg.metadata.options as any[];
+                for (const opt of options) {
+                    await MemoryService.logSignal(
+                        context.userId,
+                        'ignore',
+                        opt.label || opt.summary,
+                        { option_id: opt.id, original_msg_id: lastAssistantMsg.id },
+                        supabase
+                    );
+                }
+            }
+        }
+
+        // Add User Message to History
         if (conversation) {
             await MemoryService.addMessage(context.userId, conversation.id, 'user', sanitizedMessage);
         }
@@ -119,6 +137,9 @@ export const POST = secureApiRoute(
             .order('created_at', { ascending: false })
             .limit(3);
 
+        // Get recent signals for memory injection
+        const recentSignals = await MemoryService.getRecentSignals(context.userId, 5, supabase);
+
         try {
             // Generate AI response
             const result = await generateCoachResponse(
@@ -132,7 +153,8 @@ export const POST = secureApiRoute(
                     })),
                     recentDumps: dumps?.map(d => d.content) || [],
                     scanSignals: latestScan?.signals || [],
-                    sleepWindow: userProfile ? `${userProfile.sleep_end} - ${userProfile.sleep_start}` : undefined
+                    sleepWindow: userProfile ? `${userProfile.sleep_end} - ${userProfile.sleep_start}` : undefined,
+                    recentSignals // Pass signals!
                 },
                 context.userId
             );

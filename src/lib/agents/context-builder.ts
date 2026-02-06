@@ -27,15 +27,26 @@ export class ContextBuilder {
             .gte('start_time', startOfDay(now).toISOString())
             .lte('end_time', endOfDay(now).toISOString());
 
-        // 4. Fetch Goals
-        // (Optional for Phase 1 MVP)
+        // 4. Fetch Recent Memories (The "One Truth" Stream)
+        // We defer this import to avoid circular deps if any
+        const { MemoryService } = await import('@/lib/services/memory-service');
+        const recentConvo = await MemoryService.getLatestConversation(userId, 'coach', supabase);
+
+        let recentMemories: any[] = [];
+        if (recentConvo) {
+            recentMemories = await MemoryService.getHistory(recentConvo.id, 30, supabase);
+        }
+
+        const recentSignals = await MemoryService.getRecentSignals(userId, 5, supabase);
 
         return {
             userId,
             now,
             timezone: profile?.timezone || 'UTC',
-            userState, // Injected!
-            currentSchedule: events || []
+            userState,
+            currentSchedule: events || [],
+            recentMemories,
+            recentSignals // Injected!
         };
     }
 }

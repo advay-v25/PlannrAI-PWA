@@ -33,12 +33,13 @@ export class AgentOrchestrator {
     }> {
         console.log("🧩 Orchestrator: Starting Pipeline for", userId);
 
-        const context: AgentContext = {
-            userId,
-            now: new Date(),
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            currentSchedule: mockSchedule || []
-        };
+        const { ContextBuilder } = await import('./context-builder'); // Lazy import
+        const context = await ContextBuilder.build(userId);
+
+        // Override schedule if mock provided (for testing)
+        if (mockSchedule) {
+            context.currentSchedule = mockSchedule;
+        }
 
         // 1. Planner Agent
         const plannerOutput = await this.planner.run(userMessage, context);

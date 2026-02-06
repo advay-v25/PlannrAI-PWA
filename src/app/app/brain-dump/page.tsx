@@ -223,7 +223,6 @@ export default function BrainDumpPage() {
                         </div>
                         <GlassCard padding="sm" className="flex items-center gap-2">
                             <Loader2 className="w-4 h-4 animate-spin text-[var(--color-accent-mind)]" />
-                            <span className="text-sm text-[var(--color-text-muted)]">Donna is thinking...</span>
                         </GlassCard>
                     </motion.div>
                 )}

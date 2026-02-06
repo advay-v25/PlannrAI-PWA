@@ -20,4 +20,10 @@ SET category = 'craft'
 WHERE category = 'future';
 
 -- Third, add the new constraint
-ALTER TABLE public.goals ADD CONSTRAINT goals_category_check CHECK (category IN ('mind', 'body', 'craft'));
+do $$
+begin
+    if not exists (select 1 from pg_constraint where conname = 'goals_category_check') then
+        ALTER TABLE public.goals ADD CONSTRAINT goals_category_check CHECK (category IN ('mind', 'body', 'craft'));
+    end if;
+end
+$$;

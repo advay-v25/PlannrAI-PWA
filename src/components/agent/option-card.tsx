@@ -22,6 +22,13 @@ export const OptionCard = ({ id, label, description, warnings, sacrifices, isApp
     const { showToast } = useToast();
 
     const handleApply = async () => {
+        // Log Acceptance Signal
+        apiClient.post('/api/behavior/log', {
+            type: 'acceptance',
+            content: label,
+            metadata: { option_id: id }
+        }).catch(e => console.error("Failed to log signal", e));
+
         const result = await applyOption(id);
 
         if (result?.success) {
@@ -48,7 +55,8 @@ export const OptionCard = ({ id, label, description, warnings, sacrifices, isApp
 
     const handleUndo = async (patchRunId: string) => {
         // Optimistic UI or wait?
-        showToast("Undoing actions...", "info");
+        // Optimistic UI or wait?
+        // showToast("Undoing actions...", "info"); // SILENCE
 
         try {
             // 1. Get Undo Patch

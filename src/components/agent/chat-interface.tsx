@@ -95,7 +95,6 @@ export const ChatInterface = ({ className, onClose }: ChatInterfaceProps) => {
                                     />
                                 ))}
                             </div>
-                            Thinking...
                         </motion.div>
                     )}
                     <div ref={endRef} />

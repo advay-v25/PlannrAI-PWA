@@ -21,8 +21,18 @@ create table if not exists user_context (
 alter table user_context enable row level security;
 
 -- RLS Policy
-create policy "Users can only see their own context" on user_context
-  for all using (auth.uid() = user_id);
+do $$
+begin
+    if not exists (
+        select 1 from pg_policies 
+        where tablename = 'user_context' 
+        and policyname = 'Users can only see their own context'
+    ) then
+        create policy "Users can only see their own context" on user_context
+            for all using (auth.uid() = user_id);
+    end if;
+end
+$$;
 
 -- Index for faster retrieval by user
 create index if not exists idx_user_context_user_id on user_context(user_id);

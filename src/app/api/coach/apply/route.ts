@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { apiError, apiSuccess, secureApiRoute, SecureApiContext } from '@/lib/security/api-protection';
 import { generateAIPatch } from '@/lib/ai/groq-client';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, addMinutes } from 'date-fns';
 import { CalendarPatch } from '@/lib/validation/calendar-contract';
 import { findNextAvailableSlot, ScheduleItem } from '@/lib/scheduling/solver';
 
@@ -70,28 +70,69 @@ export const POST = secureApiRoute(async (context: SecureApiContext, body: any) 
                 const oldEnd = parseISO(`${date}T${targetBlock.end_time}`);
                 const durationMins = (oldEnd.getTime() - oldStart.getTime()) / 60000;
 
-                // Use Solver to find next slot
-                const nextSlot = findNextAvailableSlot(
-                    scheduleItems.filter(i => i.id !== blockId), // Exclude self
-                    durationMins,
-                    referenceDate
-                );
+                // JUDGEMENT DAY: Use ConflictService
+                // If there's a target time provided (e.g. from intent), use it.
+                // Otherwise find next slot.
 
-                if (!nextSlot) {
-                    throw new Error('No available slot found for this task today. Try swapping instead?');
+                // For 'move_single' without specific time, we use Solver directly as before
+                // But if we HAD a time, we'd use ConflictService.
+                // Given the current implementation of move_single implies "find next available",
+                // we keep finding next slot.
+
+                // However, the directive says "Conflict Resolution".
+                // If the user said "Move gym to 4pm" (which maps to intent_payload.target_time), 
+                // we SHOULD use ConflictService.
+
+                let targetStart: Date;
+                if (intent_payload?.target_time) {
+                    targetStart = parseISO(`${date}T${intent_payload.target_time}`);
+                } else {
+                    // Auto-find next
+                    const nextSlot = findNextAvailableSlot(
+                        scheduleItems.filter(i => i.id !== blockId),
+                        durationMins,
+                        referenceDate
+                    );
+                    if (!nextSlot) throw new Error('No available slot found.');
+                    targetStart = nextSlot.start;
                 }
 
+                const targetEnd = addMinutes(targetStart, durationMins);
+
+                // JUDGE THE MOVE
+                const { ConflictService } = await import('@/lib/scheduling/conflict-service');
+                const existingBlocks = blocks || [];
+                const judgment = ConflictService.judgeChange(
+                    existingBlocks,
+                    { start: targetStart, end: targetEnd, id: blockId }
+                );
+
+                if (judgment.status === 'rejected') {
+                    throw new Error(`Refused: ${judgment.reason}`);
+                }
+
+                if (judgment.status === 'requires_choice') {
+                    // In a real agent loop, we'd return options.
+                    // For this API (apply), we fail safely or "Force" if flag set.
+                    throw new Error(`Conflict: ${judgment.reason} (Need user choice)`);
+                }
+
+                // If resolved, merge the move + auto-adjustments
+                const moveChange = {
+                    op: 'MOVE',
+                    event_id: blockId,
+                    new_start_ts: format(targetStart, "yyyy-MM-dd'T'HH:mm:ss"),
+                    new_end_ts: format(targetEnd, "yyyy-MM-dd'T'HH:mm:ss")
+                };
+
+                const otherChanges = judgment.resolved_patch?.changes || [];
+
                 patch = {
-                    summary: `Rescheduling "${targetBlock.context || 'Task'}" to ${format(nextSlot.start, 'HH:mm')}`,
+                    summary: `Rescheduling "${targetBlock.context || 'Task'}" to ${format(targetStart, 'HH:mm')}`,
                     affected_date: date,
-                    changes: [{
-                        op: 'MOVE',
-                        event_id: blockId,
-                        new_start_ts: format(nextSlot.start, "yyyy-MM-dd'T'HH:mm:ss"),
-                        new_end_ts: format(nextSlot.end, "yyyy-MM-dd'T'HH:mm:ss")
-                    }],
+                    changes: [moveChange, ...otherChanges], // Combine
                     requires_confirmation: true,
-                    warnings: [],
+                    warnings: otherChanges.length ? ['Adjusted other blocks to fit'] : [],
                     sacrifices: [],
                     source: 'coach'
                 };

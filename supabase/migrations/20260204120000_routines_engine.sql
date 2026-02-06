@@ -33,11 +33,16 @@ CREATE TABLE IF NOT EXISTS public.routine_recommendations (
 ALTER TABLE public.scan_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.routine_recommendations ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can manage own scans" ON public.scan_sessions
-    FOR ALL USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can manage own routines" ON public.routine_recommendations
-    FOR ALL USING (auth.uid() = user_id);
+do $$
+begin
+    if not exists (select 1 from pg_policies where tablename = 'scan_sessions' and policyname = 'Users can manage own scans') then
+        CREATE POLICY "Users can manage own scans" ON public.scan_sessions FOR ALL USING (auth.uid() = user_id);
+    end if;
+    if not exists (select 1 from pg_policies where tablename = 'routine_recommendations' and policyname = 'Users can manage own routines') then
+        CREATE POLICY "Users can manage own routines" ON public.routine_recommendations FOR ALL USING (auth.uid() = user_id);
+    end if;
+end
+$$;
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_scan_sessions_user ON public.scan_sessions(user_id, created_at DESC);

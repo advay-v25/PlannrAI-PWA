@@ -47,11 +47,16 @@ ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversation_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE memory_facts ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can manage their own conversations" 
-ON conversations FOR ALL USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can manage their own messages" 
-ON conversation_messages FOR ALL USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can manage their own memory facts" 
-ON memory_facts FOR ALL USING (auth.uid() = user_id);
+do $$
+begin
+    if not exists (select 1 from pg_policies where tablename = 'conversations' and policyname = 'Users can manage their own conversations') then
+        CREATE POLICY "Users can manage their own conversations" ON conversations FOR ALL USING (auth.uid() = user_id);
+    end if;
+    if not exists (select 1 from pg_policies where tablename = 'conversation_messages' and policyname = 'Users can manage their own messages') then
+        CREATE POLICY "Users can manage their own messages" ON conversation_messages FOR ALL USING (auth.uid() = user_id);
+    end if;
+    if not exists (select 1 from pg_policies where tablename = 'memory_facts' and policyname = 'Users can manage their own memory facts') then
+        CREATE POLICY "Users can manage their own memory facts" ON memory_facts FOR ALL USING (auth.uid() = user_id);
+    end if;
+end
+$$;

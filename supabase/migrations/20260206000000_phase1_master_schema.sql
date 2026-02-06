@@ -1,6 +1,11 @@
--- MASTER PHASE 1 MIGRATION
 -- 1. Create User State Engine
-create type user_mode as enum ('survival', 'maintenance', 'growth');
+do $$
+begin
+    if not exists (select 1 from pg_type where typname = 'user_mode') then
+        create type user_mode as enum ('survival', 'maintenance', 'growth');
+    end if;
+end
+$$;
 
 create table if not exists public.user_states (
   user_id uuid primary key references auth.users(id) on delete cascade,
@@ -12,8 +17,18 @@ create table if not exists public.user_states (
 );
 
 alter table public.user_states enable row level security;
-create policy "Users manage own state" on public.user_states 
-    for all using (auth.uid() = user_id);
+do $$
+begin
+    if not exists (
+        select 1 from pg_policies 
+        where tablename = 'user_states' 
+        and policyname = 'Users manage own state'
+    ) then
+        create policy "Users manage own state" on public.user_states 
+            for all using (auth.uid() = user_id);
+    end if;
+end
+$$;
 
 -- 2. Update Calendar Authority
 -- Adding explicit Priority and Energy Cost
