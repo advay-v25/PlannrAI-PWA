@@ -19,7 +19,7 @@ export interface WeekPlanResult {
 export function generateStaticWeekPlan(
     goals: Array<{ id: string; title: string; category: string; minutes_per_day: number; importance: string }>,
     profile: { sleep_end?: string; sleep_start?: string; low_energy_mode?: boolean } | null,
-    commitments: Array<{ days_of_week: number[]; start_time: string; end_time: string }>
+    commitments: Array<{ days_of_week: number[]; start_time: string; end_time: string; title?: string }>
 ) {
     const wakeTime = profile?.sleep_end || '07:00';
     const sleepTime = profile?.sleep_start || '23:00';
@@ -37,6 +37,28 @@ export function generateStaticWeekPlan(
     };
 
     const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+    // Initialize Schedule with Anchors
+    const dayMap = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']; // 0-6 index matches JS Date.getDay()
+    // But our schedule keys are 'mon'...'sun'.
+    // Mapping: 0->sun, 1->mon, etc.
+    const keyMap = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+    commitments.forEach(anchor => {
+        anchor.days_of_week.forEach(dayIndex => {
+            // specific day index (0=Sun, 1=Mon...)
+            const dayKey = keyMap[dayIndex];
+            if (schedule[dayKey]) {
+                schedule[dayKey].push({
+                    time: anchor.start_time,
+                    end_time: anchor.end_time,
+                    title: anchor.title || 'Fixed Commitment', // Ensure title exists
+                    goal_id: 'ANCHOR', // Special ID
+                    type: 'anchor'
+                });
+            }
+        });
+    });
 
     // Sort goals by importance
     const sortedGoals = [...goals].sort((a, b) => {
