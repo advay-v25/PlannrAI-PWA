@@ -65,10 +65,22 @@ export function Step1Framing() {
                         />
                         <div className="absolute bottom-0 left-0 w-full h-[2px] bg-[var(--color-primary)] scale-x-0 group-focus-within:scale-x-100 transition-transform duration-500" />
                     </div>
+
+                    {/* Mirror Moment */}
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{
+                            opacity: (data.full_name?.length || 0) > 2 ? 1 : 0,
+                            height: (data.full_name?.length || 0) > 2 ? 'auto' : 0
+                        }}
+                        className="mt-4 text-xs font-mono text-[var(--color-primary)] overflow-hidden"
+                    >
+                        <span className="opacity-70">Identity confirmed. Creating user profile...</span>
+                    </motion.div>
                 </div>
 
                 <p className="text-sm text-[var(--color-text-muted)] font-light">
-                    Your personal neural operating system is ready to adapt.
+                    Neural link established. Accessing calibration modules.
                 </p>
             </motion.div>
         </div>

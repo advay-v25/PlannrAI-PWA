@@ -70,11 +70,35 @@ export function Step3Meals() {
                         </button>
                     ))}
                 </div>
+                {/* Micro Payoff: Buffers */}
+                {data.buffer_config?.type && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        key={data.buffer_config.type}
+                        className="text-center"
+                    >
+                        <span className="text-[10px] text-[var(--text-tertiary)] flex items-center justify-center gap-1">
+                            <span className="w-1 h-1 rounded-full bg-[var(--color-primary)]" />
+                            Cognitive switching costs accounted for.
+                        </span>
+                    </motion.div>
+                )}
             </div>
 
             <p className="text-xs text-[var(--color-text-secondary)] italic opacity-60 max-w-sm text-center">
                 *PlannrAI will attempt to place meals around 8am, 1pm, and 7pm, adjusting for your wake times.
             </p>
+
+            {/* Mirror Moment */}
+            <motion.div
+                key={data.meals_per_day}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-[10px] font-mono text-[var(--color-primary)] uppercase tracking-widest opacity-80"
+            >
+                Metabolic constraints locked. Logic engine will actively protect these windows.
+            </motion.div>
         </div>
     );
 }

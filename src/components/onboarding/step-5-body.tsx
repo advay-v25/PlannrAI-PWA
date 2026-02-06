@@ -100,8 +100,21 @@ export function Step5Body() {
             </div>
 
             <p className="text-xs text-[var(--color-text-secondary)] italic opacity-60 text-center">
+                Optional. Protection protocol.
+                <br />
                 PlannrAI uses this to protect your energy, not to force workouts.
             </p>
+
+            <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1 }}
+                className="text-[10px] font-mono text-[var(--color-primary)] uppercase tracking-widest text-center"
+            >
+                Energy protection active.
+                <br />
+                I will prevent scheduling conflicts during these sessions.
+            </motion.div>
         </div>
     );
 }

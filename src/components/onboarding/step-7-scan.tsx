@@ -39,7 +39,7 @@ export function Step7Scan() {
             <div className="w-full bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-2xl p-8 space-y-6">
                 <div className="flex items-center justify-center gap-2 text-xs text-[var(--text-tertiary)] uppercase tracking-wider font-bold mb-4">
                     <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                    <span>Private & Encrypted Analysis</span>
+                    <span>Secure execution. Data processed locally then discarded.</span>
                 </div>
 
                 <button
@@ -63,9 +63,14 @@ export function Step7Scan() {
 
             <button
                 onClick={handleSkip}
-                className="flex items-center gap-2 text-[var(--color-text-secondary)] hover:text-white transition-colors text-sm"
+                className="flex flex-col items-center gap-1 text-[var(--color-text-secondary)] hover:text-white transition-colors group"
             >
-                Skip Bio-Calibration <SkipForward className="w-4 h-4" />
+                <span className="flex items-center gap-2 text-sm">
+                    Skip Bio-Calibration <SkipForward className="w-4 h-4" />
+                </span>
+                <span className="text-[10px] opacity-0 group-hover:opacity-50 transition-opacity">
+                    Using statistical baseline for now.
+                </span>
             </button>
         </div>
     );

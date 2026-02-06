@@ -138,6 +138,39 @@ function DayFrameVisualizer({ sleepStart, sleepEnd, windDown }: { sleepStart: st
             <p className="text-center text-xs text-[var(--text-tertiary)] pt-2">
                 Your calibration creates a human day frame.
             </p>
+
+            {/* Micro Payoff: Active Capacity */}
+            <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="mt-4 flex flex-col items-center gap-1"
+            >
+                <div className="px-3 py-1 rounded-full bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/30 text-[10px] uppercase font-mono tracking-wider text-[var(--color-primary)]">
+                    Calculated Active Capacity: {calculateCapacity(sleepEnd, sleepStart)}
+                </div>
+                <span className="text-[10px] text-[var(--text-tertiary)] opacity-60">
+                    Calibrating scheduler...
+                </span>
+            </motion.div>
         </motion.div>
     )
+}
+
+function calculateCapacity(start: string, end: string) {
+    if (!start || !end) return "--h --m";
+    // Simple calc assuming same day or next day wraparound doesn't matter for pure hours diff typically 
+    // but here sleep_start (23:00) > sleep_end (07:00) usually
+    // We want Wake -> Sleep duration
+
+    let [h1, m1] = start.split(':').map(Number); // Wake
+    let [h2, m2] = end.split(':').map(Number);   // Sleep
+
+    let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+    if (diff < 0) diff += 24 * 60; // handle wrap around midnight
+
+    const h = Math.floor(diff / 60);
+    const m = diff % 60;
+
+    return `${h}h ${m}m`;
 }

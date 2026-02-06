@@ -75,6 +75,15 @@ export function Step4Commitments() {
                 <p className="text-xs text-[var(--text-tertiary)]">
                     You can add more later. For now, just the big rocks.
                 </p>
+                <div className="h-4" />
+                <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.5 }}
+                    className="text-[10px] font-mono text-[var(--color-primary)] uppercase tracking-wider"
+                >
+                    Fluid time will adapt around these fixed points.
+                </motion.p>
             </div>
 
             <AnimatePresence>

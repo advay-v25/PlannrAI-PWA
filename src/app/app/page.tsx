@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { useUserStore, useGoalsStore, useDailyLogStore } from '@/stores';
+import { useToast } from '@/components/ui/toast';
 
 // V3 Components
 import { AmbientPulse } from '@/components/dashboard/ambient-pulse';
@@ -29,6 +30,7 @@ export default function HomePage() {
     const { profile, setProfile, updateProfile } = useUserStore();
     const { goals, setGoals } = useGoalsStore();
     const { todayLog, setTodayLog } = useDailyLogStore();
+    const { showToast } = useToast();
     const [isLoading, setIsLoading] = useState(true);
     const [todayBlocks, setTodayBlocks] = useState<ScheduleBlock[]>([]);
     const [activeIntervention, setActiveIntervention] = useState<InterventionLog | null>(null);
@@ -102,6 +104,28 @@ export default function HomePage() {
         }
         loadData();
     }, [supabase, setProfile, setGoals, setTodayLog]);
+
+    // Post-Onboarding Signal
+    // Using window.location.search to avoid Next.js Suspense boundary issues on client-side strictly for this toast
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('setup') === 'complete') {
+                // Remove param cleanly
+                window.history.replaceState(null, '', '/app');
+
+                // Show Signal
+                showToast(
+                    "System Baselined",
+                    'ai',
+                    5000,
+                    <span className="text-xs text-[var(--text-tertiary)] block pt-1">
+                        I will observe and adapt strategy as we go.
+                    </span>
+                );
+            }
+        }
+    }, [showToast]);
 
     const handleEnergySet = async (level: number) => {
         const { data: { user } } = await supabase.auth.getUser();

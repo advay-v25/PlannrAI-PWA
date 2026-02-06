@@ -140,15 +140,20 @@ export function Step3Goals() {
                 </motion.button>
             </div>
 
-            {/* Selected Summary Footer */}
+            {/* Selected Summary & Reality Check */}
             {data.goals.length > 0 && (
-                <div className="mt-6 pt-4 border-t border-[var(--glass-border)] flex flex-wrap gap-2">
-                    {data.goals.map((goal, i) => (
-                        <span key={i} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-[var(--glass-bg)] border border-[var(--glass-border)] text-xs text-[var(--color-text-secondary)]">
-                            {goal.title}
-                            <X className="w-3 h-3 cursor-pointer hover:text-red-400" onClick={() => removeGoal(i)} />
-                        </span>
-                    ))}
+                <div className="mt-4 pt-4 border-t border-[var(--glass-border)] w-full">
+                    <div className="flex flex-wrap gap-2 mb-4">
+                        {data.goals.map((goal, i) => (
+                            <span key={i} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-[var(--glass-bg)] border border-[var(--glass-border)] text-xs text-[var(--color-text-secondary)]">
+                                {goal.title}
+                                <X className="w-3 h-3 cursor-pointer hover:text-red-400" onClick={() => removeGoal(i)} />
+                            </span>
+                        ))}
+                    </div>
+
+                    {/* Reality Check Bar */}
+                    <RealityBar data={data} />
                 </div>
             )}
 
@@ -167,4 +172,63 @@ export function Step3Goals() {
             </AnimatePresence>
         </div>
     );
+}
+
+function RealityBar({ data }: { data: any }) {
+    // 1. Calculate Capacity
+    // wake (07:00) -> sleep (23:00) = 16h = 960m
+    // - Anchors (Approx avg/day)
+    // - Meals (3 * 30m = 90m)
+    // - Goals (Sum mins)
+
+    // Simplification for Onboarding speed:
+    // Assume 16h active base.
+    const TOTAL_MINS = 16 * 60;
+
+    const mealMins = (data.meals_per_day || 3) * 30; // 30m per meal approx
+    const anchorMins = data.commitments.reduce((sum: number, c: any) => {
+        // Simple avg per day calc: duration * (days/7)
+        // For onboarding "feel", just summing raw duration of one *instance* is safer to not under-represent "A busy day"
+        // Let's sum duration of ALL anchors assuming a "Worst Case Day"
+        const [h1, m1] = c.start_time.split(':').map(Number);
+        const [h2, m2] = c.end_time.split(':').map(Number);
+        const duration = (h2 * 60 + m2) - (h1 * 60 + m1);
+        return sum + duration;
+    }, 0);
+
+    const goalMins = data.goals.reduce((sum: number, g: any) => sum + g.minutes_per_day, 0);
+
+    const used = mealMins + anchorMins + goalMins;
+    const load = used / TOTAL_MINS;
+
+    let statusColor = 'bg-emerald-400';
+    let message = "Capacity available. System stable.";
+
+    if (load > 0.8) {
+        statusColor = 'bg-orange-400';
+        message = "High density detected. Efficient routing required.";
+    }
+    if (load > 1.0) {
+        statusColor = 'bg-red-400';
+        message = "Capacity exceeded. I will have to make trade-offs.";
+    }
+
+    return (
+        <div className="space-y-2">
+            <div className="flex justify-between text-[10px] uppercase font-mono text-[var(--color-text-secondary)]">
+                <span>Daily Load</span>
+                <span>{Math.round(load * 100)}%</span>
+            </div>
+            <div className="w-full h-2 bg-[var(--glass-border)] rounded-full overflow-hidden">
+                <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(load * 100, 100)}%` }}
+                    className={`h-full ${statusColor}`}
+                />
+            </div>
+            <p className={`text-xs font-mono ${load > 1 ? 'text-red-300' : 'text-[var(--color-primary)]'} text-center pt-2`}>
+                {message}
+            </p>
+        </div>
+    )
 }

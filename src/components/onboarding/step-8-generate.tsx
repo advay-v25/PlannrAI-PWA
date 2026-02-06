@@ -10,8 +10,21 @@ export function Step8Generate() {
     const [generating, setGenerating] = useState(true);
     const [generatedPlan, setGeneratedPlan] = useState<any>(null);
 
+    const [thinkingStep, setThinkingStep] = useState(0);
+    const thinkingMessages = [
+        `Aligning ${data.goals[0]?.title || 'goals'} with your ${data.body_preferences?.activity_types[0] || 'movement'} preference...`,
+        `Protecting ${data.meals_per_day || 3} nutritional windows...`,
+        `Resolving ${data.commitments.length} fixed constraints...`,
+        "Protocol Ready."
+    ];
+
     // Simulate generation on mount
     useEffect(() => {
+        // Thinking Step Loop
+        const messageInterval = setInterval(() => {
+            setThinkingStep(prev => prev < thinkingMessages.length - 1 ? prev + 1 : prev);
+        }, 800);
+
         const timer = setTimeout(() => {
             setGenerating(false);
             setGeneratedPlan({
@@ -27,8 +40,12 @@ export function Step8Generate() {
                     { time: data.sleep_start || '23:00', title: 'Sleep', type: 'bio' },
                 ]
             });
-        }, 2500);
-        return () => clearTimeout(timer);
+        }, 3200); // Slightly longer to show messages
+
+        return () => {
+            clearTimeout(timer);
+            clearInterval(messageInterval);
+        }
     }, []);
 
     if (generating) {
@@ -40,9 +57,15 @@ export function Step8Generate() {
                     <Sparkles className="absolute inset-0 m-auto w-8 h-8 text-[var(--color-primary)] animate-pulse" />
                 </div>
                 <h2 className="text-2xl font-bold animate-pulse">Synthesizing Your Day...</h2>
-                <p className="text-[var(--color-text-secondary)] text-sm max-w-xs">
-                    Aligning {data.goals.length} goals with your {data.body_preferences?.activity_types[0] || 'movement'} preference and energy curve.
-                </p>
+                <motion.p
+                    key={thinkingStep}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="text-[var(--color-text-secondary)] text-sm max-w-xs h-6"
+                >
+                    {thinkingMessages[thinkingStep]}
+                </motion.p>
             </div>
         );
     }

@@ -159,7 +159,7 @@ export default function OnboardingPage() {
             reset();
 
             // Redirect to Home (Dashboard)
-            router.push('/app');
+            router.push('/app?setup=complete');
         } catch (error) {
             console.error('Onboarding sync failed:', error);
         } finally {
