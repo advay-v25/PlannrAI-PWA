@@ -25,9 +25,11 @@ export const POST = secureApiRoute(
         console.log(`[API] Completing Onboarding for ${userId}`);
 
         // 1. Update Profile (Time, Bio, Prefs)
+        // 1. Update Profile (Time, Bio, Prefs) - Use UPSERT to handle missing rows
         const { error: profileError } = await supabase
             .from('profiles')
-            .update({
+            .upsert({
+                id: userId,
                 full_name,
                 timezone,
                 sleep_start,
@@ -42,7 +44,7 @@ export const POST = secureApiRoute(
                 onboarding_complete: true,
                 updated_at: new Date().toISOString()
             })
-            .eq('id', userId);
+            .select();
 
         if (profileError) {
             console.error('Profile update failed:', profileError);
