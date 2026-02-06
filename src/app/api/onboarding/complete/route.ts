@@ -10,7 +10,8 @@ export const POST = secureApiRoute(
             goals, energy_level, stress_level,
             meals_per_day, meal_windows,
             body_preferences, buffer_config,
-            wind_down_mins, full_name
+            wind_down_mins, full_name,
+            commitments // Destructure commitments from body (Fallback Flow)
         } = body as OnboardingData;
 
         // Basic validation
@@ -82,12 +83,46 @@ export const POST = secureApiRoute(
             }
         }
 
-        // 3. Generate Initial Schedule (Server-Side Orchestration)
-        // Fetch commitments just inserted in previous steps (client inserted Step 4)
-        const { data: commitments } = await supabase
+        // 3. Handle Commitments (Fail-safe Persistence)
+        // Try to fetch existing
+        const { data: dbCommitments } = await supabase
             .from('commitments')
             .select('*')
             .eq('user_id', userId);
+
+        // If we have payload commitments but DB is empty (implying API failure earlier), try to save them now.
+        // Or simply merge them for the Calculation Context.
+        let finalCommitments = dbCommitments || [];
+
+        if (commitments && commitments.length > 0) {
+            // Check which ones are missing from DB
+            const existingTitles = new Set(finalCommitments.map(c => c.title));
+            const missingCommitments = commitments.filter(c => !existingTitles.has(c.title));
+
+            if (missingCommitments.length > 0) {
+                console.log(`[Onboarding] Syncing ${missingCommitments.length} missing commitments to DB...`);
+                const { data: synced, error: syncError } = await supabase
+                    .from('commitments')
+                    .insert(missingCommitments.map(c => ({
+                        user_id: userId,
+                        title: c.title,
+                        start_time: c.start_time,
+                        end_time: c.end_time,
+                        days_of_week: c.days_of_week,
+                        is_active: true
+                    })))
+                    .select();
+
+                if (syncError) {
+                    console.error("[Onboarding] Failed to sync commitments (Ignored for generation):", syncError);
+                } else if (synced) {
+                    finalCommitments = [...finalCommitments, ...synced];
+                }
+            }
+        }
+
+        // 4. Generate Initial Schedule (Server-Side)
+        // Use finalCommitments (Merged DB + Fallback)
 
         const profileConfig = {
             sleep_end,
@@ -119,7 +154,7 @@ export const POST = secureApiRoute(
                 importance: g.importance
             })),
             profileConfig,
-            commitments?.map(c => ({
+            finalCommitments.map(c => ({
                 days_of_week: c.days_of_week,
                 start_time: c.start_time,
                 end_time: c.end_time
