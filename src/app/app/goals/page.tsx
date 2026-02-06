@@ -20,6 +20,8 @@ import {
     X,
     Sparkles,
     Clock,
+    Calendar,
+    Loader2,
     Zap, // Energy
     Flag, // Priority
     Play,
@@ -30,6 +32,7 @@ import {
     Anchor,
     MoreVertical
 } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
 import type { Goal, GoalCategory, GoalImportance, EnergyDemand, GoalStatus } from '@/types/database';
 
 const PILLARS = [
@@ -212,6 +215,27 @@ export default function GoalsPage() {
                                     onUpdate={(updates) => handleUpdate(goal.id, updates)}
                                     onDelete={() => handleDelete(goal.id)}
                                     onStrategy={() => setSelectedStrategyGoal(goal)}
+                                    onAutoSchedule={async (goalId) => {
+                                        try {
+                                            const data = await apiClient.post<any>('/api/goals/auto-schedule', { goal_id: goalId });
+
+                                            if (data.success && data.proposal) {
+                                                // Apply immediately
+                                                const applyData = await apiClient.post<any>('/api/calendar/apply-patch', { patch: data.proposal });
+
+                                                if (applyData.success) {
+                                                    showToast(`✅ Scheduled ${data.proposal.changes.length} blocks!`, 'success');
+                                                } else {
+                                                    throw new Error(applyData.error || 'Patch failed');
+                                                }
+                                            } else {
+                                                showToast(data.message || 'Could not find slots.', 'error');
+                                            }
+                                        } catch (err: any) {
+                                            console.error(err);
+                                            showToast(err.message || 'Auto-schedule failed', 'error');
+                                        }
+                                    }}
                                     pillarColor={pillar.color}
                                 />
                             ))}
@@ -258,7 +282,7 @@ export default function GoalsPage() {
 // Sub-components (Inline for now, can move to separate files)
 // ------------------------------------------------------------------
 
-function GoalCard({ goal, isExpanded, onExpand, onUpdate, onDelete, onStrategy, pillarColor }: {
+function GoalCard({ goal, isExpanded, onExpand, onUpdate, onDelete, onStrategy, pillarColor, onAutoSchedule }: {
     goal: Goal;
     isExpanded: boolean;
     onExpand: () => void;
@@ -266,8 +290,19 @@ function GoalCard({ goal, isExpanded, onExpand, onUpdate, onDelete, onStrategy, 
     onDelete: () => void;
     onStrategy: () => void;
     pillarColor: string;
+    onAutoSchedule: (goalId: string) => Promise<void>;
 }) {
     const isPaused = goal.status === 'paused';
+    const [isScheduling, setIsScheduling] = useState(false);
+
+    const handleAutoSchedule = async () => {
+        setIsScheduling(true);
+        try {
+            await onAutoSchedule(goal.id);
+        } finally {
+            setIsScheduling(false);
+        }
+    };
 
     return (
         <div className={`glass-card overflow-hidden transition-all duration-300 ${isExpanded ? 'ring-1 ring-[var(--color-primary)]' : ''}`}>
@@ -339,14 +374,26 @@ function GoalCard({ goal, isExpanded, onExpand, onUpdate, onDelete, onStrategy, 
                             />
 
                             {/* AI Strategy Button (Large) */}
-                            <GlassButton
-                                variant="ghost"
-                                className="w-full justify-center border border-dashed border-[var(--color-primary)]/30 text-[var(--color-primary)]"
-                                onClick={onStrategy}
-                            >
-                                <Sparkles className="w-4 h-4 mr-2" />
-                                Open Expert Strategy
-                            </GlassButton>
+                            {/* AI Strategy & Auto-Schedule Buttons */}
+                            <div className="flex gap-2">
+                                <GlassButton
+                                    variant="ghost"
+                                    className="flex-1 justify-center border border-dashed border-[var(--color-primary)]/30 text-[var(--color-primary)]"
+                                    onClick={onStrategy}
+                                >
+                                    <Sparkles className="w-4 h-4 mr-2" />
+                                    Expert Strategy
+                                </GlassButton>
+                                <GlassButton
+                                    variant="primary"
+                                    className="flex-1 justify-center"
+                                    onClick={handleAutoSchedule}
+                                    disabled={isScheduling}
+                                >
+                                    {isScheduling ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Calendar className="w-4 h-4 mr-2" />}
+                                    {isScheduling ? 'Scheduling...' : 'Auto Schedule'}
+                                </GlassButton>
+                            </div>
 
                             {/* Sliders & Selectors */}
                             <div className="grid grid-cols-2 gap-4">

@@ -173,9 +173,10 @@ export function secureApiRoute(
  */
 export function apiError(
     message: string,
-    status: number = 400
+    status: number = 400,
+    details?: unknown
 ): NextResponse {
-    return NextResponse.json({ error: message }, { status });
+    return NextResponse.json({ error: message, details }, { status });
 }
 
 /**

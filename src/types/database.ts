@@ -111,7 +111,7 @@ export interface ScheduleBlock {
     start_time: string;
     end_time: string;
     status: BlockStatus;
-    block_type?: 'anchor' | 'goal' | 'meal' | 'buffer' | 'routine';
+    block_type?: 'anchor' | 'goal' | 'meal' | 'buffer' | 'routine' | 'sleep' | 'wind_down';
     checklist?: { id: string; text: string; completed: boolean }[]; // JSONB
     context: string | null;
     created_at: string;
@@ -161,21 +161,49 @@ export interface CoachInteraction {
     user_action: string | null;
 }
 
+// --- 6. WEEKLY REVIEW TYPES ---
+
+export interface LeverAction {
+    type: 'update_goal' | 'update_preference' | 'update_schedule';
+    payload: any;
+    description: string;
+}
+
+// --- 6. WEEKLY REVIEW TYPES ---
+
 export type TrendDirection = 'improving' | 'stable' | 'declining' | 'increasing';
 export type ReviewResponse = 'accepted' | 'edited' | 'ignored';
+
+export interface LeverAction {
+    type: 'update_goal' | 'update_preference' | 'update_schedule';
+    payload: any;
+    description: string;
+}
 
 export interface WeeklyReview {
     id: string;
     user_id: string;
     week_start: string;
     week_end: string;
-    planned_minutes: number;
+
+    // Narrative Sections
     actual_minutes: number;
-    energy_trend: TrendDirection;
-    stress_trend: TrendDirection;
+    planned_minutes: number;
+
+    // Trends (Reality)
+    energy_trend: 'improving' | 'declining' | 'stable';
+    stress_trend: 'increasing' | 'decreasing' | 'stable';
+
+    // Patterns (Max 3)
     friction_patterns: string[];
-    suggested_adjustment: string;
+
+    // One Lever
+    suggested_adjustment: string; // The "One Lever" text
+    lever_action: LeverAction | null;    // The executable payload (NEW)
+
+    // User Interaction
     user_response: ReviewResponse | null;
+
     created_at: string;
 }
 
@@ -308,4 +336,54 @@ export interface RoutineOutput {
     best_time_window: string;
     confidence_score: number;
     questions?: string[];
+}
+// Habit Stacks (Phase 2)
+export interface HabitStack {
+    id: string;
+    user_id: string;
+    trigger_habit: string;
+    action_habit: string;
+    goal_id: string | null;
+    action_duration_mins: number;
+    trigger_time: string | null; // Optional for now
+    current_streak: number;
+    longest_streak: number;
+    total_completions: number;
+    last_completed: string | null;
+    grace_days_used: number;
+    max_grace_days: number;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+// Phase 3: Trust + Stickiness
+export interface BehaviorEvent {
+    id: string;
+    user_id: string;
+    event_id?: string | null;
+    action_type: 'complete' | 'miss' | 'reschedule' | 'overrun' | 'accept_suggestion' | 'reject_suggestion' | 'delete';
+    meta: Record<string, any>;
+    created_at: string;
+}
+
+export interface BehaviorPattern {
+    id: string;
+    user_id: string;
+    preferred_windows: Record<string, string[]>; // { "craft": ["09:00", "11:00"] }
+    completion_rates: Record<string, number>; // { "mind": 0.8 }
+    avoidance_data: Record<string, any>;
+    density_tolerance: Record<string, any>;
+    confidence_score: number;
+    updated_at: string;
+}
+
+export interface PatchRun {
+    id: string;
+    user_id: string;
+    patch: any; // JSONB
+    inverse_patch: any; // JSONB
+    applied: boolean;
+    source: 'coach' | 'calendar' | 'brain_dump' | 'system';
+    created_at: string;
 }

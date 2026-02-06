@@ -12,10 +12,10 @@ export async function POST(request: Request) {
     }
 
     try {
-        // 1. Get User Profile (Name)
+        // 1. Get User Profile (Context)
         const { data: profile } = await supabase
             .from('profiles')
-            .select('preferred_name')
+            .select('preferred_name, energy_level')
             .eq('id', user.id)
             .single();
 
@@ -37,7 +37,16 @@ export async function POST(request: Request) {
             .eq('user_id', user.id)
             .eq('is_paused', false);
 
-        // 4. Get Yesterday's Log (for context)
+        // 4. Get Latest Bio-Scan for Insights
+        const { data: latestScan } = await supabase
+            .from('scan_sessions')
+            .select('signals')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+        // 5. Get Yesterday's Log (for context)
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
         const yesterdayStr = yesterday.toISOString().split('T')[0];
@@ -49,7 +58,7 @@ export async function POST(request: Request) {
             .eq('log_date', yesterdayStr)
             .single();
 
-        // 5. Get Stagnant Goals (Not updated in 7 days)
+        // 6. Get Stagnant Goals (Not updated in 7 days)
         const sevenDaysAgo = subDays(new Date(), 7).toISOString();
         const { data: stagnantGoals } = await supabase
             .from('goals')
@@ -58,14 +67,14 @@ export async function POST(request: Request) {
             .eq('is_paused', false)
             .lt('updated_at', sevenDaysAgo);
 
-        // 6. Get High Streaks
+        // 7. Get High Streaks
         const { data: habitStacks } = await supabase
             .from('habit_stacks')
             .select('action_habit, current_streak')
             .eq('user_id', user.id)
             .gte('current_streak', 3);
 
-        // 7. Get Overdue Tasks (from yesterday)
+        // 8. Get Overdue Tasks (from yesterday)
         const { data: overdueBlocks } = await supabase
             .from('schedule_blocks')
             .select('context')
@@ -73,9 +82,11 @@ export async function POST(request: Request) {
             .eq('date', yesterdayStr)
             .neq('status', 'done');
 
-        // 8. Generate Briefing
+        // 9. Generate Briefing
         const briefing = await generateMorningBriefing({
             userName,
+            energyLevel: profile?.energy_level, // Inject Energy Level
+            scanInsights: latestScan?.signals, // Inject Vision Insights
             blocks: blocks || [],
             goals: goals || [],
             yesterdayLog,

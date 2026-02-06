@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { GlassCard } from '@/components/ui/glass-card';
@@ -9,10 +9,13 @@ import { GlassInput } from '@/components/ui/glass-input';
 import { useToast } from '@/components/ui/toast';
 import { WeekPlanner, PlanWeekFAB } from '@/components/week-planner';
 import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
-import { ChevronLeft, ChevronRight, Check, Minus, X, Sparkles, Calendar as CalendarIcon, AlertTriangle, ZapOff, Plus, Trash2, Anchor, Repeat, Brain, ListChecks, Square, CheckSquare } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Minus, X, Sparkles, Calendar as CalendarIcon, AlertTriangle, ZapOff, Plus, Trash2, Anchor, Repeat, Brain, ListChecks, Square, CheckSquare, Lock, Loader2 } from 'lucide-react';
 import type { ScheduleBlock, BlockStatus, Goal } from '@/types/database';
+import { isBlockImmutable } from '@/types/calendar-patch';
 import { useScheduleWatchdog } from '@/hooks/use-schedule-watchdog';
 import { useDailyLogStore, useUserStore } from '@/stores';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { apiClient } from '@/lib/api-client';
 
 const STATUS_CONFIG: Record<BlockStatus, { icon: React.ReactNode; color: string; label: string }> = {
     planned: { icon: null, color: 'var(--color-text-muted)', label: 'Planned' },
@@ -21,8 +24,10 @@ const STATUS_CONFIG: Record<BlockStatus, { icon: React.ReactNode; color: string;
     missed: { icon: <X className="w-3 h-3" />, color: 'var(--color-muted)', label: 'Missed' },
 };
 
-export default function CalendarPage() {
+function CalendarContent() {
     const supabase = createClient();
+    const router = useRouter();
+    const searchParams = useSearchParams();
     const { showToast } = useToast();
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [weekStart, setWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
@@ -43,6 +48,10 @@ export default function CalendarPage() {
         energyLevel: isSameDay(selectedDate, new Date()) ? todayLog?.energy_level : undefined,
         lowEnergyMode: profile?.low_energy_mode
     });
+
+    const isBlockImmutable = (block: ScheduleBlock) => {
+        return block.block_type === 'anchor' || block.block_type === 'sleep' || block.block_type === 'wind_down';
+    };
 
     const handleUpdateBlock = async () => {
         if (!editingBlock) return;
@@ -140,7 +149,7 @@ export default function CalendarPage() {
             const endDateStr = format(addDays(weekStart, 6), 'yyyy-MM-dd');
             const { data: blocksData } = await supabase
                 .from('schedule_blocks')
-                .select('*, goal:goals(*)')
+                .select('*, goal:goals(title)')
                 .eq('user_id', user.id)
                 .gte('date', startDateStr)
                 .lte('date', endDateStr)
@@ -150,13 +159,19 @@ export default function CalendarPage() {
             // Filter to selected date for display
             const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
             const filteredBlocks = (blocksData || []).filter(b => b.date === selectedDateStr);
-            setBlocks(filteredBlocks);
+            setBlocks(filteredBlocks as any);
             setIsLoading(false);
         }
         loadData();
-    }, [supabase, weekStart, selectedDate]);
+    }, [supabase, weekStart, selectedDate, searchParams]); // Refetch when searchParams changes (e.g. after patch)
 
     const handleStatusChange = async (blockId: string, newStatus: BlockStatus) => {
+        const block = blocks.find(b => b.id === blockId);
+        if (block && isBlockImmutable(block)) {
+            showToast('Cannot modify anchors', 'error');
+            return;
+        }
+
         setBlocks((prev) => prev.map((b) => (b.id === blockId ? { ...b, status: newStatus } : b)));
         await supabase.from('schedule_blocks').update({ status: newStatus }).eq('id', blockId);
 
@@ -189,17 +204,11 @@ export default function CalendarPage() {
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
-            const res = await fetch('/api/ai/optimize-day', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    date: format(selectedDate, 'yyyy-MM-dd'),
-                    blocks,
-                    energyLevel: todayLog?.energy_level || 3
-                })
+            const { data } = await apiClient.post<any>('/api/ai/optimize-day', {
+                date: format(selectedDate, 'yyyy-MM-dd'),
+                blocks,
+                energyLevel: todayLog?.energy_level || 3
             });
-            if (!res.ok) throw new Error('Optimization failed');
-            const { data } = await res.json();
             setBlocks(data.optimizedBlocks.sort((a: { start_time: string }, b: { start_time: string }) => a.start_time.localeCompare(b.start_time)));
             showToast('🚀 Day optimized!', 'success');
         } catch (error: any) {
@@ -303,18 +312,26 @@ export default function CalendarPage() {
                 ) : (
                     <div className="space-y-2">
                         {blocks.map((block, index) => {
+                            const isImmutable = isBlockImmutable(block);
                             const blockTypeColor = block.block_type === 'routine' ? 'var(--color-future)'
                                 : block.block_type === 'anchor' ? 'var(--color-warning)'
                                     : block.block_type === 'meal' ? 'var(--color-success)'
                                         : 'var(--color-primary)';
+
+                            const borderColor = blockTypeColor;
+                            const isAnchor = block.block_type === 'anchor';
+
                             return (
                                 <motion.div key={block.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.05 }}>
                                     <GlassCard
                                         padding="md"
-                                        interactive
-                                        onClick={() => setEditingBlock(block)}
+                                        interactive={!isImmutable}
+                                        onClick={() => !isImmutable && setEditingBlock(block)}
                                         className={`border-l-2 ${block.status === 'missed' ? 'opacity-50' : ''} ${block.status === 'done' ? 'border-l-[var(--color-success)]' : ''}`}
-                                        style={{ borderLeftColor: block.status !== 'done' ? blockTypeColor : undefined }}
+                                        style={{
+                                            borderLeftColor: block.status !== 'done' ? borderColor : undefined,
+                                            background: isAnchor ? `linear-gradient(90deg, ${blockTypeColor}10, transparent)` : undefined
+                                        }}
                                     >
                                         <div className="flex items-center gap-4">
                                             <div className="w-20 text-center flex-shrink-0">
@@ -323,6 +340,7 @@ export default function CalendarPage() {
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2">
+                                                    {isAnchor && <Anchor className="w-3 h-3 text-[var(--color-warning)]" />}
                                                     <p className="font-medium truncate">{block.goal?.title || block.context || 'Untitled'}</p>
                                                     {/* Checklist Badge */}
                                                     {block.checklist && block.checklist.length > 0 && (
@@ -337,15 +355,21 @@ export default function CalendarPage() {
                                                 )}
                                             </div>
                                             <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                                                {(['done', 'missed'] as BlockStatus[]).map((status) => (
-                                                    <button
-                                                        key={status}
-                                                        onClick={() => handleStatusChange(block.id, status)}
-                                                        className={`p-2 rounded-lg transition-colors ${block.status === status ? 'bg-white/10' : 'opacity-40 hover:opacity-100'}`}
-                                                    >
-                                                        {status === 'done' ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-                                                    </button>
-                                                ))}
+                                                {isImmutable ? (
+                                                    <div className="p-2 opacity-40">
+                                                        <Lock className="w-4 h-4 text-[var(--text-tertiary)]" />
+                                                    </div>
+                                                ) : (
+                                                    (['done', 'missed'] as BlockStatus[]).map((status) => (
+                                                        <button
+                                                            key={status}
+                                                            onClick={() => handleStatusChange(block.id, status)}
+                                                            className={`p-2 rounded-lg transition-colors ${block.status === status ? 'bg-white/10' : 'opacity-40 hover:opacity-100'}`}
+                                                        >
+                                                            {status === 'done' ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                                                        </button>
+                                                    ))
+                                                )}
                                             </div>
                                         </div>
                                     </GlassCard>
@@ -647,5 +671,17 @@ export default function CalendarPage() {
             </AnimatePresence>
             <PlanWeekFAB onClick={() => setShowWeekPlanner(true)} />
         </div>
+    );
+}
+
+export default function CalendarPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex items-center justify-center h-full">
+                <Loader2 className="w-8 h-8 animate-spin text-[var(--color-primary)]" />
+            </div>
+        }>
+            <CalendarContent />
+        </Suspense>
     );
 }

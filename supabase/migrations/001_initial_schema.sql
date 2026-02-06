@@ -128,36 +128,45 @@ ALTER TABLE public.coach_interactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.weekly_reviews ENABLE ROW LEVEL SECURITY;
 
 -- Profiles: Users can only access their own profile
+DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
 CREATE POLICY "Users can view own profile" ON public.profiles
   FOR SELECT USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 CREATE POLICY "Users can update own profile" ON public.profiles
   FOR UPDATE USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
 CREATE POLICY "Users can insert own profile" ON public.profiles
   FOR INSERT WITH CHECK (auth.uid() = id);
 
 -- Goals: Users can only access their own goals
+DROP POLICY IF EXISTS "Users can manage own goals" ON public.goals;
 CREATE POLICY "Users can manage own goals" ON public.goals
   FOR ALL USING (auth.uid() = user_id);
 
 -- Commitments: Users can only access their own commitments
+DROP POLICY IF EXISTS "Users can manage own commitments" ON public.commitments;
 CREATE POLICY "Users can manage own commitments" ON public.commitments
   FOR ALL USING (auth.uid() = user_id);
 
 -- Schedule Blocks: Users can only access their own blocks
+DROP POLICY IF EXISTS "Users can manage own schedule blocks" ON public.schedule_blocks;
 CREATE POLICY "Users can manage own schedule blocks" ON public.schedule_blocks
   FOR ALL USING (auth.uid() = user_id);
 
 -- Brain Dumps: Users can only access their own dumps
+DROP POLICY IF EXISTS "Users can manage own brain dumps" ON public.brain_dumps;
 CREATE POLICY "Users can manage own brain dumps" ON public.brain_dumps
   FOR ALL USING (auth.uid() = user_id);
 
 -- Coach Interactions: Users can only access their own interactions
+DROP POLICY IF EXISTS "Users can manage own coach interactions" ON public.coach_interactions;
 CREATE POLICY "Users can manage own coach interactions" ON public.coach_interactions
   FOR ALL USING (auth.uid() = user_id);
 
 -- Weekly Reviews: Users can only access their own reviews
+DROP POLICY IF EXISTS "Users can manage own weekly reviews" ON public.weekly_reviews;
 CREATE POLICY "Users can manage own weekly reviews" ON public.weekly_reviews
   FOR ALL USING (auth.uid() = user_id);
 

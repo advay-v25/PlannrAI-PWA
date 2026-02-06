@@ -1,0 +1,1739 @@
+[
+  {
+    "file": "src/lib/api-client.ts",
+    "line": 107,
+    "element": "a",
+    "label": "('/api/schedule', { id, ...upd",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/stores/agent-store.ts",
+    "line": 30,
+    "element": "a",
+    "label": ";\n    clearMessages: () => voi",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/stores/agent-store.ts",
+    "line": 53,
+    "element": "a",
+    "label": "('/api/intent', {\n            ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/stores/agent-store.ts",
+    "line": 104,
+    "element": "a",
+    "label": "('/api/calendar/apply-patch', ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/week-planner.tsx",
+    "line": 193,
+    "element": "button",
+    "label": "",
+    "handler": "onClose",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/week-planner.tsx",
+    "line": 201,
+    "element": "button",
+    "label": "navigateWeek('prev')}\n        ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/week-planner.tsx",
+    "line": 208,
+    "element": "button",
+    "label": "navigateWeek('next')}\n        ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/week-planner.tsx",
+    "line": 219,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "generatePlan",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/week-planner.tsx",
+    "line": 332,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "generatePlan",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/week-planner.tsx",
+    "line": 341,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "applyPlan",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/week-planner.tsx",
+    "line": 360,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "onClick",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/reality-intake.tsx",
+    "line": 187,
+    "element": "GlassButton",
+    "label": "{\n                            ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/reality-intake.tsx",
+    "line": 198,
+    "element": "GlassButton",
+    "label": "submitLog(selectedStatus as 'p",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/reality-intake.tsx",
+    "line": 321,
+    "element": "button",
+    "label": "setIsExpanded(!isExpanded)}\n  ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/next-move.tsx",
+    "line": 158,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "fetchGuidance",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/next-move.tsx",
+    "line": 196,
+    "element": "button",
+    "label": "",
+    "handler": "handleDismiss",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/next-move.tsx",
+    "line": 293,
+    "element": "button",
+    "label": "",
+    "handler": "fetchGuidance",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/habit-stacks.tsx",
+    "line": 210,
+    "element": "button",
+    "label": "",
+    "handler": "onCancel",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/habit-stacks.tsx",
+    "line": 226,
+    "element": "button",
+    "label": "setTriggerHabit(suggestion)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/habit-stacks.tsx",
+    "line": 263,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "handleSubmit",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/habit-stacks.tsx",
+    "line": 398,
+    "element": "button",
+    "label": "",
+    "handler": "onCancel",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/habit-stacks.tsx",
+    "line": 414,
+    "element": "GlassButton",
+    "label": "setStep('chat')}\n             ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/habit-stacks.tsx",
+    "line": 454,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "handleSendMessage",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/habit-stacks.tsx",
+    "line": 491,
+    "element": "GlassButton",
+    "label": "setStep('input')}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/habit-stacks.tsx",
+    "line": 499,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "handleConfirm",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/habit-stacks.tsx",
+    "line": 556,
+    "element": "GlassButton",
+    "label": "setCreationMode('ai')}\n       ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/habit-stacks.tsx",
+    "line": 564,
+    "element": "GlassButton",
+    "label": "setCreationMode('manual')}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/habit-stacks.tsx",
+    "line": 619,
+    "element": "GlassButton",
+    "label": "setCreationMode('ai')}>",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goal-interpret.tsx",
+    "line": 106,
+    "element": "GlassButton",
+    "label": "fetchPlan()} variant=\"ghost\">",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goal-interpret.tsx",
+    "line": 134,
+    "element": "button",
+    "label": "",
+    "handler": "onClose",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goal-interpret.tsx",
+    "line": 143,
+    "element": "button",
+    "label": "toggleSection('routine')}\n    ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goal-interpret.tsx",
+    "line": 181,
+    "element": "button",
+    "label": "toggleSection('phases')}\n     ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goal-interpret.tsx",
+    "line": 222,
+    "element": "button",
+    "label": "toggleSection('setup')}\n      ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goal-interpret.tsx",
+    "line": 255,
+    "element": "GlassButton",
+    "label": "fetchPlan()}\n                 ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goal-interpret.tsx",
+    "line": 263,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "handleApply",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goal-interpret.tsx",
+    "line": 289,
+    "element": "button",
+    "label": "{\n                e.preventDef",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/deviation-classifier.tsx",
+    "line": 171,
+    "element": "button",
+    "label": "",
+    "handler": "onClose",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/deviation-classifier.tsx",
+    "line": 210,
+    "element": "GlassButton",
+    "label": "setStep('manual')}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/deviation-classifier.tsx",
+    "line": 217,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "handleAnalyze",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/deviation-classifier.tsx",
+    "line": 281,
+    "element": "button",
+    "label": "setStep('reason')}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/deviation-classifier.tsx",
+    "line": 356,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "onClose",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/brain-dump-analyzer.tsx",
+    "line": 199,
+    "element": "button",
+    "label": "setShowTasks(!showTasks)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/brain-dump-analyzer.tsx",
+    "line": 233,
+    "element": "button",
+    "label": "handleAcceptTask(task)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/brain-dump-analyzer.tsx",
+    "line": 254,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "analyzeContentInternal",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/ai-suggestion-chip.tsx",
+    "line": 104,
+    "element": "button",
+    "label": "{loading ? (",
+    "handler": "handleAccept",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/ai-suggestion-chip.tsx",
+    "line": 116,
+    "element": "button",
+    "label": "",
+    "handler": "handleDismiss",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/ai-insight-card.tsx",
+    "line": 89,
+    "element": "button",
+    "label": "",
+    "handler": "fetchInsight",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/ai-insight-card.tsx",
+    "line": 97,
+    "element": "button",
+    "label": "",
+    "handler": "handleDismiss",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/lib/ai/groq-client.ts",
+    "line": 247,
+    "element": "a",
+    "label": "{\n    const prompt = `Goal: ${",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/lib/ai/groq-client.ts",
+    "line": 272,
+    "element": "a",
+    "label": "{\n    const prompt = `User Mes",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/lib/ai/groq-client.ts",
+    "line": 296,
+    "element": "a",
+    "label": "{\n    const prompt = `Action: ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/lib/ai/groq-client.ts",
+    "line": 317,
+    "element": "a",
+    "label": "{\n    const prompt = `Context:",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/lib/ai/groq-client.ts",
+    "line": 334,
+    "element": "a",
+    "label": "{\n    const prompt = `Weekly D",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/ui/toast.tsx",
+    "line": 106,
+    "element": "button",
+    "label": "onDismiss(toast.id)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/ui/glass-toggle.tsx",
+    "line": 43,
+    "element": "button",
+    "label": "onChange(!checked)}\n          ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/ui/glass-button.tsx",
+    "line": 85,
+    "element": "button",
+    "label": "{loading &&",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/scans/photo-uploader.tsx",
+    "line": 90,
+    "element": "div",
+    "label": "fileInputRef.current?.click()}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/scans/photo-uploader.tsx",
+    "line": 125,
+    "element": "button",
+    "label": "{\n                            ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/scans/photo-uploader.tsx",
+    "line": 137,
+    "element": "GlassButton",
+    "label": "{\n                            ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/scans/photo-uploader.tsx",
+    "line": 147,
+    "element": "GlassButton",
+    "label": "selectedFile && onUpload(selec",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/routines/scan-upload.tsx",
+    "line": 74,
+    "element": "div",
+    "label": "fileInputRef.current?.click()}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/routines/routine-card.tsx",
+    "line": 39,
+    "element": "div",
+    "label": "setIsExpanded(!isExpanded)}\n  ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/routines/routine-card.tsx",
+    "line": 63,
+    "element": "button",
+    "label": "{isExpanded ?",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/routines/routine-card.tsx",
+    "line": 100,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "handleConfirmSchedule",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/onboarding/step-8-generate.tsx",
+    "line": 11,
+    "element": "a",
+    "label": "(null);\n\n    // Simulate gener",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/onboarding/step-7-scan.tsx",
+    "line": 45,
+    "element": "button",
+    "label": "{uploading ? (",
+    "handler": "handleUpload",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/onboarding/step-7-scan.tsx",
+    "line": 64,
+    "element": "button",
+    "label": "Skip Bio-Calibration",
+    "handler": "handleSkip",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/onboarding/step-5-body.tsx",
+    "line": 52,
+    "element": "button",
+    "label": "toggleActivity(act.id)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/onboarding/step-5-body.tsx",
+    "line": 60,
+    "element": "a",
+    "label": "",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/onboarding/step-5-body.tsx",
+    "line": 73,
+    "element": "button",
+    "label": "setTime(t.toLowerCase())}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/onboarding/step-4-commitments.tsx",
+    "line": 56,
+    "element": "button",
+    "label": "removeCommitment(i)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/onboarding/step-4-commitments.tsx",
+    "line": 68,
+    "element": "button",
+    "label": "setIsAdding(true)}\n           ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/onboarding/step-4-baseline.tsx",
+    "line": 68,
+    "element": "div",
+    "label": "onChange(level)}\n             ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/onboarding/step-3-meals.tsx",
+    "line": 32,
+    "element": "button",
+    "label": "handleMealCount(count)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/onboarding/step-3-meals.tsx",
+    "line": 59,
+    "element": "button",
+    "label": "handleBuffer(opt.type, opt.min",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/onboarding/step-3-goals.tsx",
+    "line": 79,
+    "element": "button",
+    "label": "setActiveCategory(cat.id as Go",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/goal-strategy-modal.tsx",
+    "line": 37,
+    "element": "a",
+    "label": "(goal.ai_strategy || null);\n  ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/goal-strategy-modal.tsx",
+    "line": 176,
+    "element": "button",
+    "label": "",
+    "handler": "onClose",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/goal-strategy-modal.tsx",
+    "line": 189,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "handleDecompose",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/goal-strategy-modal.tsx",
+    "line": 252,
+    "element": "button",
+    "label": "setShowScheduler(!showSchedule",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/goal-strategy-modal.tsx",
+    "line": 297,
+    "element": "button",
+    "label": "setIsRecurring(!isRecurring)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/goal-strategy-modal.tsx",
+    "line": 317,
+    "element": "button",
+    "label": "toggleDay(idx)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/goal-strategy-modal.tsx",
+    "line": 336,
+    "element": "button",
+    "label": "setScheduledWeeks(option.value",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/goal-strategy-modal.tsx",
+    "line": 353,
+    "element": "GlassButton",
+    "label": "handleSchedule()}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/goal-strategy-modal.tsx",
+    "line": 416,
+    "element": "GlassButton",
+    "label": "handleSchedule(false, true)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/goal-strategy-modal.tsx",
+    "line": 425,
+    "element": "GlassButton",
+    "label": "handleSchedule(true, false)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/goal-strategy-modal.tsx",
+    "line": 434,
+    "element": "button",
+    "label": "setShowConflictDialog(false)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/goal-strategy-modal.tsx",
+    "line": 448,
+    "element": "GlassButton",
+    "label": "{\n                            ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/goal-strategy-modal.tsx",
+    "line": 459,
+    "element": "GlassButton",
+    "label": "{\n                            ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/commitment-modal.tsx",
+    "line": 117,
+    "element": "div",
+    "label": "",
+    "handler": "onClose",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/commitment-modal.tsx",
+    "line": 130,
+    "element": "button",
+    "label": "",
+    "handler": "onClose",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/commitment-modal.tsx",
+    "line": 188,
+    "element": "button",
+    "label": "toggleDay(day.id)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/commitment-modal.tsx",
+    "line": 203,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "handleSubmit",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/clear-goals-dialog.tsx",
+    "line": 48,
+    "element": "div",
+    "label": "",
+    "handler": "onClose",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/clear-goals-dialog.tsx",
+    "line": 68,
+    "element": "button",
+    "label": "setMode('archive')}\n          ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/clear-goals-dialog.tsx",
+    "line": 84,
+    "element": "button",
+    "label": "setMode('pause')}\n            ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/clear-goals-dialog.tsx",
+    "line": 100,
+    "element": "button",
+    "label": "setMode('delete')}\n           ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/clear-goals-dialog.tsx",
+    "line": 133,
+    "element": "GlassButton",
+    "label": "Cancel",
+    "handler": "onClose",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/clear-goals-dialog.tsx",
+    "line": 134,
+    "element": "GlassButton",
+    "label": "{mode === 'delete' ? 'Del",
+    "handler": "handleClear",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/add-goal-modal.tsx",
+    "line": 134,
+    "element": "div",
+    "label": "",
+    "handler": "onClose",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/add-goal-modal.tsx",
+    "line": 144,
+    "element": "button",
+    "label": "unknown",
+    "handler": "onClose",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/add-goal-modal.tsx",
+    "line": 167,
+    "element": "button",
+    "label": "setCategory(p.id as GoalCatego",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/add-goal-modal.tsx",
+    "line": 182,
+    "element": "button",
+    "label": "setImportance(imp)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/add-goal-modal.tsx",
+    "line": 201,
+    "element": "button",
+    "label": "setPreferredTime(t)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/add-goal-modal.tsx",
+    "line": 254,
+    "element": "button",
+    "label": "setEnergy(e)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/goals/add-goal-modal.tsx",
+    "line": 266,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "handleSubmit",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/dashboard/timeline-strip.tsx",
+    "line": 94,
+    "element": "div",
+    "label": "onBlockClick?.(block)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/dashboard/reality-intake.tsx",
+    "line": 43,
+    "element": "button",
+    "label": "setIsExpanded(true)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/dashboard/reality-intake.tsx",
+    "line": 92,
+    "element": "button",
+    "label": "setIsExpanded(false)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/dashboard/reality-intake.tsx",
+    "line": 142,
+    "element": "button",
+    "label": "setSelectedEnergy(level)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/dashboard/reality-intake.tsx",
+    "line": 159,
+    "element": "button",
+    "label": "",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/dashboard/reality-intake.tsx",
+    "line": 164,
+    "element": "button",
+    "label": "= 4 ? 'black' : 'white'",
+    "handler": "handleConfirm",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/dashboard/morning-briefing.tsx",
+    "line": 220,
+    "element": "GlassButton",
+    "label": "Time to F",
+    "handler": "handleDismiss",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/dashboard/intervention-card.tsx",
+    "line": 82,
+    "element": "GlassButton",
+    "label": "handleAction('dismiss')}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/dashboard/intervention-card.tsx",
+    "line": 91,
+    "element": "GlassButton",
+    "label": "handleAction('accept')}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/dashboard/focus-hero.tsx",
+    "line": 107,
+    "element": "GlassButton",
+    "label": "onCompleteBlock(currentBlock.i",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/dashboard/focus-hero.tsx",
+    "line": 172,
+    "element": "GlassButton",
+    "label": "Plan Tomorrow",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/dashboard/focus-hero.tsx",
+    "line": 190,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/dashboard/focus-compass.tsx",
+    "line": 139,
+    "element": "GlassButton",
+    "label": "{ }}>",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/dashboard/focus-compass.tsx",
+    "line": 218,
+    "element": "GlassButton",
+    "label": "onCompleteBlock(currentBlock.i",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/dashboard/focus-compass.tsx",
+    "line": 276,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/dashboard/focus-compass.tsx",
+    "line": 354,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/dashboard/focus-compass.tsx",
+    "line": 360,
+    "element": "GlassButton",
+    "label": "Plan",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/dashboard/focus-compass.tsx",
+    "line": 388,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/brain-dump/proposed-action-card.tsx",
+    "line": 63,
+    "element": "button",
+    "label": "",
+    "handler": "onDismiss",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/brain-dump/proposed-action-card.tsx",
+    "line": 91,
+    "element": "GlassButton",
+    "label": "{isApplying ? 'Applying...' : ",
+    "handler": "handleApply",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/agent/option-card.tsx",
+    "line": 34,
+    "element": "button",
+    "label": "handleUndo(result.patch_run_id",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/agent/option-card.tsx",
+    "line": 55,
+    "element": "a",
+    "label": "('/api/calendar/undo', {}); //",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/agent/option-card.tsx",
+    "line": 123,
+    "element": "button",
+    "label": "{isApplying ? (",
+    "handler": "handleApply",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/agent/chat-interface.tsx",
+    "line": 54,
+    "element": "button",
+    "label": "",
+    "handler": "onClose",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/components/agent/chat-interface.tsx",
+    "line": 116,
+    "element": "button",
+    "label": "",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/onboarding/page.tsx",
+    "line": 227,
+    "element": "button",
+    "label": "",
+    "handler": "prevStep",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/onboarding/page.tsx",
+    "line": 242,
+    "element": "GlassButton",
+    "label": "{isLastStep ? (",
+    "handler": "handleNext",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/login/page.tsx",
+    "line": 113,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/login/page.tsx",
+    "line": 133,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "handleGoogleSignIn",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/login/page.tsx",
+    "line": 188,
+    "element": "GlassButton",
+    "label": "setIsSent(false)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/weekly-review/page.tsx",
+    "line": 62,
+    "element": "a",
+    "label": "('/api/weekly-review/generate'",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/weekly-review/page.tsx",
+    "line": 135,
+    "element": "GlassButton",
+    "label": "Generate Review",
+    "handler": "generateReview",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/weekly-review/page.tsx",
+    "line": 214,
+    "element": "GlassButton",
+    "label": "handleResponse('accepted')}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/weekly-review/page.tsx",
+    "line": 223,
+    "element": "GlassButton",
+    "label": "handleResponse('edited')}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/weekly-review/page.tsx",
+    "line": 232,
+    "element": "GlassButton",
+    "label": "handleResponse('ignored')}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/settings/page.tsx",
+    "line": 66,
+    "element": "a",
+    "label": "('/api/settings/ai-usage');\n  ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/settings/page.tsx",
+    "line": 356,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "handleExportData",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/settings/page.tsx",
+    "line": 367,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "handleDeleteAccount",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/settings/page.tsx",
+    "line": 379,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "handleSignOut",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/scans/page.tsx",
+    "line": 24,
+    "element": "a",
+    "label": "(null);\n\n    const handleUploa",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/scans/page.tsx",
+    "line": 73,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "reset",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/scans/page.tsx",
+    "line": 114,
+    "element": "button",
+    "label": "setSelectedType(null)} classNa",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/goals/page.tsx",
+    "line": 69,
+    "element": "a",
+    "label": "([]);\n\n    useEffect(() => {\n ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/goals/page.tsx",
+    "line": 150,
+    "element": "GlassButton",
+    "label": "setClearingGoals(true)}>",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/goals/page.tsx",
+    "line": 153,
+    "element": "GlassButton",
+    "label": "setCreatingAnchor(true)}>",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/goals/page.tsx",
+    "line": 156,
+    "element": "GlassButton",
+    "label": "setIsAdding(true)}>",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/goals/page.tsx",
+    "line": 220,
+    "element": "a",
+    "label": "('/api/goals/auto-schedule', {",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/goals/page.tsx",
+    "line": 224,
+    "element": "a",
+    "label": "('/api/calendar/apply-patch', ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/goals/page.tsx",
+    "line": 310,
+    "element": "div",
+    "label": "",
+    "handler": "onExpand",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/goals/page.tsx",
+    "line": 342,
+    "element": "button",
+    "label": "{ e.stopPropagation(); onStrat",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/goals/page.tsx",
+    "line": 379,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "onStrategy",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/goals/page.tsx",
+    "line": 387,
+    "element": "GlassButton",
+    "label": "{isScheduling",
+    "handler": "handleAutoSchedule",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/goals/page.tsx",
+    "line": 427,
+    "element": "button",
+    "label": "onUpdate({ energy_demand: e })",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/goals/page.tsx",
+    "line": 441,
+    "element": "button",
+    "label": "onUpdate({ importance: p })}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/goals/page.tsx",
+    "line": 455,
+    "element": "button",
+    "label": "onUpdate({ status: isPaused ? ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/goals/page.tsx",
+    "line": 462,
+    "element": "button",
+    "label": "",
+    "handler": "onDelete",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 207,
+    "element": "a",
+    "label": "('/api/ai/optimize-day', {\n   ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 235,
+    "element": "button",
+    "label": "navigateWeek('prev')} classNam",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 238,
+    "element": "button",
+    "label": "setSelectedDate(new Date())} c",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 241,
+    "element": "button",
+    "label": "navigateWeek('next')} classNam",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 248,
+    "element": "GlassButton",
+    "label": "setShowWeekPlanner(true)} clas",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 262,
+    "element": "button",
+    "label": "setSelectedDate(day)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 288,
+    "element": "GlassButton",
+    "label": "Auto-Resolve",
+    "handler": "handleOptimizeDay",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 310,
+    "element": "GlassButton",
+    "label": "setShowWeekPlanner(true)}>",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 357,
+    "element": "div",
+    "label": "e.stopPropagation()}>",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 364,
+    "element": "button",
+    "label": "handleStatusChange(block.id, s",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 384,
+    "element": "GlassButton",
+    "label": "setCreatingBlock({ start_time:",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 392,
+    "element": "GlassButton",
+    "label": "setCreatingAnchor({ title: '',",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 406,
+    "element": "div",
+    "label": "setShowWeekPlanner(false)}>",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 407,
+    "element": "div",
+    "label": "e.stopPropagation()}>",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 411,
+    "element": "div",
+    "label": "setEditingBlock(null)}>",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 433,
+    "element": "button",
+    "label": "setEditingBlock(null)} classNa",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 481,
+    "element": "button",
+    "label": "{",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 508,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "handleDeleteBlock",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 511,
+    "element": "GlassButton",
+    "label": "Save Chan",
+    "handler": "handleUpdateBlock",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 522,
+    "element": "div",
+    "label": "setCreatingBlock(null)}>",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 537,
+    "element": "button",
+    "label": "setCreatingBlock(null)} classN",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 565,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "handleCreateBlock",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 576,
+    "element": "div",
+    "label": "setCreatingAnchor(null)}>",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 591,
+    "element": "button",
+    "label": "setCreatingAnchor(null)} class",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 637,
+    "element": "button",
+    "label": "{",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/calendar/page.tsx",
+    "line": 658,
+    "element": "GlassButton",
+    "label": "",
+    "handler": "handleCreateAnchor",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/brain-dump/page.tsx",
+    "line": 62,
+    "element": "a",
+    "label": "('/api/brain-dump/chat', {\n   ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/brain-dump/page.tsx",
+    "line": 140,
+    "element": "GlassButton",
+    "label": "sendMessage(prompt)}",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/brain-dump/page.tsx",
+    "line": 255,
+    "element": "GlassButton",
+    "label": "sendMessage()}\n               ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/settings/bio-calibration/page.tsx",
+    "line": 73,
+    "element": "button",
+    "label": "router.back()}\n               ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  },
+  {
+    "file": "src/app/app/settings/bio-calibration/page.tsx",
+    "line": 124,
+    "element": "GlassButton",
+    "label": "{\n                            ",
+    "handler": "none",
+    "api_calls": [],
+    "status": "unknown"
+  }
+]

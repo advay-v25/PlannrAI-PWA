@@ -20,6 +20,8 @@ export const POST = secureApiRoute(
             return apiError('Invalid date format. Use YYYY-MM-DD');
         }
 
+        console.log(`Generating review for ${context.userId} from ${weekStart} to ${weekEnd}`);
+
         const supabase = await createClient();
 
         // Get schedule blocks for the week
@@ -58,16 +60,21 @@ export const POST = secureApiRoute(
         const allSignals = dumps?.flatMap(d => d.extracted_signals || []) || [];
         const allConstraints = dumps?.flatMap(d => d.detected_constraints || []) || [];
 
+        // Fetch Profile & Goals for context
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', context.userId).single();
+        const { data: goals } = await supabase.from('goals').select('*').eq('user_id', context.userId).eq('is_paused', false);
+
         try {
             // Generate AI review
             const reviewData = await generateWeeklyReview(
                 {
                     plannedMinutes,
                     actualMinutes,
-                    completedBlocks: blocks?.filter(b => b.status === 'done').length || 0,
-                    missedBlocks: blocks?.filter(b => b.status === 'missed').length || 0,
-                    stressSignals: allSignals.filter((s: { type: string }) => s.type === 'stress').length,
-                    energyConstraints: allConstraints.filter((c: { type: string }) => c.type === 'energy').length,
+                    completionRate: (blocks?.filter(b => b.status === 'done').length || 0) / (blocks?.length || 1),
+                    signals: allSignals.slice(0, 20),
+                    constraints: allConstraints.slice(0, 10),
+                    goals: goals || [],
+                    preferences: profile || {}
                 },
                 context.userId
             );
@@ -88,6 +95,7 @@ export const POST = secureApiRoute(
                     stress_trend: reviewData.stressTrend,
                     friction_patterns: reviewData.frictionPatterns,
                     suggested_adjustment: reviewData.suggestedAdjustment,
+                    lever_action: reviewData.leverAction || null
                 }, {
                     onConflict: 'user_id,week_start',
                 })

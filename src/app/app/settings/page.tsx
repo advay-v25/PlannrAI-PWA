@@ -25,6 +25,7 @@ import {
     ArrowLeft
 } from 'lucide-react';
 import type { Profile } from '@/types/database';
+import { apiClient } from '@/lib/api-client';
 
 export default function SettingsPage() {
     const router = useRouter();
@@ -62,8 +63,7 @@ export default function SettingsPage() {
 
             // Fetch AI usage
             try {
-                const usageRes = await fetch('/api/settings/ai-usage');
-                const usageData = await usageRes.json();
+                const usageData = await apiClient.get<any>('/api/settings/ai-usage');
                 if (!usageData.error) {
                     setAiUsage(usageData);
                 }
@@ -137,14 +137,7 @@ export default function SettingsPage() {
         }
 
         try {
-            const res = await fetch('/api/auth/delete-account', {
-                method: 'POST',
-            });
-
-            if (!res.ok) {
-                const json = await res.json();
-                throw new Error(json.error || 'Failed to delete account');
-            }
+            await apiClient.post('/api/auth/delete-account', {});
 
             // Clear local storage and sign out locally
             localStorage.clear();

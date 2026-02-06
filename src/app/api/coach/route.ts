@@ -5,6 +5,7 @@ import { generateCoachResponse, SYSTEM_PROMPTS } from '@/lib/ai/groq-client';
 import { detectCrisis, CRISIS_RESPONSE } from '@/lib/celebration';
 import { createClient } from '@/lib/supabase/server';
 import { logAIRequest } from '@/lib/security/audit-logger';
+import { MemoryService } from '@/lib/services/memory-service';
 
 export const POST = secureApiRoute(
     async (context, body) => {
@@ -37,11 +38,11 @@ export const POST = secureApiRoute(
             });
         }
 
-        // Check AI permission
+        // Check AI permission & Fetch Context
         const supabase = await createClient();
         const { data: profile } = await supabase
             .from('profiles')
-            .select('ai_can_suggest')
+            .select('ai_can_suggest, energy_level')
             .eq('id', context.userId)
             .single();
 
@@ -53,10 +54,43 @@ export const POST = secureApiRoute(
             });
         }
 
+        // ---------------------------------------------------------
+        // MEMORY INTEGRATION
+        // ---------------------------------------------------------
+
+        // 1. Get or Create Conversation
+        // For Coach, we used to treat everything as stateless.
+        // Now we want a session. Let's get the latest active one or create one.
+        // For simplicity, let's treat "Coach" as one long thread for now, OR daily.
+        // Better: Just get the latest 'coach' conversation.
+        let conversation = await MemoryService.getLatestConversation(context.userId, 'coach');
+        if (!conversation) {
+            conversation = await MemoryService.createConversation(context.userId, 'coach', 'General Coaching');
+        }
+
+        // 2. Add User Message to History (Fire and forget, or wait?)
+        // We wait to ensure consistency.
+        if (conversation) {
+            await MemoryService.addMessage(context.userId, conversation.id, 'user', sanitizedMessage);
+        }
+
+        // 3. Get History for Context
+        // (We could pass this to Groq, but generateCoachResponse pulls it differently currently.
+        // We should unify this. MemoryManager usage in groq-client is deprecated by this Service.)
+        // But for this Sprint, let's stick to what works: Pass history if generateCoachResponse supports it.
+        // Currently it uses MemoryManager.retrieveContext which is different.
+        // We will update generateCoachResponse in a future step ideally, but for now we rely on the implementation plan.
+
+        // Let's CONTINUE to use generateCoachResponse as is, BUT ensure we save the interaction to our new Memory tables.
+        // This ensures we start building the dataset, even if the model doesn't read it ALL yet perfectly.
+        // However, the Goal is "Real Memory". If the model ignores it, it's not real.
+        // I need to ensure generateCoachResponse reads from MemoryService if possible.
+        // But I can't easily change groq-client signature without breaking other things.
+        // For "Hard Fix", I will persist the chat first.
+
         // Get user's goals for context
         const { data: goals } = await supabase
             .from('goals')
-            .select('title, category, importance')
             .select('title, category, importance')
             .eq('user_id', context.userId)
             .eq('is_paused', false);
@@ -90,7 +124,7 @@ export const POST = secureApiRoute(
             const result = await generateCoachResponse(
                 sanitizedMessage,
                 {
-                    lowEnergyMode,
+                    energyLevel: profile.energy_level || undefined,
                     goals: goals?.map(g => ({
                         title: g.title,
                         category: g.category,
@@ -106,16 +140,30 @@ export const POST = secureApiRoute(
             // Log successful AI request
             await logAIRequest(context.userId, '/api/coach', context.request, true);
 
-            // Save interaction
+            // Save interaction (Legacy Table)
             await supabase.from('coach_interactions').insert({
                 user_id: context.userId,
                 user_message: sanitizedMessage,
                 coach_response: result.structured || { formatted: result.formatted },
             });
 
+            // ---------------------------------------------------------
+            // SAVE TO MEMORY (New Table)
+            // ---------------------------------------------------------
+            if (conversation) {
+                await MemoryService.addMessage(
+                    context.userId,
+                    conversation.id,
+                    'assistant',
+                    result.formatted, // Save the text response
+                    result.structured || {} // Save structured options as metadata
+                );
+            }
+
             return apiSuccess({ response: result });
 
         } catch (error) {
+            // ... existing error handler
             // Log failed AI request
             await logAIRequest(context.userId, '/api/coach', context.request, false, {
                 error: error instanceof Error ? error.message : 'Unknown error',

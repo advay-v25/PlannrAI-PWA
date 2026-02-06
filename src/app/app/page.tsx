@@ -18,6 +18,7 @@ import { InterventionCard } from '@/components/dashboard/intervention-card';
 import { MorningBriefing } from '@/components/dashboard/morning-briefing';
 import { HabitStacksList } from '@/components/habit-stacks';
 import { checkInterventionsAction } from '@/app/actions/interventions';
+import { AnticipationBanner } from '@/components/dashboard/anticipation-banner';
 
 import { formatDate, getGreeting } from '@/lib/utils';
 import { Zap } from 'lucide-react';
@@ -31,6 +32,7 @@ export default function HomePage() {
     const [isLoading, setIsLoading] = useState(true);
     const [todayBlocks, setTodayBlocks] = useState<ScheduleBlock[]>([]);
     const [activeIntervention, setActiveIntervention] = useState<InterventionLog | null>(null);
+    const [anticipationSignal, setAnticipationSignal] = useState<import('@/lib/intelligence/anticipation-service').AnticipationSignal | null>(null);
 
     useEffect(() => {
         async function loadData() {
@@ -85,6 +87,15 @@ export default function HomePage() {
                 if (nudge) setActiveIntervention(nudge);
             } catch (err) {
                 console.error('Intervention check failed', err);
+            }
+
+            // Check Anticipation (Silent Intelligence)
+            try {
+                const { checkAnticipation } = await import('@/app/actions/anticipation');
+                const signal = await checkAnticipation(user.id);
+                if (signal) setAnticipationSignal(signal);
+            } catch (err) {
+                console.error('Anticipation check failed', err);
             }
 
             setIsLoading(false);
@@ -218,6 +229,15 @@ export default function HomePage() {
                                 intervention={activeIntervention}
                                 onDismiss={() => setActiveIntervention(null)}
                             />
+                        </motion.div>
+                    )}
+                    {anticipationSignal && !activeIntervention && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mb-4"
+                        >
+                            <AnticipationBanner signal={anticipationSignal} />
                         </motion.div>
                     )}
                 </AnimatePresence>

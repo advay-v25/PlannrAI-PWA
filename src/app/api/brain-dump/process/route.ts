@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { secureApiRoute, apiSuccess, apiError, validateRequiredFields } from '@/lib/security/api-protection';
 import { validateUUID } from '@/lib/security/input-validator';
-import { processBrainDump } from '@/lib/ai/groq-client';
+import { processBrainDumpWithSignals } from '@/lib/ai/brain-dump-processor';
 import { createClient } from '@/lib/supabase/server';
 import { logAIRequest } from '@/lib/security/audit-logger';
 
@@ -48,23 +48,63 @@ export const POST = secureApiRoute(
         }
 
         try {
-            // Process with AI (invisible to user)
-            const extracted = await processBrainDump(dump.content, context.userId);
+            // Process with AI via new Engine
+            const analysis = await processBrainDumpWithSignals(
+                dump.content,
+                context.userId,
+                // In a real app we'd fetch user's timezone from profile, defaulting to UTC for now
+                'UTC'
+            );
 
             // Log AI request
             await logAIRequest(context.userId, '/api/brain-dump/process', context.request, true);
 
             // Update the brain dump with extracted data
+            // We store the full Zod-validated analysis in processed_data
             await supabase
                 .from('brain_dumps')
                 .update({
-                    extracted_signals: extracted.signals,
-                    detected_constraints: extracted.constraints,
-                    processed_data: extracted.processed_data, // Save full AI analysis
+                    extracted_signals: analysis.signals.map(s => ({ type: s.type, content: s.description, intensity: s.confidence * 5 })),
+                    detected_constraints: analysis.signals.filter(s => s.type === 'constraint').map(s => ({ type: 'dependency', content: s.description })),
+                    processed_data: analysis,
                 })
                 .eq('id', dumpId);
 
-            return apiSuccess({ success: true });
+            // ---------------------------------------------------------
+            // MEMORY INTEGRATION
+            // ---------------------------------------------------------
+            try {
+                const { MemoryService } = await import('@/lib/services/memory-service');
+
+                // 1. Create/Get Session
+                let conversation = await MemoryService.getLatestConversation(context.userId, 'brain_dump');
+                // For Brain Dump, we might want a new conversation per dump, OR one big log.
+                // Let's create a NEW one per dump for clearer history separation, or append to a "Daily Journal".
+                // Given the metadata, let's create a new one linked to this dump.
+                conversation = await MemoryService.createConversation(context.userId, 'brain_dump', `Brain Dump ${new Date().toLocaleDateString()}`);
+
+                if (conversation) {
+                    // 2. User Input
+                    await MemoryService.addMessage(
+                        context.userId, conversation.id, 'user',
+                        dump.content,
+                        { dumpId }
+                    );
+
+                    // 3. AI Analysis
+                    await MemoryService.addMessage(
+                        context.userId, conversation.id, 'assistant',
+                        // Summarize the analysis in text for context
+                        `Analyzed dump. Found ${analysis.signals.length} signals. Recommended actions: ${analysis.recommended_actions.length}.`,
+                        { analysis } // Store full JSON
+                    );
+                }
+            } catch (memError) {
+                console.error("Memory Log Failed", memError);
+                // Don't fail the request
+            }
+
+            return apiSuccess({ success: true, analysis });
 
         } catch (error) {
             // Log failed AI request

@@ -6,11 +6,20 @@ import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
 import { Brain, Send, User, Loader2, Sparkles, CheckCircle2, ArrowUp } from 'lucide-react';
 
+import { ProposedActionCard } from '@/components/brain-dump/proposed-action-card';
+import { CalendarPatch } from '@/types/calendar-patch';
+import { apiClient } from '@/lib/api-client';
+
 interface Message {
     id: string;
     role: 'user' | 'assistant';
     content: string;
-    extractedActions?: Array<{ task: string; priority: string }>;
+    // New structured actions
+    recommendedActions?: Array<{
+        label: string;
+        patch: CalendarPatch;
+        reasoning: string;
+    }>;
     timestamp: Date;
 }
 
@@ -50,19 +59,13 @@ export default function BrainDumpPage() {
         setIsLoading(true);
 
         try {
-            const response = await fetch('/api/brain-dump/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    message: messageText,
-                    conversationHistory: messages.slice(-6).map(m => ({
-                        role: m.role,
-                        content: m.content,
-                    })),
-                }),
+            const data = await apiClient.post<any>('/api/brain-dump/chat', {
+                message: messageText,
+                conversationHistory: messages.slice(-6).map(m => ({
+                    role: m.role,
+                    content: m.content,
+                })),
             });
-
-            const data = await response.json();
 
             // API returns { response, extractedActions } directly (or { error } on failure)
             if (data.error) {
@@ -74,7 +77,7 @@ export default function BrainDumpPage() {
                     id: `donna-${Date.now()}`,
                     role: 'assistant',
                     content: data.response,
-                    extractedActions: data.extractedActions,
+                    recommendedActions: data.recommendedActions, // Pass strict actions
                     timestamp: new Date(),
                 };
                 setMessages(prev => [...prev, assistantMessage]);
@@ -171,32 +174,25 @@ export default function BrainDumpPage() {
                                     >
                                         <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
 
-                                        {/* Extracted Actions */}
-                                        {message.extractedActions && message.extractedActions.length > 0 && (
-                                            <div className="mt-3 pt-3 border-t border-[var(--glass-border)]">
-                                                <p className="text-[10px] font-bold text-[var(--color-primary)] uppercase tracking-wider mb-2 flex items-center gap-1">
+                                        {/* Recommended Actions (Rich UI) */}
+                                        {message.recommendedActions && message.recommendedActions.length > 0 && (
+                                            <div className="mt-4 pt-4 border-t border-[var(--glass-border)] space-y-3">
+                                                <p className="text-[10px] font-bold text-[var(--color-primary)] uppercase tracking-wider flex items-center gap-1">
                                                     <Sparkles className="w-3 h-3" />
-                                                    Action Items
+                                                    Proposed Changes
                                                 </p>
-                                                <div className="space-y-1">
-                                                    {message.extractedActions.map((action, i) => (
-                                                        <div
-                                                            key={i}
-                                                            className="flex items-center gap-2 text-xs p-1.5 rounded bg-[var(--glass-bg)]"
-                                                        >
-                                                            <CheckCircle2 className="w-3 h-3 text-[var(--color-success)]" />
-                                                            <span>{action.task}</span>
-                                                            <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded ${action.priority === 'high'
-                                                                ? 'bg-red-500/20 text-red-400'
-                                                                : action.priority === 'low'
-                                                                    ? 'bg-gray-500/20 text-gray-400'
-                                                                    : 'bg-yellow-500/20 text-yellow-400'
-                                                                }`}>
-                                                                {action.priority}
-                                                            </span>
-                                                        </div>
-                                                    ))}
-                                                </div>
+                                                {message.recommendedActions.map((action, i) => (
+                                                    <ProposedActionCard
+                                                        key={i}
+                                                        action={action}
+                                                        onApply={() => {
+                                                            // Optional: mark as applied visual state
+                                                        }}
+                                                        onDismiss={() => {
+                                                            // Optional: remove from view
+                                                        }}
+                                                    />
+                                                ))}
                                             </div>
                                         )}
                                     </GlassCard>

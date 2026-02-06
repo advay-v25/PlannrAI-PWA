@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { secureApiRoute, apiSuccess, apiError, validateRequiredFields } from '@/lib/security/api-protection';
 import { validateCoachMessage } from '@/lib/security/input-validator';
 import { generateAIResponse, SYSTEM_PROMPTS } from '@/lib/ai/groq-client';
+import { processBrainDumpWithSignals } from '@/lib/ai/brain-dump-processor';
 import { detectCrisis, CRISIS_RESPONSE } from '@/lib/celebration';
 import { createClient } from '@/lib/supabase/server';
 import { logAIRequest } from '@/lib/security/audit-logger';
@@ -86,37 +87,22 @@ User: ${sanitizedMessage}
 Respond as Donna would. Be sharp, warm, and genuinely helpful.`;
 
         try {
-            // Generate AI response using Donna persona
-            const response = await generateAIResponse(
-                contextPrompt,
-                'DONNA_BRAIN_DUMP',
-                context.userId,
-                false, // Not JSON mode - natural conversation
-                profile.energy_level
-            );
+            // Run Conversation (EQ) and Analysis (IQ) in parallel
+            const [response, analysis] = await Promise.all([
+                // 1. Donna Persona (Conversation)
+                generateAIResponse(
+                    contextPrompt,
+                    'DONNA_BRAIN_DUMP',
+                    context.userId,
+                    false, // Not JSON mode
+                    profile.energy_level
+                ),
+                // 2. Ingestion Engine (Structured Actions)
+                processBrainDumpWithSignals(sanitizedMessage, context.userId, 'UTC')
+            ]);
 
-            // Parse any extracted actions with robust regex handling (case insensitive, optional brackets)
-            let cleanResponse = response;
-            let extractedActions: Array<{ task: string; priority: string }> = [];
-
-            // Regex allows for missing brackets or slight hallucinations
-            const actionsMatch = response.match(/\[?ACTIONS_EXTRACTED\]?([\s\S]*?)\[?END_ACTIONS\]?/i);
-
-            if (actionsMatch) {
-                // Strip the entire block from the user-facing response
-                cleanResponse = response.replace(/\[?ACTIONS_EXTRACTED\]?[\s\S]*?\[?END_ACTIONS\]?/i, '').trim();
-
-                // Parse YAML-like actions
-                const actionLines = actionsMatch[1].split('\n').filter(l => l.trim().includes('task:'));
-                extractedActions = actionLines.map(line => {
-                    const taskMatch = line.match(/task:\s*["']?([^"'\n]+)["']?/i);
-                    const priorityMatch = line.match(/priority:\s*["']?(\w+)["']?/i);
-                    return {
-                        task: taskMatch?.[1] || '',
-                        priority: priorityMatch?.[1] || 'medium'
-                    };
-                }).filter(a => a.task && a.task.length > 0);
-            }
+            // Strip any accidental artifacts from conversation (just to be safe)
+            const cleanResponse = response.replace(/\[?ACTIONS_EXTRACTED\]?[\s\S]*?\[?END_ACTIONS\]?/i, '').trim();
 
             // Log successful AI request
             await logAIRequest(context.userId, '/api/brain-dump/chat', context.request, true);
@@ -125,12 +111,13 @@ Respond as Donna would. Be sharp, warm, and genuinely helpful.`;
             await supabase.from('brain_dumps').insert({
                 user_id: context.userId,
                 content: sanitizedMessage,
-                ai_sentiment: extractedActions.length > 0 ? 'actionable' : 'reflective',
+                ai_sentiment: analysis.sentiment,
+                processed_data: analysis
             });
 
             return apiSuccess({
                 response: cleanResponse,
-                extractedActions,
+                recommendedActions: analysis.recommended_actions,
                 donnaName: profile.preferred_name ? `Hi ${profile.preferred_name}` : undefined,
             });
 

@@ -172,9 +172,11 @@ export function FocusCompass({
                                 </div>
 
                                 <div>
-                                    <h2 className="text-3xl font-bold tracking-tight mb-2">
-                                        {(currentBlock.goal as Goal)?.title || currentBlock.context}
-                                    </h2>
+                                    <Link href={`/app/calendar?date=${currentBlock.date}&highlight=${currentBlock.id}`}>
+                                        <h2 className="text-3xl font-bold tracking-tight mb-2 hover:underline decoration-[var(--color-primary)] underline-offset-4 cursor-pointer">
+                                            {(currentBlock.goal as Goal)?.title || currentBlock.context}
+                                        </h2>
+                                    </Link>
 
                                     {/* AI Strategy Step */}
                                     {(currentBlock.goal as Goal)?.ai_strategy?.routine?.steps?.[0] && (
@@ -348,13 +350,13 @@ export function FocusCompass({
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3">
-                                    <Link href="/app/weekly-review">
+                                    <Link href="/app/coach?intent=review_day">
                                         <GlassButton variant="ghost" className="w-full">
                                             <TrendingUp className="w-4 h-4 mr-2" />
                                             Weekly Review
                                         </GlassButton>
                                     </Link>
-                                    <Link href="/app/calendar">
+                                    <Link href="/app/coach?intent=plan_tomorrow">
                                         <GlassButton variant="primary" className="w-full">
                                             Plan Tomorrow
                                             <ArrowRight className="w-4 h-4 ml-2" />
@@ -382,7 +384,7 @@ export function FocusCompass({
                             <p className="text-[var(--text-secondary)] mb-6 max-w-xs mx-auto">
                                 No blocks scheduled. Ready to design your day?
                             </p>
-                            <Link href="/app/calendar">
+                            <Link href="/app/coach?intent=plan_today">
                                 <GlassButton variant="primary">
                                     <Sparkles className="w-4 h-4 mr-2" />
                                     Plan My Day

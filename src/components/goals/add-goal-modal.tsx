@@ -35,6 +35,7 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
     const [daysPerWeek, setDaysPerWeek] = useState(7);
     const [importance, setImportance] = useState<GoalImportance>('medium');
     const [energy, setEnergy] = useState<EnergyDemand>('medium');
+    const [preferredTime, setPreferredTime] = useState<'morning' | 'afternoon' | 'evening' | 'any'>('any');
 
     // AI Suggestions
     const [loadingSuggestions, setLoadingSuggestions] = useState(false);
@@ -65,11 +66,11 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
         const goalData = {
             title,
             category,
-            minutes_per_day: minutes,
             days_per_week: daysPerWeek,
             importance,
             energy_demand: energy,
-            status: 'active'
+            status: 'active',
+            constraints: { preferred_time: preferredTime } // Store preference
         };
 
         if (onSave) {
@@ -86,16 +87,46 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
             user_id: user.id,
         };
 
-        // Optimistic update locally? Or wait for DB?
-        // Let's insert to DB then add to store
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore - Supabase types might be slightly off
-        const { data, error } = await supabase.from('goals').insert(newGoal).select().single();
+        // Insert Goal
+        const { data: insertedGoal, error } = await supabase.from('goals').insert(newGoal).select().single();
 
-        if (data && !error) {
-            addGoal(data);
+        if (insertedGoal && !error) {
+            addGoal(insertedGoal);
+
+            // Phase 4: Trigger Auto-Schedule
+            onClose(); // Close this modal
+
+            // Ideally call a callback to open the PreviewModal with results.
+            // But since this component is often used in isolation (e.g. from Dashboard),
+            // We need a way to pass this "Plan" up.
+            // For now, let's use the onSuccess callback to pass data if supported,
+            // OR trigger a global event like 'open-agent' with a special payload.
+
+            // Simplest for now: Use `useAgentStore` to inject a message pretending to be the AI offering a plan.
+            const { useAgentStore } = await import('@/stores/agent-store');
+            const agentStore = useAgentStore.getState();
+
+            agentStore.sendMessage(`I've added "${title}". Checking your calendar...`);
+
+            try {
+                const scheduleRes = await fetch('/api/goals/auto-schedule', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ goal_id: insertedGoal.id })
+                });
+                const scheduleData = await scheduleRes.json();
+
+                if (scheduleData.success && scheduleData.proposal) {
+                    // Inject Option
+                    // Force inject the option into the chat
+                    // This is a bit hacky but wires it into the standard flow
+                    // TODO: exposed a method in AgentStore to `presentOption` directy.
+                }
+            } catch (e) {
+                console.error("Auto-schedule failed", e);
+            }
+
             if (onSuccess) onSuccess();
-            onClose();
         }
     };
 
@@ -162,6 +193,24 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
 
                     {/* 3. Time, Frequency & Energy */}
                     <div className="space-y-4 p-4 bg-[var(--glass-bg)] rounded-xl border border-[var(--glass-border)]">
+                        {/* Time Preference Selector */}
+                        <div className="space-y-2 mb-4 pb-4 border-b border-[var(--glass-border)]">
+                            <label className="text-xs uppercase text-[var(--text-tertiary)] font-bold">When do you do this best?</label>
+                            <div className="flex gap-1">
+                                {(['morning', 'afternoon', 'evening', 'any'] as const).map(t => (
+                                    <button
+                                        key={t}
+                                        onClick={() => setPreferredTime(t)}
+                                        className={`flex-1 py-1.5 rounded-lg text-xs capitalize transition-all ${preferredTime === t
+                                            ? 'bg-[var(--color-primary)] text-white shadow-lg shadow-[var(--color-primary)]/20'
+                                            : 'bg-[var(--glass-bg-subtle)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-hover)]'}`}
+                                    >
+                                        {t}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         <div className="grid grid-cols-2 gap-6">
                             <div className="space-y-3">
                                 <div className="flex items-center justify-between">

@@ -195,40 +195,63 @@ ALTER TABLE streaks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_proposals ENABLE ROW LEVEL SECURITY;
 
 -- Habit Stacks
+DROP POLICY IF EXISTS "Users can view own habit stacks" ON habit_stacks;
 CREATE POLICY "Users can view own habit stacks" ON habit_stacks
     FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can create own habit stacks" ON habit_stacks;
 CREATE POLICY "Users can create own habit stacks" ON habit_stacks
     FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can update own habit stacks" ON habit_stacks;
 CREATE POLICY "Users can update own habit stacks" ON habit_stacks
     FOR UPDATE USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can delete own habit stacks" ON habit_stacks;
 CREATE POLICY "Users can delete own habit stacks" ON habit_stacks
     FOR DELETE USING (auth.uid() = user_id);
 
 -- Daily Logs
+DROP POLICY IF EXISTS "Users can view own daily logs" ON daily_logs;
 CREATE POLICY "Users can view own daily logs" ON daily_logs
     FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can create own daily logs" ON daily_logs;
 CREATE POLICY "Users can create own daily logs" ON daily_logs
     FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can update own daily logs" ON daily_logs;
 CREATE POLICY "Users can update own daily logs" ON daily_logs
     FOR UPDATE USING (auth.uid() = user_id);
 
 -- Block Logs
+DROP POLICY IF EXISTS "Users can view own block logs" ON block_logs;
 CREATE POLICY "Users can view own block logs" ON block_logs
     FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can create own block logs" ON block_logs;
 CREATE POLICY "Users can create own block logs" ON block_logs
     FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can update own block logs" ON block_logs;
 CREATE POLICY "Users can update own block logs" ON block_logs
     FOR UPDATE USING (auth.uid() = user_id);
 
 -- Streaks
+DROP POLICY IF EXISTS "Users can view own streaks" ON streaks;
 CREATE POLICY "Users can view own streaks" ON streaks
     FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can manage own streaks" ON streaks;
 CREATE POLICY "Users can manage own streaks" ON streaks
     FOR ALL USING (auth.uid() = user_id);
 
 -- AI Proposals
+DROP POLICY IF EXISTS "Users can view own proposals" ON ai_proposals;
 CREATE POLICY "Users can view own proposals" ON ai_proposals
     FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can respond to own proposals" ON ai_proposals;
 CREATE POLICY "Users can respond to own proposals" ON ai_proposals
     FOR UPDATE USING (auth.uid() = user_id);
 

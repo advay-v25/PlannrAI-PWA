@@ -42,9 +42,11 @@ ALTER TABLE public.security_audit_log ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies - Only service role can access these tables
 -- (No user access - server-side only)
+DROP POLICY IF EXISTS "Service role only - auth_attempts" ON public.auth_attempts;
 CREATE POLICY "Service role only - auth_attempts" ON public.auth_attempts
   FOR ALL USING (false);
 
+DROP POLICY IF EXISTS "Service role only - audit_log" ON public.security_audit_log;
 CREATE POLICY "Service role only - audit_log" ON public.security_audit_log
   FOR ALL USING (false);
 
@@ -72,15 +74,25 @@ CREATE INDEX IF NOT EXISTS idx_session_bindings_hash
 ALTER TABLE public.session_bindings ENABLE ROW LEVEL SECURITY;
 
 -- Users can only see their own sessions
+DROP POLICY IF EXISTS "Users see own sessions" ON public.session_bindings;
 CREATE POLICY "Users see own sessions" ON public.session_bindings
   FOR SELECT USING (auth.uid() = user_id);
 
 -- ============================================
 -- Unique constraint for weekly reviews
 -- ============================================
-ALTER TABLE public.weekly_reviews 
-  ADD CONSTRAINT unique_user_week 
-  UNIQUE (user_id, week_start);
+-- Check if constraint matches what's in 001. If so, this might contain a duplicate.
+-- We use a DO block to safely add it if missing
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'unique_user_week'
+    ) THEN
+        ALTER TABLE public.weekly_reviews 
+          ADD CONSTRAINT unique_user_week 
+          UNIQUE (user_id, week_start);
+    END IF;
+END $$;
 
 -- ============================================
 -- Function to clean up old audit logs (keep 90 days)

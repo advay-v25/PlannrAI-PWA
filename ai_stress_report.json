@@ -1,0 +1,32 @@
+[
+  {
+    "test": "Planner: Empty Input",
+    "status": "pass",
+    "duration": 362
+  },
+  {
+    "test": "Planner: Gibberish Input",
+    "status": "pass",
+    "duration": 227
+  },
+  {
+    "test": "Planner: Huge Input (2048 chars)",
+    "status": "pass",
+    "duration": 277
+  },
+  {
+    "test": "Planner: Contradiction",
+    "status": "pass",
+    "duration": 360
+  },
+  {
+    "test": "Orchestrator: Full Pipeline (Basic)",
+    "status": "pass",
+    "duration": 1023
+  },
+  {
+    "test": "Orchestrator: Impossible Request",
+    "status": "pass",
+    "duration": 891
+  }
+]

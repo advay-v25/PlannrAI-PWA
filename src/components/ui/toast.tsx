@@ -11,11 +11,14 @@ interface Toast {
     message: string;
     type: ToastType;
     duration?: number;
+    action?: ReactNode;
 }
 
 interface ToastContextValue {
     toasts: Toast[];
-    showToast: (message: string, type?: ToastType, duration?: number) => void;
+    showToast: (message: string, type?: ToastType, duration?: number, action?: ReactNode) => void;
+    showSuccess: (message: string, undoAction?: () => void) => void;
+    showError: (message: string, retryAction?: () => void) => void;
     dismissToast: (id: string) => void;
 }
 
@@ -48,9 +51,9 @@ const TOAST_COLORS: Record<ToastType, string> = {
 export function ToastProvider({ children }: { children: ReactNode }) {
     const [toasts, setToasts] = useState<Toast[]>([]);
 
-    const showToast = useCallback((message: string, type: ToastType = 'info', duration: number = 3000) => {
+    const showToast = useCallback((message: string, type: ToastType = 'info', duration: number = 3000, action?: ReactNode) => {
         const id = crypto.randomUUID();
-        setToasts(prev => [...prev, { id, message, type, duration }]);
+        setToasts(prev => [...prev, { id, message, type, duration, action }]);
 
         if (duration > 0) {
             setTimeout(() => {
@@ -59,12 +62,38 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         }
     }, []);
 
+    const showSuccess = useCallback((message: string, undoAction?: () => void) => {
+        showToast(message, 'success', 4000,
+            undoAction ? (
+                <button
+                    onClick={undoAction}
+                    className="text-xs font-bold underline hover:opacity-80"
+                >
+                    UNDO
+                </button>
+            ) : undefined
+        );
+    }, [showToast]);
+
+    const showError = useCallback((message: string, retryAction?: () => void) => {
+        showToast(message, 'error', 6000,
+            retryAction ? (
+                <button
+                    onClick={retryAction}
+                    className="text-xs font-bold underline hover:opacity-80"
+                >
+                    RETRY
+                </button>
+            ) : undefined
+        );
+    }, [showToast]);
+
     const dismissToast = useCallback((id: string) => {
         setToasts(prev => prev.filter(t => t.id !== id));
     }, []);
 
     return (
-        <ToastContext.Provider value={{ toasts, showToast, dismissToast }}>
+        <ToastContext.Provider value={{ toasts, showToast, showSuccess, showError, dismissToast }}>
             {children}
             <ToastContainer toasts={toasts} onDismiss={dismissToast} />
         </ToastContext.Provider>
@@ -94,7 +123,14 @@ function ToastContainer({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id
                             >
                                 <Icon className="w-4 h-4" style={{ color }} />
                             </div>
-                            <p className="flex-1 text-sm">{toast.message}</p>
+                            <div className="flex-1">
+                                <p className="text-sm">{toast.message}</p>
+                            </div>
+                            {toast.action && (
+                                <div className="flex-shrink-0">
+                                    {toast.action}
+                                </div>
+                            )}
                             <button
                                 onClick={() => onDismiss(toast.id)}
                                 className="p-1 hover:bg-white/10 rounded-full transition-colors flex-shrink-0"
