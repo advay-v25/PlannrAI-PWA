@@ -15,8 +15,16 @@ BEGIN
     -- If it was scalar ID, this cast might fail or need explicit logic, but assuming it was intended as array or unused.
     -- For now, we assume it's integer[] or we cast it.
     -- ALTER TABLE public.commitments ALTER COLUMN days_of_week TYPE INTEGER[] USING ARRAY[days_of_week]; -- Uncomment if it was scalar
-    -- Ensure is_active column exists (Missing in some environments)
+    -- Ensure is_active column exists
     ALTER TABLE public.commitments ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+
+    -- Fix FK Constraint (It might be pointing to profiles, should be auth.users)
+    ALTER TABLE public.commitments DROP CONSTRAINT IF EXISTS commitments_user_id_fkey;
+    ALTER TABLE public.commitments 
+        ADD CONSTRAINT commitments_user_id_fkey 
+        FOREIGN KEY (user_id) 
+        REFERENCES auth.users(id) 
+        ON DELETE CASCADE;
 END $$;
 
 -- 1. Add commitment_id to schedule_blocks
