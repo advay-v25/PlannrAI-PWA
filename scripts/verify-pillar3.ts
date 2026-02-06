@@ -32,6 +32,7 @@ async function verifyPillar3() {
             cognitive_load: 3, // High Load
             emotional_bandwidth: 1,
             current_mode: 'survival',
+            emotional_state: 'overwhelmed',
             last_updated: new Date()
         }
     };

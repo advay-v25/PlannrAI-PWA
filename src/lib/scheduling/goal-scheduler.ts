@@ -1,27 +1,10 @@
-import { addDays, format, parse, setHours, setMinutes, startOfDay, endOfDay, isSameDay } from 'date-fns';
+import { addDays, format, parse, setHours, setMinutes, startOfDay, endOfDay, isSameDay, addMinutes } from 'date-fns';
 import { findNextAvailableSlot } from './solver';
 import { CalendarPatch } from '@/lib/validation/calendar-contract';
 import { Goal } from '@/types/database';
 
 export class GoalScheduler {
 
-    /**
-     * Propose a schedule for a specific Goal over the next N days.
-     */
-    static proposeGoalSchedule(
-        goal: Goal,
-        currentSchedule: any[],
-        // Optional preferences if not in goal object
-        preferences?: {
-            preferredTime?: 'morning' | 'afternoon' | 'evening';
-            days?: number[]; // 0-6
-        }
-    ): CalendarPatch | null {
-        const changes: any[] = [];
-        const duration = goal.minutes_per_day;
-        const perWeek = goal.days_per_week || 3;
-
-        // Determine search window based on preference
     private static parseScheduleTime(date: Date, timeStr: string): Date {
         const [h, m] = timeStr.split(':').map(Number);
         return setMinutes(setHours(date, h), m);
@@ -37,7 +20,7 @@ export class GoalScheduler {
         const changes: any[] = [];
         let dayOffset = 0;
         let attemptedDays = 0;
-        let slotsFound = 0;
+        let slotsFound = 0; // Initialize
 
         while (slotsFound < itemsToSchedule && attemptedDays < 14) {
             const date = addDays(new Date(), dayOffset);
@@ -51,14 +34,14 @@ export class GoalScheduler {
             let maxTime = setMinutes(setHours(date, 22), 0);
 
             if (preferredTime === 'morning') {
-                minTime = setMinutes(setHours(date, 5), 0); // Expanded Start
+                minTime = setMinutes(setHours(date, 5), 0);
                 maxTime = setMinutes(setHours(date, 12), 0);
             } else if (preferredTime === 'afternoon') {
                 minTime = setMinutes(setHours(date, 12), 0);
                 maxTime = setMinutes(setHours(date, 17), 0);
             } else if (preferredTime === 'evening') {
                 minTime = setMinutes(setHours(date, 17), 0);
-                maxTime = setMinutes(setHours(date, 23), 0); // Expanded End
+                maxTime = setMinutes(setHours(date, 23), 0);
             }
 
             const dayContext = currentSchedule
@@ -80,10 +63,9 @@ export class GoalScheduler {
             );
 
             if (slot) {
-                // Check if we are creating a new anchor
                 changes.push({
                     op: 'CREATE_ANCHOR',
-                    title: 'Goal Session', // Will be overwritten by caller
+                    title: 'Goal Session',
                     start_ts: slot.start.toISOString(),
                     end_ts: slot.end.toISOString(),
                     locked: false,
@@ -100,6 +82,9 @@ export class GoalScheduler {
         return { changes, slotsFound };
     }
 
+    /**
+     * Propose a schedule for a specific Goal over the next N days.
+     */
     static proposeGoalSchedule(
         goal: Goal,
         currentSchedule: any[],
@@ -107,7 +92,7 @@ export class GoalScheduler {
             preferredTime?: 'morning' | 'afternoon' | 'evening';
             days?: number[];
         }
-    ): CalendarPatch { // Never return null
+    ): CalendarPatch {
         const duration = goal.minutes_per_day;
         const perWeek = goal.days_per_week || 3;
         const preferredTime = preferences?.preferredTime || (goal.constraints as any)?.preferred_time || 'any';
@@ -119,22 +104,22 @@ export class GoalScheduler {
         // 1. Attempt Perfect Match
         let result = this.attemptSchedule(perWeek, duration, stride, preferredTime, currentSchedule);
 
-        // 2. Fallback: Relaxed Time Window (If preferredTime was set)
+        // 2. Fallback: Relaxed Time Window
         if (result.slotsFound === 0 && preferredTime !== 'any') {
             warnings.push(`Could not find slots in the ${preferredTime}. Switched to any time.`);
             result = this.attemptSchedule(perWeek, duration, stride, 'any', currentSchedule);
         }
 
-        // 3. Fallback: Reduced Duration (Min 15m or 50%)
+        // 3. Fallback: Reduced Duration
         if (result.slotsFound === 0) {
             const reducedDuration = Math.max(15, Math.floor(duration * 0.75));
             warnings.push(`Squeezed duration from ${duration}m to ${reducedDuration}m to fit.`);
             result = this.attemptSchedule(perWeek, reducedDuration, stride, 'any', currentSchedule);
         }
 
-        // 4. Fallback: Aggressive (Ignore Fixed? No, that breaks physics. Ignore Stride?)
+        // 4. Fallback: Aggressive
         if (result.slotsFound === 0) {
-            warnings.push(`Couldn't find space even with reduced duration. Packed sessions consecutely.`);
+            warnings.push(`Couldn't find space even with reduced duration. Packed sessions tightly.`);
             result = this.attemptSchedule(perWeek, Math.max(15, Math.floor(duration * 0.5)), 1, 'any', currentSchedule);
         }
 
@@ -146,9 +131,7 @@ export class GoalScheduler {
         }));
 
         if (finalChanges.length === 0) {
-            // 5. Ultimate Fallback: Return a "Sacrifice" proposal (Empty patch but with instructions)
-            // Or construct a patch that overlaps (which Solver will flag as Conflict).
-            // Let's force a slot at 8am tomorrow and let the user resolve.
+            // 5. Ultimate Fallback: Sacrifice
             const forcedDate = addDays(new Date(), 1);
             const forcedStart = setHours(startOfDay(forcedDate), 8);
 
@@ -168,7 +151,7 @@ export class GoalScheduler {
                 requires_confirmation: true,
                 reasoning: "Your schedule is completely full. I had to force a slot.",
                 warnings: ["Schedule Full", "Forced Slot"],
-                sacrifices: ["Check for conflicts"],
+                sacrifices: [],
                 source: 'system'
             };
         }
