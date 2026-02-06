@@ -1,7 +1,7 @@
-
 import { secureApiRoute, apiSuccess, apiError, validateRequiredFields } from '@/lib/security/api-protection';
 import { createClient } from '@/lib/supabase/server';
 import { OnboardingData } from '@/types/database';
+import { generateStaticWeekPlan, persistWeekPlan } from '@/lib/scheduling/week-service';
 
 export const POST = secureApiRoute(
     async (context, body) => {
@@ -49,6 +49,7 @@ export const POST = secureApiRoute(
         }
 
         // 2. Insert Goals (if any)
+        let processedGoals: any[] = [];
         if (goals && goals.length > 0) {
             // Check existing goals to avoid duplicates if re-running
             const { data: existingGoals } = await supabase
@@ -68,27 +69,78 @@ export const POST = secureApiRoute(
             }));
 
             if (newGoals.length > 0) {
-                const { error: goalsError } = await supabase
+                const { data: insertedGoals, error: goalsError } = await supabase
                     .from('goals')
-                    .insert(newGoals);
+                    .insert(newGoals)
+                    .select();
 
                 if (goalsError) {
                     console.error('Goals insert failed:', goalsError);
-                    // Don't fail the whole request, but log it
+                } else {
+                    processedGoals = insertedGoals || [];
                 }
             }
         }
 
-        // 3. Generate Initial Schedule (Day 0)
-        // We can trigger the Routine Engine or just create basic blocks
-        // For System Repair compatibility, let's generate basic blocks here
-        // or trigger the generation service.
+        // 3. Generate Initial Schedule (Server-Side Orchestration)
+        // Fetch commitments just inserted in previous steps (client inserted Step 4)
+        const { data: commitments } = await supabase
+            .from('commitments')
+            .select('*')
+            .eq('user_id', userId);
 
-        // Let's call the schedule generation service (internal logic simulation)
-        // For now, let's at least ensure anchors (commitments) are respected.
-        // Anchors were already inserted in Step 4.
+        const profileConfig = {
+            sleep_end,
+            sleep_start,
+            low_energy_mode: energy_level ? energy_level < 3 : false
+        };
 
-        return apiSuccess({ success: true, message: 'Onboarding complete' });
+        // Determine Week Start (Today or Next Monday?)
+        // For onboarding, we start TODAY to give immediate value.
+        const today = new Date().toISOString().split('T')[0];
+
+        // Generate Plan
+        // If processedGoals is empty (maybe user didn't add new ones), fetch all active goals
+        if (processedGoals.length === 0) {
+            const { data: allGoals } = await supabase
+                .from('goals')
+                .select('*')
+                .eq('user_id', userId)
+                .eq('status', 'active');
+            processedGoals = allGoals || [];
+        }
+
+        const plan = generateStaticWeekPlan(
+            processedGoals.map(g => ({
+                id: g.id,
+                title: g.title,
+                category: g.category,
+                minutes_per_day: g.minutes_per_day || 30, // Default if missing
+                importance: g.importance
+            })),
+            profileConfig,
+            commitments?.map(c => ({
+                days_of_week: c.days_of_week,
+                start_time: c.start_time,
+                end_time: c.end_time
+            })) || []
+        );
+
+        // 4. Persist Plan
+        let blocksCreated = 0;
+        try {
+            blocksCreated = await persistWeekPlan(userId, plan, today, supabase);
+            console.log(`[Onboarding] Generated ${blocksCreated} initial blocks.`);
+        } catch (planError) {
+            console.error("Failed to persist initial plan:", planError);
+            // Non-blocking, but warned
+        }
+
+        return apiSuccess({
+            success: true,
+            message: 'Onboarding complete',
+            blocksCreated
+        });
     },
     { requireAuth: true, auditAction: 'onboarding_complete' }
 );

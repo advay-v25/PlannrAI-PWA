@@ -54,114 +54,49 @@ export default function OnboardingPage() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error('Not authenticated');
 
-            // 1. Update profile
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .upsert({
-                    id: user.id,
-                    full_name: data.full_name,
-                    preferred_name: data.full_name?.split(' ')[0] || data.full_name, // First name for greeting
+            // 1. Send all data to Server API for transactional save & schedule generation
+            const response = await fetch('/api/onboarding/complete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    // Flatten data structure to match OnboardingData interface
                     timezone: data.timezone,
                     sleep_start: data.sleep_start,
                     sleep_end: data.sleep_end,
+                    goals: data.goals,
                     energy_level: data.energy_level,
                     stress_level: data.stress_level,
+                    meals_per_day: data.meals_per_day,
+                    meal_windows: data.meal_windows,
+                    body_preferences: data.body_preferences,
+                    buffer_config: data.buffer_config,
+                    wind_down_mins: data.wind_down_mins,
+                    full_name: data.full_name,
+                    commitments: data.commitments, // Pass commitments too! (Logic Audit)
                     ai_can_suggest: data.ai_can_suggest,
                     ai_can_analyze: data.ai_can_analyze,
-                    ai_can_draft: data.ai_can_draft,
-                    onboarding_complete: true,
-                    updated_at: new Date().toISOString(),
-                });
+                    ai_can_draft: data.ai_can_draft
+                })
+            });
 
-            if (profileError) throw profileError;
+            const result = await response.json();
 
-            // 1.5 Update Auth Metadata (Name)
-            if (data.full_name) {
-                const { error: authError } = await supabase.auth.updateUser({
-                    data: { full_name: data.full_name }
-                });
-                if (authError) console.warn('Auth update failed', authError);
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || 'Onboarding failed');
             }
 
-            if (profileError) throw profileError;
-
-            // 2. Insert goals
-            if (data.goals.length > 0) {
-                const goalsToInsert = data.goals.map((goal) => ({
-                    user_id: user.id,
-                    title: goal.title,
-                    category: goal.category,
-                    minutes_per_day: goal.minutes_per_day,
-                    importance: goal.importance,
-                }));
-
-                const { error: goalsError } = await supabase
-                    .from('goals')
-                    .insert(goalsToInsert);
-
-                if (goalsError) throw goalsError;
-            }
-
-            // 3. Insert commitments
-            if (data.commitments.length > 0) {
-                const commitmentsToInsert = data.commitments.map((c) => ({
-                    user_id: user.id,
-                    title: c.title,
-                    days_of_week: c.days_of_week,
-                    start_time: c.start_time,
-                    end_time: c.end_time,
-                }));
-
-                const { error: commitmentsError } = await supabase
-                    .from('commitments')
-                    .insert(commitmentsToInsert);
-
-                if (commitmentsError) throw commitmentsError;
-            }
-
-            // 4. Trigger Initial Schedule Generation (AI or Template)
-            try {
-                const response = await fetch('/api/ai/plan-week', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        week_start: new Date().toISOString().split('T')[0],
-                        regenerate: true
-                    })
-                });
-
-                if (response.ok) {
-                    const result = await response.json();
-
-                    // 5. Apply the plan to the calendar immediately
-                    if (result.success && result.data?.plan) {
-                        await fetch('/api/ai/plan-week', {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                plan: result.data.plan,
-                                week_start: result.data.week_start
-                            })
-                        });
-                    }
-                }
-            } catch (e) {
-                console.warn('Initial planning failed, user can try again on dashboard', e);
-            }
-
-            // 6. Complete Onboarding
+            // 2. Update Client Auth State (so session knows we are done)
             await supabase.auth.updateUser({
                 data: { onboarding_complete: true }
             });
-            await supabase.from('profiles').update({ onboarding_complete: true }).eq('id', user.id); // Redundant but safe
 
-            // Clear store
+            // 3. Reset & Redirect
             reset();
-
-            // Redirect to Home (Dashboard)
             router.push('/app?setup=complete');
+
         } catch (error) {
             console.error('Onboarding sync failed:', error);
+            setError(error instanceof Error ? error.message : 'Failed to save profile');
         } finally {
             setIsSaving(false);
         }

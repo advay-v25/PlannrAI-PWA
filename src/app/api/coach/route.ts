@@ -6,6 +6,7 @@ import { detectCrisis, CRISIS_RESPONSE } from '@/lib/celebration';
 import { createClient } from '@/lib/supabase/server';
 import { logAIRequest } from '@/lib/security/audit-logger';
 import { MemoryService } from '@/lib/services/memory-service';
+import { AgentOrchestrator } from '@/lib/agents/orchestrator';
 
 export const POST = secureApiRoute(
     async (context, body) => {
@@ -38,8 +39,9 @@ export const POST = secureApiRoute(
             });
         }
 
-        // Check AI permission & Fetch Context
         const supabase = await createClient();
+
+        // Check AI permission
         const { data: profile } = await supabase
             .from('profiles')
             .select('ai_can_suggest, energy_level')
@@ -55,25 +57,22 @@ export const POST = secureApiRoute(
         }
 
         // ---------------------------------------------------------
-        // MEMORY INTEGRATION
+        // 1. MEMORY & CONVERSATION SETUP
         // ---------------------------------------------------------
-
-        // 1. Get or Create Conversation
-        // For Coach, we used to treat everything as stateless.
-        // Now we want a session. Let's get the latest active one or create one.
-        // For simplicity, let's treat "Coach" as one long thread for now, OR daily.
-        // Better: Just get the latest 'coach' conversation.
         let conversation = await MemoryService.getLatestConversation(context.userId, 'coach');
         if (!conversation) {
             conversation = await MemoryService.createConversation(context.userId, 'coach', 'General Coaching');
         }
 
-        // Detect "Ignored" suggestions from previous turn
+        // Process previous signals (User ignored/rejected suggestions)
         if (conversation) {
             const history = await MemoryService.getHistory(conversation.id, 5, supabase);
             const lastAssistantMsg = [...history].reverse().find(m => m.role === 'assistant');
 
             if (lastAssistantMsg?.metadata?.options) {
+                // If user is replying, they might be ignoring the previous options.
+                // Simplified signal logic: If new message doesn't reference options, log 'ignore'.
+                // For now, we assume implicit ignore if they type something new.
                 const options = lastAssistantMsg.metadata.options as any[];
                 for (const opt of options) {
                     await MemoryService.logSignal(
@@ -87,33 +86,74 @@ export const POST = secureApiRoute(
             }
         }
 
-        // Add User Message to History
         if (conversation) {
             await MemoryService.addMessage(context.userId, conversation.id, 'user', sanitizedMessage);
         }
 
-        // 3. Get History for Context
-        // (We could pass this to Groq, but generateCoachResponse pulls it differently currently.
-        // We should unify this. MemoryManager usage in groq-client is deprecated by this Service.)
-        // But for this Sprint, let's stick to what works: Pass history if generateCoachResponse supports it.
-        // Currently it uses MemoryManager.retrieveContext which is different.
-        // We will update generateCoachResponse in a future step ideally, but for now we rely on the implementation plan.
+        // ---------------------------------------------------------
+        // 2. ATTEMPT "DEEP BRAIN" (AGENT ORCHESTRATOR)
+        // ---------------------------------------------------------
+        let orchestratorResult = null;
+        try {
+            const orchestrator = new AgentOrchestrator();
+            // This runs Planner -> Regulator -> Scheduler -> Validator
+            orchestratorResult = await orchestrator.run(context.userId, sanitizedMessage);
+        } catch (orchError) {
+            console.warn("Orchestrator failed, falling back to Chat Brain", orchError);
+        }
 
-        // Let's CONTINUE to use generateCoachResponse as is, BUT ensure we save the interaction to our new Memory tables.
-        // This ensures we start building the dataset, even if the model doesn't read it ALL yet perfectly.
-        // However, the Goal is "Real Memory". If the model ignores it, it's not real.
-        // I need to ensure generateCoachResponse reads from MemoryService if possible.
-        // But I can't easily change groq-client signature without breaking other things.
-        // For "Hard Fix", I will persist the chat first.
+        // If Orchestrator found actionable options, RETURN THEM immediately.
+        if (orchestratorResult && orchestratorResult.scheduler.options.length > 0) {
+            const responseData = {
+                formatted: orchestratorResult.summary,
+                structured: {
+                    options: orchestratorResult.scheduler.options.map(opt => ({
+                        id: opt.id,
+                        label: opt.label,
+                        patch: opt.patch, // Full patch inclusion for UI to apply
+                        confidence: opt.confidence_score
+                    })),
+                    planner: orchestratorResult.planner,
+                    is_actionable: true
+                }
+            };
 
-        // Get user's goals for context
+            // Log API Action
+            await logAIRequest(context.userId, '/api/coach', context.request, true);
+
+            // Save Response to DB
+            await supabase.from('coach_interactions').insert({
+                user_id: context.userId,
+                user_message: sanitizedMessage,
+                coach_response: responseData,
+                intent: orchestratorResult.planner.intent
+            });
+
+            if (conversation) {
+                await MemoryService.addMessage(
+                    context.userId,
+                    conversation.id,
+                    'assistant',
+                    responseData.formatted,
+                    { options: responseData.structured.options, planner: responseData.structured.planner }
+                );
+            }
+
+            return apiSuccess({ response: responseData });
+        }
+
+        // ---------------------------------------------------------
+        // 3. FALLBACK TO "CHAT BRAIN" (Conversational)
+        // ---------------------------------------------------------
+        // If no options, or Planner said "unknown/clarify", use the LLM to chat.
+
+        // Fetch Context (Legacy Manual Fetch) - In Phase 3, ContextBuilder should replace this.
         const { data: goals } = await supabase
             .from('goals')
             .select('title, category, importance')
             .eq('user_id', context.userId)
             .eq('is_paused', false);
 
-        // Get latest scan signals (Bio-Context)
         const { data: latestScan } = await supabase
             .from('scan_sessions')
             .select('signals, created_at')
@@ -122,14 +162,12 @@ export const POST = secureApiRoute(
             .limit(1)
             .single();
 
-        // Get profile context (Sleep)
         const { data: userProfile } = await supabase
             .from('profiles')
             .select('sleep_start, sleep_end')
             .eq('id', context.userId)
             .single();
 
-        // Get recent brain dumps for immediate context
         const { data: dumps } = await supabase
             .from('brain_dumps')
             .select('content')
@@ -137,13 +175,18 @@ export const POST = secureApiRoute(
             .order('created_at', { ascending: false })
             .limit(3);
 
-        // Get recent signals for memory injection
         const recentSignals = await MemoryService.getRecentSignals(context.userId, 5, supabase);
 
         try {
             // Generate AI response
+            // We inject the Orchestrator's thought process if it ran but failed to find options
+            let effectiveMessage = sanitizedMessage;
+            if (orchestratorResult?.planner.intent && orchestratorResult.planner.intent !== 'unknown') {
+                effectiveMessage += `\n[System Note: I tried to plan this as '${orchestratorResult.planner.intent}' but found no valid calendar options. Please guide the user.]`;
+            }
+
             const result = await generateCoachResponse(
-                sanitizedMessage,
+                effectiveMessage,
                 {
                     energyLevel: profile.energy_level || undefined,
                     goals: goals?.map(g => ({
@@ -169,9 +212,7 @@ export const POST = secureApiRoute(
                 coach_response: result.structured || { formatted: result.formatted },
             });
 
-            // ---------------------------------------------------------
-            // SAVE TO MEMORY (New Table)
-            // ---------------------------------------------------------
+            // Save to Memory
             if (conversation) {
                 await MemoryService.addMessage(
                     context.userId,
@@ -185,7 +226,6 @@ export const POST = secureApiRoute(
             return apiSuccess({ response: result });
 
         } catch (error) {
-            // ... existing error handler
             // Log failed AI request
             await logAIRequest(context.userId, '/api/coach', context.request, false, {
                 error: error instanceof Error ? error.message : 'Unknown error',
