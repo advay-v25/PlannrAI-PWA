@@ -20,7 +20,7 @@ export async function testOnboardingFlow() {
 
     const mockGoals = [{ id: 'g1', title: 'Test Goal', category: 'mind', minutes_per_day: 30, importance: 'high' }];
     const mockProfile = { sleep_end: '07:00', sleep_start: '23:00' };
-    const mockCommitments = [];
+    const mockCommitments: Array<{ days_of_week: number[]; start_time: string; end_time: string; title?: string }> = [];
 
     console.log("   Invoking generateStaticWeekPlan...");
     const plan = generateStaticWeekPlan(mockGoals as any, mockProfile, mockCommitments);

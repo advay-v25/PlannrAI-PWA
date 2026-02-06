@@ -102,11 +102,11 @@ export function CommitmentModal({ onClose, onSuccess }: CommitmentModalProps) {
                     showToast('⚓ Anchor set!', 'success');
                 } else {
                     console.warn("Anchor API Failed:", await response.text());
-                    showToast('Saving locally (Sync pending)', 'default');
+                    showToast('Saving locally (Sync pending)', 'info');
                 }
             } catch (netError) {
                 console.warn("Network Error on Anchor:", netError);
-                showToast('Offline mode: Saved locally', 'default');
+                showToast('Offline mode: Saved locally', 'info');
             }
 
             // Always update UI (Optimistic / Local Fallback)
