@@ -1,60 +1,103 @@
 
 import { secureApiRoute, apiSuccess, apiError, validateRequiredFields } from '@/lib/security/api-protection';
 import { createClient } from '@/lib/supabase/server';
+import { NextResponse } from 'next/server';
 
+// POST - Create a new anchor (commitment)
 // POST - Create a new anchor (commitment)
 export const POST = secureApiRoute(
     async (context, body) => {
-        const validation = validateRequiredFields(body, ['title', 'start_time', 'end_time', 'days_of_week']);
-        if (!validation.valid) {
-            return apiError(`Missing required fields: ${validation.missing.join(', ')}`);
-        }
-
-        const { title, start_time, end_time, days_of_week } = body as {
+        const payload = body as {
             title: string;
             start_time: string;
             end_time: string;
             days_of_week: number[];
         };
 
-        // Validate time format
-        if (!/^\d{2}:\d{2}$/.test(start_time) || !/^\d{2}:\d{2}$/.test(end_time)) {
-            return apiError('Invalid time format. Use HH:MM');
+        console.log("ANCHOR REQUEST USER", context.userId);
+        console.log("ANCHOR PAYLOAD", payload);
+
+        // 1. Validation (Explicit 400)
+        const validation = validateRequiredFields(payload, ['title', 'start_time', 'end_time', 'days_of_week']);
+        if (!validation.valid) {
+            console.warn("ANCHOR VALIDATION FAILED", validation.missing);
+            return apiError(`Missing required fields: ${validation.missing.join(', ')}`, 400);
+        }
+
+        // Validate time format regex
+        const timeRegex = /^\d{2}:\d{2}$/;
+        if (!timeRegex.test(payload.start_time) || !timeRegex.test(payload.end_time)) {
+            console.warn("ANCHOR INVALID TIME FORMAT", { start: payload.start_time, end: payload.end_time });
+            return apiError('Invalid time format. Use HH:MM', 400);
         }
 
         // Validate logic
-        if (end_time <= start_time) {
-            return apiError('End time must be after start time');
+        if (payload.end_time <= payload.start_time) {
+            console.warn("ANCHOR LOGIC ERROR: End <= Start");
+            return apiError('End time must be after start time', 400);
+        }
+
+        // Validate array length
+        if (!Array.isArray(payload.days_of_week) || payload.days_of_week.length === 0) {
+            console.warn("ANCHOR INVALID DAYS", payload.days_of_week);
+            return apiError('Select at least one day', 400);
+        }
+
+        // 2. Auth Check (Explicit 401)
+        if (!context.userId) {
+            console.error("ANCHOR AUTH MISSING");
+            return apiError('Unauthorized: No User ID', 401);
         }
 
         const supabase = await createClient();
 
-        // Check if user is authenticated (handled by secureApiRoute but good to be explicit with Context)
-        if (!context.userId) {
-            return apiError('Unauthorized', 401);
-        }
-
-        console.log(`[API] Creating Anchor for user ${context.userId}:`, title);
-
-        const { data: commitment, error } = await supabase
+        // 3. Database Insert (The Hardened Call)
+        const { data, error } = await supabase
             .from('commitments')
             .insert({
                 user_id: context.userId,
-                title,
-                start_time,
-                end_time,
-                days_of_week,
+                title: payload.title,
+                start_time: payload.start_time,
+                end_time: payload.end_time,
+                days_of_week: payload.days_of_week,
                 is_active: true
             })
-            .select()
+            .select() // Confirm peristence
             .single();
 
         if (error) {
-            console.error('[API] Anchor Creation Failed:', error);
-            return apiError('Failed to create anchor', 500, error);
+            console.error("ANCHOR INSERT ERROR", {
+                message: error.message,
+                details: error.details,
+                hint: error.hint,
+                code: error.code,
+                payload,
+                user_id: context.userId
+            });
+
+            // Map PG Error codes if possible, otherwise 500
+            // 42501 = RLS, 23505 = Unique, 23502 = Not Null, 42703 = Invalid Column
+            let status = 500;
+            let errorMsg = "ANCHOR_INSERT_FAILED";
+
+            if (error.code === '42501') {
+                status = 403;
+                errorMsg = "ANCHOR_FORBIDDEN_RLS";
+            } else if (error.code === '42703') {
+                errorMsg = "ANCHOR_SCHEMA_MISMATCH"; // Likely the day_of_week issue
+            }
+
+            return NextResponse.json({
+                error: errorMsg,
+                message: error.message,
+                details: error.details || error.hint
+            }, {
+                status
+            });
         }
 
-        return apiSuccess({ commitment }, 201);
+        console.log("ANCHOR CREATED SUCCESSFULLY", data.id);
+        return apiSuccess({ commitment: data }, 201);
     },
     { requireAuth: true, auditAction: 'anchor_create' }
 );
