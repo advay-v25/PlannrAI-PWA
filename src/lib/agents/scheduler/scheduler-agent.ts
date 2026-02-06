@@ -1,7 +1,7 @@
 import { BaseAgent } from '../core/base-agent';
 import { AgentContext, PlannerOutput, RegulatorOutput, SchedulerOutput, SchedulerOutputSchema } from '../core/types';
 import { findNextAvailableSlot, detectConflicts, ScheduleItem, TimeSlot } from '@/lib/scheduling/solver';
-import { addMinutes, parseISO, isSameDay, differenceInMinutes, format } from 'date-fns';
+import { addMinutes, parseISO, isSameDay, differenceInMinutes, format, areIntervalsOverlapping } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 
 interface SchedulerInput {
@@ -240,31 +240,110 @@ export class SchedulerAgent extends BaseAgent<SchedulerInput, SchedulerOutput> {
 
             const finalEnd = addMinutes(start, finalDuration);
 
-            const patchA = {
-                id: 'opt_force',
-                label: `Block out ${constraint.start ? start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'time'}`,
-                confidence_score: 1.0,
-                patch: {
-                    summary: `Blocking out ${finalDuration} mins for "${finalTitle}"`,
-                    changes: [{
-                        op: 'create' as const,
-                        data: {
-                            id: uuidv4(),
-                            title: finalTitle,
-                            start_time: start.toISOString(),
-                            end_time: finalEnd.toISOString(),
-                            is_fixed: true,
-                            block_type: 'anchor', // New Strict Type
-                            priority: 5, // High priority for constraints
-                            energy_cost: 'medium'
+            // ---------------------------------------------------------
+            // COLLISION CHECK (Strict Anchor Enforcement)
+            // ---------------------------------------------------------
+            const collision = context.currentSchedule?.find(b =>
+                b.is_fixed &&
+                areIntervalsOverlapping(
+                    { start, end: finalEnd },
+                    { start: new Date(b.start_time), end: new Date(b.end_time) }
+                )
+            );
+
+            if (collision) {
+                this.log(`Collision detected with fixed block: ${collision.title}`);
+
+                // 1. Force Option (With Warning)
+                const forceOption = {
+                    id: 'opt_force_conflict',
+                    label: `Force (Overlaps ${collision.title})`,
+                    confidence_score: 0.1, // Very low confidence
+                    patch: {
+                        summary: `Forces blocking out "${finalTitle}" despite conflict`,
+                        changes: [{
+                            op: 'create' as const,
+                            data: {
+                                id: uuidv4(),
+                                title: finalTitle,
+                                start_time: start.toISOString(),
+                                end_time: finalEnd.toISOString(),
+                                is_fixed: true, // Now fixed
+                                block_type: 'anchor',
+                                priority: 5,
+                                energy_cost: 'medium'
+                            }
+                        }],
+                        requires_confirmation: true,
+                        warnings: [`CONFLICT: Overlaps with ${collision.title}.`, ...warnings],
+                        sacrifices: [collision.title]
+                    }
+                };
+                options.push(forceOption);
+
+                // 2. Alternative Option (Next Available)
+                const nextSlot = findNextAvailableSlot(
+                    scheduleItems,
+                    finalDuration,
+                    start, // Start search from desired time
+                    { workStartHour: 8, workEndHour: 22 }
+                );
+
+                if (nextSlot) {
+                    options.push({
+                        id: 'opt_alternative_slot',
+                        label: `Schedule after ${collision.title} (${format(nextSlot.start, 'h:mm a')})`,
+                        confidence_score: 0.95, // High confidence
+                        patch: {
+                            summary: `Scheduled "${finalTitle}" at ${format(nextSlot.start, 'h:mm a')}`,
+                            changes: [{
+                                op: 'create' as const,
+                                data: {
+                                    id: uuidv4(),
+                                    title: finalTitle,
+                                    start_time: nextSlot.start.toISOString(),
+                                    end_time: nextSlot.end.toISOString(),
+                                    is_fixed: true,
+                                    block_type: 'anchor',
+                                    priority: 5,
+                                    energy_cost: 'medium'
+                                }
+                            }],
+                            requires_confirmation: true,
+                            warnings: [],
+                            sacrifices: []
                         }
-                    }],
-                    requires_confirmation: true,
-                    warnings: warnings,
-                    sacrifices: []
+                    });
                 }
-            };
-            options.push(patchA);
+
+            } else {
+                // No Collision - Standard Force
+                const patchA = {
+                    id: 'opt_force',
+                    label: `Block out ${constraint.start ? start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'time'}`,
+                    confidence_score: 1.0,
+                    patch: {
+                        summary: `Blocking out ${finalDuration} mins for "${finalTitle}"`,
+                        changes: [{
+                            op: 'create' as const,
+                            data: {
+                                id: uuidv4(),
+                                title: finalTitle,
+                                start_time: start.toISOString(),
+                                end_time: finalEnd.toISOString(),
+                                is_fixed: true,
+                                block_type: 'anchor', // New Strict Type
+                                priority: 5, // High priority for constraints
+                                energy_cost: 'medium'
+                            }
+                        }],
+                        requires_confirmation: true,
+                        warnings: warnings,
+                        sacrifices: []
+                    }
+                };
+                options.push(patchA);
+            }
         }
 
         // ==========================================

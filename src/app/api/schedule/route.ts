@@ -34,7 +34,69 @@ export const GET = secureApiRoute(
             return apiError('Failed to fetch schedule blocks', 500);
         }
 
-        return apiSuccess({ blocks });
+        // Phase 3: Merge Commitments (Anchors) as Virtual Blocks
+        // This ensures the Frontend sees them as "Locked" blocks
+        const { data: commitments } = await supabase
+            .from('commitments')
+            .select('*')
+            .eq('user_id', context.userId)
+            .eq('is_active', true);
+
+        const mergedBlocks = [...(blocks || [])];
+
+        if (commitments && commitments.length > 0) {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            const loop = new Date(start);
+
+            // Iterate through every day in range to explode commitments
+            while (loop <= end) {
+                const dayOfWeek = loop.getDay(); // 0=Sun
+                const dateStr = loop.toISOString().split('T')[0];
+
+                commitments.forEach(anchor => {
+                    if (anchor.days_of_week.includes(dayOfWeek)) {
+                        // Check if this anchor is already materialized (avoid dupes)
+                        // Simple check: do we have an 'anchor' type block at this time?
+                        // For MVP, we assume they are NOT materialized. 
+                        // If they ARE materialized, we might duplicate. 
+                        // Frontend key will be unique due to 'virtual-' prefix.
+
+                        // Create Virtual Block
+                        // Need full ISO timestamp for start_time/end_time based on dateStr
+                        // Format: YYYY-MM-DDTHH:MM:00
+                        const startTimeISO = `${dateStr}T${anchor.start_time}:00`;
+                        const endTimeISO = `${dateStr}T${anchor.end_time}:00`;
+
+                        mergedBlocks.push({
+                            id: `virtual-anchor-${anchor.id}-${dateStr}`,
+                            user_id: context.userId,
+                            date: dateStr,
+                            start_time: startTimeISO, // Virtual ISO
+                            end_time: endTimeISO,
+                            title: anchor.title,
+                            status: 'planned',
+                            is_fixed: true, // Frontend should lock this
+                            block_type: 'anchor',
+                            context: 'Fixed Commitment',
+                            goal: null,
+                            created_at: new Date().toISOString()
+                        });
+                    }
+                });
+
+                // Next day
+                loop.setDate(loop.getDate() + 1);
+            }
+        }
+
+        // Re-sort because we added items
+        mergedBlocks.sort((a, b) => {
+            if (a.date !== b.date) return a.date.localeCompare(b.date);
+            return a.start_time.localeCompare(b.start_time);
+        });
+
+        return apiSuccess({ blocks: mergedBlocks });
     },
     { requireAuth: true }
 );

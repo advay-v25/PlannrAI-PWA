@@ -20,12 +20,56 @@ export class ContextBuilder {
 
         // 3. Fetch Schedule (Today + Tomorrow approx)
         const now = new Date();
+        const startOfToday = startOfDay(now);
+        const endOfToday = endOfDay(now);
+
         const { data: events } = await supabase
             .from('schedule_blocks')
             .select('*')
             .eq('user_id', userId)
-            .gte('start_time', startOfDay(now).toISOString())
-            .lte('end_time', endOfDay(now).toISOString());
+            .gte('start_time', startOfToday.toISOString())
+            .lte('end_time', endOfToday.toISOString());
+
+        // 3b. Fetch Anchors (Commitments) & Merge as Fixed Blocks
+        const { data: anchors } = await supabase
+            .from('commitments')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('is_active', true);
+
+        const mergedSchedule = [...(events || [])];
+        const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon...
+
+        if (anchors) {
+            anchors.forEach(anchor => {
+                if (anchor.days_of_week.includes(dayOfWeek)) {
+                    // Convert HH:MM to actual Date for Today
+                    const [h, m] = anchor.start_time.split(':').map(Number);
+                    const [eh, em] = anchor.end_time.split(':').map(Number);
+
+                    const start = new Date(startOfToday);
+                    start.setHours(h, m, 0, 0);
+
+                    const end = new Date(startOfToday);
+                    end.setHours(eh, em, 0, 0);
+
+                    // Avoid duplicate if it's already materialized (check by title or overlapping anchor type?)
+                    // For now, assume they are NOT materialized.
+                    mergedSchedule.push({
+                        id: `anchor-${anchor.id}`,
+                        user_id: userId,
+                        title: anchor.title,
+                        start_time: start.toISOString(),
+                        end_time: end.toISOString(),
+                        is_fixed: true, // CRITICAL: Solver treats this as immutable
+                        status: 'planned',
+                        block_type: 'anchor',
+                        created_at: new Date().toISOString(),
+                        context: 'Fixed Commitment'
+                    } as any);
+                }
+            });
+        }
 
         // 4. Fetch Recent Memories (The "One Truth" Stream)
         // We defer this import to avoid circular deps if any
@@ -48,7 +92,7 @@ export class ContextBuilder {
             now,
             timezone: profile?.timezone || 'UTC',
             userState,
-            currentSchedule: events || [],
+            currentSchedule: mergedSchedule, // Return merged list
             recentMemories,
             recentSignals,
             behaviorPatterns // Injected!
