@@ -15,6 +15,8 @@ BEGIN
     -- If it was scalar ID, this cast might fail or need explicit logic, but assuming it was intended as array or unused.
     -- For now, we assume it's integer[] or we cast it.
     -- ALTER TABLE public.commitments ALTER COLUMN days_of_week TYPE INTEGER[] USING ARRAY[days_of_week]; -- Uncomment if it was scalar
+    -- Ensure is_active column exists (Missing in some environments)
+    ALTER TABLE public.commitments ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 END $$;
 
 -- 1. Add commitment_id to schedule_blocks
@@ -96,3 +98,4 @@ DROP TRIGGER IF EXISTS trg_expand_commitment ON public.commitments;
 CREATE TRIGGER trg_expand_commitment
     AFTER INSERT OR UPDATE OR DELETE ON public.commitments
     FOR EACH ROW EXECUTE FUNCTION public.expand_commitment_to_blocks();
+    
