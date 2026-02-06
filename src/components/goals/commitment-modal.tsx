@@ -73,27 +73,42 @@ export function CommitmentModal({ onClose, onSuccess }: CommitmentModalProps) {
         setLoading(true);
 
         try {
+            // Validate and Sanitize Time to HH:MM (slice first 5 chars just in case)
+            const safeStart = startTime.length > 5 ? startTime.slice(0, 5) : startTime;
+            const safeEnd = endTime.length > 5 ? endTime.slice(0, 5) : endTime;
+
+            const payload = {
+                title: title.trim(),
+                start_time: safeStart,
+                end_time: safeEnd,
+                days_of_week: selectedDays,
+            };
+
+            console.log("Submitting Anchor:", payload);
+
             // Updated to use Server Implementation for Validation & Logging
             const response = await fetch('/api/anchors', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    title: title.trim(),
-                    start_time: startTime,
-                    end_time: endTime,
-                    days_of_week: selectedDays,
-                }),
+                body: JSON.stringify(payload),
             });
 
-            if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.error || 'Failed to create anchor');
+            const rawText = await response.text();
+            let data;
+            try {
+                data = JSON.parse(rawText);
+            } catch (e) {
+                console.error("Non-JSON Response:", rawText);
+                throw new Error("Server Error: Check Console");
             }
 
-            const { data } = await response.json();
-            const commitment = data.commitment;
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to create anchor');
+            }
+
+            const commitment = data.data.commitment; // API Success wrapper returns { data: { commitment } }
 
             showToast('⚓ Anchor set!', 'success');
 
@@ -109,7 +124,7 @@ export function CommitmentModal({ onClose, onSuccess }: CommitmentModalProps) {
 
             onClose();
         } catch (e: any) {
-            console.error(e);
+            console.error('Anchor Creation Error:', e);
             showToast(e.message || 'Failed to save anchor', 'error');
         } finally {
             setLoading(false);
