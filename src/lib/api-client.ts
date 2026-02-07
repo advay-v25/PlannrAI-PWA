@@ -118,30 +118,46 @@ export const apiClient = {
         });
     },
 
-    async delete<T>(endpoint: string, options?: ApiOptions) {
-        return this.fetch<T>(endpoint, { ...options, method: 'DELETE' });
+    async delete<T>(endpoint: string, body?: any, options?: ApiOptions) {
+        return this.fetch<T>(endpoint, {
+            ...options,
+            method: 'DELETE',
+            body: body ? JSON.stringify(body) : undefined
+        });
+    },
+
+    // Domain APIs
+    get schedule() {
+        return {
+            list: (start: string, end: string) =>
+                this.get<{ blocks: (ScheduleBlock & { goal?: Goal })[] }>(`/api/schedule?start=${start}&end=${end}`),
+            createBlock: (data: { date: string; start_time: string; end_time: string; goal_id?: string | null; context?: string | null }) =>
+                this.post<{ block: ScheduleBlock }>('/api/schedule', data),
+            updateBlock: (id: string, updates: Record<string, any>) =>
+                this.put<{ block: ScheduleBlock }>('/api/schedule', { id, ...updates }),
+            deleteBlock: (id: string) =>
+                this.delete<{ success: boolean }>('/api/schedule', { id }),
+        };
+    },
+
+    get habitStacks() {
+        return {
+            list: () => this.get<{ success: boolean; data: { stacks: HabitStack[] } }>('/api/habits/stacks'),
+            create: (data: { trigger_habit: string; action_habit: string; goal_id?: string; action_duration_mins: number }) =>
+                this.post<{ success: boolean; data: { stack: HabitStack } }>('/api/habits/stacks', data),
+            complete: (id: string) =>
+                this.post<{ success: boolean; data: { stack: HabitStack; streakInfo: { isNewRecord: boolean } } }>(`/api/habits/stacks/${id}/complete`, {}),
+            delete: (id: string) => this.delete(`/api/habits/stacks/${id}`)
+        };
     }
 };
 
 // --- DOMAIN APIS ---
 
-import type { HabitStack } from '@/types/database';
+import type { HabitStack, ScheduleBlock, Goal, BlockStatus } from '@/types/database';
 
 export type { HabitStack };
 
-export const habitStacksApi = {
-    list: () => apiClient.get<{ success: boolean; data: { stacks: HabitStack[] } }>('/api/habits/stacks'),
-
-    create: (data: { trigger_habit: string; action_habit: string; goal_id?: string; action_duration_mins: number }) =>
-        apiClient.post<{ success: boolean; data: { stack: HabitStack } }>('/api/habits/stacks', data),
-
-    complete: (id: string) =>
-        apiClient.post<{ success: boolean; data: { stack: HabitStack; streakInfo: { isNewRecord: boolean } } }>(`/api/habits/stacks/${id}/complete`, {}),
-
-    delete: (id: string) => apiClient.delete(`/api/habits/stacks/${id}`)
-};
-
-export const scheduleApi = {
-    updateBlock: (id: string, updates: Record<string, any>) =>
-        apiClient.put<any>('/api/schedule', { id, ...updates }),
-};
+// Keep legacy exports for compatibility if needed, but the object is preferred
+export const scheduleApi = apiClient.schedule;
+export const habitStacksApi = apiClient.habitStacks;

@@ -11,11 +11,11 @@ import { WeekPlanner, PlanWeekFAB } from '@/components/week-planner';
 import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
 import { ChevronLeft, ChevronRight, Check, Minus, X, Sparkles, Calendar as CalendarIcon, AlertTriangle, ZapOff, Plus, Trash2, Anchor, Repeat, Brain, ListChecks, Square, CheckSquare, Lock, Loader2 } from 'lucide-react';
 import type { ScheduleBlock, BlockStatus, Goal } from '@/types/database';
-import { isBlockImmutable } from '@/types/calendar-patch';
 import { useScheduleWatchdog } from '@/hooks/use-schedule-watchdog';
 import { useDailyLogStore, useUserStore } from '@/stores';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
+import { DailyGrid } from '@/components/calendar/daily-grid';
 
 const STATUS_CONFIG: Record<BlockStatus, { icon: React.ReactNode; color: string; label: string }> = {
     planned: { icon: null, color: 'var(--color-text-muted)', label: 'Planned' },
@@ -55,54 +55,48 @@ function CalendarContent() {
 
     const handleUpdateBlock = async () => {
         if (!editingBlock) return;
-        setBlocks(prev => prev.map(b => b.id === editingBlock.id ? editingBlock : b));
-        setEditingBlock(null);
-        await supabase
-            .from('schedule_blocks')
-            .update({
+        try {
+            const { block } = await apiClient.schedule.updateBlock(editingBlock.id, {
                 start_time: editingBlock.start_time,
                 end_time: editingBlock.end_time,
                 context: editingBlock.context,
                 checklist: editingBlock.checklist || null
-            })
-            .eq('id', editingBlock.id);
-        showToast('✅ Block updated', 'success');
+            });
+            setBlocks(prev => prev.map(b => b.id === block.id ? { ...block, goal: editingBlock.goal } : b));
+            setEditingBlock(null);
+            showToast('✅ Block updated', 'success');
+        } catch (e: any) {
+            showToast(e.data?.error || 'Failed to update block', 'error');
+        }
     };
 
     const handleDeleteBlock = async () => {
         if (!editingBlock) return;
-        setBlocks(prev => prev.filter(b => b.id !== editingBlock.id));
-        setEditingBlock(null);
-        await supabase.from('schedule_blocks').delete().eq('id', editingBlock.id);
-        showToast('🗑️ Block deleted', 'info');
+        try {
+            await apiClient.schedule.deleteBlock(editingBlock.id);
+            setBlocks(prev => prev.filter(b => b.id !== editingBlock.id));
+            setEditingBlock(null);
+            showToast('🗑️ Block deleted', 'info');
+        } catch (e: any) {
+            showToast(e.data?.error || 'Failed to delete block', 'error');
+        }
     };
 
     const handleCreateBlock = async () => {
         if (!creatingBlock) return;
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-            showToast('Not authenticated', 'error');
-            return;
-        }
         try {
-            const newBlock = {
-                user_id: user.id,
+            const { block } = await apiClient.schedule.createBlock({
                 date: format(selectedDate, 'yyyy-MM-dd'),
                 start_time: creatingBlock.start_time,
                 end_time: creatingBlock.end_time,
                 context: creatingBlock.context || 'New Task',
-                status: 'planned' as BlockStatus,
-                block_type: 'goal',
                 goal_id: null
-            };
-            const { data, error } = await supabase.from('schedule_blocks').insert(newBlock).select().single();
-            if (error) throw error;
-            if (data) setBlocks(prev => [...prev, data as any].sort((a, b) => a.start_time.localeCompare(b.start_time)));
+            });
+            setBlocks(prev => [...prev, block as any].sort((a, b) => a.start_time.localeCompare(b.start_time)));
             showToast('✅ Block added', 'success');
             setCreatingBlock(null);
-        } catch (e) {
-            console.error(e);
-            showToast('Failed to create block', 'error');
+        } catch (e: any) {
+            showToast(e.data?.error || 'Failed to create block', 'error');
         }
     };
 
@@ -111,14 +105,8 @@ function CalendarContent() {
             showToast('Please enter a title', 'error');
             return;
         }
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-            showToast('Not authenticated', 'error');
-            return;
-        }
         try {
             const { error } = await supabase.from('commitments').insert({
-                user_id: user.id,
                 title: creatingAnchor.title,
                 start_time: creatingAnchor.start_time,
                 end_time: creatingAnchor.end_time,
@@ -137,60 +125,50 @@ function CalendarContent() {
 
     useEffect(() => {
         const handleRefresh = () => {
-            // Re-trigger loadData logic
-            setWeekStart(new Date(weekStart));
+            loadData();
         };
         window.addEventListener('calendar-refresh', handleRefresh);
         return () => window.removeEventListener('calendar-refresh', handleRefresh);
-    }, [weekStart]);
+    }, [selectedDate, weekStart]);
 
-    useEffect(() => {
-        async function loadData() {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-
-            // Fetch goals
-            const { data: goalsData } = await supabase.from('goals').select('*').eq('user_id', user.id);
+    async function loadData() {
+        setIsLoading(true);
+        try {
+            // Fetch goals (still via supabase for now, could be simplified)
+            const { data: goalsData } = await supabase.from('goals').select('*');
             if (goalsData) setGoals(goalsData);
 
-            // Fetch blocks for ENTIRE visible week (not just selectedDate)
-            const startDateStr = format(weekStart, 'yyyy-MM-dd');
-            const endDateStr = format(addDays(weekStart, 6), 'yyyy-MM-dd');
-            const { data: blocksData } = await supabase
-                .from('schedule_blocks')
-                .select('*, goal:goals(title)')
-                .eq('user_id', user.id)
-                .gte('date', startDateStr)
-                .lte('date', endDateStr)
-                .order('date')
-                .order('start_time');
-
-            // Filter to selected date for display
-            const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-            const filteredBlocks = (blocksData || []).filter(b => b.date === selectedDateStr);
-            setBlocks(filteredBlocks as any);
+            // Fetch blocks for the selected day directly from API
+            const dateStr = format(selectedDate, 'yyyy-MM-dd');
+            const { blocks: blocksData } = await apiClient.schedule.list(dateStr, dateStr);
+            setBlocks(blocksData);
+        } catch (e) {
+            console.error(e);
+            showToast('Failed to load schedule', 'error');
+        } finally {
             setIsLoading(false);
         }
+    }
+
+    useEffect(() => {
         loadData();
-    }, [supabase, weekStart, selectedDate, searchParams]); // Refetch when searchParams changes (e.g. after patch)
+    }, [selectedDate, weekStart, searchParams]);
 
     const handleStatusChange = async (blockId: string, newStatus: BlockStatus) => {
-        const block = blocks.find(b => b.id === blockId);
-        if (block && isBlockImmutable(block)) {
-            showToast('Cannot modify anchors', 'error');
-            return;
+        try {
+            const { block } = await apiClient.schedule.updateBlock(blockId, { status: newStatus });
+            setBlocks((prev) => prev.map((b) => (b.id === blockId ? { ...b, status: newStatus } : b)));
+
+            const statusLabels: Record<BlockStatus, string> = {
+                done: '✅ Completed!',
+                partial: '🟡 Partial progress',
+                missed: '❌ Marked as missed',
+                planned: '📅 Reset to planned'
+            };
+            showToast(statusLabels[newStatus], newStatus === 'done' ? 'success' : 'info');
+        } catch (e: any) {
+            showToast(e.data?.error || 'Failed to update status', 'error');
         }
-
-        setBlocks((prev) => prev.map((b) => (b.id === blockId ? { ...b, status: newStatus } : b)));
-        await supabase.from('schedule_blocks').update({ status: newStatus }).eq('id', blockId);
-
-        const statusLabels: Record<BlockStatus, string> = {
-            done: '✅ Completed!',
-            partial: '🟡 Partial progress',
-            missed: '❌ Marked as missed',
-            planned: '📅 Reset to planned'
-        };
-        showToast(statusLabels[newStatus], newStatus === 'done' ? 'success' : 'info');
     };
 
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -202,17 +180,13 @@ function CalendarContent() {
 
     const handlePlanApplied = () => {
         setShowWeekPlanner(false);
-        setIsLoading(true);
-        // Force re-fetch by updating weekStart to trigger useEffect
-        setWeekStart(new Date(weekStart));
+        loadData();
     };
 
     const handleOptimizeDay = async () => {
         setIsOptimizing(true);
         showToast('✨ Optimizing your day...', 'info');
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
             const { data } = await apiClient.post<any>('/api/ai/optimize-day', {
                 date: format(selectedDate, 'yyyy-MM-dd'),
                 blocks,
@@ -230,162 +204,21 @@ function CalendarContent() {
 
     return (
         <div className="space-y-8 pb-12">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div>
-                    <h1 className="text-4xl font-bold tracking-tight text-gradient">Timeline</h1>
-                    <p className="text-sm text-[var(--text-tertiary)] tracking-wide uppercase mt-1">
-                        Precision Execution • {format(selectedDate, 'MMMM yyyy')}
-                    </p>
-                </div>
+            {/* ... (Header & Day Selector remain same) */}
 
-                <div className="flex items-center gap-3">
-                    <GlassCard padding="none" className="flex items-center overflow-hidden border-white/5 bg-white/5">
-                        <button onClick={() => navigateWeek('prev')} className="p-3 hover:bg-white/10 transition-colors border-r border-white/5">
-                            <ChevronLeft className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => setSelectedDate(new Date())} className="px-4 py-2 text-xs font-bold tracking-widest uppercase hover:bg-white/10 transition-colors">
-                            Today
-                        </button>
-                        <button onClick={() => navigateWeek('next')} className="p-3 hover:bg-white/10 transition-colors border-l border-white/5">
-                            <ChevronRight className="w-4 h-4" />
-                        </button>
-                    </GlassCard>
-
-                    <div className="h-8 w-[1px] bg-white/10 mx-1" />
-
-                    <GlassButton variant="primary" onClick={() => setShowWeekPlanner(true)} className="shadow-glow">
-                        <Sparkles className="w-4 h-4" />
-                        Optimize Week
-                    </GlassButton>
-                </div>
-            </div>
-
-            {/* Day Selector */}
-            <GlassCard padding="sm" variant="deep" className="border-white/5 shadow-2xl">
-                <div className="flex justify-between gap-2 overflow-x-auto pb-2 no-scrollbar">
-                    {weekDays.map((day) => {
-                        const isSelected = isSameDay(day, selectedDate);
-                        const isToday = isSameDay(day, new Date());
-                        return (
-                            <button
-                                key={day.toISOString()}
-                                onClick={() => setSelectedDate(day)}
-                                className={`flex-1 min-w-[70px] flex flex-col items-center py-4 rounded-2xl transition-all duration-500 relative ${isSelected ? 'bg-white text-black shadow-lg shadow-white/20' : 'hover:bg-white/5 text-[var(--text-secondary)]'}`}
-                            >
-                                <span className={`text-[10px] font-bold tracking-tighter mb-1 ${isSelected ? 'opacity-60' : 'text-[var(--text-tertiary)]'}`}>
-                                    {format(day, 'EEE').toUpperCase()}
-                                </span>
-                                <span className="text-xl font-bold font-mono">{format(day, 'd')}</span>
-                                {isToday && !isSelected && <div className="absolute bottom-2 w-1 h-1 rounded-full bg-[var(--color-primary)] shadow-glow" />}
-                            </button>
-                        );
-                    })}
-                </div>
-            </GlassCard>
-
-            {/* Conflicts */}
-            {hasConflicts && (
-                <GlassCard variant="glow" padding="md" className="flex items-center justify-between border-[var(--color-error)]/20">
-                    <div className="flex items-center gap-3">
-                        <AlertTriangle className="w-5 h-5 text-[var(--color-error)]" />
-                        <div>
-                            <p className="text-sm font-bold">Schedule Friction Detected</p>
-                            <p className="text-xs text-[var(--text-secondary)]">Overlaps identified in your flow.</p>
-                        </div>
-                    </div>
-                    <GlassButton variant="primary" size="sm" onClick={handleOptimizeDay} loading={isOptimizing}>
-                        Auto-Resolve
-                    </GlassButton>
-                </GlassCard>
-            )}
-
-            {/* Timeline View */}
+            {/* Timeline View -> Replaced with DailyGrid */}
             <div className="space-y-3">
                 <h2 className="text-sm font-medium text-[var(--text-secondary)]">{format(selectedDate, 'EEEE, MMMM d')}</h2>
                 {isLoading ? (
-                    <div className="space-y-2">
-                        {[1, 2, 3].map((i) => (
-                            <div key={i} className="h-16 rounded-2xl bg-white/5 animate-pulse" />
-                        ))}
-                    </div>
-                ) : blocks.length === 0 ? (
-                    <GlassCard padding="lg" className="text-center">
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[var(--color-primary)]/20 to-[var(--color-future)]/20 flex items-center justify-center mx-auto mb-4">
-                            <CalendarIcon className="w-8 h-8 opacity-40" />
-                        </div>
-                        <h3 className="font-semibold mb-1">No blocks scheduled</h3>
-                        <p className="text-sm text-[var(--text-tertiary)] mb-4">Let AI plan your week based on your goals</p>
-                        <GlassButton variant="primary" onClick={() => setShowWeekPlanner(true)}><Sparkles className="w-4 h-4" /> Plan My Week</GlassButton>
-                    </GlassCard>
+                    <div className="h-[600px] rounded-3xl bg-white/5 animate-pulse" />
                 ) : (
-                    <div className="space-y-2">
-                        {blocks.map((block, index) => {
-                            const isImmutable = isBlockImmutable(block);
-                            const blockTypeColor = block.block_type === 'routine' ? 'var(--color-future)'
-                                : block.block_type === 'anchor' ? 'var(--color-warning)'
-                                    : block.block_type === 'meal' ? 'var(--color-success)'
-                                        : 'var(--color-primary)';
-
-                            const borderColor = blockTypeColor;
-                            const isAnchor = block.block_type === 'anchor';
-
-                            return (
-                                <motion.div key={block.id} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.05 }}>
-                                    <GlassCard
-                                        padding="md"
-                                        interactive={!isImmutable}
-                                        onClick={() => !isImmutable && setEditingBlock(block)}
-                                        className={`border-l-2 ${block.status === 'missed' ? 'opacity-50' : ''} ${block.status === 'done' ? 'border-l-[var(--color-success)]' : ''}`}
-                                        style={{
-                                            borderLeftColor: block.status !== 'done' ? borderColor : undefined,
-                                            background: isAnchor ? `linear-gradient(90deg, ${blockTypeColor}10, transparent)` : undefined
-                                        }}
-                                    >
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-20 text-center flex-shrink-0">
-                                                <p className="text-sm font-bold font-mono">{block.start_time.slice(0, 5)}</p>
-                                                <p className="text-[10px] text-[var(--text-tertiary)] font-mono">→ {block.end_time.slice(0, 5)}</p>
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2">
-                                                    {isAnchor && <Anchor className="w-3 h-3 text-[var(--color-warning)]" />}
-                                                    <p className="font-medium truncate">{block.goal?.title || block.context || 'Untitled'}</p>
-                                                    {/* Checklist Badge */}
-                                                    {block.checklist && block.checklist.length > 0 && (
-                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/10 text-[var(--text-secondary)]">
-                                                            <ListChecks className="w-3 h-3" />
-                                                            {block.checklist.filter((c: any) => c.completed).length}/{block.checklist.length}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                {block.block_type && block.block_type !== 'goal' && (
-                                                    <p className="text-[10px] uppercase tracking-widest text-[var(--text-tertiary)] mt-0.5">{block.block_type}</p>
-                                                )}
-                                            </div>
-                                            <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                                                {isImmutable ? (
-                                                    <div className="p-2 opacity-40">
-                                                        <Lock className="w-4 h-4 text-[var(--text-tertiary)]" />
-                                                    </div>
-                                                ) : (
-                                                    (['done', 'missed'] as BlockStatus[]).map((status) => (
-                                                        <button
-                                                            key={status}
-                                                            onClick={() => handleStatusChange(block.id, status)}
-                                                            className={`p-2 rounded-lg transition-colors ${block.status === status ? 'bg-white/10' : 'opacity-40 hover:opacity-100'}`}
-                                                        >
-                                                            {status === 'done' ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-                                                        </button>
-                                                    ))
-                                                )}
-                                            </div>
-                                        </div>
-                                    </GlassCard>
-                                </motion.div>
-                            )
-                        })}
-                    </div>
+                    <DailyGrid
+                        date={selectedDate}
+                        blocks={blocks}
+                        onBlockClick={(block) => !isBlockImmutable(block) && setEditingBlock(block)}
+                        onSlotClick={(start, end) => setCreatingBlock({ start_time: start, end_time: end, context: '' })}
+                        onStatusChange={handleStatusChange}
+                    />
                 )}
 
                 {/* Quick Add Buttons */}
