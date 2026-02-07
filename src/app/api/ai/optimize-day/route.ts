@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
+import { secureApiRoute } from '@/lib/security/api-protection';
+import { apiSuccess, apiError, responses, API_ERROR_CODES } from '@/lib/api/api-utils';
 import { createClient } from '@/lib/supabase/server';
 import { generateAIResponse } from '@/lib/ai/groq-client';
 import { addMinutes, format, parse, set, isBefore, isAfter, getDay } from 'date-fns';
@@ -182,8 +183,8 @@ OUTPUT FORMAT (JSON):
             }
 
             if (!optimizedBlocks || !Array.isArray(optimizedBlocks)) {
-                console.error("AI returned invalid format:", result);
-                return apiError("AI failed to generate a valid schedule. Try again.", 422);
+                console.error("AI returned invalid format. Result keys:", Object.keys(result));
+                return apiError(API_ERROR_CODES.VALIDATION_ERROR, "AI failed to generate a valid schedule. Try again.", 422, { result });
             }
 
             // DB Transaction
@@ -234,8 +235,8 @@ OUTPUT FORMAT (JSON):
             }).filter(b => b.start_time && b.end_time); // Safety filter
 
             if (newBlocks.length === 0 && optimizedBlocks.length > 0) {
-                console.error("No valid blocks could be parsed from AI response:", optimizedBlocks);
-                return apiError(`Failed to parse time format from AI. Please try again.`, 422);
+                console.error("No valid blocks could be parsed from AI response. Raw blocks sample:", optimizedBlocks.slice(0, 2));
+                return apiError(API_ERROR_CODES.VALIDATION_ERROR, `Failed to parse time format from AI. Please try again.`, 422, { optimizedBlocks });
             }
 
             const { data: insertedData, error: insertError } = await supabase
@@ -257,7 +258,7 @@ OUTPUT FORMAT (JSON):
 
         } catch (error: any) {
             console.error("Critical Optimization Failure:", error);
-            return apiError(error.message || "Optimization failed. Try again.", 422);
+            return apiError(API_ERROR_CODES.INTERNAL_ERROR, error.message || "Optimization failed. Try again.", 422, { stack: error.stack });
         }
     },
     { requireAuth: true, rateLimit: 'ai', auditAction: 'ai_optimize_day' }

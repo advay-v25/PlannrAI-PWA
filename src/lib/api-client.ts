@@ -15,6 +15,15 @@ export class ApiError extends Error {
 const DEFAULT_TIMEOUT = 15000;
 const MAX_RETRIES = 2;
 
+const getBaseUrl = () => {
+    if (typeof window !== 'undefined') {
+        // Browser context
+        return ''; // Next.js handles relative /api routes
+    }
+    // Server context (e.g. for absolute URLs if needed)
+    return process.env.NEXT_PUBLIC_APP_URL || '';
+};
+
 async function fetchWithTimeout(resource: RequestInfo, options: RequestInit & { timeout?: number } = {}) {
     const { timeout = DEFAULT_TIMEOUT } = options;
     const controller = new AbortController();
@@ -41,12 +50,15 @@ export const apiClient = {
             }
         }
 
+        const baseUrl = getBaseUrl();
+        const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint}`;
+
         let attempt = 0;
         let lastError: any;
 
         while (attempt <= MAX_RETRIES) {
             try {
-                const response = await fetchWithTimeout(endpoint, {
+                const response = await fetchWithTimeout(url, {
                     headers: finalHeaders,
                     ...rest
                 });
@@ -161,6 +173,16 @@ export const apiClient = {
                 this.post<{ commitment: Commitment }>('/api/anchors', data),
             delete: (id: string) => this.delete(`/api/anchors?id=${id}`)
         };
+    },
+
+    async checkHealth() {
+        try {
+            const data = await this.get<{ ok: boolean; env: string }>('/api/health', { skipAuth: true });
+            return data;
+        } catch (e) {
+            console.error('Health Check Failed:', e);
+            return { ok: false, env: 'unknown' };
+        }
     }
 };
 
