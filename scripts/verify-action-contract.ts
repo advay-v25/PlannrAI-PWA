@@ -54,7 +54,7 @@ async function runVerification() {
     Plan: Reduce intensity.
     Options: [ { label: "Clear afternoon", patch: {} } ]`;
 
-    const response = await generateAIResponse(prompt, 'SYSTEM_COACH', userId);
+    const response = await generateAIResponse(prompt, 'COACH', userId);
     console.log("   Coach Response:\n" + response);
 
     const lineCount = response.split('\n').filter(l => l.trim().length > 0).length;

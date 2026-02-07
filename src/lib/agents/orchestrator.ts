@@ -81,7 +81,7 @@ export class AgentOrchestrator {
         Output: Pure String.
         `;
 
-        const summary = await import('@/lib/ai/groq-client').then(m => m.generateAIResponse(summaryPrompt, 'SYSTEM_COACH', userId));
+        const summary = await import('@/lib/ai/groq-client').then(m => m.generateAIResponse(summaryPrompt, 'COACH', userId));
 
         return {
             planner: plannerOutput,

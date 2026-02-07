@@ -95,7 +95,7 @@ async function verifyPillar3() {
     `;
 
     // We mock the generation to print it
-    const summary = await generateAIResponse(summaryPrompt, 'SYSTEM_COACH', 'test-user');
+    const summary = await generateAIResponse(summaryPrompt, 'COACH', 'test-user');
 
     console.log("\n🤖 Generated Summary:\n" + summary);
 
