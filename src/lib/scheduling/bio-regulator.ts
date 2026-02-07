@@ -92,7 +92,9 @@ export class BioRegulator {
         return `
         BIO-STATE: Level ${energyLevel}/5 (${map[energyLevel as keyof typeof map] || "Standard"})
         CONSTRAINTS: Work ${constraints.workStartHour}:00-${constraints.workEndHour}:00. Gaps: ${constraints.minGapMinutes}m.
-        DIRECTION: Adjust schedule density to match this state EXACTLY.
+        DIRECTION: Adjust schedule density to match this state.
+        WHITESPACE: Leave 20% of available time as open gaps for flow and flexibility.
+        SPREAD: Do NOT over-pack single days. Aim for a sustainable weekly rhythm.
         `;
     }
 }

@@ -16,6 +16,7 @@ export interface OptimizationContext {
     suggestedBufferMins: number; // e.g. 15, 30
     densityLimit: number; // 0-1 (Max fraction of day to book)
     recentSignals: any[]; // Recent behavior events
+    weeklyGoalCounts: Record<string, number>; // { goalId: count }
 }
 
 export class ContextEngine {
@@ -32,13 +33,15 @@ export class ContextEngine {
             { data: goals },
             { data: stats },
             { data: patterns },
-            { data: behaviorEventsData }
+            { data: behaviorEventsData },
+            weeklyGoalCounts
         ] = await Promise.all([
             client.from('profiles').select('*').eq('id', userId).single(),
             client.from('goals').select('*').eq('user_id', userId).eq('status', 'active'),
             client.from('daily_stats').select('*').eq('user_id', userId).eq('date', date).single(),
             client.from('behavior_patterns').select('*').eq('user_id', userId).single(),
-            client.from('behavior_events').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(20)
+            client.from('behavior_events').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(20),
+            this.fetchWeeklyGoalCounts(client, userId, date)
         ]);
 
         const recentSignals = behaviorEventsData || [];
@@ -61,8 +64,33 @@ export class ContextEngine {
             energyCapacity,
             suggestedBufferMins,
             densityLimit,
-            recentSignals
+            recentSignals,
+            weeklyGoalCounts: weeklyGoalCounts || {}
         };
+    }
+
+    private static async fetchWeeklyGoalCounts(client: SupabaseClient, userId: string, date: string): Promise<Record<string, number>> {
+        const targetDate = new Date(date);
+        const start = new Date(targetDate);
+        start.setDate(targetDate.getDate() - targetDate.getDay() + (targetDate.getDay() === 0 ? -6 : 1)); // Monday
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6); // Sunday
+
+        const { data: blocks } = await client
+            .from('schedule_blocks')
+            .select('goal_id')
+            .eq('user_id', userId)
+            .gte('date', start.toISOString().split('T')[0])
+            .lte('date', end.toISOString().split('T')[0])
+            .not('goal_id', 'is', null);
+
+        const counts: Record<string, number> = {};
+        blocks?.forEach(b => {
+            if (b.goal_id) {
+                counts[b.goal_id] = (counts[b.goal_id] || 0) + 1;
+            }
+        });
+        return counts;
     }
 
     // --- Derivation Logic ---

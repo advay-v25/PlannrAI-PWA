@@ -38,7 +38,8 @@ function CalendarContent() {
     const [showWeekPlanner, setShowWeekPlanner] = useState(false);
     const [editingBlock, setEditingBlock] = useState<(ScheduleBlock & { goal?: Goal }) | null>(null);
     const [creatingBlock, setCreatingBlock] = useState<{ start_time: string; end_time: string; context: string } | null>(null);
-    const [creatingAnchor, setCreatingAnchor] = useState<{ title: string; start_time: string; end_time: string; days: number[] } | null>(null);
+    const [creatingAnchor, setCreatingAnchor] = useState<any>(null);
+    const [aiReasoning, setAiReasoning] = useState<string | null>(null);
     const [isOptimizing, setIsOptimizing] = useState(false);
 
     // Watchdog Integration
@@ -222,13 +223,19 @@ function CalendarContent() {
         setIsOptimizing(true);
         showToast('✨ Optimizing your day...', 'info');
         try {
-            const { data } = await apiClient.post<any>('/api/ai/optimize-day', {
+            const response = await apiClient.post<any>('/api/ai/optimize-day', {
                 date: format(selectedDate, 'yyyy-MM-dd'),
                 blocks,
                 energyLevel: todayLog?.energy_level || 3
             });
-            setBlocks(data.optimizedBlocks.sort((a: { start_time: string }, b: { start_time: string }) => a.start_time.localeCompare(b.start_time)));
-            showToast('🚀 Day optimized!', 'success');
+            const data = response.data;
+            if (data?.optimizedBlocks) {
+                setBlocks(data.optimizedBlocks.sort((a: { start_time: string }, b: { start_time: string }) => a.start_time.localeCompare(b.start_time)));
+                setAiReasoning(data.summary);
+                showToast('🚀 Day optimized!', 'success');
+            } else {
+                showToast('No changes suggested', 'info');
+            }
         } catch (error: any) {
             console.error(error);
             showToast(error.message || 'Optimization failed', 'error');
@@ -336,6 +343,44 @@ function CalendarContent() {
                             </div>
                         )}
                     </div>
+
+                    {/* AI Reasoning Panel */}
+                    <AnimatePresence>
+                        {aiReasoning && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="overflow-hidden"
+                            >
+                                <GlassCard className="border-primary/20 bg-primary/5 p-4 mb-4 relative overflow-hidden group">
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                                            <Sparkles className="w-4 h-4 text-primary" />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-primary uppercase tracking-widest flex items-center gap-2">
+                                                Flow Strategy Analysis
+                                                <span className="h-px grow bg-primary/20" />
+                                            </p>
+                                            <p className="text-sm text-[var(--text-secondary)] mt-1.5 italic leading-relaxed">
+                                                "{aiReasoning}"
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => setAiReasoning(null)}
+                                            className="p-1 rounded-md hover:bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            <X className="w-4 h-4 text-[var(--text-tertiary)]" />
+                                        </button>
+                                    </div>
+                                    <div className="absolute top-0 right-0 p-1">
+                                        <div className="text-[8px] font-bold text-primary/30 uppercase tracking-[0.2em] -rotate-90 origin-top-right mr-[-2px] mt-8">SUPER_INTELLIGENCE</div>
+                                    </div>
+                                </GlassCard>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
                     {isLoading ? (
                         <div className="h-[600px] rounded-[2.5rem] bg-white/5 animate-pulse" />

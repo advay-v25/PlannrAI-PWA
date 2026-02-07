@@ -118,38 +118,47 @@ export const POST = secureApiRoute(
         // ---------------------------------------------------------
 
         const bioFragment = BioRegulator.getAIPromptFragment(energyLevel);
+
+        // Calculate Weekly Resonance Summary
+        const weeklyResonance = intel.goals.map(g => {
+            const current = intel.weeklyGoalCounts[g.id] || 0;
+            const target = g.days_per_week;
+            return `- ${g.title}: ${current}/${target} sessions this week. ${current >= target ? 'TARGET REACHED' : 'UNFINISHED'}`;
+        }).join('\n');
+
         const prompt = `
-YOU ARE THE "TETRIS ENGINE" (Level 2).
-Mission: Fit flexible goal blocks into the available time skeleton.
+YOU ARE THE "SUPER-INTELLIGENCE" CHIEF OF STAFF (Time Management & Flow Expert).
+Mission: Optimize the user's focus flow while ensuring a balanced, high-performance weekly rhythm.
 
 CONTEXT:
 Date: ${date}
 ${bioFragment}
 Resonance Capacity: ${intel.energyCapacity}%
 Operational Mode: ${intel.computedMode.toUpperCase()}
-Recent Signals: ${intel.recentSignals.length > 0
-                ? intel.recentSignals.map(s => `${s.action_type}: ${s.meta?.title || 'Action'}`).join(', ')
-                : 'None'}
+
+WEEKLY STATUS (PROGRESS TOWARDS TARGETS):
+${weeklyResonance}
 
 HIERARCHY (ALREADY PLACED - DO NOT MOVE):
 ${skeleton.map(b => `[${b.type.toUpperCase()}] ${b.title}: ${b.start_time}-${b.end_time}`).join('\n')}
 
-FLEXIBLE GOALS TO PLACE (Level 3):
+FLEXIBLE GOALS TO PLACE (ONLY IF "UNFINISHED" ABOVE):
 ${validGoals.map(g => `- [ID:${g.id}] ${g.title} (${g.minutes_per_day}m, ${g.importance}, ${g.energy_demand})`).join('\n')}
 
-RULES:
-1. RESPECT THE SKELETON. Do not schedule over Sleep, Anchors, or Meals.
-2. BUFFER. Leave 10m buffer after deep work.
-3. PRIORITY. If not enough time, drop Low priority goals first.
-4. REALISM. Don't split blocks smaller than 30m unless needed.
+STRICT SCHEDULING RULES:
+1. TARGETS: Do NOT schedule a goal if its weekly target is already reached (unless it is High Importance and the day is sparse).
+2. BODY COHERENCE: Max ONE body-related activity per day (Gym, Football, Cardio). If "Football" is in the skeleton, do NOT schedule the "Gym" goal today.
+3. WHITESPACE: Do not pack blocks back-to-back. Leave 15-30m "whitespace" gaps for cognitive breathing. 
+4. WEEKEND LEVERAGE: If the user has unfinished goals and today is Sat/Sun, prioritize finishing them. Weekends should NOT be empty if work is pending.
+5. NO HALLUCINATIONS: Respect the skeleton EXACTLY. Do not invent anchors that are not listed.
 
 OUTPUT FORMAT (JSON):
 {
   "optimizedBlocks": [
-    { "id": "uuid header or new", "title": "...", "start_time": "HH:MM", "end_time": "HH:MM", "type": "...", "reason": "..." }
+    { "id": "uuid", "title": "...", "start_time": "HH:MM", "end_time": "HH:MM", "type": "goal|buffer|routine", "reason": "Why this slot?" }
   ],
-  "droppedGoals": ["Title of goal not scheduled"],
-  "summary": "Brief explanation"
+  "droppedGoals": ["Title"],
+  "summary": "Persona-driven explanation of today's flow strategy."
 }
 `;
         try {
