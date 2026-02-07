@@ -57,12 +57,24 @@ function CalendarContent() {
     const handleUpdateBlock = async () => {
         if (!editingBlock) return;
         try {
+            const original = blocks.find(b => b.id === editingBlock.id);
             const { block } = await apiClient.schedule.updateBlock(editingBlock.id, {
                 start_time: editingBlock.start_time,
                 end_time: editingBlock.end_time,
                 context: editingBlock.context,
                 checklist: editingBlock.checklist || null
             });
+
+            // Resonance Signal (Reschedule)
+            if (original && (original.start_time !== block.start_time || original.end_time !== block.end_time)) {
+                apiClient.behavior.logSignal('reschedule', {
+                    block_id: block.id,
+                    title: block.title || block.context || undefined,
+                    from_time: original.start_time,
+                    to_time: block.start_time
+                });
+            }
+
             setBlocks(prev => prev.map(b => b.id === block.id ? { ...block, goal: editingBlock.goal } : b));
             setEditingBlock(null);
             showToast('✅ Block updated', 'success');
@@ -94,6 +106,14 @@ function CalendarContent() {
                 goal_id: null
             });
             setBlocks(prev => [...prev, block as any].sort((a, b) => a.start_time.localeCompare(b.start_time)));
+
+            // Resonance Signal
+            apiClient.behavior.logSignal('accept_suggestion', {
+                block_id: (block as any).id,
+                title: (block as any).context,
+                context: 'Manual Block Creation'
+            });
+
             showToast('✅ Block added', 'success');
             setCreatingBlock(null);
         } catch (e: any) {
@@ -162,7 +182,16 @@ function CalendarContent() {
 
     const handleStatusChange = async (blockId: string, newStatus: BlockStatus) => {
         try {
+            const blockToUpdate = blocks.find(b => b.id === blockId);
             const { block } = await apiClient.schedule.updateBlock(blockId, { status: newStatus });
+
+            // Resonance Signal
+            apiClient.behavior.logSignal(newStatus === 'done' ? 'complete' : 'miss', {
+                block_id: blockId,
+                title: blockToUpdate?.goal?.title || blockToUpdate?.context || undefined,
+                goal_id: blockToUpdate?.goal_id || undefined
+            });
+
             setBlocks((prev) => prev.map((b) => (b.id === blockId ? { ...b, status: newStatus } : b)));
 
             const statusLabels: Record<BlockStatus, string> = {

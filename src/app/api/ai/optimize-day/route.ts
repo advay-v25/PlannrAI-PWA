@@ -26,39 +26,16 @@ export const POST = secureApiRoute(
         };
 
         const supabase = await createClient();
-        const targetDate = new Date(date);
-        const dayOfWeek = getDay(targetDate); // 0=Sun, 1=Mon...
 
-        // ---------------------------------------------------------
-        // 1. FETCH DATA (Skeleton Components)
-        // ---------------------------------------------------------
+        // 1. FETCH ENRICHED CONTEXT (Resonance Engine)
+        const { ContextEngine } = await import('@/lib/intelligence/context-engine');
+        const intel = await ContextEngine.build(context.userId, date, supabase);
 
-        // Fetch User Profile (Sleep, Meals)
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('sleep_start, sleep_end, meal_preferences')
-            .eq('id', context.userId)
-            .single();
-
-        // Fetch Commitments (Anchors)
-        const { data: commitments } = await supabase
-            .from('commitments')
-            .select('*')
-            .eq('user_id', context.userId)
-            .contains('days_of_week', [dayOfWeek])
-            .eq('is_active', true);
-
-        // Fetch Goals
-        const { data: allGoals } = await supabase
-            .from('goals')
-            .select('*')
-            .eq('user_id', context.userId)
-            .eq('status', 'active');
+        console.log(`[Optimization] Resonance Mode: ${intel.computedMode}, Capacity: ${intel.energyCapacity}%`);
 
         // BIO-REGULATOR: FILTER GOALS
-        // If I have low energy, I shouldn't even TRY to schedule heavy goals.
-        const validGoals = BioRegulator.filterGoalsByBioState(allGoals || [], energyLevel);
-        const droppedGoalsCount = (allGoals?.length || 0) - validGoals.length;
+        const validGoals = BioRegulator.filterGoalsByBioState(intel.goals || [], energyLevel);
+        const droppedGoalsCount = (intel.goals?.length || 0) - validGoals.length;
 
         const skeleton: TimeBlock[] = [];
 
@@ -67,8 +44,8 @@ export const POST = secureApiRoute(
         // ---------------------------------------------------------
 
         // A. SLEEP (Level 0)
-        const sleepStart = profile?.sleep_start || "22:00";
-        const sleepEnd = profile?.sleep_end || "07:00";
+        const sleepStart = intel.profile?.sleep_start || "22:00";
+        const sleepEnd = intel.profile?.sleep_end || "07:00";
 
         if (sleepEnd > "00:00") {
             skeleton.push({
@@ -99,6 +76,16 @@ export const POST = secureApiRoute(
         }
 
         // B. ANCHORS (Level 1)
+        // Fetch Commitments (Anchors) - we still need day-specific anchors for the skeleton
+        const targetDate = new Date(date);
+        const dayOfWeek = getDay(targetDate);
+        const { data: commitments } = await supabase
+            .from('commitments')
+            .select('*')
+            .eq('user_id', context.userId)
+            .contains('days_of_week', [dayOfWeek])
+            .eq('is_active', true);
+
         commitments?.forEach(c => {
             skeleton.push({
                 id: c.id,
@@ -111,7 +98,7 @@ export const POST = secureApiRoute(
         });
 
         // C. MEALS (Level 2)
-        const meals = profile?.meal_preferences as any || { breakfast: "08:00", lunch: "13:00", dinner: "19:00" };
+        const meals = intel.profile?.meal_preferences as any || { breakfast: "08:00", lunch: "13:00", dinner: "19:00" };
         const addMeal = (name: string, time: string, duration: number) => {
             const end = addMinutesStr(time, duration);
             skeleton.push({
@@ -138,6 +125,11 @@ Mission: Fit flexible goal blocks into the available time skeleton.
 CONTEXT:
 Date: ${date}
 ${bioFragment}
+Resonance Capacity: ${intel.energyCapacity}%
+Operational Mode: ${intel.computedMode.toUpperCase()}
+Recent Signals: ${intel.recentSignals.length > 0
+                ? intel.recentSignals.map(s => `${s.action_type}: ${s.meta?.title || 'Action'}`).join(', ')
+                : 'None'}
 
 HIERARCHY (ALREADY PLACED - DO NOT MOVE):
 ${skeleton.map(b => `[${b.type.toUpperCase()}] ${b.title}: ${b.start_time}-${b.end_time}`).join('\n')}
@@ -215,6 +207,10 @@ OUTPUT FORMAT (JSON):
                 const start = normalizeTime(b.start_time);
                 const end = normalizeTime(b.end_time);
 
+                // Strictly map to allowed DB types
+                const allowedTypes = ['anchor', 'goal', 'meal', 'buffer', 'routine', 'sleep', 'wind_down', 'flex'];
+                const safeType = allowedTypes.includes(b.type) ? b.type : 'goal';
+
                 return {
                     user_id: context.userId,
                     date: date,
@@ -222,7 +218,7 @@ OUTPUT FORMAT (JSON):
                     end_time: end,
                     title: b.title,
                     context: b.title,
-                    block_type: b.type || 'goal',
+                    block_type: safeType,
                     status: 'planned',
                     goal_id: b.id
                 };

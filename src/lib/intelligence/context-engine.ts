@@ -15,6 +15,7 @@ export interface OptimizationContext {
     energyCapacity: number; // 0-100
     suggestedBufferMins: number; // e.g. 15, 30
     densityLimit: number; // 0-1 (Max fraction of day to book)
+    recentSignals: any[]; // Recent behavior events
 }
 
 export class ContextEngine {
@@ -30,13 +31,17 @@ export class ContextEngine {
             { data: profile },
             { data: goals },
             { data: stats },
-            { data: patterns }
+            { data: patterns },
+            { data: behaviorEventsData }
         ] = await Promise.all([
             client.from('profiles').select('*').eq('id', userId).single(),
             client.from('goals').select('*').eq('user_id', userId).eq('status', 'active'),
             client.from('daily_stats').select('*').eq('user_id', userId).eq('date', date).single(),
-            client.from('behavior_patterns').select('*').eq('user_id', userId).single()
+            client.from('behavior_patterns').select('*').eq('user_id', userId).single(),
+            client.from('behavior_events').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(20)
         ]);
+
+        const recentSignals = behaviorEventsData || [];
 
         if (!profile) throw new Error("Profile not found");
 
@@ -55,14 +60,27 @@ export class ContextEngine {
             computedMode,
             energyCapacity,
             suggestedBufferMins,
-            densityLimit
+            densityLimit,
+            recentSignals
         };
     }
 
     // --- Derivation Logic ---
 
-    private static computeEnergyCapacity(profile: Profile, stats: DailyStats | null): number {
+    private static computeEnergyCapacity(profile: Profile, stats: DailyStats | null, signals: any[] = []): number {
         let base = profile.energy_level ? profile.energy_level * 20 : 60; // 1-5 -> 20-100
+
+        // Behavioral Resonance: Check for high-intensity signals in the last 4 hours
+        const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
+        const highIntensitySignal = signals.find(s =>
+            s.created_at >= fourHoursAgo &&
+            (s.meta?.title?.toLowerCase().includes('cfa') || s.meta?.intensity > 7)
+        );
+
+        if (highIntensitySignal) {
+            console.log('[ContextEngine] Found high intensity signal, reducing energy capacity');
+            base *= 0.5; // Significant drop for recovery
+        }
 
         if (profile.low_energy_mode) base *= 0.6;
         if (stats && stats.cognitive_load_score > 8) base -= 20; // Heavy load reduces capacity

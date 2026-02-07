@@ -92,6 +92,12 @@ export function CommitmentModal({ onClose, onSuccess }: CommitmentModalProps) {
                 await apiClient.anchors.create(payload);
                 serverSuccess = true;
                 showToast('⚓ Anchor set!', 'success');
+
+                // Resonance Signal
+                apiClient.behavior.logSignal('accept_suggestion', {
+                    title: payload.title,
+                    context: 'Manual Anchor Creation'
+                });
             } catch (apiError: any) {
                 console.warn("Anchor API Failed:", apiError);
                 showToast(apiError.data?.message || 'Failed to sync anchor', 'error');

@@ -175,6 +175,13 @@ export const apiClient = {
         };
     },
 
+    get behavior() {
+        return {
+            logSignal: (action: string, meta: any = {}) =>
+                this.post('/api/behavior/signal', { action, meta })
+        };
+    },
+
     async checkHealth() {
         try {
             const data = await this.get<{ ok: boolean; env: string }>('/api/health', { skipAuth: true });
