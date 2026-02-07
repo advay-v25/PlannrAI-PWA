@@ -126,10 +126,17 @@ export const POST = secureApiRoute(
         // 4. Generate Initial Schedule (Server-Side)
         // Use finalCommitments (Merged DB + Fallback)
 
+        // Post-MVP: Use Context Engine to derive Intelligence Parameters
+        const { ContextEngine } = await import('@/lib/intelligence/context-engine');
+        // We use today's date for context building
+        const contextData = await ContextEngine.build(userId, new Date().toISOString().split('T')[0], supabase);
+
+        console.log(`[Onboarding] Context Mode: ${contextData.computedMode}, Density: ${contextData.densityLimit}`);
+
         const profileConfig = {
             sleep_end,
             sleep_start,
-            low_energy_mode: energy_level ? energy_level < 3 : false
+            low_energy_mode: contextData.computedMode === 'recovery' || contextData.computedMode === 'survival'
         };
 
         // Determine Week Start (Today or Next Monday?)
@@ -161,6 +168,7 @@ export const POST = secureApiRoute(
                 start_time: c.start_time,
                 end_time: c.end_time
             })) || []
+            // TODO: Pass contextData.suggestedBufferMins if we update generateStaticWeekPlan signature
         );
 
         // 4. Persist Plan

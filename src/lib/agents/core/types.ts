@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Goal } from '@/types/database';
 
 // --- SHARED PRIMITIVES ---
 
@@ -24,6 +25,7 @@ export interface AgentContext {
     timezone: string;
     userState?: UserState; // Injected State
     currentSchedule?: any[]; // Snapshot of the day/week
+    goals?: Goal[]; // Active goals
     recentMemories?: any[]; // Recent chat/system logs
     recentSignals?: any[]; // Recent behavioral signals (rejections/acceptances)
     behaviorPatterns?: any; // Phase 4: Learned Preferences

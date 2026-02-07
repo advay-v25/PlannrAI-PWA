@@ -1,30 +1,32 @@
-import { useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { Bot, User } from 'lucide-react';
+import { Bot, User, Check, RotateCcw } from 'lucide-react';
 import { OptionCard } from './option-card';
 import { useAgentStore } from '@/stores/agent-store';
-
-import type { Sacrifice } from '@/lib/agents/core/types';
+import type { CoachOption, CoachMode } from '@/types/coach-v4';
 
 interface MessageBubbleProps {
     id: string;
     role: 'user' | 'agent';
     content: string;
-    options?: {
-        id: string;
-        label: string;
-        description?: string;
-        warnings?: string[];
-        sacrifices?: Sacrifice[];
-    }[];
+
+    // V4 Props
+    mode?: CoachMode;
+    options?: CoachOption[];
+    undoToken?: string | null;
+    refusal?: { reason: string; question?: string | null };
+
     timestamp: Date;
     isImpossible?: boolean;
 }
 
-export const MessageBubble = ({ id, role, content, options, isImpossible }: MessageBubbleProps) => {
+export const MessageBubble = ({ id, role, content, mode, options, undoToken, refusal, isImpossible, timestamp }: MessageBubbleProps) => {
     const isUser = role === 'user';
-    const { isApplying } = useAgentStore();
+    const { isApplying, undoAction } = useAgentStore();
+
+    const handleUndo = () => {
+        if (undoToken) undoAction(undoToken);
+    };
 
     return (
         <motion.div
@@ -54,34 +56,55 @@ export const MessageBubble = ({ id, role, content, options, isImpossible }: Mess
                         : "bg-white/5 text-white/80 rounded-tl-sm border border-white/5"
                 )}>
                     {content}
+
+                    {/* EXECUTED MODE: Undo Button */}
+                    {!isUser && mode === 'executed' && undoToken && (
+                        <div className="mt-3 flex items-center gap-2 border-t border-white/5 pt-2">
+                            <span className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
+                                <Check className="w-3 h-3" /> Action Applied
+                            </span>
+                            <div className="flex-1" />
+                            <button
+                                onClick={handleUndo}
+                                disabled={isApplying}
+                                className="text-[10px] text-white/40 hover:text-white flex items-center gap-1 bg-white/5 px-2 py-1 rounded-md hover:bg-white/10 transition-colors"
+                            >
+                                <RotateCcw className="w-3 h-3" />
+                                {isApplying ? 'Reverting...' : 'Undo'}
+                            </button>
+                        </div>
+                    )}
                 </div>
 
-                {/* Options Grid */}
-                {!isUser && options && options.length > 0 && (
+                {/* CHOICE MODE: Options Grid */}
+                {!isUser && mode === 'choice' && options && options.length > 0 && (
                     <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                        {options.map((option, idx) => (
+                        {options.map((option) => (
                             <OptionCard
                                 key={option.id}
                                 id={option.id}
-                                label={option.label}
-                                description={option.description}
-                                warnings={option.warnings}
-                                sacrifices={option.sacrifices}
+                                title={option.title}
+                                impact={option.impact}
                                 isApplying={isApplying}
                             />
                         ))}
                     </div>
                 )}
 
-                {/* Impossible State */}
-                {!isUser && isImpossible && (
+                {/* REFUSAL MODE */}
+                {!isUser && (mode === 'refusal' || isImpossible) && (
                     <div className="mt-2 rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-xs text-red-300">
-                        I couldn't find a way to make this work without severe conflicts. Try a different time?
+                        {refusal?.reason || "I couldn't complete this action."}
+                        {refusal?.question && (
+                            <div className="mt-1 text-white/60 italic border-t border-white/5 pt-1">
+                                {refusal.question}
+                            </div>
+                        )}
                     </div>
                 )}
 
                 <span className="block px-1 text-[10px] text-white/30">
-                    {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
             </div>
         </motion.div>

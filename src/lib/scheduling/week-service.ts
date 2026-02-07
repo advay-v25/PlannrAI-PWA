@@ -86,6 +86,20 @@ export function generateStaticWeekPlan(
         });
     });
 
+    // Post-MVP: Insert Flex Zones (16:00-17:00)
+    // We do this AFTER goals for now to ensure we don't block high priority work, 
+    // BUT strictly, flex zones should be protected.
+    // For static plan, let's just add them.
+    days.forEach(day => {
+        schedule[day].push({
+            time: '16:00',
+            end_time: '17:00',
+            title: 'Flex Zone',
+            goal_id: 'FLEX',
+            type: 'flex'
+        });
+    });
+
     return {
         schedule,
         reasoning: {
@@ -180,12 +194,16 @@ export async function persistWeekPlan(
         .gte('date', weekStart)
         .lte('date', endDate.toISOString().split('T')[0])
         .eq('status', 'planned')
-        .neq('block_type', 'routine');
+        .neq('block_type', 'routine')
+        .neq('block_type', 'anchor') // V5: Protect Anchors
+        .neq('is_fixed', true);      // V5: Protect Locked Blocks
 
-    // Insert new blocks
+    // Insert new blocks (Filter out anchors, they are already there!)
+    const validBlocks = blocks.filter(b => b.goal_id !== 'ANCHOR' && (b as any).type !== 'anchor');
+
     const { data, error } = await supabase
         .from('schedule_blocks')
-        .insert(blocks)
+        .insert(validBlocks)
         .select();
 
     if (error) throw error;

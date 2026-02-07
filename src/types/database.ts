@@ -99,6 +99,9 @@ export interface Commitment {
     start_time: string; // "HH:MM"
     end_time: string;   // "HH:MM"
     is_active: boolean;
+    // Post-MVP Fields
+    preferred_time_window?: string; // e.g. 'morning', '09:00-12:00'
+    flexible_frequency_per_week?: number; // e.g. 3
 }
 
 export type BlockStatus = 'planned' | 'done' | 'partial' | 'missed';
@@ -115,6 +118,10 @@ export interface ScheduleBlock {
     checklist?: { id: string; text: string; completed: boolean }[]; // JSONB
     context: string | null;
     created_at: string;
+    // V5 Authority Fields
+    commitment_id?: string | null;
+    is_fixed?: boolean;
+    title?: string | null;
     // Joined data
     goal?: Goal;
 }
@@ -240,6 +247,19 @@ export interface OnboardingData {
     scan_skipped: boolean;
     bio_scan_url?: string;
 }
+// Post-MVP Intelligence
+export interface DailyStats {
+    id: string;
+    user_id: string;
+    date: string;
+    total_active_mins: number;
+    fragmentation_score: number; // 0-1
+    cognitive_load_score: number; // 0-10
+    physical_load_score: number; // 0-10
+    dominant_mode: 'focus' | 'admin' | 'recovery' | 'mixed';
+    created_at: string;
+}
+
 // UI types
 export interface DailyOverview {
     date: string;

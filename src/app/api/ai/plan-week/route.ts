@@ -289,7 +289,9 @@ export const PUT = secureApiRoute(
             .gte('date', week_start)
             .lte('date', endDate.toISOString().split('T')[0])
             .eq('status', 'planned') // Only clear planned, keep done/partial/missed
-            .neq('block_type', 'routine'); // CRITICAL: Protect Bio-Routines (treated as anchors)
+            .neq('block_type', 'routine') // CRITICAL: Protect Bio-Routines (treated as anchors)
+            .neq('block_type', 'anchor')  // V5: Protect Materialized Anchors
+            .neq('is_fixed', true);       // V5: Protect Fixed Blocks
 
         // Insert new blocks
         const { data, error } = await supabase

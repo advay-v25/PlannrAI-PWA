@@ -37,6 +37,13 @@ export class ContextBuilder {
             .eq('user_id', userId)
             .eq('is_active', true);
 
+        // 3c. Fetch Active Goals
+        const { data: goals } = await supabase
+            .from('goals')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('status', 'active');
+
         const mergedSchedule = [...(events || [])];
         const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon...
 
@@ -93,6 +100,7 @@ export class ContextBuilder {
             timezone: profile?.timezone || 'UTC',
             userState,
             currentSchedule: mergedSchedule, // Return merged list
+            goals: goals || [],
             recentMemories,
             recentSignals,
             behaviorPatterns // Injected!

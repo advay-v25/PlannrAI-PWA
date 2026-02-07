@@ -1,0 +1,103 @@
+
+import { createClient } from '@/lib/supabase/server';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { DailyStats, Profile, Goal, BehaviorPattern } from '@/types/database';
+
+export interface OptimizationContext {
+    userId: string;
+    profile: Profile;
+    goals: Goal[];
+    stats: DailyStats | null;
+    patterns: BehaviorPattern | null;
+
+    // Derived Metrics
+    computedMode: 'focus' | 'recovery' | 'maintenance' | 'survival';
+    energyCapacity: number; // 0-100
+    suggestedBufferMins: number; // e.g. 15, 30
+    densityLimit: number; // 0-1 (Max fraction of day to book)
+}
+
+export class ContextEngine {
+
+    /**
+     * Builds the full context for a user for a specific date (default today).
+     */
+    static async build(userId: string, date: string, supabase?: SupabaseClient): Promise<OptimizationContext> {
+        const client = supabase ?? await createClient();
+
+        // Parallel Fetch
+        const [
+            { data: profile },
+            { data: goals },
+            { data: stats },
+            { data: patterns }
+        ] = await Promise.all([
+            client.from('profiles').select('*').eq('id', userId).single(),
+            client.from('goals').select('*').eq('user_id', userId).eq('status', 'active'),
+            client.from('daily_stats').select('*').eq('user_id', userId).eq('date', date).single(),
+            client.from('behavior_patterns').select('*').eq('user_id', userId).single()
+        ]);
+
+        if (!profile) throw new Error("Profile not found");
+
+        // Compute Derived Metrics
+        const energyCapacity = this.computeEnergyCapacity(profile, stats);
+        const computedMode = this.deriveMode(energyCapacity, stats);
+        const suggestedBufferMins = this.calculateBuffer(profile, computedMode);
+        const densityLimit = this.calculateDensityLimit(computedMode);
+
+        return {
+            userId,
+            profile: profile as Profile,
+            goals: (goals as Goal[]) || [],
+            stats: (stats as DailyStats) || null,
+            patterns: (patterns as BehaviorPattern) || null,
+            computedMode,
+            energyCapacity,
+            suggestedBufferMins,
+            densityLimit
+        };
+    }
+
+    // --- Derivation Logic ---
+
+    private static computeEnergyCapacity(profile: Profile, stats: DailyStats | null): number {
+        let base = profile.energy_level ? profile.energy_level * 20 : 60; // 1-5 -> 20-100
+
+        if (profile.low_energy_mode) base *= 0.6;
+        if (stats && stats.cognitive_load_score > 8) base -= 20; // Heavy load reduces capacity
+        if (stats && stats.physical_load_score > 8) base -= 10;
+
+        return Math.max(10, Math.min(100, base));
+    }
+
+    private static deriveMode(capacity: number, stats: DailyStats | null): OptimizationContext['computedMode'] {
+        if (capacity < 30) return 'survival';
+        if (capacity < 50) return 'recovery';
+
+        // If high capacity, check if we are already overloaded
+        if (stats && stats.fragmentation_score > 0.8) return 'maintenance'; // Too choppy, stabilize
+
+        return 'focus';
+    }
+
+    private static calculateBuffer(profile: Profile, mode: OptimizationContext['computedMode']): number {
+        const base = profile.buffer_config?.gap_mins || 15;
+
+        switch (mode) {
+            case 'survival': return Math.max(30, base * 2);
+            case 'recovery': return Math.max(20, base * 1.5);
+            case 'maintenance': return base;
+            case 'focus': return Math.min(10, base); // Tighten up for flow
+        }
+    }
+
+    private static calculateDensityLimit(mode: OptimizationContext['computedMode']): number {
+        switch (mode) {
+            case 'survival': return 0.4; // Only 40% of day
+            case 'recovery': return 0.6;
+            case 'maintenance': return 0.8;
+            case 'focus': return 0.9;
+        }
+    }
+}

@@ -34,69 +34,8 @@ export const GET = secureApiRoute(
             return apiError('Failed to fetch schedule blocks', 500);
         }
 
-        // Phase 3: Merge Commitments (Anchors) as Virtual Blocks
-        // This ensures the Frontend sees them as "Locked" blocks
-        const { data: commitments } = await supabase
-            .from('commitments')
-            .select('*')
-            .eq('user_id', context.userId)
-            .eq('is_active', true);
-
-        const mergedBlocks = [...(blocks || [])];
-
-        if (commitments && commitments.length > 0) {
-            const start = new Date(startDate);
-            const end = new Date(endDate);
-            const loop = new Date(start);
-
-            // Iterate through every day in range to explode commitments
-            while (loop <= end) {
-                const dayOfWeek = loop.getDay(); // 0=Sun
-                const dateStr = loop.toISOString().split('T')[0];
-
-                commitments.forEach(anchor => {
-                    if (anchor.days_of_week.includes(dayOfWeek)) {
-                        // Check if this anchor is already materialized (avoid dupes)
-                        // Simple check: do we have an 'anchor' type block at this time?
-                        // For MVP, we assume they are NOT materialized. 
-                        // If they ARE materialized, we might duplicate. 
-                        // Frontend key will be unique due to 'virtual-' prefix.
-
-                        // Create Virtual Block
-                        // Need full ISO timestamp for start_time/end_time based on dateStr
-                        // Format: YYYY-MM-DDTHH:MM:00
-                        const startTimeISO = `${dateStr}T${anchor.start_time}:00`;
-                        const endTimeISO = `${dateStr}T${anchor.end_time}:00`;
-
-                        mergedBlocks.push({
-                            id: `virtual-anchor-${anchor.id}-${dateStr}`,
-                            user_id: context.userId,
-                            date: dateStr,
-                            start_time: startTimeISO, // Virtual ISO
-                            end_time: endTimeISO,
-                            title: anchor.title,
-                            status: 'planned',
-                            is_fixed: true, // Frontend should lock this
-                            block_type: 'anchor',
-                            context: 'Fixed Commitment',
-                            goal: null,
-                            created_at: new Date().toISOString()
-                        });
-                    }
-                });
-
-                // Next day
-                loop.setDate(loop.getDate() + 1);
-            }
-        }
-
-        // Re-sort because we added items
-        mergedBlocks.sort((a, b) => {
-            if (a.date !== b.date) return a.date.localeCompare(b.date);
-            return a.start_time.localeCompare(b.start_time);
-        });
-
-        return apiSuccess({ blocks: mergedBlocks });
+        // V5: Anchors are materialized in DB via Triggers. No runtime merging needed.
+        return apiSuccess({ blocks: blocks || [] });
     },
     { requireAuth: true }
 );
@@ -134,24 +73,20 @@ export const POST = secureApiRoute(
 
         const supabase = await createClient();
 
-        const { data: block, error } = await supabase
-            .from('schedule_blocks')
-            .insert({
-                user_id: context.userId,
+        try {
+            const { CalendarEngine } = await import('@/lib/calendar/calendar-engine');
+            const block = await CalendarEngine.addBlock(context.userId, {
                 date,
                 start_time,
                 end_time,
                 goal_id: goal_id || null,
                 context: blockContext || null,
-            })
-            .select('*, goal:goals(title, category)')
-            .single();
+            }, supabase);
 
-        if (error) {
-            return apiError('Failed to create schedule block', 500);
+            return apiSuccess({ block }, 201);
+        } catch (e: any) {
+            return apiError(e.message, 400); // 400 for conflict/validation errors
         }
-
-        return apiSuccess({ block }, 201);
     },
     { requireAuth: true, auditAction: 'schedule_create' }
 );
@@ -189,20 +124,12 @@ export const PUT = secureApiRoute(
 
         const supabase = await createClient();
 
-        const { data: block, error } = await supabase
-            .from('schedule_blocks')
-            .update(updates)
-            .eq('id', id)
-            .eq('user_id', context.userId)
-            .select('*, goal:goals(title, category)')
-            .single();
-
-        if (error) {
-            return apiError('Failed to update schedule block', 500, error);
-        }
-
-        // Phase 3: Behavior Memory & Persistence
         try {
+            // Use V5 Engine
+            const { CalendarEngine } = await import('@/lib/calendar/calendar-engine');
+            const block = await CalendarEngine.updateBlock(context.userId, id, updates, supabase);
+
+            // Phase 3: Behavior Memory & Persistence
             // 1. Behavior (Fire and forget)
             if (updates.status && block) {
                 const actionMap: Record<string, 'complete' | 'miss'> = {
@@ -225,50 +152,11 @@ export const PUT = secureApiRoute(
                 }
             }
 
-            // 2. Persistence (Patch Log for Undo)
-            // We construct a synthetic patch to represent this update
-            const { PatchService } = await import('@/lib/services/patch-service');
-            await PatchService.logRun(context.userId, {
-                patch: {
-                    summary: `Updated ${block.title || 'Block'}`,
-                    affected_date: block.date,
-                    source: 'box_tick', // Custom source for direct interaction
-                    changes: [{
-                        op: 'UPDATE',
-                        event_id: id,
-                        fields: updates
-                    }]
-                },
-                inverse_patch: {
-                    summary: `Undo Update ${block.title}`,
-                    affected_date: block.date,
-                    source: 'undo',
-                    changes: [{
-                        op: 'UPDATE',
-                        event_id: id,
-                        fields: {
-                            status: block.status, // Previous status (block is now fetching NEW data, wait!)
-                            // NOTE: 'block' variable here is the RESULT of the update (lines 130-136 select after update!)
-                            // This is a logic flaw. We need PREVIOUS state for inverse.
-                            // But usually we don't fetch before update for perf.
-                            // However, strictly we need previous state. 
-                            // Since we didn't fetch before, we can't perfectly undo unless we guess or fetch.
-                            // But `api-client` usage implies we know what we changed FROM in the UI. 
-                            // The API doesn't know.
-                            // Let's assume for 'status' toggle, the inverse is easy to derive if we knew it.
-                            // For now, let's just log the patch so it exists. 
-                            // Improving Undo for direct mutations requires a fetch-before-update pattern.
-                        }
-                    }]
-                },
-                source: 'calendar'
-            });
+            return apiSuccess({ block });
 
-        } catch (e) {
-            console.error("Persistence Log Failed", e);
+        } catch (e: any) {
+            return apiError(e.message, 400);
         }
-
-        return apiSuccess({ block });
     },
     { requireAuth: true, auditAction: 'schedule_update' }
 );
@@ -285,25 +173,22 @@ export const DELETE = secureApiRoute(
 
         const supabase = await createClient();
 
-        const { error } = await supabase
-            .from('schedule_blocks')
-            .delete()
-            .eq('id', id)
-            .eq('user_id', context.userId);
+        try {
+            const { CalendarEngine } = await import('@/lib/calendar/calendar-engine');
+            await CalendarEngine.deleteBlock(context.userId, id, supabase);
 
-        if (error) {
-            return apiError('Failed to delete schedule block', 500);
+            // Phase 3: Behavior Memory
+            const { BehaviorService } = await import('@/lib/services/behavior-service');
+            BehaviorService.record(context.userId, {
+                action_type: 'delete',
+                event_id: id,
+                meta: { timestamp: new Date().toISOString() }
+            }).catch(err => console.error('Failed to record behavior:', err));
+
+            return apiSuccess({ success: true });
+        } catch (e: any) {
+            return apiError(e.message, 400);
         }
-
-        // Phase 3: Behavior Memory
-        const { BehaviorService } = await import('@/lib/services/behavior-service');
-        BehaviorService.record(context.userId, {
-            action_type: 'delete',
-            event_id: id,
-            meta: { timestamp: new Date().toISOString() }
-        }).catch(err => console.error('Failed to record behavior:', err));
-
-        return apiSuccess({ success: true });
     },
     { requireAuth: true, auditAction: 'schedule_delete' }
 );

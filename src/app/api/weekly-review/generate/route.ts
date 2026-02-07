@@ -64,6 +64,11 @@ export const POST = secureApiRoute(
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', context.userId).single();
         const { data: goals } = await supabase.from('goals').select('*').eq('user_id', context.userId).eq('is_paused', false);
 
+        // Post-MVP: Build Context
+        const { ContextEngine } = await import('@/lib/intelligence/context-engine');
+        // Use end of week date for context? Or today? Let's use today (review day).
+        const contextData = await ContextEngine.build(context.userId, new Date().toISOString().split('T')[0], supabase);
+
         try {
             // Generate AI review
             const reviewData = await generateWeeklyReview(
@@ -76,7 +81,8 @@ export const POST = secureApiRoute(
                     goals: goals || [],
                     preferences: profile || {}
                 },
-                context.userId
+                context.userId,
+                { mode: contextData.computedMode, energyCapacity: contextData.energyCapacity }
             );
 
             // Log AI request

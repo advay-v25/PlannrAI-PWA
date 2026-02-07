@@ -1,23 +1,20 @@
 import { create } from 'zustand';
 import { apiClient } from '@/lib/api-client';
-import type { Sacrifice } from '@/lib/agents/core/types';
+import type { CoachOption, CoachResponse, CoachMode } from '@/types/coach-v4';
 
-export interface AgentOption {
-    id: string;
-    label: string;
-    description?: string;
-    warnings?: string[];
-    sacrifices?: Sacrifice[];
-    changes?: any[]; // Store the raw changes to apply
-}
-
-interface Message {
+export interface Message {
     id: string;
     role: 'user' | 'agent';
-    content: string;
-    options?: AgentOption[];
+    content: string; // The "summary" from V4
+
+    // V4 Fields
+    mode?: CoachMode;
+    options?: CoachOption[];
+    undoToken?: string | null;
+    refusal?: { reason: string; question?: string | null };
+
     timestamp: Date;
-    isImpossible?: boolean;
+    isImpossible?: boolean; // Legacy/Refusal helper
 }
 
 interface AgentState {
@@ -28,6 +25,7 @@ interface AgentState {
     // Actions
     sendMessage: (text: string) => Promise<void>;
     applyOption: (optionId: string) => Promise<any>;
+    undoAction: (token: string) => Promise<any>;
     clearMessages: () => void;
 }
 
@@ -50,20 +48,24 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         }));
 
         try {
-            const data = await apiClient.post<any>('/api/intent', {
-                message: text,
-                source: 'chat',
-                date: new Date().toISOString()
+            // V4 Endpoint
+            const data = await apiClient.post<{ response: CoachResponse }>('/api/coach', {
+                message: text
             });
 
-            if (data.error) throw new Error(data.error);
+            if ((data as any).error) throw new Error((data as any).error);
+
+            const response = data.response;
 
             const agentMsg: Message = {
                 id: crypto.randomUUID(),
                 role: 'agent',
-                content: data.summary || "Here are your options:",
-                options: data.options, // Expecting backend to return structured options
-                isImpossible: data.is_impossible,
+                content: response.summary,
+                mode: response.mode,
+                options: response.options,
+                undoToken: response.undo_token,
+                refusal: response.refusal,
+                isImpossible: response.mode === 'refusal',
                 timestamp: new Date()
             };
 
@@ -72,14 +74,22 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                 isLoading: false
             }));
 
+            // Dispatch refresh if executed automatically
+            if (response.mode === 'executed') {
+                if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('calendar-refresh'));
+                }
+            }
+
         } catch (error) {
             console.error("Agent Error:", error);
             set(state => ({
                 messages: [...state.messages, {
                     id: crypto.randomUUID(),
                     role: 'agent',
-                    content: "Sorry, I couldn't process that request.",
-                    timestamp: new Date()
+                    content: "I encountered a system error. Please try again.",
+                    timestamp: new Date(),
+                    mode: 'refusal'
                 }],
                 isLoading: false
             }));
@@ -89,29 +99,38 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     applyOption: async (optionId: string) => {
         set({ isApplying: true });
 
-        // Find the option in the messages
-        const option = get().messages
-            .flatMap(m => m.options || [])
-            .find(o => o.id === optionId);
+        // Find option and patch
+        let selectedOption: CoachOption | undefined;
+        const messages = get().messages;
 
-        if (!option) {
+        for (const m of messages) {
+            if (m.options) {
+                const found = m.options.find(o => o.id === optionId);
+                if (found) {
+                    selectedOption = found;
+                    break;
+                }
+            }
+        }
+
+        if (!selectedOption) {
             console.error("Option not found", optionId);
             set({ isApplying: false });
             return { success: false };
         }
 
         try {
-            const data = await apiClient.post<any>('/api/calendar/apply-patch', {
-                patch: option
+            const data = await apiClient.post<{ success: boolean; undo_token: string }>('/api/coach/apply', {
+                patch: selectedOption.patch
             });
-
-            if (data.error) throw new Error(data.error);
 
             // Add confirmation message
             const successMsg: Message = {
                 id: crypto.randomUUID(),
                 role: 'agent',
-                content: `Done. Applied "${option.label}".`,
+                content: `Applied: ${selectedOption.title}`,
+                mode: 'executed',
+                undoToken: data.undo_token,
                 timestamp: new Date()
             };
 
@@ -120,21 +139,44 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                 isApplying: false
             }));
 
-            // Dispatch global refresh event for CalendarPage
             if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('calendar-refresh'));
             }
 
-            return {
-                success: true,
-                patch_run_id: data.patch_run_id,
-                undo_available: data.undo_available
-            };
+            return { success: true };
 
         } catch (error) {
             console.error("Apply Error:", error);
             set({ isApplying: false });
             return { success: false, error };
+        }
+    },
+
+    undoAction: async (token: string) => {
+        set({ isApplying: true });
+        try {
+            await apiClient.post('/api/coach/undo', { undo_token: token });
+
+            // Add confirmation
+            const undoMsg: Message = {
+                id: crypto.randomUUID(),
+                role: 'agent',
+                content: "Reverted changes.",
+                mode: 'executed',
+                timestamp: new Date()
+            };
+
+            set(state => ({
+                messages: [...state.messages, undoMsg],
+                isApplying: false
+            }));
+
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('calendar-refresh'));
+            }
+        } catch (e) {
+            console.error("Undo Error", e);
+            set({ isApplying: false });
         }
     },
 

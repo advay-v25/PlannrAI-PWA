@@ -1,265 +1,140 @@
+
 import { NextRequest } from 'next/server';
 import { secureApiRoute, apiSuccess, apiError, validateRequiredFields } from '@/lib/security/api-protection';
 import { validateCoachMessage } from '@/lib/security/input-validator';
-import { generateCoachResponse, SYSTEM_PROMPTS } from '@/lib/ai/groq-client';
-import { detectCrisis, CRISIS_RESPONSE } from '@/lib/celebration';
+import { generateAIResponse } from '@/lib/ai/groq-client';
+import { ContextBuilder } from '@/lib/agents/context-builder';
 import { createClient } from '@/lib/supabase/server';
 import { logAIRequest } from '@/lib/security/audit-logger';
 import { MemoryService } from '@/lib/services/memory-service';
-import { AgentOrchestrator } from '@/lib/agents/orchestrator';
+import { CoachActionService } from '@/lib/coach/coach-actions';
+import { CoachResponse, CalendarPatch } from '@/types/coach-v4';
 
+/**
+ * AI COACH V4 API (Chief of Staff)
+ * Action-First, Context-Aware, Direct Mutation.
+ */
 export const POST = secureApiRoute(
     async (context, body) => {
-        // Validate required fields
+        // 1. Validation
         const validation = validateRequiredFields(body, ['message']);
-        if (!validation.valid) {
-            return apiError(`Missing required fields: ${validation.missing.join(', ')}`);
-        }
+        if (!validation.valid) return apiError(`Missing field: ${validation.missing.join(', ')}`);
 
-        const { message, lowEnergyMode = false } = body as {
-            message: string;
-            lowEnergyMode?: boolean;
-        };
-
-        // Validate and sanitize message
-        const messageValidation = validateCoachMessage(message);
-        if (!messageValidation.valid) {
-            return apiError(messageValidation.errors.join(', '));
-        }
-
-        const sanitizedMessage = messageValidation.sanitized;
-
-        // Check for crisis language
-        if (detectCrisis(sanitizedMessage)) {
-            return apiSuccess({
-                response: {
-                    formatted: CRISIS_RESPONSE,
-                    isCrisisResponse: true,
-                },
-            });
-        }
+        const { message } = body as { message: string };
+        const msgValidation = validateCoachMessage(message);
+        if (!msgValidation.valid) return apiError(msgValidation.errors.join(', '));
+        const sanitizedMessage = msgValidation.sanitized;
 
         const supabase = await createClient();
 
-        // Check AI permission
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('ai_can_suggest, energy_level')
-            .eq('id', context.userId)
-            .single();
+        // 2. Build Context (The "Real" State)
+        // using the existing ContextBuilder which fetches Schedule, Anchors, Memory
+        const agentContext = await ContextBuilder.build(context.userId, supabase);
 
-        if (!profile?.ai_can_suggest) {
-            return apiSuccess({
-                response: {
-                    formatted: "I respect your preference. AI suggestions are currently disabled. You can enable them in Settings when you're ready.",
-                },
-            });
-        }
+        // 3. Construct LLM Input
+        // We flatten the context for the LLM to minimize token usage while retaining strictness
+        const llmContext = {
+            now: agentContext.now.toISOString(),
+            timezone: agentContext.timezone,
+            scheduleSummary: agentContext.currentSchedule?.map((s: any) => ({
+                id: s.id,
+                title: s.title,
+                start: s.start_time,
+                end: s.end_time,
+                type: s.block_type || 'block',
+                fixed: s.is_fixed || false
+            })) || [],
+            anchors: agentContext.currentSchedule?.filter((s: any) => s.block_type === 'anchor') || [],
+            goals: agentContext.goals?.map(g => g.title) || [],
+            recentMemories: agentContext.recentMemories?.map((m: any) => `${m.role}: ${m.content}`).slice(-10) || [],
+            userMessage: sanitizedMessage
+        };
 
-        // ---------------------------------------------------------
-        // 1. MEMORY & CONVERSATION SETUP
-        // ---------------------------------------------------------
-        let conversation = await MemoryService.getLatestConversation(context.userId, 'coach');
-        if (!conversation) {
-            conversation = await MemoryService.createConversation(context.userId, 'coach', 'General Coaching');
-        }
-
-        // Process previous signals (User ignored/rejected suggestions)
-        if (conversation) {
-            const history = await MemoryService.getHistory(conversation.id, 5, supabase);
-            const lastAssistantMsg = [...history].reverse().find(m => m.role === 'assistant');
-
-            if (lastAssistantMsg?.metadata?.options) {
-                // If user is replying, they might be ignoring the previous options.
-                // Simplified signal logic: If new message doesn't reference options, log 'ignore'.
-                // For now, we assume implicit ignore if they type something new.
-                const options = lastAssistantMsg.metadata.options as any[];
-                for (const opt of options) {
-                    await MemoryService.logSignal(
-                        context.userId,
-                        'ignore',
-                        opt.label || opt.summary,
-                        { option_id: opt.id, original_msg_id: lastAssistantMsg.id },
-                        supabase
-                    );
-                }
-            }
-        }
-
-        if (conversation) {
-            await MemoryService.addMessage(context.userId, conversation.id, 'user', sanitizedMessage);
-        }
-
-        // ---------------------------------------------------------
-        // 2. ATTEMPT "DEEP BRAIN" (AGENT ORCHESTRATOR)
-        // ---------------------------------------------------------
-        let orchestratorResult = null;
-        try {
-            const orchestrator = new AgentOrchestrator();
-            // This runs Planner -> Regulator -> Scheduler -> Validator
-            orchestratorResult = await orchestrator.run(context.userId, sanitizedMessage);
-        } catch (orchError) {
-            console.warn("Orchestrator failed, falling back to Chat Brain", orchError);
-        }
-
-        // If Orchestrator found actionable options, RETURN THEM immediately.
-        if (orchestratorResult && orchestratorResult.scheduler.options.length > 0) {
-            const responseData = {
-                formatted: orchestratorResult.summary,
-                structured: {
-                    options: orchestratorResult.scheduler.options.map(opt => ({
-                        id: opt.id,
-                        label: opt.label,
-                        patch: opt.patch, // Full patch inclusion for UI to apply
-                        confidence: opt.confidence_score
-                    })),
-                    planner: orchestratorResult.planner,
-                    is_actionable: true
-                }
-            };
-
-            // Log API Action
-            await logAIRequest(context.userId, '/api/coach', context.request, true);
-
-            // Save Response to DB
-            await supabase.from('coach_interactions').insert({
-                user_id: context.userId,
-                user_message: sanitizedMessage,
-                coach_response: responseData,
-                intent: orchestratorResult.planner.intent
-            });
-
-            if (conversation) {
-                await MemoryService.addMessage(
-                    context.userId,
-                    conversation.id,
-                    'assistant',
-                    responseData.formatted,
-                    { options: responseData.structured.options, planner: responseData.structured.planner }
-                );
-            }
-
-            return apiSuccess({ response: responseData });
-        }
-
-        // ---------------------------------------------------------
-        // 3. FALLBACK TO "CHAT BRAIN" (Conversational)
-        // ---------------------------------------------------------
-        // If no options, or Planner said "unknown/clarify", use the LLM to chat.
-
-        // Fetch Context (Legacy Manual Fetch) - In Phase 3, ContextBuilder should replace this.
-        const { data: goals } = await supabase
-            .from('goals')
-            .select('title, category, importance')
-            .eq('user_id', context.userId)
-            .eq('is_paused', false);
-
-        const { data: latestScan } = await supabase
-            .from('scan_sessions')
-            .select('signals, created_at')
-            .eq('user_id', context.userId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
-
-        const { data: userProfile } = await supabase
-            .from('profiles')
-            .select('sleep_start, sleep_end')
-            .eq('id', context.userId)
-            .single();
-
-        const { data: dumps } = await supabase
-            .from('brain_dumps')
-            .select('content')
-            .eq('user_id', context.userId)
-            .order('created_at', { ascending: false })
-            .limit(3);
-
-        const recentSignals = await MemoryService.getRecentSignals(context.userId, 5, supabase);
+        const prompt = `
+        User Message: "${sanitizedMessage}"
+        
+        Current Time: ${llmContext.now} (${llmContext.timezone})
+        
+        Schedule Context (Today/Tomorrow):
+        ${JSON.stringify(llmContext.scheduleSummary, null, 2)}
+        
+        Active Goals: ${llmContext.goals.join(', ')}
+        
+        Recent Chat History:
+        ${JSON.stringify(llmContext.recentMemories)}
+        
+        INSTRUCTIONS:
+        Analyze the request. Determine if it requires ACTION (Calendar Mutation) or just INFO.
+        Generate the JSON response strictly adhering to the schema.
+        If "executed", YOU must generate the patch. 
+        NOTE: For "executed" mode, the backend will apply the patch immediately.
+        For "choice" mode, provide options.
+        `;
 
         try {
-            // Generate AI response
-            // We inject the Orchestrator's thought process if it ran but failed to find options
-            let effectiveMessage = sanitizedMessage;
-            if (orchestratorResult?.planner.intent && orchestratorResult.planner.intent !== 'unknown') {
-                effectiveMessage += `\n[System Note: I tried to plan this as '${orchestratorResult.planner.intent}' but found no valid calendar options. Please guide the user.]`;
-            }
-
-            const result = await generateCoachResponse(
-                effectiveMessage,
-                {
-                    energyLevel: profile.energy_level || undefined,
-                    goals: goals?.map(g => ({
-                        title: g.title,
-                        category: g.category,
-                        importance: g.importance,
-                    })),
-                    recentDumps: dumps?.map(d => d.content) || [],
-                    scanSignals: latestScan?.signals || [],
-                    sleepWindow: userProfile ? `${userProfile.sleep_end} - ${userProfile.sleep_start}` : undefined,
-                    recentSignals // Pass signals!
-                },
-                context.userId
+            // 4. Trace & Call LLM
+            const responseJson = await generateAIResponse(
+                prompt,
+                'COACH_V4',
+                context.userId,
+                true // Force JSON mode
             );
 
-            // Log successful AI request
+            // 5. Parse & Validate Response
+            let coachResponse: CoachResponse;
+            try {
+                coachResponse = JSON.parse(responseJson) as CoachResponse;
+            } catch (e) {
+                console.error("Failed to parse Coach JSON:", responseJson);
+                return apiError("Coach brain malfunction (Invalid JSON)", 500);
+            }
+
+            // 6. Handle "Executed" Mode (Auto-Apply)
+            if (coachResponse.mode === 'executed' && coachResponse.options && coachResponse.options.length > 0) {
+                // In V4 "Executed" mode, the LLM provides a single "option" as the executed action
+                // OR it might provide a `patch` field at root? 
+                // schema says `options?: CoachOption[]`.
+                // If executed, we assume the first option is the one to run.
+                const actionToRun = coachResponse.options[0];
+                if (actionToRun && actionToRun.patch) {
+                    console.log(`[Coach V4] Auto-Executing: ${actionToRun.title}`);
+                    const undoToken = await CoachActionService.applyPatch(context.userId, actionToRun.patch, supabase);
+
+                    if (undoToken !== 'error_saving_undo') {
+                        coachResponse.undo_token = undoToken;
+                    }
+                    // Clear options for the UI so it just shows "Executed" checkmark?
+                    // Or keep them for debug? The UI should see mode='executed' and show the summary + undo button.
+                }
+            }
+
+            // 7. Save to Memory
+            let conversation = await MemoryService.getLatestConversation(context.userId, 'coach');
+            if (!conversation) conversation = await MemoryService.createConversation(context.userId, 'coach');
+
+            if (conversation) {
+                await MemoryService.addMessage(context.userId, conversation.id, 'user', sanitizedMessage);
+                await MemoryService.addMessage(context.userId, conversation.id, 'assistant', coachResponse.summary, {
+                    structured: coachResponse
+                });
+            }
+
+            // 8. Log Audit
             await logAIRequest(context.userId, '/api/coach', context.request, true);
 
-            // Save interaction (Legacy Table)
-            await supabase.from('coach_interactions').insert({
-                user_id: context.userId,
-                user_message: sanitizedMessage,
-                coach_response: result.structured || { formatted: result.formatted },
-            });
+            return apiSuccess({ response: coachResponse });
 
-            // Save to Memory
-            if (conversation) {
-                await MemoryService.addMessage(
-                    context.userId,
-                    conversation.id,
-                    'assistant',
-                    result.formatted, // Save the text response
-                    result.structured || {} // Save structured options as metadata
-                );
-            }
-
-            return apiSuccess({ response: result });
-
-        } catch (error) {
-            // Log failed AI request
-            await logAIRequest(context.userId, '/api/coach', context.request, false, {
-                error: error instanceof Error ? error.message : 'Unknown error',
-            });
-
-            // Check for specific error types
-            const errorMessage = error instanceof Error ? error.message : '';
-
-            if (errorMessage.includes('GROQ_API_KEY')) {
-                return apiSuccess({
-                    response: {
-                        formatted: "The AI coach needs to be configured. Please add your Groq API key to the environment variables. Get a free key at https://console.groq.com",
-                    },
-                });
-            }
-
-            if (errorMessage.includes('Rate limited')) {
-                return apiSuccess({
-                    response: {
-                        formatted: "I need a moment to catch my breath. Please try again in a few seconds.",
-                    },
-                });
-            }
-
+        } catch (error: any) {
+            console.error("Coach V4 Error:", error);
+            // Fallback
             return apiSuccess({
                 response: {
-                    formatted: "I'm having trouble processing right now. Please try again in a moment.",
-                },
+                    mode: 'refusal',
+                    summary: "I encountered an internal error processing your request.",
+                    refusal: { reason: error.message }
+                } as CoachResponse
             });
         }
     },
-    {
-        requireAuth: true,
-        rateLimit: 'ai',
-        auditAction: 'coach_chat',
-    }
+    { requireAuth: true, rateLimit: 'ai', auditAction: 'coach_chat' }
 );
