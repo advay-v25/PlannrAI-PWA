@@ -76,8 +76,7 @@ export const PUT = secureApiRoute(
 
         const { data: profile, error } = await supabase
             .from('profiles')
-            .update(updates)
-            .eq('id', context.userId)
+            .upsert({ id: context.userId, ...updates })
             .select()
             .single();
 

@@ -25,6 +25,14 @@ BEGIN
         FOREIGN KEY (user_id) 
         REFERENCES auth.users(id) 
         ON DELETE CASCADE;
+
+    -- Fix FK Constraint for schedule_blocks (Trigger inserts here, so this must also be valid)
+    ALTER TABLE public.schedule_blocks DROP CONSTRAINT IF EXISTS schedule_blocks_user_id_fkey;
+    ALTER TABLE public.schedule_blocks 
+        ADD CONSTRAINT schedule_blocks_user_id_fkey 
+        FOREIGN KEY (user_id) 
+        REFERENCES auth.users(id) 
+        ON DELETE CASCADE;
 END $$;
 
 -- 1. Add commitment_id to schedule_blocks
