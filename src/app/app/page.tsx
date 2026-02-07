@@ -20,6 +20,9 @@ import { MorningBriefing } from '@/components/dashboard/morning-briefing';
 import { HabitStacksList } from '@/components/habit-stacks';
 import { checkInterventionsAction } from '@/app/actions/interventions';
 import { AnticipationBanner } from '@/components/dashboard/anticipation-banner';
+import { IntelligenceHeartbeat } from '@/components/dashboard/intelligence-heartbeat';
+import { getOptimizationContextAction } from '@/app/actions/intelligence';
+import type { OptimizationContext } from '@/lib/intelligence/context-engine';
 
 import { formatDate, getGreeting } from '@/lib/utils';
 import { Zap } from 'lucide-react';
@@ -35,6 +38,8 @@ export default function HomePage() {
     const [todayBlocks, setTodayBlocks] = useState<ScheduleBlock[]>([]);
     const [activeIntervention, setActiveIntervention] = useState<InterventionLog | null>(null);
     const [anticipationSignal, setAnticipationSignal] = useState<import('@/lib/intelligence/anticipation-service').AnticipationSignal | null>(null);
+    const [intelContext, setIntelContext] = useState<OptimizationContext | null>(null);
+    const [isSyncingIntel, setIsSyncingIntel] = useState(false);
 
     useEffect(() => {
         async function loadData() {
@@ -98,6 +103,17 @@ export default function HomePage() {
                 if (signal) setAnticipationSignal(signal);
             } catch (err) {
                 console.error('Anticipation check failed', err);
+            }
+
+            // Fetch Intelligence Context (Heartbeat)
+            try {
+                setIsSyncingIntel(true);
+                const intel = await getOptimizationContextAction(user.id);
+                if (intel) setIntelContext(intel);
+            } catch (err) {
+                console.error('Intelligence context fetch failed', err);
+            } finally {
+                setIsSyncingIntel(false);
             }
 
             setIsLoading(false);
@@ -265,6 +281,12 @@ export default function HomePage() {
                         </motion.div>
                     )}
                 </AnimatePresence>
+
+                {/* Intelligence Heartbeat */}
+                <IntelligenceHeartbeat
+                    context={intelContext}
+                    isSyncing={isSyncingIntel}
+                />
 
                 {/* Main Command Center */}
                 <FocusCompass

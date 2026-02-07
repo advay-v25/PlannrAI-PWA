@@ -17,6 +17,7 @@ export interface OptimizationContext {
     densityLimit: number; // 0-1 (Max fraction of day to book)
     recentSignals: any[]; // Recent behavior events
     weeklyGoalCounts: Record<string, number>; // { goalId: count }
+    userContext: any[]; // Long-term memory facts/patterns
 }
 
 export class ContextEngine {
@@ -34,14 +35,16 @@ export class ContextEngine {
             { data: stats },
             { data: patterns },
             { data: behaviorEventsData },
-            weeklyGoalCounts
+            weeklyGoalCounts,
+            { data: userContextData }
         ] = await Promise.all([
             client.from('profiles').select('*').eq('id', userId).single(),
             client.from('goals').select('*').eq('user_id', userId).eq('status', 'active'),
             client.from('daily_stats').select('*').eq('user_id', userId).eq('date', date).single(),
             client.from('behavior_patterns').select('*').eq('user_id', userId).single(),
             client.from('behavior_events').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(20),
-            this.fetchWeeklyGoalCounts(client, userId, date)
+            this.fetchWeeklyGoalCounts(client, userId, date),
+            client.from('user_context').select('*').eq('user_id', userId).order('confidence', { ascending: false }).limit(10)
         ]);
 
         const recentSignals = behaviorEventsData || [];
@@ -65,7 +68,8 @@ export class ContextEngine {
             suggestedBufferMins,
             densityLimit,
             recentSignals,
-            weeklyGoalCounts: weeklyGoalCounts || {}
+            weeklyGoalCounts: weeklyGoalCounts || {},
+            userContext: userContextData || []
         };
     }
 

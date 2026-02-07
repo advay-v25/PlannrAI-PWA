@@ -307,10 +307,11 @@ export interface UserContext {
     user_id: string;
     type: 'fact' | 'preference' | 'pattern' | 'constraint';
     content: string;
-    source?: string;
+    source: string | null;
     confidence: number;
-    created_at: string;
     last_used_at: string;
+    created_at: string;
+    updated_at: string;
 }
 
 export interface InterventionLog {
@@ -407,4 +408,16 @@ export interface PatchRun {
     applied: boolean;
     source: 'coach' | 'calendar' | 'brain_dump' | 'system';
     created_at: string;
+}
+
+export interface AIIntervention {
+    id: string;
+    user_id: string;
+    type: 'stagnation' | 'burnout' | 'pivot' | 'win_streak' | 'optimization';
+    message: string;
+    payload: any;
+    status: 'pending' | 'accepted' | 'dismissed' | 'ignored';
+    action_taken_at?: string;
+    created_at: string;
+    updated_at: string;
 }

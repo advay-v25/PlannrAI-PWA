@@ -96,6 +96,14 @@ export class AnalysisService {
             .single();
 
         if (error) console.error("Failed to save daily stats", error);
+
+        // --- Superintelligence: Trigger Proactive Thinking Loop ---
+        import('./thinking-service').then(({ ThinkingService }) => {
+            ThinkingService.analyze(userId, date, supabase).catch(err => {
+                console.error('[AnalysisService] Proactive thinking failed', err);
+            });
+        });
+
         return data as DailyStats;
     }
 
