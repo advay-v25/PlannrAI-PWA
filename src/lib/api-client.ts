@@ -54,19 +54,23 @@ export const apiClient = {
                 if (!response.ok) {
                     // Don't retry client errors (4xx), only 5xx or network
                     if (response.status >= 400 && response.status < 500) {
-                        // Throw immediately
                         if (throwOnError) {
                             let errorData;
-                            try { errorData = await response.json(); } catch { errorData = { message: await response.text() }; }
+                            try {
+                                const clone = response.clone();
+                                try { errorData = await clone.json(); } catch { errorData = { message: await response.text() }; }
+                            } catch { errorData = { message: 'Unknown error' }; }
                             throw new ApiError(response.status, response.statusText, errorData);
                         }
-                        return {} as T; // Should we return empty if throwOnError false? Yes per existing contract
+                        return {} as T;
                     }
 
-                    // If 5xx, throw to trigger retry
                     if (throwOnError) {
                         let errorData;
-                        try { errorData = await response.json(); } catch { errorData = { message: await response.text() }; }
+                        try {
+                            const clone = response.clone();
+                            try { errorData = await clone.json(); } catch { errorData = { message: await response.text() }; }
+                        } catch { errorData = { message: 'Unknown error' }; }
                         throw new ApiError(response.status, response.statusText, errorData);
                     }
                 }
@@ -142,22 +146,31 @@ export const apiClient = {
 
     get habitStacks() {
         return {
-            list: () => this.get<{ success: boolean; data: { stacks: HabitStack[] } }>('/api/habits/stacks'),
+            list: () => this.get<{ success: boolean; data: { stacks: HabitStack[] } }>('/api/habit-stacks'),
             create: (data: { trigger_habit: string; action_habit: string; goal_id?: string; action_duration_mins: number }) =>
-                this.post<{ success: boolean; data: { stack: HabitStack } }>('/api/habits/stacks', data),
+                this.post<{ success: boolean; data: { stack: HabitStack } }>('/api/habit-stacks', data),
             complete: (id: string) =>
-                this.post<{ success: boolean; data: { stack: HabitStack; streakInfo: { isNewRecord: boolean } } }>(`/api/habits/stacks/${id}/complete`, {}),
-            delete: (id: string) => this.delete(`/api/habits/stacks/${id}`)
+                this.post<{ success: boolean; data: { stack: HabitStack; streakInfo: { isNewRecord: boolean } } }>(`/api/habit-stacks/${id}/complete`, {}),
+            delete: (id: string) => this.delete(`/api/habit-stacks/${id}`)
+        };
+    },
+
+    get anchors() {
+        return {
+            create: (data: { title: string; start_time: string; end_time: string; days_of_week: number[] }) =>
+                this.post<{ commitment: Commitment }>('/api/anchors', data),
+            delete: (id: string) => this.delete(`/api/anchors?id=${id}`)
         };
     }
 };
 
 // --- DOMAIN APIS ---
 
-import type { HabitStack, ScheduleBlock, Goal, BlockStatus } from '@/types/database';
+import type { HabitStack, ScheduleBlock, Goal, BlockStatus, Commitment } from '@/types/database';
 
-export type { HabitStack };
+export type { HabitStack, Commitment };
 
-// Keep legacy exports for compatibility if needed, but the object is preferred
+// Keep legacy exports for compatibility if preferred
 export const scheduleApi = apiClient.schedule;
 export const habitStacksApi = apiClient.habitStacks;
+export const anchorsApi = apiClient.anchors;

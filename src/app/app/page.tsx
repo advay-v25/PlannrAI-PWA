@@ -73,7 +73,7 @@ export default function HomePage() {
                 .select('*')
                 .eq('user_id', user.id)
                 .eq('log_date', today)
-                .single();
+                .maybeSingle();
             if (logData) {
                 setTodayLog({
                     energy_level: logData.energy_level,

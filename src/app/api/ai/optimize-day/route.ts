@@ -181,6 +181,11 @@ OUTPUT FORMAT (JSON):
                 warningMessage = (warningMessage ? warningMessage + " " : "") + "Could not fit all remaining goals.";
             }
 
+            if (!optimizedBlocks || !Array.isArray(optimizedBlocks)) {
+                console.error("AI returned invalid format:", result);
+                return apiError("AI failed to generate a valid schedule. Try again.", 422);
+            }
+
             // DB Transaction
             const { error: deleteError } = await supabase
                 .from('schedule_blocks')
@@ -189,31 +194,59 @@ OUTPUT FORMAT (JSON):
                 .eq('date', date)
                 .neq('status', 'done');
 
-            if (deleteError) throw deleteError;
+            if (deleteError) {
+                console.error("Delete error:", deleteError);
+                throw deleteError;
+            }
 
-            const newBlocks = optimizedBlocks.map((b: any) => ({
-                user_id: context.userId,
-                date: date,
-                start_time: b.start_time,
-                end_time: b.end_time,
-                title: b.title,
-                context: b.title,
-                block_type: b.type,
-                status: 'planned',
-                goal_id: b.id
-            })).map((b: any) => {
-                if (!b.goal_id || !b.goal_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+            const newBlocks = optimizedBlocks.map((b: any) => {
+                // Normalize time to HH:MM (strip AM/PM if present)
+                const normalizeTime = (t: string) => {
+                    if (!t) return null;
+                    const clean = t.replace(/\s*[AP]M/i, '').trim();
+                    if (/^\d{1,2}:\d{2}$/.test(clean)) {
+                        const [h, m] = clean.split(':');
+                        return `${h.padStart(2, '0')}:${m}`;
+                    }
+                    return null;
+                };
+
+                const start = normalizeTime(b.start_time);
+                const end = normalizeTime(b.end_time);
+
+                return {
+                    user_id: context.userId,
+                    date: date,
+                    start_time: start,
+                    end_time: end,
+                    title: b.title,
+                    context: b.title,
+                    block_type: b.type || 'goal',
+                    status: 'planned',
+                    goal_id: b.id
+                };
+            }).map((b: any) => {
+                // Ensure goal_id is a valid UUID if present
+                if (!b.goal_id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(b.goal_id)) {
                     return { ...b, goal_id: null };
                 }
                 return b;
-            });
+            }).filter(b => b.start_time && b.end_time); // Safety filter
+
+            if (newBlocks.length === 0 && optimizedBlocks.length > 0) {
+                console.error("No valid blocks could be parsed from AI response:", optimizedBlocks);
+                return apiError(`Failed to parse time format from AI. Please try again.`, 422);
+            }
 
             const { data: insertedData, error: insertError } = await supabase
                 .from('schedule_blocks')
                 .insert(newBlocks)
                 .select();
 
-            if (insertError) throw insertError;
+            if (insertError) {
+                console.error("Insert error:", insertError);
+                throw insertError;
+            }
 
             return apiSuccess({
                 optimizedBlocks: insertedData,
@@ -222,9 +255,9 @@ OUTPUT FORMAT (JSON):
                 droppedGoals
             });
 
-        } catch (error) {
-            console.error(error);
-            return apiError("Optimization failed. Try again.", 422);
+        } catch (error: any) {
+            console.error("Critical Optimization Failure:", error);
+            return apiError(error.message || "Optimization failed. Try again.", 422);
         }
     },
     { requireAuth: true, rateLimit: 'ai', auditAction: 'ai_optimize_day' }

@@ -29,8 +29,38 @@ export function DailyGrid({
     const containerRef = useRef<HTMLDivElement>(null);
     const hours = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
 
-    // Sort blocks by start time
-    const sortedBlocks = [...blocks].sort((a, b) => a.start_time.localeCompare(b.start_time));
+    // Calculate lanes for overlapping blocks
+    const sortedBlocks = [...blocks].sort((a, b) => {
+        const startDiff = a.start_time.localeCompare(b.start_time);
+        if (startDiff !== 0) return startDiff;
+        return b.end_time.localeCompare(a.end_time); // Longer blocks first if same start
+    });
+
+    const calculateLanes = () => {
+        const lanes: (ScheduleBlock & { goal?: Goal })[][] = [];
+        const blockLanes = new Map<string, number>();
+
+        sortedBlocks.forEach(block => {
+            let placed = false;
+            for (let i = 0; i < lanes.length; i++) {
+                const lastInLane = lanes[i][lanes[i].length - 1];
+                if (block.start_time >= lastInLane.end_time) {
+                    lanes[i].push(block);
+                    blockLanes.set(block.id, i);
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed) {
+                lanes.push([block]);
+                blockLanes.set(block.id, lanes.length - 1);
+            }
+        });
+
+        return { blockLanes, totalLanes: lanes.length };
+    };
+
+    const { blockLanes, totalLanes } = calculateLanes();
 
     const getTop = (timeStr: string) => {
         const [h, m] = timeStr.split(':').map(Number);
@@ -41,13 +71,11 @@ export function DailyGrid({
         const [sh, sm] = start.split(':').map(Number);
         const [eh, em] = end.split(':').map(Number);
         const duration = (eh * 60 + em) - (sh * 60 + sm);
-        return Math.max(duration * MINUTE_HEIGHT, 30); // Min height for visibility
+        return Math.max(duration * MINUTE_HEIGHT, 40); // Min height for readability
     };
 
     const handleGridClick = (e: React.MouseEvent<HTMLDivElement>) => {
         if (!onSlotClick || !containerRef.current) return;
-
-        // Prevent click if clicking a block
         if ((e.target as HTMLElement).closest('.block-card')) return;
 
         const rect = containerRef.current.getBoundingClientRect();
@@ -55,7 +83,7 @@ export function DailyGrid({
 
         const totalMinutes = Math.floor(y / MINUTE_HEIGHT);
         const hour = Math.floor(totalMinutes / 60) + START_HOUR;
-        const minute = Math.floor((totalMinutes % 60) / 15) * 15; // Round to nearest 15m
+        const minute = Math.floor((totalMinutes % 60) / 15) * 15;
 
         if (hour >= START_HOUR && hour < END_HOUR) {
             const startStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
@@ -64,63 +92,71 @@ export function DailyGrid({
         }
     };
 
-    // Scroll to safe wake time or first block on mount
     useEffect(() => {
         if (containerRef.current) {
-            const wakeTimeTop = (7 - START_HOUR) * HOUR_HEIGHT; // Scroll to 7 AM
+            const wakeTimeTop = (7 - START_HOUR) * HOUR_HEIGHT;
             containerRef.current.scrollTop = wakeTimeTop;
         }
-    }, []);
+    }, [date]);
 
     return (
         <div
             ref={containerRef}
-            className="relative h-[600px] bg-white/5 rounded-3xl border border-white/5 overflow-y-auto no-scrollbar"
+            className="relative h-[600px] bg-[var(--glass-bg)] backdrop-blur-xl rounded-[2.5rem] border border-white/5 overflow-y-auto no-scrollbar shadow-2xl"
             onClick={handleGridClick}
         >
             {/* Hour Lines */}
-            <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute inset-0 pointer-events-none px-6">
                 {hours.map(hour => (
                     <div
                         key={hour}
-                        className="absolute w-full border-t border-white/5 flex items-start gap-3"
+                        className="absolute w-full border-t border-white/[0.03] flex items-start gap-4"
                         style={{ top: (hour - START_HOUR) * HOUR_HEIGHT }}
                     >
-                        <span className="text-[10px] font-mono text-[var(--text-tertiary)] -mt-2 ml-2">
+                        <span className="text-[10px] font-mono text-[var(--text-tertiary)] -mt-2.5 opacity-50">
                             {format(new Date().setHours(hour, 0), 'HH:mm')}
                         </span>
-                        <div className="flex-1 border-t border-white/[0.02]" />
                     </div>
                 ))}
             </div>
 
-            {/* Blocks */}
-            <div className="relative ml-16 mr-4 min-h-full">
+            {/* Blocks Container */}
+            <div className="relative ml-20 mr-6 min-h-full py-2">
                 {sortedBlocks.map(block => {
                     const top = getTop(block.start_time);
                     const height = getHeight(block.start_time, block.end_time);
-                    const isAnchor = block.block_type === 'anchor';
-                    const isRoutine = block.block_type === 'routine';
+                    const lane = blockLanes.get(block.id) || 0;
+                    const width = 100 / totalLanes;
+                    const left = lane * width;
 
-                    const color = isAnchor ? 'var(--color-warning)'
-                        : isRoutine ? 'var(--color-future)'
-                            : block.goal?.category === 'mind' ? 'var(--color-mind)'
-                                : block.goal?.category === 'body' ? 'var(--color-body)'
-                                    : 'var(--color-primary)';
+                    const isAnchor = block.block_type === 'anchor' || block.block_type === 'sleep';
+                    const isRoutine = block.block_type === 'routine' || block.block_type === 'wind_down';
+
+                    const colors: Record<string, string> = {
+                        mind: 'from-blue-500/20 to-indigo-500/20 shadow-blue-500/10 border-blue-500/30',
+                        body: 'from-orange-500/20 to-red-500/20 shadow-orange-500/10 border-orange-500/30',
+                        craft: 'from-emerald-500/20 to-teal-500/20 shadow-emerald-500/10 border-emerald-500/30',
+                        anchor: 'from-amber-500/20 to-yellow-500/20 shadow-amber-500/10 border-amber-500/30',
+                        routine: 'from-purple-500/20 to-fuchsia-500/20 shadow-purple-500/10 border-purple-500/30',
+                        default: 'from-primary/20 to-primary/10 shadow-primary/5 border-primary/20'
+                    };
+
+                    const type = isAnchor ? 'anchor' : isRoutine ? 'routine' : block.goal?.category || 'default';
+                    const colorClasses = colors[type] || colors.default;
 
                     return (
                         <motion.div
                             key={block.id}
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className="block-card absolute left-0 right-0 rounded-xl border p-2 flex flex-col gap-1 cursor-pointer transition-all hover:ring-2 hover:ring-white/20 group"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            whileHover={{ scale: 0.99, x: -2 }}
+                            className={`block-card absolute rounded-2xl border bg-gradient-to-br backdrop-blur-md p-3 flex flex-col gap-1.5 cursor-pointer transition-all hover:shadow-lg hover:shadow-black/20 ${colorClasses}`}
                             style={{
-                                top,
-                                height,
-                                backgroundColor: `${color}15`,
-                                borderColor: `${color}30`,
-                                borderLeftWidth: '4px',
-                                borderLeftColor: color
+                                top: top + 4,
+                                height: height - 8,
+                                left: `${left}%`,
+                                width: `${width - 1}%`, // Small gap between lanes
+                                zIndex: 10 + lane,
                             }}
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -128,29 +164,29 @@ export function DailyGrid({
                             }}
                         >
                             <div className="flex items-start justify-between gap-2 overflow-hidden">
-                                <span className="text-xs font-bold truncate">
+                                <span className="text-sm font-bold truncate tracking-tight">
                                     {block.goal?.title || block.context || 'Untitled'}
                                 </span>
-                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    {block.status === 'done' ? (
-                                        <Check className="w-3 h-3 text-[var(--color-success)]" />
-                                    ) : block.status === 'missed' ? (
-                                        <X className="w-3 h-3 text-[var(--color-error)]" />
-                                    ) : null}
+                                {block.status === 'done' && (
+                                    <div className="flex-shrink-0 w-4 h-4 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
+                                        <Check className="w-2.5 h-2.5 text-emerald-500" />
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex items-center gap-2 text-[10px] text-[var(--text-secondary)] font-medium opacity-80 mt-auto">
+                                <div className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3 opacity-50" />
+                                    <span>{block.start_time.slice(0, 5)}</span>
                                 </div>
+                                <div className="w-1 h-1 rounded-full bg-white/10" />
+                                <span>{differenceInMinutes(parseISO(`1970-01-01T${block.end_time}`), parseISO(`1970-01-01T${block.start_time}`))}m</span>
                             </div>
 
-                            <div className="flex items-center gap-1.5 text-[9px] text-[var(--text-tertiary)] font-mono">
-                                <Clock className="w-2.5 h-2.5" />
-                                <span>{block.start_time.slice(0, 5)} - {block.end_time.slice(0, 5)}</span>
-                            </div>
-
-                            {/* Icons */}
-                            <div className="absolute bottom-1 right-1 flex gap-1 opacity-40">
-                                {isAnchor && <Anchor className="w-3 h-3" />}
-                                {isRoutine && <Repeat className="w-3 h-3" />}
-                                {!isAnchor && !isRoutine && block.goal_id && <Brain className="w-3 h-3" />}
-                            </div>
+                            {/* Status Indicator */}
+                            <div className={`absolute top-0 right-0 w-1 h-full rounded-r-2xl ${block.status === 'done' ? 'bg-emerald-500' :
+                                    block.status === 'missed' ? 'bg-red-500' : 'bg-transparent'
+                                }`} />
                         </motion.div>
                     );
                 })}
@@ -176,11 +212,11 @@ function CurrentTimeLine({ startHour }: { startHour: number }) {
 
     return (
         <div
-            className="absolute left-0 right-0 z-20 pointer-events-none flex items-center"
+            className="absolute left-0 right-0 z-20 pointer-events-none flex items-center px-4"
             style={{ top }}
         >
-            <div className="w-2 h-2 rounded-full bg-red-500 shadow-glow ml-[60px]" />
-            <div className="flex-1 h-[1px] bg-red-500/50" />
+            <div className="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)] z-30" />
+            <div className="flex-1 h-[2px] bg-gradient-to-r from-red-500 to-transparent opacity-60 ml-[-6px]" />
         </div>
     );
 }

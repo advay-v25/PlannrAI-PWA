@@ -101,3 +101,50 @@ export const POST = secureApiRoute(
     },
     { requireAuth: true, auditAction: 'anchor_create' }
 );
+
+// DELETE - Remove an anchor
+export const DELETE = secureApiRoute(
+    async (context, body) => {
+        const { searchParams } = new URL(context.request.url);
+        const id = searchParams.get('id');
+
+        if (!id) {
+            return apiError('Missing anchor ID', 400);
+        }
+
+        const supabase = await createClient();
+        const { error } = await supabase
+            .from('commitments')
+            .delete()
+            .eq('id', id)
+            .eq('user_id', context.userId);
+
+        if (error) {
+            console.error("ANCHOR DELETE ERROR", error);
+            return apiError(error.message, 500);
+        }
+
+        return apiSuccess({ success: true });
+    },
+    { requireAuth: true, auditAction: 'anchor_delete' }
+);
+
+// GET - List anchors
+export const GET = secureApiRoute(
+    async (context) => {
+        const supabase = await createClient();
+        const { data, error } = await supabase
+            .from('commitments')
+            .select('*')
+            .eq('user_id', context.userId)
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error("ANCHOR FETCH ERROR", error);
+            return apiError(error.message, 500);
+        }
+
+        return apiSuccess({ commitments: data });
+    },
+    { requireAuth: true, auditAction: 'anchor_list' }
+);

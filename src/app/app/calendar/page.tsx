@@ -15,6 +15,7 @@ import { useScheduleWatchdog } from '@/hooks/use-schedule-watchdog';
 import { useDailyLogStore, useUserStore } from '@/stores';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
+import { CommitmentModal } from '@/components/goals/commitment-modal';
 import { DailyGrid } from '@/components/calendar/daily-grid';
 
 const STATUS_CONFIG: Record<BlockStatus, { icon: React.ReactNode; color: string; label: string }> = {
@@ -105,21 +106,26 @@ function CalendarContent() {
             showToast('Please enter a title', 'error');
             return;
         }
+
+        setIsLoading(true); // Show loading during creation + optimization
         try {
-            const { error } = await supabase.from('commitments').insert({
+            await apiClient.anchors.create({
                 title: creatingAnchor.title,
                 start_time: creatingAnchor.start_time,
                 end_time: creatingAnchor.end_time,
-                days_of_week: creatingAnchor.days,
-                is_active: true
+                days_of_week: creatingAnchor.days
             });
-            if (error) throw error;
-            showToast('⚓ Anchor set! Optimizing schedule...', 'success');
+
+            showToast('⚓ Anchor set! Aligning schedule...', 'success');
+
+            // Re-fetch data and optimize
             await handleOptimizeDay();
             setCreatingAnchor(null);
-        } catch (e) {
-            console.error(e);
-            showToast('Failed to create anchor', 'error');
+        } catch (e: any) {
+            console.error('Anchor Creation Error:', e);
+            showToast(e.data?.message || e.message || 'Failed to create anchor', 'error');
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -204,41 +210,170 @@ function CalendarContent() {
 
     return (
         <div className="space-y-8 pb-12">
-            {/* ... (Header & Day Selector remain same) */}
+            {/* Header Area */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Calendar</h1>
+                    <p className="text-sm text-[var(--text-secondary)] mt-1">
+                        High-resolution visibility of your focus flow.
+                    </p>
+                </div>
 
-            {/* Timeline View -> Replaced with DailyGrid */}
-            <div className="space-y-3">
-                <h2 className="text-sm font-medium text-[var(--text-secondary)]">{format(selectedDate, 'EEEE, MMMM d')}</h2>
-                {isLoading ? (
-                    <div className="h-[600px] rounded-3xl bg-white/5 animate-pulse" />
-                ) : (
-                    <DailyGrid
-                        date={selectedDate}
-                        blocks={blocks}
-                        onBlockClick={(block) => !isBlockImmutable(block) && setEditingBlock(block)}
-                        onSlotClick={(start, end) => setCreatingBlock({ start_time: start, end_time: end, context: '' })}
-                        onStatusChange={handleStatusChange}
-                    />
-                )}
+                <div className="flex items-center gap-3">
+                    <GlassButton
+                        variant="primary"
+                        className="shadow-lg shadow-primary/20 bg-gradient-to-r from-primary to-blue-600 border-none group px-6"
+                        onClick={handleOptimizeDay}
+                        disabled={isOptimizing}
+                    >
+                        {isOptimizing ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <Sparkles className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+                        )}
+                        {isOptimizing ? 'Aligning...' : 'Optimize Day'}
+                    </GlassButton>
+                </div>
+            </div>
 
-                {/* Quick Add Buttons */}
-                <div className="flex gap-3 mt-4">
+            {/* Day Selector & Navigation */}
+            <GlassCard padding="none" className="overflow-hidden border-white/5">
+                <div className="p-4 flex items-center justify-between border-b border-white/5 bg-white/[0.02]">
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => navigateWeek('prev')}
+                            className="p-2 rounded-xl hover:bg-white/5 transition-colors"
+                        >
+                            <ChevronLeft className="w-5 h-5 text-[var(--text-tertiary)]" />
+                        </button>
+                        <h3 className="text-sm font-bold tracking-widest uppercase">
+                            {format(weekStart, 'MMMM yyyy')}
+                        </h3>
+                        <button
+                            onClick={() => navigateWeek('next')}
+                            className="p-2 rounded-xl hover:bg-white/5 transition-colors"
+                        >
+                            <ChevronRight className="w-5 h-5 text-[var(--text-tertiary)]" />
+                        </button>
+                    </div>
                     <GlassButton
                         variant="ghost"
-                        className="flex-1"
-                        onClick={() => setCreatingBlock({ start_time: '09:00', end_time: '10:00', context: '' })}
+                        size="sm"
+                        onClick={() => {
+                            setSelectedDate(new Date());
+                            setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
+                        }}
                     >
-                        <Plus className="w-4 h-4" />
-                        Add Block
+                        Today
                     </GlassButton>
-                    <GlassButton
-                        variant="ghost"
-                        className="flex-1"
-                        onClick={() => setCreatingAnchor({ title: '', start_time: '09:00', end_time: '17:00', days: [1, 2, 3, 4, 5] })}
-                    >
-                        <Anchor className="w-4 h-4" />
-                        Add Anchor
-                    </GlassButton>
+                </div>
+
+                <div className="p-2 flex justify-between gap-1 overflow-x-auto no-scrollbar">
+                    {weekDays.map((day) => {
+                        const isSelected = isSameDay(day, selectedDate);
+                        const isToday = isSameDay(day, new Date());
+                        return (
+                            <button
+                                key={day.toISOString()}
+                                onClick={() => setSelectedDate(day)}
+                                className={`flex-1 min-w-[60px] flex flex-col items-center py-3 rounded-2xl transition-all ${isSelected
+                                    ? 'bg-primary text-white shadow-xl shadow-primary/30 scale-105'
+                                    : 'hover:bg-white/5 text-[var(--text-tertiary)]'
+                                    }`}
+                            >
+                                <span className="text-[10px] font-bold uppercase tracking-widest mb-1 opacity-60">
+                                    {format(day, 'EEE')}
+                                </span>
+                                <span className={`text-sm font-bold ${isToday && !isSelected ? 'text-primary' : ''}`}>
+                                    {format(day, 'd')}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </GlassCard>
+
+            {/* Timeline View */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                <div className="lg:col-span-3 space-y-4">
+                    <div className="flex items-center justify-between px-2">
+                        <h2 className="text-xl font-bold flex items-center gap-2">
+                            {format(selectedDate, 'EEEE, MMMM d')}
+                        </h2>
+                        {hasConflicts && (
+                            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-500 text-[10px] font-bold tracking-widest uppercase animate-pulse">
+                                <AlertTriangle className="w-3 h-3" />
+                                Conflicts Detected
+                            </div>
+                        )}
+                    </div>
+
+                    {isLoading ? (
+                        <div className="h-[600px] rounded-[2.5rem] bg-white/5 animate-pulse" />
+                    ) : (
+                        <DailyGrid
+                            date={selectedDate}
+                            blocks={blocks}
+                            onBlockClick={(block) => !isBlockImmutable(block) && setEditingBlock(block)}
+                            onSlotClick={(start, end) => setCreatingBlock({ start_time: start, end_time: end, context: '' })}
+                            onStatusChange={handleStatusChange}
+                        />
+                    )}
+                </div>
+
+                {/* Sidebar Actions */}
+                <div className="space-y-6">
+                    <GlassCard padding="lg" className="space-y-4 border-white/5">
+                        <h4 className="text-xs font-bold uppercase tracking-widest text-[var(--text-tertiary)]">Quick Actions</h4>
+                        <div className="flex flex-col gap-3">
+                            <GlassButton
+                                variant="ghost"
+                                className="justify-start gap-3 w-full border-white/5 hover:bg-white/5"
+                                onClick={() => setCreatingBlock({ start_time: '09:00', end_time: '10:00', context: '' })}
+                            >
+                                <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                                    <Plus className="w-4 h-4 text-blue-500" />
+                                </div>
+                                <span className="text-sm">Manual Task</span>
+                            </GlassButton>
+                            <GlassButton
+                                variant="ghost"
+                                className="justify-start gap-3 w-full border-white/5 hover:bg-white/5"
+                                onClick={() => setCreatingAnchor({ title: '', start_time: '09:00', end_time: '17:00', days: [1, 2, 3, 4, 5] })}
+                            >
+                                <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                                    <Anchor className="w-4 h-4 text-amber-500" />
+                                </div>
+                                <span className="text-sm">Set Anchor</span>
+                            </GlassButton>
+                            <GlassButton
+                                variant="ghost"
+                                className="justify-start gap-3 w-full border-white/5 hover:bg-white/5"
+                                onClick={() => setShowWeekPlanner(true)}
+                            >
+                                <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                                    <Sparkles className="w-4 h-4 text-purple-500" />
+                                </div>
+                                <span className="text-sm">Week Planner</span>
+                            </GlassButton>
+                        </div>
+                    </GlassCard>
+
+                    {/* Low Energy Mode Alert */}
+                    {profile?.low_energy_mode && isSameDay(selectedDate, new Date()) && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                        >
+                            <GlassCard className="border-blue-500/20 bg-blue-500/5 p-4 flex gap-3">
+                                <ZapOff className="w-5 h-5 text-blue-400 shrink-0" />
+                                <div>
+                                    <p className="text-xs font-bold text-blue-400 uppercase tracking-widest">Low Energy Mode</p>
+                                    <p className="text-[11px] text-[var(--text-tertiary)] mt-1">Prioritizing rest and high-leverage tasks only.</p>
+                                </div>
+                            </GlassCard>
+                        </motion.div>
+                    )}
                 </div>
             </div>
 
@@ -312,34 +447,15 @@ function CalendarContent() {
                                 {/* Checklist Section */}
                                 {editingBlock.checklist && editingBlock.checklist.length > 0 && (
                                     <div className="space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <label className="text-xs uppercase text-[var(--text-tertiary)] flex items-center gap-1">
-                                                <ListChecks className="w-3 h-3" />
-                                                Checklist ({editingBlock.checklist.filter((c: any) => c.completed).length}/{editingBlock.checklist.length})
-                                            </label>
-                                        </div>
-                                        <div className="space-y-1 max-h-40 overflow-y-auto">
-                                            {editingBlock.checklist.map((item: any, idx: number) => (
-                                                <button
-                                                    key={item.id || idx}
-                                                    onClick={() => {
-                                                        const updatedChecklist = (editingBlock.checklist || []).map((c: any, i: number) =>
-                                                            i === idx ? { ...c, completed: !c.completed } : c
-                                                        );
-                                                        setEditingBlock({ ...editingBlock, checklist: updatedChecklist });
-                                                    }}
-                                                    className={`w-full flex items-center gap-2 p-2 rounded-lg transition-colors hover:bg-white/5 text-left ${item.completed ? 'opacity-60' : ''
-                                                        }`}
-                                                >
-                                                    {item.completed ? (
-                                                        <CheckSquare className="w-4 h-4 text-[var(--color-success)] flex-shrink-0" />
-                                                    ) : (
-                                                        <Square className="w-4 h-4 text-[var(--text-tertiary)] flex-shrink-0" />
-                                                    )}
-                                                    <span className={`text-sm ${item.completed ? 'line-through text-[var(--text-tertiary)]' : ''}`}>
-                                                        {item.text}
-                                                    </span>
-                                                </button>
+                                        <label className="text-xs uppercase text-[var(--text-tertiary)] font-bold flex items-center gap-1">
+                                            <ListChecks className="w-3 h-3" /> Step-by-Step
+                                        </label>
+                                        <div className="space-y-1">
+                                            {editingBlock.checklist.map((item: any) => (
+                                                <div key={item.id} className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                                                    {item.completed ? <CheckSquare className="w-3 h-3 text-[var(--color-primary)]" /> : <Square className="w-3 h-3 opacity-30" />}
+                                                    <span>{item.text}</span>
+                                                </div>
                                             ))}
                                         </div>
                                     </div>
@@ -347,10 +463,20 @@ function CalendarContent() {
 
                                 {/* Actions */}
                                 <div className="flex gap-3 pt-2">
-                                    <GlassButton variant="danger" onClick={handleDeleteBlock} className="px-4">
-                                        <Trash2 className="w-4 h-4" />
+                                    <GlassButton
+                                        variant="ghost"
+                                        className="grow text-red-400 hover:bg-red-500/10 hover:text-red-300 border-white/5"
+                                        onClick={handleDeleteBlock}
+                                    >
+                                        <Trash2 className="w-4 h-4 mr-2" />
+                                        Delete
                                     </GlassButton>
-                                    <GlassButton className="flex-1" variant="primary" onClick={handleUpdateBlock}>
+                                    <GlassButton
+                                        variant="primary"
+                                        className="grow"
+                                        onClick={handleUpdateBlock}
+                                    >
+                                        <Check className="w-4 h-4 mr-2" />
                                         Save Changes
                                     </GlassButton>
                                 </div>
@@ -415,102 +541,17 @@ function CalendarContent() {
 
                 {/* Create Anchor Modal */}
                 {creatingAnchor && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={() => setCreatingAnchor(null)}>
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                            transition={{ duration: 0.2 }}
-                            onClick={e => e.stopPropagation()}
-                            className="w-full max-w-md"
-                        >
-                            <GlassCard padding="lg" className="space-y-6">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <Anchor className="w-5 h-5 text-[var(--color-warning)]" />
-                                        <h3 className="text-xl font-bold">New Anchor</h3>
-                                    </div>
-                                    <button onClick={() => setCreatingAnchor(null)} className="p-2 rounded-lg hover:bg-white/10 transition-colors">
-                                        <X className="w-5 h-5 text-[var(--text-tertiary)]" />
-                                    </button>
-                                </div>
-                                <p className="text-sm text-[var(--text-secondary)]">
-                                    Anchors are fixed, recurring time blocks where no other tasks can be scheduled.
-                                </p>
-
-                                <GlassInput
-                                    label="Title"
-                                    value={creatingAnchor.title}
-                                    onChange={e => setCreatingAnchor({ ...creatingAnchor, title: e.target.value })}
-                                    placeholder="e.g. Work, School, Meeting..."
-                                    autoFocus
-                                />
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <GlassInput
-                                        label="Start Time"
-                                        type="time"
-                                        value={creatingAnchor.start_time}
-                                        onChange={e => setCreatingAnchor({ ...creatingAnchor, start_time: e.target.value })}
-                                    />
-                                    <GlassInput
-                                        label="End Time"
-                                        type="time"
-                                        value={creatingAnchor.end_time}
-                                        onChange={e => setCreatingAnchor({ ...creatingAnchor, end_time: e.target.value })}
-                                    />
-                                </div>
-
-                                {/* Day Selector */}
-                                <div className="space-y-2">
-                                    <label className="text-xs uppercase text-[var(--text-tertiary)] font-bold">Repeats On</label>
-                                    <div className="flex gap-2 justify-between">
-                                        {[
-                                            { id: 1, label: 'M' },
-                                            { id: 2, label: 'T' },
-                                            { id: 3, label: 'W' },
-                                            { id: 4, label: 'T' },
-                                            { id: 5, label: 'F' },
-                                            { id: 6, label: 'S' },
-                                            { id: 0, label: 'S' },
-                                        ].map(day => {
-                                            const isSelected = creatingAnchor.days.includes(day.id);
-                                            return (
-                                                <button
-                                                    key={day.id}
-                                                    onClick={() => {
-                                                        if (isSelected) {
-                                                            setCreatingAnchor({ ...creatingAnchor, days: creatingAnchor.days.filter(d => d !== day.id) });
-                                                        } else {
-                                                            setCreatingAnchor({ ...creatingAnchor, days: [...creatingAnchor.days, day.id] });
-                                                        }
-                                                    }}
-                                                    className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${isSelected
-                                                        ? 'bg-[var(--color-warning)] text-black shadow-lg shadow-[var(--color-warning)]/20'
-                                                        : 'bg-[var(--glass-bg)] text-[var(--text-tertiary)] hover:bg-[var(--glass-bg-hover)]'
-                                                        }`}
-                                                >
-                                                    {day.label}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-
-                                <GlassButton
-                                    variant="primary"
-                                    className="w-full"
-                                    onClick={handleCreateAnchor}
-                                    disabled={!creatingAnchor.title.trim() || creatingAnchor.days.length === 0}
-                                >
-                                    <Anchor className="w-4 h-4" />
-                                    Set Anchor
-                                </GlassButton>
-                            </GlassCard>
-                        </motion.div>
-                    </div>
+                    <CommitmentModal
+                        onClose={() => setCreatingAnchor(null)}
+                        onSuccess={async () => {
+                            showToast('⚓ Anchor set! Aligning schedule...', 'success');
+                            await handleOptimizeDay();
+                            setCreatingAnchor(null);
+                        }}
+                    />
                 )}
             </AnimatePresence>
+
             <PlanWeekFAB onClick={() => setShowWeekPlanner(true)} />
         </div>
     );

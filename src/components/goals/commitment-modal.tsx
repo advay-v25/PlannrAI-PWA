@@ -7,6 +7,7 @@ import { GlassButton } from '@/components/ui/glass-button';
 import { GlassInput } from '@/components/ui/glass-input';
 import { useToast } from '@/components/ui/toast';
 import { Anchor, Clock, CalendarDays, X, Check } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
 
 const DAYS = [
     { id: 1, label: 'M' },
@@ -88,25 +89,18 @@ export function CommitmentModal({ onClose, onSuccess }: CommitmentModalProps) {
 
             let serverSuccess = false;
             try {
-                const response = await fetch('/api/anchors', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(payload),
-                });
-
-                if (response.ok) {
-                    serverSuccess = true;
-                    const data = await response.json();
-                    showToast('⚓ Anchor set!', 'success');
-                } else {
-                    console.warn("Anchor API Failed:", await response.text());
-                    showToast('Saving locally (Sync pending)', 'info');
+                await apiClient.anchors.create(payload);
+                serverSuccess = true;
+                showToast('⚓ Anchor set!', 'success');
+            } catch (apiError: any) {
+                console.warn("Anchor API Failed:", apiError);
+                showToast(apiError.data?.message || 'Failed to sync anchor', 'error');
+                // We fallback to onSuccess locally even if server fails? 
+                // Actually if it fails with 401/403 we shouldn't.
+                if (apiError.status === 429) {
+                    showToast('Too many requests. Please wait.', 'error');
+                    return;
                 }
-            } catch (netError) {
-                console.warn("Network Error on Anchor:", netError);
-                showToast('Offline mode: Saved locally', 'info');
             }
 
             // Always update UI (Optimistic / Local Fallback)
