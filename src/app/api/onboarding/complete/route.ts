@@ -1,7 +1,30 @@
 import { secureApiRoute, apiSuccess, apiError, validateRequiredFields } from '@/lib/security/api-protection';
 import { createClient } from '@/lib/supabase/server';
 import { OnboardingData } from '@/types/database';
-import { generateStaticWeekPlan, persistWeekPlan } from '@/lib/scheduling/week-service';
+import { generateAIWeekPlan, generateStaticWeekPlan, persistWeekPlan } from '@/lib/scheduling/week-service';
+import { SupabaseClient } from '@supabase/supabase-js';
+
+/**
+ * Wrapper to decide plan generation strategy
+ */
+async function generateWeekPlan(
+    userId: string,
+    goals: any[],
+    profile: any,
+    commitments: any[],
+    supabase: SupabaseClient
+) {
+    try {
+        return await generateAIWeekPlan(userId, goals, profile, commitments);
+    } catch (e) {
+        console.error("AI Generation failed, falling back:", e);
+        return {
+            plan: generateStaticWeekPlan(goals, profile, commitments),
+            source: 'template',
+            message: 'Fallback to static template'
+        };
+    }
+}
 
 export const POST = secureApiRoute(
     async (context, body) => {
@@ -134,8 +157,11 @@ export const POST = secureApiRoute(
         console.log(`[Onboarding] Context Mode: ${contextData.computedMode}, Density: ${contextData.densityLimit}`);
 
         const profileConfig = {
+            preferred_name: full_name?.split(' ')[0],
             sleep_end,
             sleep_start,
+            energy_level,
+            stress_level,
             low_energy_mode: contextData.computedMode === 'recovery' || contextData.computedMode === 'survival'
         };
 
@@ -154,7 +180,8 @@ export const POST = secureApiRoute(
             processedGoals = allGoals || [];
         }
 
-        const plan = generateStaticWeekPlan(
+        const { plan, message, source } = await generateWeekPlan(
+            userId,
             processedGoals.map(g => ({
                 id: g.id,
                 title: g.title,
@@ -166,10 +193,13 @@ export const POST = secureApiRoute(
             finalCommitments.map(c => ({
                 days_of_week: c.days_of_week,
                 start_time: c.start_time,
-                end_time: c.end_time
-            })) || []
-            // TODO: Pass contextData.suggestedBufferMins if we update generateStaticWeekPlan signature
+                end_time: c.end_time,
+                title: c.title
+            })) || [],
+            supabase
         );
+
+        console.log(`[Onboarding] Plan generated via ${source}: ${message}`);
 
         // 4. Persist Plan
         let blocksCreated = 0;

@@ -1,5 +1,5 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
-import { generateAIResponse } from '@/lib/ai/groq-client';
+import { runAI } from '@/lib/ai/run-ai';
 import { createClient } from '@/lib/supabase/server';
 import { logAIRequest } from '@/lib/security/audit-logger';
 import { startOfDay, subDays, format } from 'date-fns';
@@ -61,65 +61,55 @@ export const GET = secureApiRoute(
         try {
             // Gather context data
             const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
-
             const [goalsResult, blocksResult, energyResult] = await Promise.all([
                 supabase
                     .from('goals')
                     .select('title, category, importance')
                     .eq('user_id', userId)
-                    .eq('is_paused', false)
+                    .eq('status', 'active')
                     .limit(5),
                 supabase
                     .from('schedule_blocks')
-                    .select('status, duration_minutes')
+                    .select('status, start_time, end_time')
                     .eq('user_id', userId)
-                    .gte('date', yesterday)
-                    .lte('date', today),
+                    .eq('date', today),
                 supabase
-                    .from('energy_logs')
-                    .select('level')
+                    .from('daily_logs')
+                    .select('energy_level')
                     .eq('user_id', userId)
-                    .order('created_at', { ascending: false })
-                    .limit(3),
+                    .eq('log_date', today)
+                    .single(),
             ]);
 
-            // Calculate stats
-            const completedBlocks = blocksResult.data?.filter(b => b.status === 'complete').length || 0;
+            const completedBlocks = blocksResult.data?.filter(b => b.status === 'done').length || 0;
             const totalBlocks = blocksResult.data?.length || 0;
-            const completionRate = totalBlocks > 0 ? Math.round((completedBlocks / totalBlocks) * 100) : 0;
-            const avgEnergy = energyResult.data?.length
-                ? Math.round(energyResult.data.reduce((sum, e) => sum + e.level, 0) / energyResult.data.length)
-                : 5;
 
-            const prompt = `
-User Context:
-- Name: ${profile.display_name || 'Friend'}
-- Current time: ${format(new Date(), 'h:mm a')}
-- Active goals: ${goalsResult.data?.map(g => `${g.title} (${g.category})`).join(', ') || 'None set'}
-- Yesterday's completion rate: ${completionRate}%
-- Recent energy level: ${avgEnergy}/10
+            // Construct Context for Neural OS
+            const homeContext = {
+                today: today,
+                schedule_stats: { total: totalBlocks, completed: completedBlocks },
+                energy: energyResult.data?.energy_level || 3,
+                active_goals: goalsResult.data?.map(g => `${g.title} (${g.category})`) || []
+            };
 
-Generate a personalized daily insight.
-`;
+            // Call Neural OS Runner
+            const response = await runAI({
+                channel: 'home',
+                input: "Generate daily insight", // Trigger
+                context: homeContext,
+                userId: userId,
+                twoPass: false // Simple summary
+            });
 
-            const response = await generateAIResponse(prompt, 'DAILY_INSIGHT', userId);
+            // Map Constitution response to DailyInsight-compatible structure for the UI
+            const insight: DailyInsight = {
+                greeting: `Good ${getTimeOfDay()}, ${profile.display_name || 'Friend'}!`,
+                insight: response.summary,
+                focusSuggestion: response.options?.[0]?.impact || 'Focus on your top priority today.',
+                encouragement: response.mode === 'propose' ? "I've suggested some adjustments to prevent burnout." : "The path is clear. Execute.",
+            };
+
             await logAIRequest(userId, '/api/ai/daily-insight', context.request, true);
-
-            // Parse JSON response
-            let insight: DailyInsight;
-            try {
-                const jsonMatch = response.match(/\{[\s\S]*\}/);
-                insight = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
-            } catch {
-                insight = {
-                    greeting: `Good ${getTimeOfDay()}, ${profile.display_name || 'Friend'}!`,
-                    insight: 'I\'m analyzing your patterns...',
-                    focusSuggestion: 'Pick your most important goal and start small.',
-                    encouragement: 'Every step forward counts!',
-                };
-            }
-
-            // Cache the result
             insightCache.set(cacheKey, { insight, timestamp: Date.now() });
 
             return apiSuccess({
@@ -129,6 +119,7 @@ Generate a personalized daily insight.
             });
 
         } catch (error) {
+            console.error("Daily Insight Error:", error);
             await logAIRequest(userId, '/api/ai/daily-insight', context.request, false, {
                 error: error instanceof Error ? error.message : 'Unknown error',
             });

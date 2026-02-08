@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { secureApiRoute, apiSuccess, apiError, validateRequiredFields } from '@/lib/security/api-protection';
-import { generateWeeklyReview } from '@/lib/ai/groq-client';
+import { runAI } from '@/lib/ai/run-ai';
 import { createClient } from '@/lib/supabase/server';
 import { logAIRequest } from '@/lib/security/audit-logger';
 
@@ -70,20 +70,32 @@ export const POST = secureApiRoute(
         const contextData = await ContextEngine.build(context.userId, new Date().toISOString().split('T')[0], supabase);
 
         try {
-            // Generate AI review
-            const reviewData = await generateWeeklyReview(
-                {
+            // Generate AI review via Neural OS
+            const aiResponse = await runAI({
+                channel: 'weekly_review',
+                input: "Generate Weekly Review",
+                context: {
                     plannedMinutes,
                     actualMinutes,
                     completionRate: (blocks?.filter(b => b.status === 'done').length || 0) / (blocks?.length || 1),
                     signals: allSignals.slice(0, 20),
                     constraints: allConstraints.slice(0, 10),
                     goals: goals || [],
-                    preferences: profile || {}
+                    preferences: profile || {},
+                    mode: contextData.computedMode,
+                    energyCapacity: contextData.energyCapacity
                 },
-                context.userId,
-                { mode: contextData.computedMode, energyCapacity: contextData.energyCapacity }
-            );
+                userId: context.userId,
+                twoPass: true
+            });
+
+            // Map Constitution output to DB schema
+            // "frictionPatterns" and "energyTrend" are not in the Global Schema.
+            // We must infer them or remove them from the UI requirement.
+            // For now, we default them or extract from summary if possible.
+            // The "Strategic Lever" is expected to be an option.
+
+            const strategicLever = aiResponse.options?.[0]; // "Identify EXACTLY ONE Strategic Lever"
 
             // Log AI request
             await logAIRequest(context.userId, '/api/weekly-review/generate', context.request, true);
@@ -97,11 +109,11 @@ export const POST = secureApiRoute(
                     week_end: weekEnd,
                     planned_minutes: Math.round(plannedMinutes),
                     actual_minutes: Math.round(actualMinutes),
-                    energy_trend: reviewData.energyTrend,
-                    stress_trend: reviewData.stressTrend,
-                    friction_patterns: reviewData.frictionPatterns,
-                    suggested_adjustment: reviewData.suggestedAdjustment,
-                    lever_action: reviewData.leverAction || null
+                    energy_trend: 'stable',
+                    stress_trend: 'stable',
+                    friction_patterns: [],
+                    suggested_adjustment: aiResponse.summary,
+                    lever_action: strategicLever ? { title: strategicLever.title, patch: strategicLever.patch } : null
                 }, {
                     onConflict: 'user_id,week_start',
                 })
@@ -113,7 +125,7 @@ export const POST = secureApiRoute(
             return apiSuccess({
                 review: {
                     ...review,
-                    wins: reviewData.wins,
+                    wins: [],
                 },
             });
 

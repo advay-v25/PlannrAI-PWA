@@ -1,105 +1,50 @@
-'use client';
+import * as React from "react"
+import { Slot } from "@radix-ui/react-slot"
+import { cva, type VariantProps } from "class-variance-authority"
+import { cn } from "@/lib/utils"
 
-import { forwardRef, ButtonHTMLAttributes } from 'react';
-import { motion, HTMLMotionProps } from 'framer-motion';
-import { cn } from '@/lib/utils';
-import { Loader2 } from 'lucide-react';
-
-interface GlassButtonProps extends Omit<HTMLMotionProps<'button'>, 'children'> {
-    variant?: 'default' | 'primary' | 'ghost' | 'danger';
-    size?: 'sm' | 'md' | 'lg';
-    loading?: boolean;
-    disabled?: boolean;
-    children: React.ReactNode;
-}
-
-const variants = {
-    default: 'glass hover:bg-[var(--glass-bg-hover)] active:bg-[var(--glass-bg-active)]',
-    primary: 'bg-gradient-to-r from-[var(--color-primary)] to-[#38bdf8] hover:opacity-90 text-black border-transparent shadow-[0_0_20px_rgba(6,182,212,0.5)] hover:shadow-[0_0_30px_rgba(6,182,212,0.6)]',
-    ghost: 'bg-transparent hover:bg-[var(--glass-bg)] border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
-    danger: 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/20 hover:border-red-500/40',
-};
-
-const sizes = {
-    sm: 'px-3 py-1.5 text-sm',
-    md: 'px-4 py-2 text-base',
-    lg: 'px-6 py-3 text-lg',
-};
-
-export const GlassButton = forwardRef<HTMLButtonElement, GlassButtonProps>(
-    ({
-        className,
-        variant = 'default',
-        size = 'md',
-        loading = false,
-        disabled = false,
-        children,
-        ...props
-    }, ref) => {
-        return (
-            <motion.button
-                ref={ref}
-                className={cn(
-                    'inline-flex items-center justify-center gap-2',
-                    'font-medium rounded-xl',
-                    'border border-[var(--glass-border)]',
-                    'transition-colors duration-200',
-                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-primary)]',
-                    'disabled:opacity-50 disabled:pointer-events-none',
-                    variants[variant],
-                    sizes[size],
-                    className
-                )}
-                disabled={disabled || loading}
-                whileHover={{ scale: disabled ? 1 : 1.02 }}
-                whileTap={{ scale: disabled ? 1 : 0.98 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                {...props}
-            >
-                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                {children}
-            </motion.button>
-        );
+const glassButtonVariants = cva(
+    "inline-flex items-center justify-center whitespace-nowrap rounded-xl text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-95",
+    {
+        variants: {
+            variant: {
+                default: "bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--text-primary)] hover:bg-[var(--glass-bg-hover)] hover:border-[var(--glass-border-highlight)] shadow-sm backdrop-blur-md",
+                primary: "bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary)]/90 shadow-[0_0_20px_rgba(255,77,0,0.3)] hover:shadow-[0_0_30px_rgba(255,77,0,0.5)] border border-[var(--color-primary)]/50",
+                ghost: "hover:bg-[var(--glass-bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+                glow: "bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--color-primary)] shadow-[0_0_15px_rgba(255,77,0,0.1)] hover:shadow-[0_0_25px_rgba(255,77,0,0.2)] hover:border-[var(--color-primary)]/30",
+            },
+            size: {
+                default: "h-10 px-4 py-2",
+                sm: "h-9 rounded-lg px-3",
+                lg: "h-12 rounded-xl px-8 text-base",
+                icon: "h-10 w-10",
+            },
+        },
+        defaultVariants: {
+            variant: "default",
+            size: "default",
+        },
     }
-);
+)
 
-GlassButton.displayName = 'GlassButton';
-
-// Static version for non-interactive contexts
-interface StaticGlassButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-    variant?: 'default' | 'primary' | 'ghost' | 'danger';
-    size?: 'sm' | 'md' | 'lg';
-    loading?: boolean;
+export interface GlassButtonProps
+    extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof glassButtonVariants> {
+    asChild?: boolean
 }
 
-export function StaticGlassButton({
-    className,
-    variant = 'default',
-    size = 'md',
-    loading = false,
-    disabled = false,
-    children,
-    ...props
-}: StaticGlassButtonProps) {
-    return (
-        <button
-            className={cn(
-                'inline-flex items-center justify-center gap-2',
-                'font-medium rounded-xl',
-                'border border-[var(--glass-border)]',
-                'transition-all duration-200',
-                'focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]',
-                'disabled:opacity-50 disabled:pointer-events-none',
-                'active:scale-[0.98]',
-                variants[variant],
-                sizes[size],
-                className
-            )}
-            disabled={disabled || loading}
-            {...props}
-        >
-            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            {children}
-        </button>
-    );
-}
+const GlassButton = React.forwardRef<HTMLButtonElement, GlassButtonProps>(
+    ({ className, variant, size, asChild = false, ...props }, ref) => {
+        const Comp = asChild ? Slot : "button"
+        return (
+            <Comp
+                className={cn(glassButtonVariants({ variant, size, className }))}
+                ref={ref}
+                {...props}
+            />
+        )
+    }
+)
+GlassButton.displayName = "GlassButton"
+
+export { GlassButton, glassButtonVariants }

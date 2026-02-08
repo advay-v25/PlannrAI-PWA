@@ -2,7 +2,7 @@
 import { z } from 'zod';
 import { CalendarPatchSchema } from '@/lib/validation/calendar-contract';
 
-export const BrainDumpSignalType = z.enum(['constraint', 'deviation', 'task', 'idea']);
+export const BrainDumpSignalType = z.enum(['constraint', 'deviation', 'task', 'idea', 'preference', 'milestone']);
 export type BrainDumpSignalType = z.infer<typeof BrainDumpSignalType>;
 
 export const ScoredSignalSchema = z.object({

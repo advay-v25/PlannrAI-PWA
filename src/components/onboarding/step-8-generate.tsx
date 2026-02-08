@@ -12,10 +12,13 @@ export function Step8Generate() {
 
     const [thinkingStep, setThinkingStep] = useState(0);
     const thinkingMessages = [
-        `Aligning ${data.goals[0]?.title || 'goals'} with your ${data.body_preferences?.activity_types[0] || 'movement'} preference...`,
-        `Protecting ${data.meals_per_day || 3} nutritional windows...`,
-        `Resolving ${data.commitments.length} fixed constraints...`,
-        "Protocol Ready."
+        "Initializing Neural Synthesis Engine...",
+        "Calibrating biological energy rhythms...",
+        "Mapping high-importance goal vectors...",
+        "Resolving commitment conflicts...",
+        "Optimizing for maximum life harmony...",
+        "Synthesizing Strategic Master Plan...",
+        "Donna is finalizing your optimization..."
     ];
 
     // Real Generation Logic

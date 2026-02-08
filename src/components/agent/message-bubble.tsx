@@ -1,112 +1,97 @@
 import { motion } from 'framer-motion';
+import { Bot, User, AlertTriangle, Check, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Bot, User, Check, RotateCcw } from 'lucide-react';
-import { OptionCard } from './option-card';
-import { useAgentStore } from '@/stores/agent-store';
-import type { CoachOption, CoachMode } from '@/types/coach-v4';
+import { GlassCard } from '@/components/ui/glass-card';
 
 interface MessageBubbleProps {
     id: string;
-    role: 'user' | 'agent';
+    role: 'user' | 'assistant' | 'system';
     content: string;
-
-    // V4 Props
-    mode?: CoachMode;
-    options?: CoachOption[];
-    undoToken?: string | null;
-    refusal?: { reason: string; question?: string | null };
-
-    timestamp: Date;
+    options?: any[]; // For structured patches
+    timestamp?: number;
     isImpossible?: boolean;
 }
 
-export const MessageBubble = ({ id, role, content, mode, options, undoToken, refusal, isImpossible, timestamp }: MessageBubbleProps) => {
+export function MessageBubble({ role, content, options, isImpossible }: MessageBubbleProps) {
     const isUser = role === 'user';
-    const { isApplying, undoAction } = useAgentStore();
-
-    const handleUndo = () => {
-        if (undoToken) undoAction(undoToken);
-    };
 
     return (
         <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
+            initial={{ opacity: 0, y: 10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
             className={cn(
                 "flex w-full gap-3",
                 isUser ? "flex-row-reverse" : "flex-row"
             )}
         >
+            {/* Avatar */}
             <div className={cn(
-                "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border",
-                isUser ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400" : "border-white/10 bg-white/5 text-white/70"
+                "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border",
+                isUser
+                    ? "bg-[var(--glass-bg)] border-[var(--glass-border)] text-[var(--text-secondary)]"
+                    : "bg-[var(--color-primary)]/10 border-[var(--color-primary)]/20 text-[var(--color-primary)]"
             )}>
-                {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
             </div>
 
+            {/* Bubble Content */}
             <div className={cn(
-                "relative max-w-[85%] space-y-2",
+                "max-w-[85%] space-y-2",
                 isUser ? "items-end" : "items-start"
             )}>
-                {/* Text Bubble */}
                 <div className={cn(
-                    "rounded-2xl px-4 py-3 text-sm leading-relaxed",
+                    "px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap shadow-sm",
                     isUser
-                        ? "bg-emerald-500/10 text-emerald-100 rounded-tr-sm"
-                        : "bg-white/5 text-white/80 rounded-tl-sm border border-white/5"
+                        ? "bg-[var(--glass-bg-hover)] border border-[var(--glass-border)] text-[var(--text-primary)] rounded-tr-sm"
+                        : "bg-[var(--color-bg-tertiary)] border border-[var(--glass-border)] text-[var(--text-secondary)] rounded-tl-sm"
                 )}>
                     {content}
-
-                    {/* EXECUTED MODE: Undo Button */}
-                    {!isUser && mode === 'executed' && undoToken && (
-                        <div className="mt-3 flex items-center gap-2 border-t border-white/5 pt-2">
-                            <span className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
-                                <Check className="w-3 h-3" /> Action Applied
-                            </span>
-                            <div className="flex-1" />
-                            <button
-                                onClick={handleUndo}
-                                disabled={isApplying}
-                                className="text-[10px] text-white/40 hover:text-white flex items-center gap-1 bg-white/5 px-2 py-1 rounded-md hover:bg-white/10 transition-colors"
-                            >
-                                <RotateCcw className="w-3 h-3" />
-                                {isApplying ? 'Reverting...' : 'Undo'}
-                            </button>
-                        </div>
-                    )}
                 </div>
 
-                {/* CHOICE MODE: Options Grid */}
-                {!isUser && mode === 'choice' && options && options.length > 0 && (
-                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                        {options.map((option) => (
-                            <OptionCard
-                                key={option.id}
-                                id={option.id}
-                                title={option.title}
-                                impact={option.impact}
-                                isApplying={isApplying}
-                            />
+                {/* Error / Warning State */}
+                {isImpossible && (
+                    <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 px-3 py-2 rounded-lg border border-red-500/20">
+                        <AlertTriangle className="w-3 h-3" />
+                        <span>I can't do that within your constraints.</span>
+                    </div>
+                )}
+
+                {/* Patch / Options UI */}
+                {options && options.length > 0 && (
+                    <div className="space-y-3 mt-2">
+                        {options.map((option, idx) => (
+                            <GlassCard key={idx} className="p-3 border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5 hover:bg-[var(--color-primary)]/10 transition-colors group cursor-pointer">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="space-y-1">
+                                        <h4 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)]" />
+                                            {option.title || "Proposed Change"}
+                                        </h4>
+                                        <p className="text-xs text-[var(--text-secondary)] line-clamp-2">
+                                            {option.impact || "Click to apply this adjustment."}
+                                        </p>
+                                    </div>
+                                    <ArrowRight className="w-4 h-4 text-[var(--color-primary)] opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+                                </div>
+
+                                {/* Mini Visualization of Ops (e.g. +1 Event, -1 Event) */}
+                                {option.patch?.ops && (
+                                    <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+                                        {option.patch.ops.slice(0, 3).map((op: any, i: number) => (
+                                            <div key={i} className="text-[10px] px-2 py-1 rounded bg-[var(--glass-bg)] border border-[var(--glass-border)] whitespace-nowrap font-mono text-[var(--text-tertiary)]">
+                                                {op.op.replace('_event', '').toUpperCase()}
+                                            </div>
+                                        ))}
+                                        {option.patch.ops.length > 3 && (
+                                            <div className="text-[10px] px-2 py-1 text-[var(--text-tertiary)]">+{option.patch.ops.length - 3}</div>
+                                        )}
+                                    </div>
+                                )}
+                            </GlassCard>
                         ))}
                     </div>
                 )}
-
-                {/* REFUSAL MODE */}
-                {!isUser && (mode === 'refusal' || isImpossible) && (
-                    <div className="mt-2 rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-xs text-red-300">
-                        {refusal?.reason || "I couldn't complete this action."}
-                        {refusal?.question && (
-                            <div className="mt-1 text-white/60 italic border-t border-white/5 pt-1">
-                                {refusal.question}
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                <span className="block px-1 text-[10px] text-white/30">
-                    {timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
             </div>
         </motion.div>
     );
-};
+}

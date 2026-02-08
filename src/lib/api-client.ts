@@ -162,7 +162,7 @@ export const apiClient = {
             create: (data: { trigger_habit: string; action_habit: string; goal_id?: string; action_duration_mins: number }) =>
                 this.post<{ success: boolean; data: { stack: HabitStack } }>('/api/habit-stacks', data),
             complete: (id: string) =>
-                this.post<{ success: boolean; data: { stack: HabitStack; streakInfo: { isNewRecord: boolean } } }>(`/api/habit-stacks/${id}/complete`, {}),
+                this.put<{ success: boolean; data: { stack: HabitStack; streakInfo: { isNewRecord: boolean } } }>('/api/habit-stacks', { id, mark_complete: true }),
             delete: (id: string) => this.delete(`/api/habit-stacks/${id}`)
         };
     },

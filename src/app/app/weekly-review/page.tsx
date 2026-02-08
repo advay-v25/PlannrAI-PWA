@@ -152,77 +152,118 @@ export default function WeeklyReviewPage() {
                 </GlassCard>
             ) : (
                 <div className="space-y-6">
-                    {/* SECTION 1: REALITY (Neutral Text) */}
-                    <section>
-                        <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--text-tertiary)] mb-3 text-center">
-                            Reality
-                        </h2>
-                        <GlassCard padding="md">
-                            <p className="leading-relaxed text-[var(--color-text-secondary)]">
-                                You planned about <span className="font-bold text-[var(--color-text-primary)]">{review.planned_minutes} mins</span>
-                                and completed <span className="font-bold text-[var(--color-text-primary)]">{review.actual_minutes} mins</span>.
-                                Your energy patterns seem <span className="font-bold text-[var(--color-text-primary)]">{review.energy_trend}</span>.
-                            </p>
-                        </GlassCard>
-                    </section>
-
-                    {/* SECTION 2: PATTERNS (Text Cards) */}
-                    {review.friction_patterns.length > 0 && (
-                        <section>
-                            <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--text-tertiary)] mb-3 text-center">
-                                What Stood Out
-                            </h2>
-                            <div className="space-y-2">
-                                {review.friction_patterns.map((pattern, i) => (
-                                    <GlassCard key={i} padding="sm" className="border-[var(--glass-border)]">
-                                        <div className="flex items-start gap-3">
-                                            <span className="text-[var(--color-primary)] mt-0.5">•</span>
-                                            <p className="text-sm text-[var(--color-text-secondary)]">{pattern}</p>
-                                        </div>
-                                    </GlassCard>
-                                ))}
+                    <div className="space-y-10 py-10">
+                        {/* SECTION 1: REALITY */}
+                        <section className="space-y-4">
+                            <div className="flex items-center justify-center gap-3">
+                                <div className="h-[1px] w-12 bg-gradient-to-r from-transparent to-white/10" />
+                                <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-[var(--text-tertiary)]">Reality</h2>
+                                <div className="h-[1px] w-12 bg-gradient-to-l from-transparent to-white/10" />
                             </div>
-                        </section>
-                    )}
-
-                    {/* SECTION 3: ONE LEVER (Action) */}
-                    <section>
-                        <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--text-tertiary)] mb-3 text-center">
-                            One Lever
-                        </h2>
-                        <GlassCard variant="glow" padding="lg" className="border-[var(--color-primary)]/30">
-                            <p className="text-lg font-medium text-center mb-6">
-                                "{review.suggested_adjustment}"
-                            </p>
-
-                            {!review.user_response ? (
-                                <div className="space-y-3">
-                                    <GlassButton
-                                        variant="primary"
-                                        size="lg"
-                                        onClick={() => handleResponse('accepted')}
-                                        className="w-full justify-between group"
-                                    >
-                                        <span>Apply Change</span>
-                                        <Check className="w-5 h-5 opacity-70 group-hover:opacity-100" />
-                                    </GlassButton>
-
-                                    <button
-                                        onClick={() => handleResponse('ignored')}
-                                        className="w-full py-2 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
-                                    >
-                                        Ignore
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="text-center py-2">
-                                    <p className="text-sm text-[var(--color-text-muted)]">
-                                        {review.user_response === 'accepted' ? 'Change applied.' : 'Suggestion ignored.'}
+                            <GlassCard padding="lg" className="border-white/5 shadow-xl text-center">
+                                <div className="flex flex-col gap-4">
+                                    <p className="text-base text-[var(--text-secondary)] leading-relaxed">
+                                        You invested <span className="text-white font-bold">{review.actual_minutes} minutes</span> in your goals this week,
+                                        achieving <span className="text-white font-bold">{Math.round((review.actual_minutes / (review.planned_minutes || 1)) * 100)}%</span> of your planned depth.
                                     </p>
+                                    <div className="flex items-center justify-center gap-6 pt-2">
+                                        <div className="text-center">
+                                            <div className="flex items-center justify-center gap-1.5 mb-1">
+                                                {getTrendIcon(review.energy_trend)}
+                                                <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-tertiary)]">Energy</span>
+                                            </div>
+                                            <p className="text-xs font-bold capitalize">{review.energy_trend}</p>
+                                        </div>
+                                        <div className="w-[1px] h-8 bg-white/5" />
+                                        <div className="text-center">
+                                            <div className="flex items-center justify-center gap-1.5 mb-1">
+                                                {getTrendIcon(review.stress_trend)}
+                                                <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-tertiary)]">Stress</span>
+                                            </div>
+                                            <p className="text-xs font-bold capitalize">{review.stress_trend}</p>
+                                        </div>
+                                    </div>
                                 </div>
-                            )}
-                        </GlassCard>
-                    </section>
+                            </GlassCard>
+                        </section>
+
+                        {/* SECTION 2: PATTERNS */}
+                        {review.friction_patterns.length > 0 && (
+                            <section className="space-y-4">
+                                <div className="flex items-center justify-center gap-3">
+                                    <div className="h-[1px] w-12 bg-gradient-to-r from-transparent to-white/10" />
+                                    <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-[var(--text-tertiary)]">Neural Insights</h2>
+                                    <div className="h-[1px] w-12 bg-gradient-to-l from-transparent to-white/10" />
+                                </div>
+                                <div className="grid grid-cols-1 gap-3">
+                                    {review.friction_patterns.map((pattern, i) => (
+                                        <motion.div
+                                            key={i}
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ delay: i * 0.1 }}
+                                        >
+                                            <GlassCard padding="md" className="border-white/5 hover:border-white/10 transition-colors">
+                                                <div className="flex items-start gap-4">
+                                                    <div className="w-6 h-6 rounded-full bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                        <span className="text-[10px] font-bold text-[var(--color-primary)]">{i + 1}</span>
+                                                    </div>
+                                                    <p className="text-sm font-medium leading-relaxed text-[var(--text-secondary)]">{pattern}</p>
+                                                </div>
+                                            </GlassCard>
+                                        </motion.div>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
+
+                        {/* SECTION 3: THE LEVER */}
+                        <section className="space-y-4">
+                            <div className="flex items-center justify-center gap-3">
+                                <div className="h-[1px] w-12 bg-gradient-to-r from-transparent to-[var(--color-primary)]/20" />
+                                <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-[var(--color-primary)]">Strategic Lever</h2>
+                                <div className="h-[1px] w-12 bg-gradient-to-l from-transparent to-[var(--color-primary)]/20" />
+                            </div>
+                            <GlassCard variant="glow" padding="lg" className="border-[var(--color-primary)]/30 shadow-[0_0_50px_var(--color-primary-glow)] relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:scale-110 transition-transform duration-700">
+                                    <TrendingUp className="w-32 h-32" />
+                                </div>
+
+                                <div className="relative z-10">
+                                    <p className="text-xl font-bold tracking-tight text-center mb-8 leading-snug">
+                                        "{review.suggested_adjustment}"
+                                    </p>
+
+                                    {!review.user_response ? (
+                                        <div className="flex flex-col gap-3">
+                                            <GlassButton
+                                                variant="primary"
+                                                size="lg"
+                                                onClick={() => handleResponse('accepted')}
+                                                className="w-full justify-between h-14 group/btn"
+                                            >
+                                                <span className="font-bold tracking-wide">Sync Protocol</span>
+                                                <Check className="w-5 h-5 group-hover/btn:scale-110 transition-transform" />
+                                            </GlassButton>
+
+                                            <button
+                                                onClick={() => handleResponse('ignored')}
+                                                className="w-full py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)] text-center hover:text-[var(--text-secondary)] transition-colors"
+                                            >
+                                                Dismiss Suggestion
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-4 bg-white/5 rounded-2xl border border-white/5">
+                                            <p className="text-xs font-bold uppercase tracking-widest text-[var(--color-primary)]">
+                                                {review.user_response === 'accepted' ? 'Protocol Synchronized' : 'Suggestion Archived'}
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            </GlassCard>
+                        </section>
+                    </div>
                 </div>
             )}
         </div>

@@ -1,21 +1,12 @@
 @import "tailwindcss";
 
 /* ========================================
-   PlannrAI - Lumix Theme V1
-   Deep Space, Vibrant Orange, Heavy Glass
+   PlannrAI - Neural OS Theme V2
+   Deep Space, Bioluminescent, Crystalline
    ======================================== */
 
 :root {
   /* ═══════════════════════════════════════
-     COLOR SYSTEM - Lumix Dark Mode
-     ═══════════════════════════════════════ */
-
-  /* Background Layers - Abyssal with Mesh Depth */
-  --color-bg-primary: hsl(240, 10%, 2%);
-  --color-bg-secondary: hsl(240, 10%, 4%);
-  --color-bg-tertiary: hsl(240, 10%, 6%);
-  --color-bg-elevated: hsl(240, 10%, 8%);
-
   /* Glass System - Luxury Quartz Glass */
   --glass-bg: rgba(10, 10, 12, 0.4);
   --glass-bg-hover: rgba(20, 20, 25, 0.5);
@@ -43,12 +34,16 @@
   --color-primary-glow: hsla(16, 100%, 60%, 0.3);
 
   /* Category Accents - Luxury Vibrant Palettes */
-  --color-mind: #A855F7;
-  /* Vibrant Purple */
-  --color-body: #10B981;
-  /* Emerald Green */
-  --color-craft: #F43F5E;
-  /* Rose Red */
+  --color-mind: hsl(270, 91%, 65%);
+  --color-mind-glow: hsla(270, 91%, 65%, 0.2);
+  --color-body: hsl(160, 84%, 39%);
+  --color-body-glow: hsla(160, 84%, 39%, 0.2);
+  --color-craft: hsl(349, 89%, 60%);
+  --color-craft-glow: hsla(349, 89%, 60%, 0.2);
+  --color-anchor: hsl(45, 93%, 47%);
+  --color-anchor-glow: hsla(45, 93%, 47%, 0.2);
+  --color-routine: hsl(280, 67%, 55%);
+  --color-routine-glow: hsla(280, 67%, 55%, 0.2);
 
   /* Luxury Overlays */
   --mesh-gradient:

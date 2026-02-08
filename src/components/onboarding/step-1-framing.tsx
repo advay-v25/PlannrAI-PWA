@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 export function Step1Framing() {
     const { data, updateData } = useOnboardingStore();
     const [typedText, setTypedText] = useState('');
-    const fullText = "Initialize Neural Link.";
+    const fullText = "Initialize Neural OS Calibration.";
 
     useEffect(() => {
         let i = 0;
@@ -75,12 +75,12 @@ export function Step1Framing() {
                         }}
                         className="mt-4 text-xs font-mono text-[var(--color-primary)] overflow-hidden"
                     >
-                        <span className="opacity-70">Identity confirmed. Creating user profile...</span>
+                        <span className="opacity-70">Identity confirmed. Initializing Donna (Chief of Staff)...</span>
                     </motion.div>
                 </div>
 
-                <p className="text-sm text-[var(--color-text-muted)] font-light">
-                    Neural link established. Accessing calibration modules.
+                <p className="text-sm text-[var(--color-text-muted)] font-light leading-relaxed">
+                    I've been designed to optimize your reality. We'll start by calibrating your biological rhythms and ambitions.
                 </p>
             </motion.div>
         </div>

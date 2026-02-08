@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Sparkles, X } from 'lucide-react';
+import { Send, Sparkles, X, Brain, ChevronRight } from 'lucide-react';
 import { useAgentStore } from '@/stores/agent-store';
 import { MessageBubble } from './message-bubble';
 import { cn } from '@/lib/utils';
@@ -21,13 +21,6 @@ export const ChatInterface = ({ className, onClose }: ChatInterfaceProps) => {
         endRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isLoading]);
 
-    // Initial greeting if empty
-    useEffect(() => {
-        if (messages.length === 0) {
-            // Optional: hydrate with a greeting
-        }
-    }, [messages.length]);
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!input.trim() || isLoading) return;
@@ -38,89 +31,111 @@ export const ChatInterface = ({ className, onClose }: ChatInterfaceProps) => {
     };
 
     return (
-        <div className={cn("flex h-full flex-col overflow-hidden bg-black/40 backdrop-blur-xl border-l border-white/5", className)}>
+        <div className={cn("flex h-full flex-col overflow-hidden bg-[var(--color-bg-secondary)]/90 backdrop-blur-xl", className)}>
             {/* Header */}
-            <div className="flex h-14 items-center justify-between border-b border-white/5 px-4">
+            <div className="flex h-14 items-center justify-between border-b border-[var(--glass-border)] px-4 bg-[var(--color-bg-tertiary)]/50">
                 <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/20 shadow-[0_0_15px_rgba(255,77,0,0.1)]">
                         <Sparkles className="h-4 w-4" />
                     </div>
                     <div>
-                        <h3 className="text-sm font-medium text-white">PlannrAI Agent</h3>
-                        <p className="text-[10px] text-white/40">Online • Driven by Reasoning</p>
+                        <h3 className="text-sm font-bold text-[var(--text-primary)]">Neural Coach</h3>
+                        <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-widest font-mono">Cortex V2 • Active</p>
                     </div>
                 </div>
                 {onClose && (
-                    <button onClick={onClose} className="text-white/40 hover:text-white">
+                    <button onClick={onClose} className="p-2 rounded-lg hover:bg-[var(--glass-bg-hover)] text-[var(--text-secondary)] transition-colors">
                         <X className="h-4 w-4" />
                     </button>
                 )}
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-white/10">
-                <div className="space-y-6">
-                    {messages.length === 0 && (
-                        <div className="flex h-[200px] flex-col items-center justify-center text-center opacity-40">
-                            <Sparkles className="mb-2 h-8 w-8 text-white/20" />
-                            <p className="text-sm text-white/60">How can I help you adjust your schedule?</p>
+            <div className="flex-1 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-[var(--glass-border)] space-y-6">
+                {messages.length === 0 && (
+                    <div className="flex h-full flex-col items-center justify-center text-center opacity-60 p-8">
+                        <div className="w-16 h-16 rounded-full bg-[var(--color-primary)]/5 border border-[var(--color-primary)]/10 flex items-center justify-center mb-4 animate-pulse-slow">
+                            <Brain className="w-8 h-8 text-[var(--color-primary)]" />
                         </div>
-                    )}
+                        <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">Systems Online</h3>
+                        <p className="text-sm text-[var(--text-secondary)]">
+                            I'm ready to analyze your schedule, optimize your energy, and clear your mind.
+                        </p>
+                    </div>
+                )}
 
-                    {messages.map((msg) => (
-                        <MessageBubble
-                            key={msg.id}
-                            id={msg.id}
-                            role={msg.role}
-                            content={msg.content}
-                            options={msg.options}
-                            timestamp={msg.timestamp}
-                            isImpossible={msg.isImpossible}
-                        />
-                    ))}
+                {messages.map((msg) => (
+                    <MessageBubble
+                        key={msg.id}
+                        id={msg.id}
+                        role={msg.role === 'agent' ? 'assistant' : msg.role}
+                        content={msg.content}
+                        options={msg.options}
+                        timestamp={msg.timestamp instanceof Date ? msg.timestamp.getTime() : msg.timestamp}
+                        isImpossible={msg.isImpossible}
+                    />
+                ))}
 
-                    {isLoading && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            className="flex items-center gap-2 px-4 text-xs text-white/30"
-                        >
-                            <div className="flex gap-1">
-                                {[0, 1, 2].map((i) => (
-                                    <motion.div
-                                        key={i}
-                                        animate={{ scale: [1, 1.2, 1] }}
-                                        transition={{ repeat: Infinity, duration: 0.6, delay: i * 0.2 }}
-                                        className="h-1.5 w-1.5 rounded-full bg-emerald-500/40"
-                                    />
-                                ))}
-                            </div>
-                        </motion.div>
-                    )}
-                    <div ref={endRef} />
-                </div>
+                {/* Thinking Visualization (Neural Activity) */}
+                {isLoading && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex flex-col gap-2 px-4 py-3 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] max-w-[80%]"
+                    >
+                        <div className="flex items-center gap-2 text-xs font-mono text-[var(--color-primary)] uppercase tracking-widest">
+                            <Brain className="w-3 h-3 animate-pulse" />
+                            <span>Neural Processing</span>
+                        </div>
+                        <div className="space-y-1">
+                            {/* Simulated "Two-Pass" steps */}
+                            <ThinkingStep text="Analyzing Context..." delay={0} />
+                            <ThinkingStep text="Checking Constraints..." delay={1.5} />
+                            <ThinkingStep text="Formulating Plan..." delay={3} />
+                        </div>
+                    </motion.div>
+                )}
+                <div ref={endRef} />
             </div>
 
             {/* Input Area */}
-            <div className="border-t border-white/5 p-4">
+            <div className="p-4 border-t border-[var(--glass-border)] bg-[var(--color-bg-tertiary)]/30">
                 <form onSubmit={handleSubmit} className="relative">
                     <input
                         ref={inputRef}
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        placeholder="e.g., I'm busy at 4pm today..."
-                        className="w-full rounded-xl border border-white/10 bg-white/5 py-3 pl-4 pr-12 text-sm text-white placeholder:text-white/20 focus:border-emerald-500/50 focus:bg-white/10 focus:outline-none"
+                        placeholder="Ask me to adjust your plan..."
+                        disabled={isLoading}
+                        className="w-full rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] py-3 pl-4 pr-12 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--color-primary)]/50 focus:bg-[var(--glass-bg-hover)] focus:outline-none transition-all disabled:opacity-50"
                     />
                     <button
                         type="submit"
                         disabled={!input.trim() || isLoading}
-                        className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-black transition-transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                        className="absolute right-2 top-2 bottom-2 aspect-square flex items-center justify-center rounded-lg bg-[var(--color-primary)] text-white transition-all hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:hover:bg-[var(--color-primary)]"
                     >
-                        <Send className="h-4 w-4" />
+                        {isLoading ? (
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                            <Send className="w-4 h-4" />
+                        )}
                     </button>
                 </form>
             </div>
         </div>
     );
 };
+
+// Helper for the "Thinking" list
+const ThinkingStep = ({ text, delay }: { text: string; delay: number }) => (
+    <motion.div
+        initial={{ opacity: 0, x: -10 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay }}
+        className="flex items-center gap-2 text-xs text-[var(--text-secondary)]"
+    >
+        <div className="w-1 h-1 rounded-full bg-[var(--text-tertiary)]" />
+        {text}
+    </motion.div>
+);

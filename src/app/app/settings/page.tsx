@@ -170,30 +170,29 @@ export default function SettingsPage() {
             </div>
 
             {/* Profile */}
-            <section className="space-y-3">
-                <div className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-[var(--color-text-muted)]" />
-                    <h2 className="font-medium">Profile</h2>
+            <section className="space-y-4">
+                <div className="flex items-center gap-2 px-1">
+                    <User className="w-4 h-4 text-[var(--color-primary)]" />
+                    <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Neural Profile</h2>
                 </div>
-
-                <GlassCard padding="md" className="space-y-4">
-                    <div className="flex items-center gap-3 pb-4 border-b border-[var(--glass-border)]">
-                        <div className="w-12 h-12 rounded-full bg-[var(--color-primary)]/20 flex items-center justify-center">
-                            <User className="w-6 h-6 text-[var(--color-primary)]" />
+                <GlassCard padding="lg" variant="glow" className="space-y-6 border-[var(--color-primary)]/20 shadow-[0_0_40px_var(--color-primary-glow)]">
+                    <div className="flex items-center gap-4 pb-6 border-b border-white/5">
+                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--color-primary)]/20 to-transparent flex items-center justify-center border border-[var(--color-primary)]/30">
+                            <User className="w-8 h-8 text-[var(--color-primary)]" />
                         </div>
-                        <div>
-                            <p className="font-medium">{profile?.preferred_name || profile?.full_name || userEmail}</p>
-                            <p className="text-sm text-[var(--color-text-muted)]">
+                        <div className="space-y-1">
+                            <p className="text-xl font-bold tracking-tight">{profile?.preferred_name || profile?.full_name || userEmail}</p>
+                            <p className="text-sm font-medium text-[var(--text-tertiary)] tracking-wide">
                                 {userEmail}
                             </p>
                         </div>
                     </div>
 
                     {/* Editable Name Fields */}
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm text-[var(--color-text-secondary)] mb-2">
-                                What should I call you?
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-tertiary)] px-1">
+                                Call Sign (Preferred Name)
                             </label>
                             <input
                                 type="text"
@@ -205,16 +204,13 @@ export default function SettingsPage() {
                                     }
                                 }}
                                 placeholder="e.g., Advay"
-                                className="w-full px-3 py-2 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:ring-1 focus:ring-[var(--color-primary)] transition-all"
+                                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/20 focus:border-[var(--color-primary)]/50 focus:ring-1 focus:ring-[var(--color-primary)]/20 transition-all outline-none font-medium"
                             />
-                            <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                                Used in greetings like "Good morning, {localPreferredName || 'Friend'}"
-                            </p>
                         </div>
 
-                        <div>
-                            <label className="block text-sm text-[var(--color-text-secondary)] mb-2">
-                                Full name
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-tertiary)] px-1">
+                                Designation (Full Name)
                             </label>
                             <input
                                 type="text"
@@ -226,7 +222,7 @@ export default function SettingsPage() {
                                     }
                                 }}
                                 placeholder="Your full name"
-                                className="w-full px-3 py-2 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:ring-1 focus:ring-[var(--color-primary)] transition-all"
+                                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/20 focus:border-[var(--color-primary)]/50 focus:ring-1 focus:ring-[var(--color-primary)]/20 transition-all outline-none font-medium"
                             />
                         </div>
                     </div>
@@ -234,36 +230,36 @@ export default function SettingsPage() {
             </section>
 
             {/* Time & Constraints */}
-            <section className="space-y-3">
-                <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-[var(--color-text-muted)]" />
-                    <h2 className="font-medium">Time & Constraints</h2>
+            <section className="space-y-4">
+                <div className="flex items-center gap-2 px-1">
+                    <Clock className="w-4 h-4 text-[var(--color-primary)]" />
+                    <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Temporal Anchors</h2>
                 </div>
 
-                <GlassCard padding="md" className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)] mb-2">
-                                <Moon className="w-4 h-4" />
-                                Sleep starts
+                <GlassCard padding="lg" className="border-white/5 shadow-xl">
+                    <div className="grid grid-cols-2 gap-8">
+                        <div className="space-y-3">
+                            <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-tertiary)] px-1">
+                                <Moon className="w-3.5 h-3.5" />
+                                System Wind-down
                             </label>
                             <input
                                 type="time"
                                 value={profile?.sleep_start || '22:00'}
                                 onChange={(e) => handleUpdate({ sleep_start: e.target.value })}
-                                className="w-full px-3 py-2 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--color-text-primary)]"
+                                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:border-[var(--color-primary)]/50 transition-all outline-none font-mono"
                             />
                         </div>
-                        <div>
-                            <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)] mb-2">
-                                <Sun className="w-4 h-4" />
-                                Wake up
+                        <div className="space-y-3">
+                            <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-tertiary)] px-1">
+                                <Sun className="w-3.5 h-3.5" />
+                                Neural Restoration
                             </label>
                             <input
                                 type="time"
                                 value={profile?.sleep_end || '07:00'}
                                 onChange={(e) => handleUpdate({ sleep_end: e.target.value })}
-                                className="w-full px-3 py-2 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--color-text-primary)]"
+                                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:border-[var(--color-primary)]/50 transition-all outline-none font-mono"
                             />
                         </div>
                     </div>
@@ -291,55 +287,64 @@ export default function SettingsPage() {
             </section>
 
             {/* AI Permissions */}
-            <section className="space-y-3">
-                <div className="flex items-center gap-2">
-                    <Shield className="w-4 h-4 text-[var(--color-text-muted)]" />
-                    <h2 className="font-medium">AI Permissions</h2>
+            <section className="space-y-4">
+                <div className="flex items-center gap-2 px-1">
+                    <Shield className="w-4 h-4 text-[var(--color-primary)]" />
+                    <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Neural Agency</h2>
                 </div>
 
-                <GlassCard padding="md" className="space-y-4">
-                    <GlassToggle
-                        checked={profile?.ai_can_suggest || false}
-                        onChange={(checked) => handleUpdate({ ai_can_suggest: checked })}
-                        label="Suggest strategies"
-                        description="I can offer ideas when you're stuck"
-                    />
-                    <div className="border-t border-[var(--glass-border)]" />
-                    <GlassToggle
-                        checked={profile?.ai_can_analyze || false}
-                        onChange={(checked) => handleUpdate({ ai_can_analyze: checked })}
-                        label="Analyze patterns"
-                        description="I can learn from your habits"
-                    />
-                    <div className="border-t border-[var(--glass-border)]" />
-                    <GlassToggle
-                        checked={profile?.ai_can_draft || false}
-                        onChange={(checked) => handleUpdate({ ai_can_draft: checked })}
-                        label="Draft proposals"
-                        description="I can prepare adjustments for review"
-                    />
+                <GlassCard padding="lg" className="space-y-2 border-white/5 shadow-xl">
+                    <div className="px-1 py-1">
+                        <GlassToggle
+                            checked={profile?.ai_can_suggest || false}
+                            onChange={(checked) => handleUpdate({ ai_can_suggest: checked })}
+                            label="Strategic Insights"
+                            description="AI can identify high-leverage opportunities"
+                        />
+                    </div>
+                    <div className="border-t border-white/5 mx-2" />
+                    <div className="px-1 py-1">
+                        <GlassToggle
+                            checked={profile?.ai_can_analyze || false}
+                            onChange={(checked) => handleUpdate({ ai_can_analyze: checked })}
+                            label="Pattern Synthesis"
+                            description="Enable cross-module intelligence learning"
+                        />
+                    </div>
+                    <div className="border-t border-white/5 mx-2" />
+                    <div className="px-1 py-1">
+                        <GlassToggle
+                            checked={profile?.ai_can_draft || false}
+                            onChange={(checked) => handleUpdate({ ai_can_draft: checked })}
+                            label="Drafting Protocols"
+                            description="AI can prepare schedule mutations for review"
+                        />
+                    </div>
                 </GlassCard>
             </section>
 
             {/* AI Usage Stats */}
-            <section className="space-y-3">
-                <div className="flex items-center gap-2">
+            <section className="space-y-4">
+                <div className="flex items-center gap-2 px-1">
                     <Sparkles className="w-4 h-4 text-[var(--color-primary)]" />
-                    <h2 className="font-medium">AI Usage</h2>
+                    <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Intelligence Heartbeat</h2>
                 </div>
 
-                <GlassCard padding="md">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <p className="text-sm text-[var(--color-text-secondary)] mb-1">Today</p>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-xl font-bold">{aiUsage?.daily || 0}</span>
-                                <span className="text-xs text-[var(--color-text-muted)]">/ {aiUsage?.limit.toLocaleString() || '14,400'}</span>
+                <GlassCard padding="lg" className="border-white/5 shadow-xl overflow-hidden relative">
+                    <div className="absolute top-0 right-0 p-6 opacity-10">
+                        <Activity className="w-24 h-24" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-8 relative z-10">
+                        <div className="space-y-1">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-tertiary)]">Daily Cycles</p>
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-2xl font-bold tracking-tighter">{aiUsage?.daily || 0}</span>
+                                <span className="text-xs font-medium text-[var(--text-tertiary)]">/ {aiUsage?.limit.toLocaleString() || '14,400'}</span>
                             </div>
                         </div>
-                        <div>
-                            <p className="text-sm text-[var(--color-text-secondary)] mb-1">This Month</p>
-                            <p className="text-xl font-bold">{aiUsage?.monthly || 0}</p>
+                        <div className="space-y-1">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-tertiary)]">Current Period</p>
+                            <p className="text-2xl font-bold tracking-tighter">{aiUsage?.monthly || 0}</p>
                         </div>
                     </div>
                 </GlassCard>

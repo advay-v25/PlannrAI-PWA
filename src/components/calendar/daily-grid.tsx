@@ -133,12 +133,12 @@ export function DailyGrid({
                     const isRoutine = block.block_type === 'routine' || block.block_type === 'wind_down';
 
                     const colors: Record<string, string> = {
-                        mind: 'from-blue-500/20 to-indigo-500/20 shadow-blue-500/10 border-blue-500/30',
-                        body: 'from-orange-500/20 to-red-500/20 shadow-orange-500/10 border-orange-500/30',
-                        craft: 'from-emerald-500/20 to-teal-500/20 shadow-emerald-500/10 border-emerald-500/30',
-                        anchor: 'from-amber-500/20 to-yellow-500/20 shadow-amber-500/10 border-amber-500/30',
-                        routine: 'from-purple-500/20 to-fuchsia-500/20 shadow-purple-500/10 border-purple-500/30',
-                        default: 'from-primary/20 to-primary/10 shadow-primary/5 border-primary/20'
+                        mind: 'from-[var(--color-mind)]/10 to-[var(--color-mind)]/5 border-[var(--color-mind)]/30 shadow-[0_0_20px_var(--color-mind-glow)]',
+                        body: 'from-[var(--color-body)]/10 to-[var(--color-body)]/5 border-[var(--color-body)]/30 shadow-[0_0_20px_var(--color-body-glow)]',
+                        craft: 'from-[var(--color-craft)]/10 to-[var(--color-craft)]/5 border-[var(--color-craft)]/30 shadow-[0_0_20px_var(--color-craft-glow)]',
+                        anchor: 'from-[var(--color-anchor)]/10 to-[var(--color-anchor)]/5 border-[var(--color-anchor)]/30 shadow-[0_0_20px_var(--color-anchor-glow)]',
+                        routine: 'from-[var(--color-routine)]/10 to-[var(--color-routine)]/5 border-[var(--color-routine)]/30 shadow-[0_0_20px_var(--color-routine-glow)]',
+                        default: 'from-primary/10 to-primary/5 border-primary/20 shadow-[0_0_20px_var(--color-primary-glow)]'
                     };
 
                     const type = isAnchor ? 'anchor' : isRoutine ? 'routine' : block.goal?.category || 'default';
@@ -147,10 +147,11 @@ export function DailyGrid({
                     return (
                         <motion.div
                             key={block.id}
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            whileHover={{ scale: 0.99, x: -2 }}
-                            className={`block-card absolute rounded-2xl border bg-gradient-to-br backdrop-blur-md p-3 flex flex-col gap-1.5 cursor-pointer transition-all hover:shadow-lg hover:shadow-black/20 ${colorClasses}`}
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            whileHover={{ scale: 1.01, y: -2, rotate: 0.5 }}
+                            whileTap={{ scale: 0.98 }}
+                            className={`block-card absolute rounded-3xl border bg-gradient-to-br backdrop-blur-xl p-4 flex flex-col gap-2 cursor-pointer transition-all hover:border-white/20 active:shadow-inner ${colorClasses}`}
                             style={{
                                 top: top + 4,
                                 height: height - 8,
@@ -185,7 +186,7 @@ export function DailyGrid({
 
                             {/* Status Indicator */}
                             <div className={`absolute top-0 right-0 w-1 h-full rounded-r-2xl ${block.status === 'done' ? 'bg-emerald-500' :
-                                    block.status === 'missed' ? 'bg-red-500' : 'bg-transparent'
+                                block.status === 'missed' ? 'bg-red-500' : 'bg-transparent'
                                 }`} />
                         </motion.div>
                     );

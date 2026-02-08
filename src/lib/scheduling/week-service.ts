@@ -1,15 +1,133 @@
-import { createClient } from '@/lib/supabase/server';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { runAI } from '@/lib/ai/run-ai';
+
 
 export interface WeekPlanResult {
     plan: {
         schedule: Record<string, Array<{ time: string; end_time: string; title: string; goal_id: string; type: string }>>;
         reasoning: any;
-        flexibility: any[];
+        flexibility?: any[];
         tips: string[];
     };
     source: 'ai' | 'template' | 'empty';
     message: string;
+    analysis?: any; // To store the Constitution-compliant response metadata
+}
+
+/**
+ * Generates an AI-powered week plan using the Neural Synthesis engine.
+ */
+export async function generateAIWeekPlan(
+    userId: string,
+    goals: Array<{ id: string; title: string; category: string; minutes_per_day: number; importance: string }>,
+    profile: {
+        preferred_name?: string;
+        sleep_end?: string;
+        sleep_start?: string;
+        low_energy_mode?: boolean;
+        energy_level?: number;
+        stress_level?: number;
+        workValues?: any;
+        biologicalValues?: any;
+    } | null,
+    commitments: Array<{ days_of_week: number[]; start_time: string; end_time: string; title?: string }>
+): Promise<WeekPlanResult> {
+
+    // Construct simplified context
+    const onboardingContext = {
+        role: 'planner',
+        goals: goals.map(g => ({ title: g.title, category: g.category, minutes: g.minutes_per_day, importance: g.importance })),
+        preferences: profile,
+        constraints: {
+            work_start: profile?.workValues?.workStartHours,
+            work_end: profile?.workValues?.workEndHours,
+            sleep_start: profile?.biologicalValues?.sleepTarget || profile?.sleep_start
+        },
+        commitments: commitments.map(c => ({ title: c.title, days: c.days_of_week, start: c.start_time, end: c.end_time }))
+    };
+
+    try {
+        const response = await runAI({
+            channel: 'onboarding',
+            input: "Generate initial week plan",
+            context: onboardingContext,
+            userId,
+            twoPass: true
+        });
+
+        if (response.mode === 'refuse') {
+            return {
+                plan: generateStaticWeekPlan(goals, profile, commitments),
+                source: 'template',
+                message: `AI_REFUSAL: ${response.summary}`,
+                analysis: response
+            };
+        }
+
+        // The Constitution returns a Patch (via options). 
+        // We need to convert this Patch (list of create_event ops) back into the 
+        // structure expected by the UI.
+
+        const plan: any = { schedule: {} };
+        const dayMap: Record<number, string> = { 0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat' };
+
+        const option = response.options?.[0]; // Take the first option/plan
+        let hasAiSchedule = false;
+
+        if (option && option.patch && option.patch.ops) {
+            for (const op of option.patch.ops) {
+                if (op.op === 'create_event') {
+                    // payload: { day_offset: 0-6, start: "09:00", end: "10:00", title: "Work" }
+                    const pl = op.payload as any;
+                    const dayName = dayMap[pl.day_offset ?? 0] || 'mon';
+                    if (!plan.schedule[dayName]) plan.schedule[dayName] = [];
+
+                    plan.schedule[dayName].push({
+                        time: pl.start,
+                        end_time: pl.end,
+                        title: pl.title || 'Focus Block',
+                        goal_id: pl.goal_id || 'AI_GEN',
+                        type: 'goal'
+                    });
+                    hasAiSchedule = true;
+                }
+            }
+        }
+
+        // Fill empty days
+        ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach(d => {
+            if (!plan.schedule[d]) plan.schedule[d] = [];
+        });
+
+        if (!hasAiSchedule) {
+            console.warn("AI returned no schedule ops, falling back to static.");
+            return {
+                plan: generateStaticWeekPlan(goals, profile, commitments),
+                source: 'template',
+                message: response.summary,
+                analysis: response
+            };
+        }
+
+        return {
+            plan: {
+                schedule: plan.schedule,
+                reasoning: { overview: response.summary },
+                tips: ["Review your plan", "Adjust as needed"]
+            },
+            source: 'ai',
+            message: response.summary,
+            analysis: response
+        };
+
+    } catch (e) {
+        console.error("Onboarding Generation Error", e);
+        return {
+            plan: generateStaticWeekPlan(goals, profile, commitments),
+            source: 'template',
+            message: "AI generation failed, used fallback.",
+        };
+    }
 }
 
 /**
@@ -62,7 +180,7 @@ export function generateStaticWeekPlan(
     const toTime = (m: number) => {
         const h = Math.floor(m / 60) % 24;
         const min = m % 60;
-        return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+        return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')} `;
     };
 
     // 1. Place Anchors
@@ -142,38 +260,52 @@ export function generateStaticWeekPlan(
 
         // C. Place in Day
         targetDays.forEach(day => {
-            const preferredStart = toMins(categoryTimes[goal.category] || '09:00');
             const dayEnd = toMins(sleepTime);
             const dayStartCap = toMins(wakeTime);
+            const buffer = 15;
+
+            // Biological Rhythm Scoring
+            // Higher is better for this goal
+            const getEnergyFit = (timeMins: number) => {
+                const hour = timeMins / 60;
+                if (goal.category === 'mind') {
+                    // Peak Focus: 8 AM - 12 PM
+                    if (hour >= 8 && hour <= 12) return 100;
+                    if (hour > 12 && hour <= 15) return 50;
+                    return 0;
+                }
+                if (goal.category === 'body') {
+                    // Physical Peak: Morning (7-9) or Early Evening (16-18)
+                    if (hour >= 7 && hour <= 9) return 80;
+                    if (hour >= 16 && hour <= 18) return 100;
+                    return 20;
+                }
+                if (goal.category === 'craft') {
+                    // Afternoon flow: 13 PM - 17 PM
+                    if (hour >= 13 && hour <= 17) return 100;
+                    return 30;
+                }
+                return 50;
+            };
 
             // Find Gap
-            // Sort occupied slots
             const occupied = dayState[day].occupied.sort((a, b) => a.start - b.start);
-
             let bestSlot = -1;
+            let highestEnergyScore = -1;
 
-            // Try preferred time first
-            if (isFree(occupied, preferredStart, preferredStart + duration)) {
-                bestSlot = preferredStart;
-            } else {
-                // Scan for ANY free slot starting from wake time
-                let candidate = dayStartCap;
-                // Add tiny buffer between tasks (e.g. 15 mins)
-                const buffer = 15;
+            // Scan slots to find the one with the best biological fit
+            let current = dayStartCap;
 
-                for (let i = 0; i < occupied.length; i++) {
-                    const slot = occupied[i];
-                    // Check gap before this slot
-                    if (slot.start - candidate >= duration + buffer) {
-                        bestSlot = candidate + buffer; // Add buffer
-                        break;
+            // Check all potential slots in 15min increments
+            while (current + duration <= dayEnd) {
+                if (isFree(occupied, current, current + duration)) {
+                    const score = getEnergyFit(current);
+                    if (score > highestEnergyScore) {
+                        highestEnergyScore = score;
+                        bestSlot = current;
                     }
-                    candidate = Math.max(candidate, slot.end);
                 }
-                // Check gap after last slot
-                if (bestSlot === -1 && (dayEnd - candidate >= duration + buffer)) {
-                    bestSlot = candidate + buffer;
-                }
+                current += 15;
             }
 
             if (bestSlot !== -1) {
@@ -260,7 +392,7 @@ function addMinutesToTime(time: string, minutes: number): string {
     const totalMins = hours * 60 + mins + minutes;
     const newHours = Math.floor(totalMins / 60) % 24;
     const newMins = totalMins % 60;
-    return `${String(newHours).padStart(2, '0')}:${String(newMins).padStart(2, '0')}`;
+    return `${String(newHours).padStart(2, '0')}:${String(newMins).padStart(2, '0')} `;
 }
 
 /**
