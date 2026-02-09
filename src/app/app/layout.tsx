@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Calendar, Brain, Activity, User, Sparkles, Menu } from 'lucide-react';
+import { LayoutDashboard, Calendar, Brain, Activity, User, Sparkles, Menu, Target } from 'lucide-react';
 import { ChatInterface } from '@/components/agent/chat-interface';
 import { cn } from '@/lib/utils';
 
@@ -14,10 +14,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     const navItems = [
         { href: '/app', icon: LayoutDashboard, label: 'Home' },
+        { href: '/app/goals', icon: Target, label: 'Goals' }, // Added Goals
         { href: '/app/calendar', icon: Calendar, label: 'Time' },
         { href: '/app/brain-dump', icon: Brain, label: 'Dump' },
         { href: '/app/weekly-review', icon: Activity, label: 'Review' },
-        { href: '/app/settings', icon: User, label: 'Me' },
+        // Removed 'Me', handled by bottom profile
     ];
 
     return (
@@ -50,18 +51,35 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                             </Link>
                         );
                     })}
+
+                    {/* AI Coach Button in Sidebar */}
+                    <button
+                        onClick={() => setIsCoachOpen(!isCoachOpen)}
+                        className={cn(
+                            "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all group",
+                            isCoachOpen
+                                ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/20"
+                                : "text-[var(--text-secondary)] hover:bg-[var(--glass-bg-hover)] hover:text-[var(--text-primary)]"
+                        )}
+                    >
+                        <Sparkles className={cn("w-5 h-5", isCoachOpen ? "text-[var(--color-primary)]" : "text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]")} />
+                        <span className="font-medium">AI Coach</span>
+                    </button>
                 </nav>
 
                 <div className="p-4 border-t border-[var(--glass-border)]">
-                    <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)]">
-                        <div className="w-8 h-8 rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center border border-[var(--color-primary)]/20">
+                    <Link
+                        href="/app/settings"
+                        className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] hover:bg-[var(--glass-bg-hover)] transition-all cursor-pointer group"
+                    >
+                        <div className="w-8 h-8 rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center border border-[var(--color-primary)]/20 group-hover:border-[var(--color-primary)] transition-colors">
                             <User className="w-4 h-4 text-[var(--color-primary)]" />
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">User</p>
-                            <p className="text-xs text-[var(--text-tertiary)] truncate">Pro Plan</p>
+                            <p className="text-sm font-medium truncate group-hover:text-[var(--color-primary)] transition-colors">User</p>
+                            <p className="text-xs text-[var(--text-tertiary)] truncate">Settings</p>
                         </div>
-                    </div>
+                    </Link>
                 </div>
             </aside>
 
@@ -72,23 +90,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             )}>
 
                 {/* Top System Bar */}
-                <header className="h-14 flex items-center justify-between px-6 border-b border-[var(--glass-border)] bg-[var(--color-bg-secondary)]/50 backdrop-blur-md z-20">
+                <header className="h-14 flex items-center justify-between px-6 border-b border-[var(--glass-border)] bg-[var(--color-bg-secondary)]/50 backdrop-blur-md z-20 md:hidden">
+                    {/* Mobile Header Content - simplified since Sidebar handles desktop */}
                     <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-[var(--color-primary)] animate-pulse-slow" />
-                        <span className="text-xs font-mono text-[var(--text-tertiary)] uppercase tracking-widest">Neural OS v2.0</span>
+                        <span className="text-xs font-mono text-[var(--text-tertiary)] uppercase tracking-widest">Neural OS</span>
                     </div>
-
                     <button
                         onClick={() => setIsCoachOpen(!isCoachOpen)}
-                        className={cn(
-                            "flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all",
-                            isCoachOpen
-                                ? "bg-[var(--color-primary)]/10 border-[var(--color-primary)] text-[var(--color-primary)]"
-                                : "bg-[var(--glass-bg)] border-[var(--glass-border)] text-[var(--text-secondary)] hover:text-white"
-                        )}
+                        className="p-2 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg)] text-[var(--text-secondary)]"
                     >
                         <Sparkles className="w-4 h-4" />
-                        <span className="text-xs font-medium hidden sm:inline">AI Coach</span>
                     </button>
                 </header>
 
@@ -99,7 +111,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     </div>
                 </div>
 
-                {/* Bottom Navigation Dock (Mobile First) */}
+                {/* Bottom Navigation Dock (Mobile Only) */}
                 <nav className="md:hidden absolute bottom-6 left-4 right-4 h-16 glass-panel rounded-full flex items-center justify-around px-2 z-30">
                     {navItems.map((item) => {
                         const isActive = pathname === item.href;
@@ -116,6 +128,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                             </Link>
                         );
                     })}
+                    {/* Mobile Settings Link (since 'Me' was removed from navItems) */}
+                    <Link
+                        href="/app/settings"
+                        className={cn(
+                            "flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all",
+                            pathname === '/app/settings' ? "text-[var(--color-primary)] bg-[var(--color-primary)]/10" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                        )}
+                    >
+                        <User className="w-5 h-5" />
+                    </Link>
                 </nav>
             </main>
 
@@ -126,8 +148,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             )}>
                 <ChatInterface onClose={() => setIsCoachOpen(false)} />
             </aside>
-
-            {/* Desktop Sidebar (Optional - using bottom/top for now for cleaner 'OS' feel, but can add if requested) */}
         </div>
     );
 }
