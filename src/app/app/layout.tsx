@@ -23,7 +23,49 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return (
         <div className="flex h-dvh w-full overflow-hidden bg-[var(--color-bg-primary)] text-[var(--text-primary)]">
 
-            {/* Mobile/Desktop Content Area */}
+            {/* Desktop Sidebar */}
+            <aside className="hidden md:flex flex-col w-64 border-r border-[var(--glass-border)] bg-[var(--color-bg-secondary)]/30 backdrop-blur-xl z-30">
+                <div className="h-14 flex items-center px-6 border-b border-[var(--glass-border)]">
+                    <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-mind)] bg-clip-text text-transparent">
+                        PlannrAI
+                    </span>
+                </div>
+
+                <nav className="flex-1 p-4 space-y-2">
+                    {navItems.map((item) => {
+                        const isActive = pathname === item.href;
+                        return (
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                className={cn(
+                                    "flex items-center gap-3 px-4 py-3 rounded-xl transition-all group",
+                                    isActive
+                                        ? "bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--color-primary)] shadow-[var(--shadow-sm)]"
+                                        : "text-[var(--text-secondary)] hover:bg-[var(--glass-bg-hover)] hover:text-[var(--text-primary)]"
+                                )}
+                            >
+                                <item.icon className={cn("w-5 h-5", isActive ? "text-[var(--color-primary)]" : "text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]")} />
+                                <span className="font-medium">{item.label}</span>
+                            </Link>
+                        );
+                    })}
+                </nav>
+
+                <div className="p-4 border-t border-[var(--glass-border)]">
+                    <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)]">
+                        <div className="w-8 h-8 rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center border border-[var(--color-primary)]/20">
+                            <User className="w-4 h-4 text-[var(--color-primary)]" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">User</p>
+                            <p className="text-xs text-[var(--text-tertiary)] truncate">Pro Plan</p>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            {/* Content Area */}
             <main className={cn(
                 "flex-1 relative flex flex-col transition-all duration-300 ease-in-out",
                 isCoachOpen ? "mr-[400px]" : "mr-0"

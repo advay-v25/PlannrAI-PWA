@@ -9,6 +9,7 @@ export const ChannelEnum = z.enum([
     "brain_dump",
     "weekly_review",
     "settings",
+    "habit_stack",
 ]);
 
 export const ModeEnum = z.enum(["execute", "propose", "ask", "refuse"]);
@@ -41,6 +42,13 @@ export const PatchOpSchema = z.discriminatedUnion("op", [
     z.object({
         op: z.literal("update_settings"),
         fields: z.record(z.any()),
+    }),
+    z.object({
+        op: z.literal("create_habit_stack"),
+        trigger: z.string().min(1),
+        action: z.string().min(1),
+        duration: z.number().min(1).max(60),
+        time_of_day: z.enum(["morning", "afternoon", "evening", "anytime"]).optional(),
     }),
 ]);
 

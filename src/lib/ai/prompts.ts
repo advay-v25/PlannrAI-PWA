@@ -57,6 +57,14 @@ No gamification.
 Channel: settings
 Purpose: permissioned assistance. Only propose changes if asked. Confirm before apply.
 `.trim(),
+
+    habit_stack: `
+Channel: habit_stack
+Purpose: design a tiny, atomic habit stack (Anchor -> Action).
+- If context is vague, 'mode': 'ask' with a clarifying question.
+- If clear, 'mode': 'propose' with exactly 1 option containing 'create_habit_stack' op.
+- Action must be < 2 mins if possible (BJ Fogg style).
+`.trim(),
 };
 
 export function buildFeatureUserPrompt(args: {

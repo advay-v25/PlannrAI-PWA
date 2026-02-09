@@ -1,18 +1,11 @@
 import { secureApiRoute, apiSuccess, apiError, validateRequiredFields } from '@/lib/security/api-protection';
-import { generateAIResponse } from '@/lib/ai/groq-client';
+import { runAI } from '@/lib/ai/run-ai';
 import { validateInput } from '@/lib/security/input-validator';
 import { createClient } from '@/lib/supabase/server';
 
 interface ConversationMessage {
     role: 'user' | 'assistant';
     content: string;
-}
-
-interface HabitStackResult {
-    trigger_habit: string;
-    action_habit: string;
-    action_duration_mins: number;
-    best_time?: string;
 }
 
 export const POST = secureApiRoute(
@@ -54,84 +47,65 @@ export const POST = secureApiRoute(
             return apiError('AI suggestions are disabled in your settings', 403);
         }
 
-        // Build the prompt based on conversation state
-        let prompt: string;
+        // Build context for Neural OS
+        const aiContext = {
+            goal: sanitizedName,
+            user_name: profile.preferred_name,
+            history: conversationHistory,
+            last_answer: sanitizedAnswers,
+        };
 
-        if (conversationHistory.length === 0) {
-            // Initial request - AI should ask questions
-            prompt = `The user wants to build a habit stack for: "${sanitizedName}"
-
-User's name: ${profile.preferred_name || 'there'}
-
-This is the START of the conversation. Ask 2-3 specific questions to understand their routine so you can create the perfect habit stack for them.`;
-        } else {
-            // Follow-up - user has answered questions
-            const historyText = conversationHistory
-                .map(m => `${m.role === 'user' ? 'User' : 'You'}: ${m.content}`)
-                .join('\n');
-
-            prompt = `The user wants to build a habit stack for: "${sanitizedName}"
-
-CONVERSATION SO FAR:
-${historyText}
-
-${sanitizedAnswers ? `USER'S LATEST ANSWERS: ${sanitizedAnswers}` : ''}
-
-Based on their answers, either:
-1. Ask 1-2 more clarifying questions if needed, OR
-2. Generate the final habit stack if you have enough information`;
-        }
+        const input = conversationHistory.length === 0
+            ? `I want to build a habit stack for: "${sanitizedName}". Help me design it.`
+            : `User answered: ${sanitizedAnswers}. Based on this and history, design the stack or ask clarification.`;
 
         try {
-            const response = await generateAIResponse(
-                prompt,
-                'HABIT_STACK_GENERATOR',
-                context.userId,
-                true // JSON mode
-            );
+            // Use Neural OS Agent
+            const response = await runAI({
+                channel: 'habit_stack',
+                input: input,
+                context: aiContext,
+                userId: context.userId,
+                limits: { max_options: 1 } // We only want one best stack proposal
+            });
 
-            // Parse the response
-            const parsed = JSON.parse(response);
-
-            if (parsed.type === 'questions') {
+            // Map Neural OS response to Habit Stack format
+            if (response.mode === 'ask' && response.question) {
                 return apiSuccess({
                     type: 'questions',
-                    message: parsed.message,
-                    questions: parsed.questions,
+                    message: response.summary,
+                    questions: response.question.choices || [response.question.prompt],
                 });
-            } else if (parsed.type === 'generated') {
-                // Validate the generated stack
-                const stack = parsed.habitStack as HabitStackResult;
+            } else if ((response.mode === 'propose' || response.mode === 'execute') && response.options?.[0]) {
+                const option = response.options[0];
+                const patch = option.patch.ops.find(op => op.op === 'create_habit_stack');
 
-                if (!stack.trigger_habit || !stack.action_habit) {
-                    return apiError('AI generated incomplete habit stack');
+                if (patch && patch.op === 'create_habit_stack') {
+                    return apiSuccess({
+                        type: 'generated',
+                        message: response.summary,
+                        habitStack: {
+                            trigger_habit: patch.trigger,
+                            action_habit: patch.action,
+                            action_duration_mins: patch.duration,
+                            best_time: patch.time_of_day,
+                        },
+                    });
                 }
-
-                return apiSuccess({
-                    type: 'generated',
-                    message: parsed.message,
-                    habitStack: {
-                        trigger_habit: stack.trigger_habit,
-                        action_habit: stack.action_habit,
-                        action_duration_mins: Math.min(30, Math.max(1, stack.action_duration_mins || 5)),
-                        best_time: stack.best_time || 'morning',
-                    },
-                });
-            } else {
-                // Fallback - try to extract any useful data
-                return apiSuccess({
-                    type: 'questions',
-                    message: "Let me help you create the perfect habit stack!",
-                    questions: [
-                        "What time of day would work best for this habit?",
-                        "What's something you already do consistently that could trigger this new habit?"
-                    ],
-                });
             }
+
+            // Fallback or Refusal
+            return apiSuccess({
+                type: 'questions',
+                message: response.refusal?.reason || "I need a bit more detail to design this perfectly.",
+                questions: [
+                    "When do you want to do this?",
+                    "What is a reliable anchor habit you already do?"
+                ],
+            });
+
         } catch (error) {
             console.error('Habit stack AI error:', error);
-
-            // Return fallback questions
             return apiSuccess({
                 type: 'questions',
                 message: "I'd love to help you build this habit! Let me ask a few questions.",
