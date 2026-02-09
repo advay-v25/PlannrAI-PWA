@@ -6,7 +6,12 @@
    ======================================== */
 
 :root {
-  /* ═══════════════════════════════════════
+  /* ═══════════════════════════════════════ */
+  /* Background Layers - Abyssal Depth */
+  --color-bg-primary: #050508;
+  --color-bg-secondary: #0A0A0E;
+  --color-bg-tertiary: #121218;
+
   /* Glass System - Luxury Quartz Glass */
   --glass-bg: rgba(10, 10, 12, 0.4);
   --glass-bg-hover: rgba(20, 20, 25, 0.5);
