@@ -158,14 +158,20 @@ function CalendarContent() {
         return () => window.removeEventListener('calendar-refresh', handleRefresh);
     }, [selectedDate, weekStart]);
 
+    const [anchors, setAnchors] = useState<any[]>([]);
+
     async function loadData() {
         setIsLoading(true);
         try {
-            // Fetch goals (still via supabase for now, could be simplified)
+            // Fetch goals
             const { data: goalsData } = await supabase.from('goals').select('*');
             if (goalsData) setGoals(goalsData);
 
-            // Fetch blocks for the selected day directly from API
+            // Fetch Commitments (Anchors)
+            const { data: anchorsData } = await supabase.from('commitments').select('*').eq('is_active', true);
+            if (anchorsData) setAnchors(anchorsData);
+
+            // Fetch blocks
             const dateStr = format(selectedDate, 'yyyy-MM-dd');
             const { blocks: blocksData } = await apiClient.schedule.list(dateStr, dateStr);
             setBlocks(blocksData);
@@ -177,64 +183,97 @@ function CalendarContent() {
         }
     }
 
-    useEffect(() => {
-        loadData();
-    }, [selectedDate, weekStart, searchParams]);
+    const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+
+    const navigateWeek = (direction: 'next' | 'prev') => {
+        setWeekStart(current => addDays(current, direction === 'next' ? 7 : -7));
+    };
 
     const handleStatusChange = async (blockId: string, newStatus: BlockStatus) => {
         try {
-            const blockToUpdate = blocks.find(b => b.id === blockId);
-            const { block } = await apiClient.schedule.updateBlock(blockId, { status: newStatus });
+            setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, status: newStatus } : b));
+            await apiClient.schedule.updateStatus(blockId, newStatus);
 
-            // Resonance Signal
-            apiClient.behavior.logSignal(newStatus === 'done' ? 'complete' : 'miss', {
+            // Log signal
+            apiClient.behavior.logSignal('complete', {
                 block_id: blockId,
-                title: blockToUpdate?.goal?.title || blockToUpdate?.context || undefined,
-                goal_id: blockToUpdate?.goal_id || undefined
+                status: newStatus
             });
-
-            setBlocks((prev) => prev.map((b) => (b.id === blockId ? { ...b, status: newStatus } : b)));
-
-            const statusLabels: Record<BlockStatus, string> = {
-                done: '✅ Completed!',
-                partial: '🟡 Partial progress',
-                missed: '❌ Marked as missed',
-                planned: '📅 Reset to planned'
-            };
-            showToast(statusLabels[newStatus], newStatus === 'done' ? 'success' : 'info');
-        } catch (e: any) {
-            showToast(e.data?.error || 'Failed to update status', 'error');
+        } catch (e) {
+            showToast('Failed to update status', 'error');
+            // Revert on error
+            loadData();
         }
     };
 
-    const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-    const navigateWeek = (direction: 'prev' | 'next') => {
-        const newWeekStart = addDays(weekStart, direction === 'next' ? 7 : -7);
-        setWeekStart(newWeekStart);
-        setSelectedDate(newWeekStart);
-    };
-
-    const handlePlanApplied = () => {
+    const handlePlanApplied = async () => {
+        await loadData();
         setShowWeekPlanner(false);
-        loadData();
+        showToast('Week plan applied successfully', 'success');
     };
 
     const handleOptimizeDay = async () => {
         setIsOptimizing(true);
         showToast('✨ Optimizing your day...', 'info');
         try {
-            const response = await apiClient.post<any>('/api/ai/optimize-day', {
+            // 1. Prepare Context
+            const context = {
                 date: format(selectedDate, 'yyyy-MM-dd'),
-                blocks,
-                energyLevel: todayLog?.energy_level || 3
+                blocks: blocks.map(b => ({
+                    ...b,
+                    is_fixed: isBlockImmutable(b) // Helper for AI to know what not to touch
+                })),
+                goals: goals.filter(g => g.status === 'active'),
+                anchors: anchors, // Send full anchors list so AI can place them
+                user_energy: todayLog?.energy_level || 3,
+                preferences: {
+                    low_energy_mode: profile?.low_energy_mode
+                }
+            };
+
+            // 2. Call AI Gateway
+            const response = await apiClient.post<any>('/api/ai/execute', {
+                channel: 'calendar',
+                input: "Optimize my schedule for today. Ensure all anchors are present and fit goals around them according to my energy.",
+                context,
+                limits: { max_options: 1 }
             });
-            const data = response.data;
-            if (data?.optimizedBlocks) {
-                setBlocks(data.optimizedBlocks.sort((a: { start_time: string }, b: { start_time: string }) => a.start_time.localeCompare(b.start_time)));
-                setAiReasoning(data.summary);
-                showToast('🚀 Day optimized!', 'success');
+
+            // 3. Process Response
+            const aiData = response.data || response; // Handle wrapped/unwrapped
+
+            if (aiData.options?.[0]?.patch?.ops) {
+                const ops = aiData.options[0].patch.ops;
+
+                // Convert ops to blocks
+                const newBlocks: any[] = [];
+
+                // We trust the AI to return the Full Day schedule in ops if we asked for optimization
+                // Or we can treat `create_event` as additions. 
+                // Given the 'sync' nature, we reconstruct the day.
+
+                ops.forEach((op: any) => {
+                    if (op.op === 'create_event') {
+                        newBlocks.push(op.payload);
+                    }
+                    // Handle move/update if needed, but for full opt usually it's create_event list
+                });
+
+                if (newBlocks.length > 0) {
+                    // 4. Apply Updates
+                    const result = await apiClient.schedule.sync(
+                        format(selectedDate, 'yyyy-MM-dd'),
+                        newBlocks
+                    );
+
+                    setBlocks(result.blocks.sort((a, b) => a.start_time.localeCompare(b.start_time)));
+                    setAiReasoning(aiData.summary);
+                    showToast('🚀 Day optimized!', 'success');
+                } else {
+                    showToast('AI suggested no changes.', 'info');
+                }
             } else {
-                showToast('No changes suggested', 'info');
+                showToast('No valid plan generated', 'warning');
             }
         } catch (error: any) {
             console.error(error);
@@ -455,7 +494,17 @@ function CalendarContent() {
             <AnimatePresence>
                 {showWeekPlanner && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={() => setShowWeekPlanner(false)}>
-                        <div className="w-full max-w-lg" onClick={e => e.stopPropagation()}><WeekPlanner onClose={() => setShowWeekPlanner(false)} onApply={handlePlanApplied} /></div>
+                        <div className="w-full max-w-lg" onClick={e => e.stopPropagation()}>
+                            <WeekPlanner
+                                onClose={() => setShowWeekPlanner(false)}
+                                onApply={handlePlanApplied}
+                                context={{
+                                    goals: goals.filter(g => g.status === 'active'),
+                                    anchors: anchors,
+                                    user_profile: { energy_level: todayLog?.energy_level }
+                                }}
+                            />
+                        </div>
                     </div>
                 )}
                 {editingBlock && (

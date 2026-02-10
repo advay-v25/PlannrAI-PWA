@@ -263,11 +263,14 @@ export function CreateHabitStack({ goalId, onCreated, onCancel }: CreateHabitSta
                 <GlassButton
                     variant="primary"
                     onClick={handleSubmit}
-                    disabled={!triggerHabit.trim() || !actionHabit.trim()}
-                    loading={isSubmitting}
+                    disabled={!triggerHabit.trim() || !actionHabit.trim() || isSubmitting}
                     className="w-full"
                 >
-                    <Sparkles className="w-4 h-4" />
+                    {isSubmitting ? (
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                        <Sparkles className="w-4 h-4 mr-2" />
+                    )}
                     Create Stack
                 </GlassButton>
             </div>
@@ -297,19 +300,36 @@ function CreateHabitStackWithAI({ onCreated, onCancel }: { onCreated: () => void
     const startConversation = async () => {
         setIsLoading(true);
         try {
-            const res = await fetch('/api/ai/generate-habit-stack', {
+            const res = await fetch('/api/ai/execute', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ stackName: habitName })
+                body: JSON.stringify({
+                    channel: 'habit_stack',
+                    input: `I want to build a habit: ${habitName}`,
+                    context: { mode: 'chat' }
+                })
             });
             const data = await res.json();
+            const aiData = data.data || data;
 
-            if (data.success) {
-                if (data.data.type === 'questions') {
+            if (aiData.summary) {
+                // Check if it's a question or a proposal
+                if (aiData.mode === 'ask' || (aiData.question && !aiData.options?.length)) {
                     setMessages([{
                         role: 'assistant',
-                        content: `${data.data.message}\n\n${data.data.questions.map((q: string) => `• ${q}`).join('\n')}`
+                        content: aiData.question || aiData.summary
                     }]);
+                } else if (aiData.options?.length > 0) {
+                    // Direct proposal (rare for first turn but possible)
+                    const op = aiData.options[0].patch?.ops?.find((o: any) => o.op === 'create_habit_stack');
+                    if (op) {
+                        setGeneratedStack({
+                            trigger_habit: op.payload.trigger,
+                            action_habit: op.payload.action,
+                            action_duration_mins: op.payload.duration || 2
+                        } as any);
+                        setStep('confirm');
+                    }
                 }
             }
         } catch (error) {
@@ -331,26 +351,45 @@ function CreateHabitStackWithAI({ onCreated, onCancel }: { onCreated: () => void
         setIsLoading(true);
 
         try {
-            const res = await fetch('/api/ai/generate-habit-stack', {
+            const res = await fetch('/api/ai/execute', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    stackName: habitName,
-                    conversationHistory: newMessages,
-                    userAnswers: userInput
+                    channel: 'habit_stack',
+                    input: userInput,
+                    context: {
+                        history: newMessages.map(m => ({ role: m.role, content: m.content })),
+                        habit_goal: habitName
+                    }
                 })
             });
             const data = await res.json();
+            const aiData = data.data || data;
 
-            if (data.success) {
-                if (data.data.type === 'questions') {
+            if (aiData.summary) {
+                if (aiData.options?.length > 0) {
+                    // Found a stack!
+                    const op = aiData.options[0].patch?.ops?.find((o: any) => o.op === 'create_habit_stack');
+                    if (op) {
+                        setGeneratedStack({
+                            trigger_habit: op.payload.trigger,
+                            action_habit: op.payload.action,
+                            action_duration_mins: op.payload.duration || 2
+                        } as any);
+                        setStep('confirm');
+                    } else {
+                        // Fallback if no op found but options exist (maybe just text?)
+                        setMessages(prev => [...prev, {
+                            role: 'assistant',
+                            content: aiData.summary //+ "\n(I couldn't generate a valid stack object, please try again)"
+                        }]);
+                    }
+                } else {
+                    // Continue chatting
                     setMessages(prev => [...prev, {
                         role: 'assistant',
-                        content: `${data.data.message}\n\n${data.data.questions.map((q: string) => `• ${q}`).join('\n')}`
+                        content: aiData.question || aiData.summary
                     }]);
-                } else if (data.data.type === 'generated') {
-                    setGeneratedStack(data.data.habitStack);
-                    setStep('confirm');
                 }
             }
         } catch (error) {
@@ -499,10 +538,14 @@ function CreateHabitStackWithAI({ onCreated, onCancel }: { onCreated: () => void
                             <GlassButton
                                 variant="primary"
                                 onClick={handleConfirm}
-                                loading={isLoading}
+                                disabled={isLoading}
                                 className="flex-1"
                             >
-                                <Check className="w-4 h-4 mr-2" />
+                                {isLoading ? (
+                                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                ) : (
+                                    <Check className="w-4 h-4 mr-2" />
+                                )}
                                 Save Stack
                             </GlassButton>
                         </div>

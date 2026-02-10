@@ -153,6 +153,10 @@ export const apiClient = {
                 this.put<{ block: ScheduleBlock }>('/api/schedule', { id, ...updates }),
             deleteBlock: (id: string) =>
                 this.delete<{ success: boolean }>('/api/schedule', { id }),
+            updateStatus: (id: string, status: BlockStatus) =>
+                this.put<{ block: ScheduleBlock }>('/api/schedule/status', { id, status }),
+            sync: (date: string, blocks: Partial<ScheduleBlock>[]) =>
+                this.post<{ success: boolean; blocks: ScheduleBlock[] }>('/api/schedule/sync', { date, blocks }),
         };
     },
 

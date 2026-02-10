@@ -48,24 +48,62 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         }));
 
         try {
-            // V4 Endpoint
-            const data = await apiClient.post<{ response: CoachResponse }>('/api/coach', {
-                message: text
+            // Call AI Gateway
+            // Channel: coach (V4 logic)
+            const gatewayRes = await apiClient.post<any>('/api/ai/execute', {
+                channel: 'coach',
+                input: text,
+                context: {
+                    history: get().messages.slice(-6).map(m => ({ role: m.role, content: m.content })),
+                    mode: 'chat'
+                }
             });
 
-            if ((data as any).error) throw new Error((data as any).error);
+            const data = gatewayRes.data || gatewayRes;
 
-            const response = data.response;
+            // Map AIResponse to Coach Message Structure
+            // AIResponse: { summary, options, question, refusal }
+            // Message: { content, options, mode, refusal, ... }
+
+            let mode: CoachMode = 'choice';
+            let content = data.summary;
+            let refusal = undefined;
+
+            if (data.refusal) {
+                mode = 'refusal';
+                refusal = { reason: data.refusal };
+            } else if (data.question && (!data.options || data.options.length === 0)) {
+                // If question but no options, it's effectively a chat/ask turn
+                // We keep mode as 'choice' (default) or could add 'ask' if needed
+                // UI handles questions via content usually
+                content = data.question || data.summary;
+            } else if (data.options?.length > 0) {
+                mode = 'choice';
+            } else {
+                // Just text response
+                mode = 'executed'; // 'executed' usually means "done". 
+                // But for chat, maybe we just use 'choice' with no options?
+                // Or leave mode undefined?
+                // Let's use 'choice' with empty options to imply "I'm listening/talking".
+                mode = 'choice';
+            }
+
+            // Map Options
+            const options: CoachOption[] = data.options?.map((opt: any, idx: number) => ({
+                id: `opt_${Date.now()}_${idx}`,
+                title: opt.title,
+                impact: opt.impact || opt.title,
+                patch: opt.patch
+            })) || [];
 
             const agentMsg: Message = {
                 id: crypto.randomUUID(),
                 role: 'agent',
-                content: response.summary,
-                mode: response.mode,
-                options: response.options,
-                undoToken: response.undo_token,
-                refusal: response.refusal,
-                isImpossible: response.mode === 'refusal',
+                content: content,
+                mode: mode,
+                options: options,
+                refusal: refusal,
+                isImpossible: mode === 'refusal',
                 timestamp: new Date()
             };
 
@@ -73,13 +111,6 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                 messages: [...state.messages, agentMsg],
                 isLoading: false
             }));
-
-            // Dispatch refresh if executed automatically
-            if (response.mode === 'executed') {
-                if (typeof window !== 'undefined') {
-                    window.dispatchEvent(new CustomEvent('calendar-refresh'));
-                }
-            }
 
         } catch (error) {
             console.error("Agent Error:", error);
@@ -120,7 +151,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         }
 
         try {
-            const data = await apiClient.post<{ success: boolean; undo_token: string }>('/api/coach/apply', {
+            // Use standard Apply Patch endpoint
+            const data = await apiClient.post<{ success: boolean; patch_run_id: string }>('/api/calendar/apply-patch', {
                 patch: selectedOption.patch
             });
 
@@ -130,7 +162,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                 role: 'agent',
                 content: `Applied: ${selectedOption.title}`,
                 mode: 'executed',
-                undoToken: data.undo_token,
+                undoToken: data.patch_run_id, // Store run ID as token
                 timestamp: new Date()
             };
 
@@ -155,7 +187,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     undoAction: async (token: string) => {
         set({ isApplying: true });
         try {
-            await apiClient.post('/api/coach/undo', { undo_token: token });
+            // Use standard Undo Patch endpoint
+            // It undoes the *last* action for the user, logic is LIFO.
+            // We pass token just in case we want to validate, but currently endpoint ignores it.
+            await apiClient.post('/api/patch/undo', { undo_token: token });
 
             // Add confirmation
             const undoMsg: Message = {

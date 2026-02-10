@@ -86,10 +86,14 @@ ${input}
         });
 
         try {
+            console.log(`[AI Raw Response] Request: ${input.slice(0, 50)}... \nResponse:`, text);
+
             const parsed = safeJsonParse(text);
             const validated = AIResponseSchema.parse(parsed);
             return validated;
         } catch (err: any) {
+            console.error(`[AI Validation Error] Attempt ${attempt + 1}:`, err);
+
             // Retry with strict corrective instruction (max 2 retries)
             if (attempt >= 2) {
                 console.error("AI Schema Validation Failed Final Attempt:", text);

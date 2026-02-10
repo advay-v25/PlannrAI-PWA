@@ -43,6 +43,15 @@ export default function BrainDumpPage() {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
+    const [goals, setGoals] = useState<any[]>([]);
+
+    // Load context on mount
+    useEffect(() => {
+        apiClient.get('/api/goals').then((data: any) => {
+            if (data?.goals) setGoals(data.goals);
+        }).catch(() => { });
+    }, []);
+
     const sendMessage = async (text?: string) => {
         const messageText = text || input.trim();
         if (!messageText || isLoading) return;
@@ -59,30 +68,44 @@ export default function BrainDumpPage() {
         setIsLoading(true);
 
         try {
-            const data = await apiClient.post<any>('/api/brain-dump/chat', {
-                message: messageText,
-                conversationHistory: messages.slice(-6).map(m => ({
-                    role: m.role,
-                    content: m.content,
-                })),
+            // Call AI Gateway
+            const response = await apiClient.post<any>('/api/ai/execute', {
+                channel: 'brain_dump',
+                input: messageText,
+                context: {
+                    history: messages.slice(-6).map(m => ({ role: m.role, content: m.content })),
+                    goals: goals.filter(g => g.status === 'active').map(g => ({ title: g.title, id: g.id })),
+                    mode: 'chat'
+                }
             });
 
-            // API returns { response, extractedActions } directly (or { error } on failure)
-            if (data.error) {
-                throw new Error(data.error);
-            }
+            // Handle Response
+            const aiData = response.data || response;
 
-            if (data.response) {
+            if (aiData.summary) {
                 const assistantMessage: Message = {
                     id: `donna-${Date.now()}`,
                     role: 'assistant',
-                    content: data.response,
-                    recommendedActions: data.recommendedActions, // Pass strict actions
+                    content: aiData.summary,
+                    // Map 'options' to 'recommendedActions'
+                    recommendedActions: aiData.options?.map((opt: any) => ({
+                        label: opt.title,
+                        patch: opt.patch,
+                        reasoning: opt.impact
+                    })),
                     timestamp: new Date(),
                 };
                 setMessages(prev => [...prev, assistantMessage]);
+            } else if (aiData.refusal) {
+                const refusalMsg: Message = {
+                    id: `donna-${Date.now()}`,
+                    role: 'assistant',
+                    content: aiData.refusal.reason,
+                    timestamp: new Date(),
+                };
+                setMessages(prev => [...prev, refusalMsg]);
             } else {
-                throw new Error('No response from Donna');
+                throw new Error('No valid response');
             }
         } catch (error) {
             console.error('Chat error:', error);

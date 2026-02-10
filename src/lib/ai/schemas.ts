@@ -10,14 +10,15 @@ export const ChannelEnum = z.enum([
     "weekly_review",
     "settings",
     "habit_stack",
+    "goal_decomposition",
 ]);
 
 export const ModeEnum = z.enum(["execute", "propose", "ask", "refuse"]);
 
-export const PatchOpSchema = z.discriminatedUnion("op", [
+export const PatchOpSchema = z.union([
     z.object({
         op: z.literal("create_event"),
-        payload: z.record(z.any()),
+        payload: z.record(z.string(), z.any()),
     }),
     z.object({
         op: z.literal("move_event"),
@@ -28,7 +29,7 @@ export const PatchOpSchema = z.discriminatedUnion("op", [
     z.object({
         op: z.literal("update_event"),
         event_id: z.string().min(1),
-        fields: z.record(z.any()),
+        fields: z.record(z.string(), z.any()),
     }),
     z.object({
         op: z.literal("delete_event"),
@@ -37,11 +38,11 @@ export const PatchOpSchema = z.discriminatedUnion("op", [
     z.object({
         op: z.literal("update_goal"),
         goal_id: z.string().min(1),
-        fields: z.record(z.any()),
+        fields: z.record(z.string(), z.any()),
     }),
     z.object({
         op: z.literal("update_settings"),
-        fields: z.record(z.any()),
+        fields: z.record(z.string(), z.any()),
     }),
     z.object({
         op: z.literal("create_habit_stack"),

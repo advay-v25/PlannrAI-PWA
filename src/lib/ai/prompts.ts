@@ -33,6 +33,7 @@ No week planning here.
 Channel: calendar
 Purpose: create/optimize schedules as patches only. Never output text-only plans.
 Respect anchors/sleep/meals/buffers. Leave intentional empty time.
+Use 'create_event' op with payload: { title: string, start_time: "HH:MM", end_time: "HH:MM", block_type: "task"|"goal"|"break", goal_id?: string }.
 `.trim(),
 
     coach: `
@@ -49,8 +50,35 @@ Never auto-apply large changes.
 
     weekly_review: `
 Channel: weekly_review
-Purpose: neutral truth + 3 patterns + exactly one lever as an executable patch.
-No gamification.
+Purpose: Analyze the provided context (week data) and generate a Weekly Review.
+REQUIRED OUTPUT STRUCTURE:
+{
+  "channel": "weekly_review",
+  "mode": "execute",
+  "summary": "A short, neutral summary of the week (under 120 chars).",
+  "options": [
+    {
+      "id": "review-lever",
+      "title": "Proposed Lever",
+      "impact": "High",
+      "patch": {
+        "ops": [
+          {
+            "op": "update_goal", 
+            "goal_id": "GOAL_ID_FROM_CONTEXT",
+            "fields": { "importance": "high" }
+          }
+        ],
+        "undoable": true,
+        "reason": "Explain why this lever helps."
+      }
+    }
+  ]
+}
+Rules:
+- You MUST return exactly 1 option in the 'options' array.
+- The 'patch' in the option must be valid and executable (e.g. update_goal, create_event).
+- Do not use markdown. Return raw JSON.
 `.trim(),
 
     settings: `
@@ -64,6 +92,15 @@ Purpose: design a tiny, atomic habit stack (Anchor -> Action).
 - If context is vague, 'mode': 'ask' with a clarifying question.
 - If clear, 'mode': 'propose' with exactly 1 option containing 'create_habit_stack' op.
 - Action must be < 2 mins if possible (BJ Fogg style).
+`.trim(),
+
+    goal_decomposition: `
+Channel: goal_decomposition
+Purpose: Decompose a goal into a high-precision execution plan.
+- Use 'mode': 'execute'.
+- Return exactly 1 option with a 'patch' containing an 'update_goal' op.
+- 'update_goal' payload: { goal_id: <context.goal_id>, fields: { ai_strategy: { ...strategy JSON... } } }.
+- Strategy JSON must include: strategy_one_liner, routine (frequency, duration_mins, steps, notes), milestones, checklist.
 `.trim(),
 };
 
@@ -89,8 +126,12 @@ ${FEATURE_RULES[channel]}
 
 Hard limits:
 - Output JSON only, matching the schema.
-- options length <= ${maxOptions}.
-- If mode=execute: options must be empty.
+- options length:
+  - If mode=execute: exactly 1 option (the action).
+  - If mode=propose: 1-3 options.
+  - If mode=ask: 0 options.
+  - If mode=refuse: 0 options.
+- summary must be a string (no objects).
 - If mode=ask: one question only.
 - If mode=refuse: refusal only.
 

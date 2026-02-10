@@ -62,23 +62,71 @@ export function GoalStrategyModal({
     const handleDecompose = async () => {
         setIsLoading(true);
         try {
-            const res = await fetch('/api/ai/decompose', {
+            const res = await fetch('/api/ai/execute', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ goal_id: goal.id, constraint_level: 'Beginner' })
+                body: JSON.stringify({
+                    channel: 'goal_decomposition',
+                    input: `Decompose goal: ${goal.title}`,
+                    context: {
+                        goal_id: goal.id,
+                        goal_title: goal.title,
+                        goal_category: goal.category,
+                        minutes_per_day: goal.minutes_per_day,
+                        skill_level: 'Beginner'
+                    }
+                })
             });
             const data = await res.json();
 
-            if (data.success && data.data?.plan) {
-                setStrategy(data.data.plan);
-                showToast('Strategy generated and saved!', 'ai', 3000);
-                onStrategyGenerated?.(data.data.plan);
-            } else if (data.plan) {
-                setStrategy(data.plan);
-                showToast('Strategy generated and saved!', 'ai', 3000);
-                onStrategyGenerated?.(data.plan);
+            // The Gateway returns { summary, options: [ { patch: ... } ] }
+            // But for this specific channel, we asked for a specific JSON structure in the prompt.
+            // The `runAI` wrapper wraps "free" JSON in `options[0].patch` OR we standardise.
+            // Wait, `runAI` enforces the `AIResponse` schema which has `options`, `patch`, etc.
+            // My prompt asked for: strategy_one_liner, routine, milestones...
+            // The `AIResponse` schema is strict. I need to map this.
+            // Actually, for `goal_decomposition`, I should probably use a `patch` op `update_goal`?
+            // OR I can stick to the pattern where the AI returns the plan in `options[0].patch` or a custom field?
+            // The `AIResponse` schema is: { summary, mode, options: [...] }
+            // If I want custom JSON, I might need to put it inside `options[0].patch` or `options[0].impact`?
+            // A better approach is to ask the AI to return `mode: 'propose'` and putting the plan in `options[0].args` or similar.
+            // Let's look at `AIResponse` again.
+
+            // Re-reading `runAI`: it forces `AIResponse`.
+            // My prompt in `prompts.ts` says: "Output strict JSON with: strategy_one_liner..."
+            // This CONFLICTS with `AIResponse`.
+            // Correct approach: The AI should return `mode: 'execute'` (or propose)
+            // and the `patch` should contain an op: `update_goal` with the strategy as payload.
+
+            if (data.success && data.data) {
+                const response = data.data;
+                const option = response.options?.[0];
+
+                // Check for update_goal op
+                let plan = null;
+                if (option?.patch?.ops) {
+                    const updateOp = option.patch.ops.find((op: any) => op.op === 'update_goal');
+                    if (updateOp?.fields?.ai_strategy) {
+                        plan = updateOp.fields.ai_strategy;
+                    }
+                }
+
+                if (plan) {
+                    setStrategy(plan);
+                    showToast('Strategy generated!', 'ai', 3000);
+                    onStrategyGenerated?.(plan);
+
+                    // The Gateway doesn't auto-execute 'execute' mode for safety unless we built a client-side executor.
+                    // For now, we just take the payload and let the UI/Store handle the save, 
+                    // OR we can rely on the fact that `onStrategyGenerated` likely saves it to DB via `updateGoal`.
+                    // Looking at `GoalsPage`: onStrategyGenerated calls `updateGoal(id, { ai_strategy: strategy })`.
+                    // So we are good!
+                } else {
+                    console.warn("AI Response missing strategy patch", response);
+                    showToast('AI format mismatch', 'error');
+                }
             } else {
-                showToast('Failed to generate strategy', 'error');
+                showToast(data.message || 'Failed to generate strategy', 'error');
             }
         } catch (e) {
             console.error(e);
@@ -189,11 +237,14 @@ export function GoalStrategyModal({
                         <GlassButton
                             variant="primary"
                             onClick={handleDecompose}
-                            loading={isLoading}
                             className="w-full max-w-xs mx-auto"
                         >
-                            <Sparkles className="w-4 h-4 mr-2" />
-                            Generate Strategy
+                            {isLoading ? (
+                                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                                <Sparkles className="w-4 h-4 mr-2" />
+                            )}
+                            {isLoading ? 'Synthesizing...' : 'Generate Strategy'}
                         </GlassButton>
                     </div>
                 ) : (
@@ -354,12 +405,11 @@ export function GoalStrategyModal({
                                                 variant="primary"
                                                 className="w-full"
                                                 onClick={() => handleSchedule()}
-                                                loading={isScheduling}
                                             >
-                                                <Calendar className="w-4 h-4 mr-2" />
-                                                {isRecurring
+                                                {isScheduling ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Calendar className="w-4 h-4 mr-2" />}
+                                                {isScheduling ? 'Scheduling...' : (isRecurring
                                                     ? `Schedule ${selectedDays.length} days × ${scheduledWeeks} week${scheduledWeeks > 1 ? 's' : ''}`
-                                                    : 'Add to Calendar'}
+                                                    : 'Add to Calendar')}
                                             </GlassButton>
                                         </div>
                                     </motion.div>
@@ -414,22 +464,20 @@ export function GoalStrategyModal({
                                         {/* Resolution Options */}
                                         <div className="space-y-2">
                                             <GlassButton
-                                                variant="danger"
-                                                className="w-full"
+                                                variant="primary" // Changed from danger to primary as danger is not supported
+                                                className="w-full bg-red-500/20 hover:bg-red-500/30 text-red-200 border-red-500/30"
                                                 onClick={() => handleSchedule(false, true)}
-                                                loading={isScheduling}
                                             >
-                                                <Replace className="w-4 h-4 mr-2" />
-                                                Replace Existing Blocks
+                                                {isScheduling ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Replace className="w-4 h-4 mr-2" />}
+                                                {isScheduling ? 'Replacing...' : 'Replace Existing Blocks'}
                                             </GlassButton>
                                             <GlassButton
                                                 variant="ghost"
                                                 className="w-full"
                                                 onClick={() => handleSchedule(true, false)}
-                                                loading={isScheduling}
                                             >
-                                                <SkipForward className="w-4 h-4 mr-2" />
-                                                Skip Conflicts
+                                                {isScheduling ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <SkipForward className="w-4 h-4 mr-2" />}
+                                                {isScheduling ? 'Skipping...' : 'Skip Conflicts'}
                                             </GlassButton>
                                             <button
                                                 onClick={() => setShowConflictDialog(false)}

@@ -60,19 +60,55 @@ export default function WeeklyReviewPage() {
         setError('');
 
         try {
-            const data = await apiClient.post<any>('/api/weekly-review/generate', {
-                weekStart: format(lastWeekStart, 'yyyy-MM-dd'),
-                weekEnd: format(lastWeekEnd, 'yyyy-MM-dd'),
-            });
+            const startStr = format(lastWeekStart, 'yyyy-MM-dd');
+            const endStr = format(lastWeekEnd, 'yyyy-MM-dd');
 
-            if (data.review) {
-                setReview(data.review);
-                showToast('✨ Review generated!', 'success');
+            // 1. Get Context
+            const contextRes = await apiClient.get<any>(`/api/weekly-review/context?weekStart=${startStr}&weekEnd=${endStr}`);
+
+            // 2. Call AI Gateway
+            // Note: We use 'weekly_review' channel which returns summary (adjustment) and options (lever)
+            const aiRes = await apiClient.post<any>('/api/ai/execute', {
+                channel: 'weekly_review',
+                input: 'Generate Weekly Review',
+                context: contextRes,
+                limits: { max_options: 1 }
+            });
+            const aiData = aiRes.data || aiRes;
+
+            if (aiData.summary) {
+                // 3. Construct Review Object
+                // We default trends/patterns for now as AI schema doesn't strictly support them yet without custom parsing
+                const reviewPayload = {
+                    week_start: startStr,
+                    week_end: endStr,
+                    planned_minutes: Math.round(contextRes.plannedMinutes || 0),
+                    actual_minutes: Math.round(contextRes.actualMinutes || 0),
+                    energy_trend: 'stable', // Placeholder
+                    stress_trend: 'stable', // Placeholder
+                    friction_patterns: [], // Placeholder
+                    suggested_adjustment: aiData.summary,
+                    lever_action: aiData.options?.[0] ? {
+                        type: 'update_schedule', // Default type, AI needs to be specific in patch
+                        payload: aiData.options[0].patch,
+                        description: aiData.options[0].title
+                    } : null
+                };
+
+                // 4. Save Review
+                const saveRes = await apiClient.post<any>('/api/weekly-review/save', { review: reviewPayload });
+
+                if (saveRes.review) {
+                    setReview(saveRes.review);
+                    showToast('✨ Review generated!', 'success');
+                } else {
+                    throw new Error('Failed to save');
+                }
             } else {
-                setError('Failed to generate review');
-                showToast('Failed to generate review', 'error');
+                throw new Error('AI failed to generate review');
             }
-        } catch (err) {
+        } catch (err: any) {
+            console.error(err);
             setError('Failed to generate review');
             showToast('Failed to generate review', 'error');
         } finally {
@@ -141,10 +177,17 @@ export default function WeeklyReviewPage() {
                     <GlassButton
                         variant="primary"
                         onClick={generateReview}
-                        loading={isGenerating}
+                        disabled={isGenerating}
                         className="w-full"
                     >
-                        Review Last Week
+                        {isGenerating ? (
+                            <>
+                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                Generating...
+                            </>
+                        ) : (
+                            'Review Last Week'
+                        )}
                     </GlassButton>
                     {error && (
                         <p className="text-sm text-red-400 mt-4">{error}</p>
