@@ -54,6 +54,12 @@ export const SYSTEM_PROMPTS = {
     BRAIN_DUMP: `Channel: brain_dump. Purpose: turn chaos into action. Extract tasks, constraints, emotions.`,
     WEEKLY_REVIEW: `Channel: weekly_review. Purpose: reflection with action. Propose exactly ONE lever via patch.`,
     SETTINGS: `Channel: settings. Purpose: permissioned assistance. manage sleep, diet, routines.`,
+    HABIT_OPTIMIZATION: `Channel: habit_optimization. Purpose: analyze completion rates and suggest improvements.`,
+    GOAL_SUGGESTION: `Channel: goal_suggestion. Purpose: suggest balanced goals based on user profile.`,
+    DONNA_BRAIN_DUMP: `Channel: brain_dump. Context: You are Donna, a warm and sharp supportive companion.`,
+    AGENT_PLANNER: `Channel: planner. Purpose: decompose goals and schedule tasks.`,
+    AGENT_REGULATOR: `Channel: regulator. Purpose: monitor energy and workload, suggest adjustments.`,
+    SMART_CATEGORIZATION: `Channel: categorization. Purpose: tag and categorize brain dumps.`,
 };
 
 export type SystemPromptType = keyof typeof SYSTEM_PROMPTS;
