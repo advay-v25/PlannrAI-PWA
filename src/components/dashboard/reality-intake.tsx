@@ -3,30 +3,161 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
-import { Zap, Brain, ChevronUp, X, Activity } from 'lucide-react';
+import { GlassButton } from '@/components/ui/glass-button';
+import {
+    Zap, Brain, X, Activity, Send, Loader2,
+    ArrowRight, Undo2, CheckCircle2, AlertCircle
+} from 'lucide-react';
 import Link from 'next/link';
+import type { ScheduleBlock, Goal } from '@/types/database';
+import { apiClient } from '@/lib/api-client';
+import type { Patch } from '@/lib/ai/schemas';
+
+interface MutationOption {
+    id: string;
+    title: string;
+    impact: string;
+    patch: Patch;
+}
 
 interface RealityIntakeProps {
     currentEnergy?: number;
     onEnergySet: (level: number) => void;
+    todayBlocks?: ScheduleBlock[];
+    goals?: Goal[];
+    onBlocksUpdated?: () => void;
 }
 
-export function RealityIntake({ currentEnergy, onEnergySet }: RealityIntakeProps) {
+export function RealityIntake({
+    currentEnergy,
+    onEnergySet,
+    todayBlocks = [],
+    goals = [],
+    onBlocksUpdated,
+}: RealityIntakeProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [selectedEnergy, setSelectedEnergy] = useState(currentEnergy || 3);
 
+    // Text input + AI state
+    const [textInput, setTextInput] = useState('');
+    const [isThinking, setIsThinking] = useState(false);
+    const [aiOptions, setAiOptions] = useState<MutationOption[]>([]);
+    const [aiSummary, setAiSummary] = useState('');
+    const [isApplying, setIsApplying] = useState(false);
+    const [lastVersionId, setLastVersionId] = useState<string | null>(null);
+    const [appliedOption, setAppliedOption] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
+
     const energyLabels = ['Depleted', 'Low', 'Moderate', 'Good', 'Peak'];
-    const energyColors = [
-        'var(--color-warning)', // using warning for low
-        'var(--color-warning)',
-        'var(--color-primary)',
-        'var(--color-primary)',
-        'var(--color-success)'
-    ];
+
+    const energyToState = (level: number) => {
+        if (level <= 2) return 'low';
+        if (level <= 3) return 'medium';
+        return 'high';
+    };
 
     const handleConfirm = () => {
         onEnergySet(selectedEnergy);
         setIsExpanded(false);
+    };
+
+    const handleTextSubmit = async () => {
+        if (!textInput.trim()) return;
+
+        setIsThinking(true);
+        setError(null);
+        setAiOptions([]);
+        setAiSummary('');
+        setAppliedOption(null);
+
+        try {
+            const aiData = await apiClient.ai.execute({
+                channel: 'home',
+                input: textInput,
+                context: {
+                    current_schedule: todayBlocks.map(b => ({
+                        id: b.id,
+                        title: b.title || b.context,
+                        start_time: b.start_time,
+                        end_time: b.end_time,
+                        block_type: b.block_type,
+                        is_fixed: b.is_fixed,
+                        status: b.status,
+                    })),
+                    goals: goals.map(g => ({
+                        id: g.id,
+                        title: g.title,
+                        category: g.category,
+                        importance: g.importance,
+                    })),
+                    user_state: { energy: energyToState(selectedEnergy) },
+                }
+            });
+
+            if (aiData.summary) {
+                setAiSummary(aiData.summary);
+            }
+
+            if (aiData.mode === 'propose' && aiData.options?.length > 0) {
+                // Map AI options to mutation options
+                const mapped: MutationOption[] = aiData.options.map((opt: any) => ({
+                    id: opt.id || crypto.randomUUID(),
+                    title: opt.title || 'Untitled Option',
+                    impact: opt.impact || 'Unknown',
+                    patch: opt.patch
+                }));
+                setAiOptions(mapped);
+            } else if (aiData.mode === 'refuse') {
+                setError(aiData.refusal?.reason || 'AI could not process this request.');
+            }
+        } catch (err: any) {
+            setError(err.message || 'Failed to process. Please try again.');
+            console.error('[RealityIntake] AI error:', err);
+        } finally {
+            setIsThinking(false);
+        }
+    };
+
+    const handleApplyOption = async (option: MutationOption) => {
+        setIsApplying(true);
+        setError(null);
+        try {
+            const data = await apiClient.patch.apply(option.patch, 'reality_intake');
+
+            if (data.versionId) {
+                setLastVersionId(data.versionId);
+            }
+            setAppliedOption(option.id);
+            onBlocksUpdated?.();
+        } catch (err) {
+            setError('Failed to apply changes.');
+            console.error('[RealityIntake] Apply error:', err);
+        } finally {
+            setIsApplying(false);
+        }
+    };
+
+    const handleUndo = async () => {
+        if (!lastVersionId && !appliedOption) return;
+        try {
+            await apiClient.patch.undo();
+            setLastVersionId(null);
+            setAppliedOption(null);
+            setAiOptions([]);
+            setAiSummary('');
+            setTextInput('');
+            onBlocksUpdated?.();
+        } catch (err) {
+            console.error('[RealityIntake] Undo error:', err);
+        }
+    };
+
+    const resetState = () => {
+        setAiOptions([]);
+        setAiSummary('');
+        setTextInput('');
+        setAppliedOption(null);
+        setError(null);
     };
 
     return (
@@ -94,10 +225,106 @@ export function RealityIntake({ currentEnergy, onEnergySet }: RealityIntakeProps
                                     </button>
                                 </div>
 
-                                {/* Energy Slider */}
-                                <div className="space-y-8">
-                                    {/* Visual Display */}
-                                    <div className="text-center py-4 relative">
+                                <div className="space-y-6">
+                                    {/* Reality Text Input */}
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider font-bold px-2">
+                                            What's changed?
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                value={textInput}
+                                                onChange={(e) => setTextInput(e.target.value)}
+                                                onKeyDown={(e) => e.key === 'Enter' && handleTextSubmit()}
+                                                placeholder="I'm busy at 4pm, meeting ran late…"
+                                                className="flex-1 px-4 py-3 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--color-primary)]/40 transition-colors"
+                                                disabled={isThinking || !!appliedOption}
+                                            />
+                                            <button
+                                                onClick={handleTextSubmit}
+                                                disabled={!textInput.trim() || isThinking || !!appliedOption}
+                                                className="p-3 rounded-xl bg-[var(--color-primary)] text-white disabled:opacity-40 hover:bg-[var(--color-primary)]/90 transition-colors"
+                                            >
+                                                {isThinking ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : (
+                                                    <Send className="w-4 h-4" />
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* AI Response Options */}
+                                    <AnimatePresence mode="wait">
+                                        {aiSummary && !appliedOption && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, y: -10 }}
+                                                className="space-y-3"
+                                            >
+                                                <p className="text-sm text-[var(--text-secondary)] px-2">
+                                                    {aiSummary}
+                                                </p>
+                                                {aiOptions.map((option) => (
+                                                    <motion.button
+                                                        key={option.id}
+                                                        onClick={() => handleApplyOption(option)}
+                                                        disabled={isApplying}
+                                                        className="w-full p-3 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] hover:border-[var(--color-primary)]/30 transition-all text-left group"
+                                                        whileHover={{ scale: 1.01 }}
+                                                        whileTap={{ scale: 0.99 }}
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <div>
+                                                                <p className="text-sm font-medium text-[var(--text-primary)]">{option.title}</p>
+                                                                <p className="text-xs text-[var(--text-tertiary)] mt-0.5">{option.impact}</p>
+                                                            </div>
+                                                            <ArrowRight className="w-4 h-4 text-[var(--text-tertiary)] group-hover:text-[var(--color-primary)] transition-colors" />
+                                                        </div>
+                                                    </motion.button>
+                                                ))}
+                                            </motion.div>
+                                        )}
+
+                                        {/* Applied Success */}
+                                        {appliedOption && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                className="space-y-3"
+                                            >
+                                                <div className="flex items-center gap-2 px-2">
+                                                    <CheckCircle2 className="w-4 h-4 text-[var(--color-success)]" />
+                                                    <p className="text-sm text-[var(--color-success)] font-medium">Schedule updated</p>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <GlassButton variant="ghost" size="sm" onClick={handleUndo} className="flex-1">
+                                                        <Undo2 className="w-4 h-4 mr-1" /> Undo
+                                                    </GlassButton>
+                                                    <GlassButton variant="primary" size="sm" onClick={resetState} className="flex-1">
+                                                        Done
+                                                    </GlassButton>
+                                                </div>
+                                            </motion.div>
+                                        )}
+
+                                        {/* Error */}
+                                        {error && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-[var(--color-warning)]/10 border border-[var(--color-warning)]/20"
+                                            >
+                                                <AlertCircle className="w-4 h-4 text-[var(--color-warning)] flex-shrink-0" />
+                                                <p className="text-xs text-[var(--color-warning)]">{error}</p>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+
+                                    {/* Energy Slider */}
+                                    <div className="text-center py-2 relative">
                                         <div className="absolute inset-0 bg-[var(--color-primary)]/5 blur-3xl rounded-full transform scale-75" />
                                         <motion.div
                                             key={selectedEnergy}
@@ -105,10 +332,10 @@ export function RealityIntake({ currentEnergy, onEnergySet }: RealityIntakeProps
                                             animate={{ scale: 1, opacity: 1 }}
                                             className="relative z-10"
                                         >
-                                            <span className="text-4xl font-bold text-[var(--text-primary)] block mb-1">
+                                            <span className="text-3xl font-bold text-[var(--text-primary)] block mb-0.5">
                                                 {energyLabels[selectedEnergy - 1]}
                                             </span>
-                                            <span className="text-sm text-[var(--text-tertiary)] uppercase tracking-widest">Current Charge</span>
+                                            <span className="text-xs text-[var(--text-tertiary)] uppercase tracking-widest">Current Charge</span>
                                         </motion.div>
                                     </div>
 
@@ -131,14 +358,14 @@ export function RealityIntake({ currentEnergy, onEnergySet }: RealityIntakeProps
                                                 [&::-webkit-slider-thumb]:hover:scale-110
                                             "
                                         />
-                                        <div className="flex justify-between mt-4 px-1">
+                                        <div className="flex justify-between mt-3 px-1">
                                             {[1, 2, 3, 4, 5].map((level) => (
                                                 <button
                                                     key={level}
                                                     onClick={() => setSelectedEnergy(level)}
                                                     className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all border ${selectedEnergy === level
-                                                            ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]'
-                                                            : 'bg-transparent text-[var(--text-tertiary)] border-transparent hover:bg-[var(--glass-bg)]'
+                                                        ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]'
+                                                        : 'bg-transparent text-[var(--text-tertiary)] border-transparent hover:bg-[var(--glass-bg)]'
                                                         }`}
                                                 >
                                                     {level}

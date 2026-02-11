@@ -1,59 +1,32 @@
-import { secureApiRoute, apiSuccess, apiError, validateRequiredFields } from '@/lib/security/api-protection';
-import { createClient } from '@/lib/supabase/server';
-import { CalendarPatchSchema } from '@/lib/agents/core/types';
+import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
+import { PatchService } from '@/lib/services/patch-service';
+import { PatchSchema } from '@/lib/ai/schemas';
 import { z } from 'zod';
-import { revalidatePath } from 'next/cache';
 
-// Input Schema
-const ApplyPatchSchema = z.object({
-    patch: CalendarPatchSchema,
-    sourceType: z.enum(['brain_dump', 'weekly_review', 'coach', 'manual']),
-    sourceId: z.string().optional()
+const ApplyBodySchema = z.object({
+    patch: PatchSchema,
+    source: z.string().default('ai_assist'),
 });
 
 export const POST = secureApiRoute(
     async (context, body) => {
-        // Validation
-        const validation = ApplyPatchSchema.safeParse(body);
+        const validation = ApplyBodySchema.safeParse(body);
         if (!validation.success) {
-            return apiError(`Invalid patch format: ${validation.error.message}`);
+            return apiError('Invalid patch format', 400, validation.error.format());
         }
 
-        const { patch, sourceType, sourceId } = validation.data;
-        const userId = context.userId;
+        const { patch, source } = validation.data;
 
-        console.log(`[API] Applying Patch for ${userId} from ${sourceType}`);
-
-        // 1. Execute Changes (via Service)
-        const { PatchService } = await import('@/lib/services/patch-service');
-        const results = await PatchService.applyPatch(userId, patch);
-
-        // 2. Mark Source as Applied (if applicable)
-        // ... (Future: Update brain_dump status)
-
-        // 3. Log Behavior Event (Action Taken)
-        const { BehaviorService } = await import('@/lib/services/behavior-service');
-        await BehaviorService.record(userId, {
-            action_type: 'accept_suggestion',
-            meta: {
-                source: sourceType,
-                summary: patch.summary,
-                changes: results
-            }
-        });
-
-        // 4. Log Patch Run (For Undo)
-        // We log the run here so simpler Undo can access it.
-        // We need an inverse patch.
-        // For MVP, we pass null as inverse and assume Undo calculates it or we implement true inverse calc in Service later.
-        // Or we rely on PatchService.applyPatch to return/log the run.
-        // PatchService.logRun(userId, { patch, inverse_patch: null, source: sourceType });
-
-        return apiSuccess({
-            success: true,
-            summary: `Applied: ${results.created} created, ${results.updated} updated, ${results.deleted} deleted.`,
-            details: results
-        });
+        try {
+            const result = await PatchService.applyPatch(context.userId, patch, source);
+            return apiSuccess(result);
+        } catch (error: any) {
+            console.error('[Patch Apply Error]', error);
+            return apiError('Failed to apply patch', 500, { message: error.message });
+        }
     },
-    { requireAuth: true, auditAction: 'apply_patch' }
+    {
+        requireAuth: true,
+        auditAction: 'patch_apply',
+    }
 );

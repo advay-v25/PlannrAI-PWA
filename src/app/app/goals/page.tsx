@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { useGoalsStore, useUserStore } from '@/stores';
@@ -33,7 +33,12 @@ import {
     MoreVertical
 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
-import type { Goal, GoalCategory, GoalImportance, EnergyDemand, GoalStatus } from '@/types/database';
+import type { Goal } from '@/types/database';
+
+export type GoalCategory = 'mind' | 'body' | 'craft';
+export type GoalImportance = 'low' | 'medium' | 'high';
+export type EnergyDemand = 'light' | 'medium' | 'heavy';
+export type GoalStatus = 'active' | 'paused' | 'archived';
 
 const PILLARS = [
     { id: 'mind' as GoalCategory, label: 'Mind', icon: Brain, color: 'var(--color-mind)', softColor: 'var(--color-mind-soft)' },
@@ -56,16 +61,7 @@ export default function GoalsPage() {
     // UI State for editing
     const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null);
 
-    // Capacity Calculation
-    // Total Minutes Planned
-    const activeGoals = goals.filter(g => g.status === 'active');
-    const totalMinutes = activeGoals.reduce((sum, g) => sum + g.minutes_per_day, 0);
-
-    // Available Capacity (Wake - Sleep - Anchors - Meals - Buffers)
-    // Simplified: (Wake -> Sleep) - 4h (Safety margin / Fixed blocks estimate)
-    // Precise: 16h wake - 4h = 12h = 720m realistic max.
-    // Let's use a dynamic but simple heuristic for now, or fetch from Profile?
-    // Profile has sleep_start, sleep_end. 
+    // Data Fetching
     const [commitments, setCommitments] = useState<any[]>([]);
 
     useEffect(() => {
@@ -85,57 +81,56 @@ export default function GoalsPage() {
         loadData();
     }, [supabase, setGoals, setLoading]);
 
-    // Capacity Calculation
-    // 1. Wake Window
-    const sleepStart = profile?.sleep_start || '23:00';
-    const sleepEnd = profile?.sleep_end || '07:00';
+    // Strict Capacity Logic
+    const capacity = useMemo(() => {
+        if (!profile) return null;
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { calculateGoalCapacity } = require('@/lib/capacity');
+        return calculateGoalCapacity(profile, goals, commitments);
+    }, [profile, goals, commitments]);
 
-    const parseTime = (t: string) => {
-        const [h, m] = t.split(':').map(Number);
-        return h * 60 + m;
-    };
+    const totalMinutes = capacity?.totalGoalMinutes || 0;
+    const isOverCapacity = capacity?.isOvercommitted || false;
+    const capacityPercentage = capacity?.percentage || 0;
 
-    let wakeMinutes = parseTime(sleepStart) - parseTime(sleepEnd);
-    if (wakeMinutes < 0) wakeMinutes += 24 * 60; // Handle overnight
-
-    // 2. Anchors (Average Daily Impact)
-    const anchorMinutesPerWeek = commitments.reduce((weekSum, c) => {
-        const start = parseTime(c.start_time);
-        const end = parseTime(c.end_time);
-        let duration = end - start;
-        if (duration < 0) duration += 24 * 60;
-        return weekSum + (duration * c.days_of_week.length);
-    }, 0);
-
-    const avgAnchorMinutes = Math.round(anchorMinutesPerWeek / 7);
-
-    // 3. Bio-Overhead (Meals + Wind Down + Buffer)
-    // Estimate: 3 meals (90m) + WindDown (45m) + Buffer (10%)
-    const bioOverhead = 135;
-
-    const maxCapacity = Math.max(0, wakeMinutes - avgAnchorMinutes - bioOverhead);
-    const isOverCapacity = totalMinutes > maxCapacity;
-    const capacityPercentage = Math.round((totalMinutes / maxCapacity) * 100);
-
-    // Inline Update Handler (Auto-save)
+    // Sync Handler
     const handleUpdate = async (id: string, updates: Partial<Goal>) => {
-        // Optimistic
+        // Optimistic UI Update
         updateGoal(id, updates);
 
-        // Show feedback for significant updates
+        // Feedback
         if ('status' in updates) {
             showToast(updates.status === 'paused' ? '⏸️ Goal paused' : '▶️ Goal resumed', 'info');
         }
 
-        // DB
-        await supabase.from('goals').update(updates).eq('id', id);
+        // Backend Sync
+        try {
+            await apiClient.post('/api/goals/sync', {
+                operation: 'update',
+                goal_id: id,
+                payload: updates
+            });
+        } catch (e) {
+            console.error(e);
+            showToast('Failed to save changes', 'error');
+            // Revert? (Not implemented for MVP)
+        }
     };
 
     const handleDelete = async (id: string) => {
         if (!confirm('Are you sure you want to delete this goal?')) return;
         removeGoal(id);
-        await supabase.from('goals').delete().eq('id', id);
-        showToast('🗑️ Goal deleted', 'info');
+
+        try {
+            await apiClient.post('/api/goals/sync', {
+                operation: 'delete',
+                goal_id: id
+            });
+            showToast('🗑️ Goal deleted', 'info');
+        } catch (e) {
+            console.error(e);
+            showToast('Failed to delete goal', 'error');
+        }
     };
 
     return (
@@ -177,7 +172,7 @@ export default function GoalsPage() {
                 <div className="h-2 bg-[var(--glass-border)] rounded-full overflow-hidden mb-2">
                     <motion.div
                         initial={{ width: 0 }}
-                        animate={{ width: `${Math.min(capacityPercentage, 100)}%` }}
+                        animate={{ width: `${Math.min(capacityPercentage || 0, 100)}%` }}
                         className={`h-full ${isOverCapacity ? 'bg-[var(--color-error)]' : 'bg-[var(--color-primary)]'}`}
                     />
                 </div>
@@ -328,9 +323,9 @@ function GoalCard({ goal, isExpanded, onExpand, onUpdate, onDelete, onStrategy, 
                                 <span>·</span>
                                 <span>{goal.energy_demand}</span>
                                 {isPaused && <span className="text-[var(--color-warning)]">· Paused</span>}
-                                {goal.ai_strategy?.strategy_one_liner && (
-                                    <span className="text-[var(--color-primary)] truncate max-w-[150px]" title={goal.ai_strategy.strategy_one_liner}>
-                                        · "{goal.ai_strategy.strategy_one_liner.slice(0, 20)}..."
+                                {(goal.ai_strategy as any)?.strategy_one_liner && (
+                                    <span className="text-[var(--color-primary)] truncate max-w-[150px]" title={(goal.ai_strategy as any).strategy_one_liner}>
+                                        · "{(goal.ai_strategy as any).strategy_one_liner.slice(0, 20)}..."
                                     </span>
                                 )}
                             </div>
@@ -401,7 +396,7 @@ function GoalCard({ goal, isExpanded, onExpand, onUpdate, onDelete, onStrategy, 
                                     <label className="text-[10px] uppercase text-[var(--text-tertiary)]">Duration (min)</label>
                                     <input
                                         type="range" min={5} max={180} step={5}
-                                        value={goal.minutes_per_day}
+                                        value={goal.minutes_per_day || 0}
                                         onChange={(e) => onUpdate({ minutes_per_day: Number(e.target.value) })}
                                         className="w-full accent-[var(--color-primary)]"
                                     />

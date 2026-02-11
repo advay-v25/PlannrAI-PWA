@@ -37,8 +37,8 @@ export const POST = secureApiRoute(
 
         // Get the brain dump
         const { data: dump, error } = await supabase
-            .from('brain_dumps')
-            .select('content')
+            .from('brain_dump_entries')
+            .select('raw_text')
             .eq('id', dumpId)
             .eq('user_id', context.userId)
             .single();
@@ -50,7 +50,7 @@ export const POST = secureApiRoute(
         try {
             // Process with AI via new Engine
             const analysis = await processBrainDumpWithSignals(
-                dump.content,
+                dump.raw_text,
                 context.userId,
                 // In a real app we'd fetch user's timezone from profile, defaulting to UTC for now
                 'UTC'
@@ -60,47 +60,24 @@ export const POST = secureApiRoute(
             await logAIRequest(context.userId, '/api/brain-dump/process', context.request, true);
 
             // Update the brain dump with extracted data
-            // We store the full Zod-validated analysis in processed_data
             await supabase
-                .from('brain_dumps')
+                .from('brain_dump_entries')
                 .update({
-                    extracted_signals: analysis.signals.map(s => ({ type: s.type, content: s.description, intensity: s.confidence * 5 })),
-                    detected_constraints: analysis.signals.filter(s => s.type === 'constraint').map(s => ({ type: 'dependency', content: s.description })),
-                    processed_data: analysis,
+                    extracted_json: analysis,
                 })
                 .eq('id', dumpId);
 
             // ---------------------------------------------------------
-            // MEMORY INTEGRATION
+            // MEMORY INTEGRATION (Phase 4)
             // ---------------------------------------------------------
             try {
                 const { MemoryService } = await import('@/lib/services/memory-service');
 
-                // 1. Create/Get Session
-                // For Brain Dump, we create a NEW one per dump for clearer history separation.
-                const conversation = await MemoryService.createConversation(context.userId, 'brain_dump', `Brain Dump ${new Date().toLocaleDateString()}`);
+                // Extract long-term facts/constraints
+                await MemoryService.extractFacts(context.userId, dump.raw_text, dumpId);
 
-                if (conversation) {
-                    // 2. User Input
-                    await MemoryService.addMessage(
-                        context.userId, conversation.id, 'user',
-                        dump.content,
-                        { dumpId }
-                    );
-
-                    // 3. AI Analysis (Impact Summary + Signals)
-                    await MemoryService.addMessage(
-                        context.userId, conversation.id, 'assistant',
-                        analysis.summary, // Fixed property
-                        {
-                            signals: analysis.signals.length,
-                            constraints: analysis.signals.filter(s => s.type === 'constraint').length,
-                            sentiment: analysis.sentiment // Fixed property
-                        }
-                    );
-                }
             } catch (memError) {
-                console.error("Memory Log Failed", memError);
+                console.error("Memory Extraction Failed", memError);
                 // Don't fail the request
             }
 

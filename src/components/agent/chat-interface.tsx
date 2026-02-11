@@ -11,10 +11,15 @@ interface ChatInterfaceProps {
 }
 
 export const ChatInterface = ({ className, onClose }: ChatInterfaceProps) => {
-    const { messages, sendMessage, isLoading, clearMessages } = useAgentStore();
+    const { messages, sendMessage, isLoading, clearMessages, loadHistory } = useAgentStore();
     const [input, setInput] = useState('');
     const endRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // Load history on mount
+    useEffect(() => {
+        loadHistory();
+    }, []);
 
     // Auto-scroll to bottom
     useEffect(() => {

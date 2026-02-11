@@ -60,8 +60,8 @@ export const POST = secureApiRoute(
 
         // Get recent brain dump entries for context
         const { data: recentDumps } = await supabase
-            .from('brain_dumps')
-            .select('content, created_at')
+            .from('brain_dump_entries')
+            .select('raw_text, created_at')
             .eq('user_id', context.userId)
             .order('created_at', { ascending: false })
             .limit(3);
@@ -76,7 +76,7 @@ THEIR GOALS:
 ${goals?.map(g => `- ${g.title} (${g.category}, ${g.importance} priority)${g.notes ? ` - ${g.notes}` : ''}`).join('\n') || 'No active goals set.'}
 
 RECENT THOUGHTS (for context):
-${recentDumps?.map(d => `- "${d.content.substring(0, 100)}..."`).join('\n') || 'Fresh conversation.'}
+${recentDumps?.map(d => `- "${d.raw_text.substring(0, 100)}..."`).join('\n') || 'Fresh conversation.'}
 
 CONVERSATION HISTORY:
 ${conversationHistory.slice(-4).map(m => `${m.role === 'user' ? 'User' : 'Donna'}: ${m.content}`).join('\n')}
@@ -108,11 +108,13 @@ Respond as Donna would. Be sharp, warm, and genuinely helpful.`;
             await logAIRequest(context.userId, '/api/brain-dump/chat', context.request, true);
 
             // Save the brain dump content
-            await supabase.from('brain_dumps').insert({
+            await supabase.from('brain_dump_entries').insert({
                 user_id: context.userId,
-                content: sanitizedMessage,
-                ai_sentiment: analysis.sentiment,
-                processed_data: analysis
+                raw_text: sanitizedMessage,
+                extracted_json: {
+                    ai_sentiment: analysis.sentiment,
+                    ...analysis
+                }
             });
 
             return apiSuccess({

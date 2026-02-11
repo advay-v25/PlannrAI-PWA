@@ -78,6 +78,6 @@ FOR EACH ROW EXECUTE FUNCTION public.expand_commitment_blocks();
 
 -- 4. Backfill (Force Update to Trigger Expansion)
 -- This effectively "migrates" existing ghost state to real rows.
-UPDATE public.commitments SET updated_at = NOW() WHERE is_active = true;
+UPDATE public.commitments SET is_active = is_active WHERE is_active = true;
 
 COMMIT;

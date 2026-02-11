@@ -82,7 +82,7 @@ export const InterventionManager = {
      */
     async checkBurnout(userId: string, supabase: SupabaseClient): Promise<InterventionLog | null> {
         // Need to query extracted signals from recent dumps
-        // This assumes we are storing extracted signals in the brain_dumps table
+        // This assumes we are storing extracted signals in the extracted_json of brain_dump_entries table
         // For MVP, we'll check if the last dump had "stress" > 4 if we store that...
         // Actually, let's rely on the 'energy_level' in the profile if updated recently?
         // Or simpler: Check if user logged "stress_level" 4 or 5 in profile recently

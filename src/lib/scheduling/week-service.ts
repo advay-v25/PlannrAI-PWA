@@ -52,7 +52,8 @@ export async function generateAIWeekPlan(
             input: "Generate initial week plan",
             context: onboardingContext,
             userId,
-            twoPass: true
+            twoPass: true,
+            maxTokens: 4000,
         });
 
         if (response.mode === 'refuse') {
@@ -136,12 +137,20 @@ export async function generateAIWeekPlan(
  */
 export function generateStaticWeekPlan(
     goals: Array<{ id: string; title: string; category: string; minutes_per_day: number; importance: string }>,
-    profile: { sleep_end?: string; sleep_start?: string; low_energy_mode?: boolean } | null,
+    profile: {
+        sleep_end?: string; sleep_start?: string; low_energy_mode?: boolean;
+        wind_down_mins?: number; meals_per_day?: number;
+        meal_windows?: { breakfast?: string; lunch?: string; dinner?: string };
+        buffer_config?: { gap_mins?: number; type?: string };
+    } | null,
     commitments: Array<{ days_of_week: number[]; start_time: string; end_time: string; title?: string }>
 ) {
     const wakeTime = profile?.sleep_end || '07:00';
     const sleepTime = profile?.sleep_start || '23:00';
     const lowEnergy = profile?.low_energy_mode || false;
+    const windDownMins = profile?.wind_down_mins || 30;
+    const mealWindows = profile?.meal_windows || { breakfast: '08:00', lunch: '12:30', dinner: '19:00' };
+    const bufferGapMins = profile?.buffer_config?.gap_mins || 15;
 
     // Time slots by category preference (start search here)
     const categoryTimes: Record<string, string> = {
@@ -180,7 +189,7 @@ export function generateStaticWeekPlan(
     const toTime = (m: number) => {
         const h = Math.floor(m / 60) % 24;
         const min = m % 60;
-        return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')} `;
+        return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
     };
 
     // 1. Place Anchors
@@ -328,7 +337,6 @@ export function generateStaticWeekPlan(
 
     // 4. Flex Zones (Smartly placed)
     periodMap.forEach(day => {
-        // Try to place flex zone at 16:00, else find room
         const duration = 60;
         const target = toMins('16:00');
         const occupied = dayState[day].occupied.sort((a, b) => a.start - b.start);
@@ -337,10 +345,9 @@ export function generateStaticWeekPlan(
         if (isFree(occupied, target, target + duration)) {
             start = target;
         } else {
-            // Find end of day slot
             const last = occupied[occupied.length - 1];
             if (last && (toMins(sleepTime) - last.end > 90)) {
-                start = last.end + 30; // 30 min after last task
+                start = last.end + 30;
             }
         }
 
@@ -352,13 +359,66 @@ export function generateStaticWeekPlan(
                 goal_id: 'FLEX',
                 type: 'flex'
             });
+            dayState[day].occupied.push({ start, end: start + duration });
         }
+    });
+
+    // 5. Meal Blocks
+    const mealSlots = [
+        { key: 'breakfast', label: 'Breakfast', time: mealWindows.breakfast || '08:00' },
+        { key: 'lunch', label: 'Lunch', time: mealWindows.lunch || '12:30' },
+        { key: 'dinner', label: 'Dinner', time: mealWindows.dinner || '19:00' },
+    ];
+
+    periodMap.forEach(day => {
+        mealSlots.forEach(meal => {
+            const mStart = toMins(meal.time);
+            const mDuration = 30;
+            const occupied = dayState[day].occupied;
+            if (isFree(occupied, mStart, mStart + mDuration)) {
+                schedule[day].push({
+                    time: toTime(mStart),
+                    end_time: toTime(mStart + mDuration),
+                    title: meal.label,
+                    goal_id: 'MEAL',
+                    type: 'meal'
+                });
+                dayState[day].occupied.push({ start: mStart, end: mStart + mDuration });
+            }
+        });
+    });
+
+    // 6. Wind-down Block (before sleep)
+    periodMap.forEach(day => {
+        const sleepMins = toMins(sleepTime);
+        const wdStart = sleepMins - windDownMins;
+        if (wdStart > 0 && isFree(dayState[day].occupied, wdStart, sleepMins)) {
+            schedule[day].push({
+                time: toTime(wdStart),
+                end_time: sleepTime,
+                title: 'Wind Down',
+                goal_id: 'WIND_DOWN',
+                type: 'wind_down'
+            });
+            dayState[day].occupied.push({ start: wdStart, end: sleepMins });
+        }
+    });
+
+    // 7. Sleep Block
+    periodMap.forEach(day => {
+        schedule[day].push({
+            time: sleepTime,
+            end_time: wakeTime,
+            title: 'Sleep',
+            goal_id: 'SLEEP',
+            type: 'sleep'
+        });
     });
 
     return {
         schedule,
         reasoning: {
-            overview: `Smartly scheduled ${goals.length} goals, balancing categories and avoiding weekend overload.`,
+            overview: `Scheduled ${goals.length} goals with meals, buffers, wind-down, and sleep blocks.`,
             energy_considerations: lowEnergy
                 ? 'Reduced durations by 30% due to low energy mode'
                 : 'Normal energy levels assumed',
@@ -392,36 +452,73 @@ function addMinutesToTime(time: string, minutes: number): string {
     const totalMins = hours * 60 + mins + minutes;
     const newHours = Math.floor(totalMins / 60) % 24;
     const newMins = totalMins % 60;
-    return `${String(newHours).padStart(2, '0')}:${String(newMins).padStart(2, '0')} `;
+    return `${String(newHours).padStart(2, '0')}:${String(newMins).padStart(2, '0')}`;
 }
+
+// Sentinel goal_ids used by static plan — not real goals
+const SENTINEL_IDS = new Set(['ANCHOR', 'MEAL', 'SLEEP', 'WIND_DOWN', 'FLEX', 'BUFFER']);
 
 /**
  * Persists a plan to the database.
+ * Snapshots current schedule into schedule_versions before writing.
  */
 export async function persistWeekPlan(
     userId: string,
-    plan: { schedule: Record<string, Array<{ time: string; end_time: string; title: string; goal_id?: string }>> },
+    plan: { schedule: Record<string, Array<{ time: string; end_time: string; title: string; goal_id?: string; type?: string }>> },
     weekStart: string,
-    supabase: SupabaseClient
-) {
+    supabase: SupabaseClient,
+    source: 'onboarding' | 'ai_optimize' | 'manual' = 'onboarding'
+): Promise<{ blocksInserted: number; versionId: string | null }> {
     if (!plan?.schedule || !weekStart) {
         throw new Error('Plan and week_start are required');
     }
 
     const startDate = new Date(weekStart);
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 6);
+    const endDateStr = endDate.toISOString().split('T')[0];
+
+    // 1. Snapshot existing blocks for undo
+    let versionId: string | null = null;
+    try {
+        const { data: existingBlocks } = await supabase
+            .from('schedule_blocks')
+            .select('*')
+            .eq('user_id', userId)
+            .gte('date', weekStart)
+            .lte('date', endDateStr);
+
+        if (existingBlocks && existingBlocks.length > 0) {
+            const { data: version } = await supabase
+                .from('schedule_versions')
+                .insert({
+                    user_id: userId,
+                    week_start: weekStart,
+                    source,
+                    snapshot: existingBlocks,
+                })
+                .select('id')
+                .single();
+            versionId = version?.id || null;
+        }
+    } catch (e) {
+        console.warn('[persistWeekPlan] Failed to snapshot — schedule_versions table may not exist yet', e);
+    }
+
+    // 2. Build blocks array
+    const dayMap = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
     const blocks: Array<{
         user_id: string;
         date: string;
         start_time: string;
         end_time: string;
         goal_id: string | null;
+        title: string;
         context: string;
         status: string;
+        block_type: string;
     }> = [];
 
-    const dayMap = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-
-    // Generate blocks for each day
     for (let i = 0; i < 7; i++) {
         const date = new Date(startDate);
         date.setDate(date.getDate() + i);
@@ -429,46 +526,45 @@ export async function persistWeekPlan(
         const daySchedule = plan.schedule[dayName] || [];
 
         for (const slot of daySchedule) {
+            // Skip anchors — they are persisted as commitments
+            if (slot.goal_id === 'ANCHOR' || slot.type === 'anchor') continue;
+
+            const blockType = slot.type || 'goal';
+            const goalId = SENTINEL_IDS.has(slot.goal_id || '') ? null : (slot.goal_id || null);
+
             blocks.push({
                 user_id: userId,
                 date: date.toISOString().split('T')[0],
-                start_time: slot.time,
-                end_time: slot.end_time,
-                goal_id: slot.goal_id || null,
+                start_time: slot.time.trim(),
+                end_time: slot.end_time.trim(),
+                goal_id: goalId,
+                title: slot.title,
                 context: slot.title,
-                status: 'planned'
+                status: 'planned',
+                block_type: blockType,
             });
         }
     }
 
-    if (blocks.length === 0) return 0;
+    if (blocks.length === 0) return { blocksInserted: 0, versionId };
 
-    // Clear existing blocks for this week first (Safety check: don't delete history if run late?)
-    // Onboarding runs for "Next Monday" or "Tomorrow"? Usually "From Today".
-    // Let's assume safe delete for future blocks.
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + 6);
-
+    // 3. Clear existing planned blocks (protect done/anchor/fixed)
     await supabase
         .from('schedule_blocks')
         .delete()
         .eq('user_id', userId)
         .gte('date', weekStart)
-        .lte('date', endDate.toISOString().split('T')[0])
+        .lte('date', endDateStr)
         .eq('status', 'planned')
-        .neq('block_type', 'routine')
-        .neq('block_type', 'anchor') // V5: Protect Anchors
-        .neq('is_fixed', true);      // V5: Protect Locked Blocks
+        .neq('is_fixed', true);
 
-    // Insert new blocks (Filter out anchors, they are already there!)
-    const validBlocks = blocks.filter(b => b.goal_id !== 'ANCHOR' && (b as any).type !== 'anchor');
-
+    // 4. Insert new blocks
     const { data, error } = await supabase
         .from('schedule_blocks')
-        .insert(validBlocks)
+        .insert(blocks)
         .select();
 
     if (error) throw error;
 
-    return data?.length || 0;
+    return { blocksInserted: data?.length || 0, versionId };
 }

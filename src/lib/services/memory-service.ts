@@ -1,181 +1,190 @@
 
 import { createClient } from '@/lib/supabase/server';
-import { PostgrestSingleResponse, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { apiClient } from '@/lib/api-client';
 
-// Types (should eventually move to database.types.ts)
-export interface Conversation {
+// -- Schema Types (matching 20260210210000_phase4_memory.sql) --
+
+export interface CoachThread {
     id: string;
     user_id: string;
-    type: 'coach' | 'brain_dump';
-    title?: string;
+    title: string;
     created_at: string;
     updated_at: string;
 }
 
-export interface ConversationMessage {
+export interface CoachMessage {
     id: string;
-    conversation_id: string;
+    thread_id: string;
     user_id: string;
     role: 'user' | 'assistant' | 'system';
-    content: string;
-    metadata: Record<string, any>;
+    content: string; // JSON string for assistant, text for user
     created_at: string;
+}
+
+export interface BrainDumpEntry {
+    id: string;
+    user_id: string;
+    raw_text: string;
+    extracted_json: any;
+    created_at: string;
+}
+
+export interface MemoryFact {
+    id: string;
+    user_id: string;
+    key: string;
+    value: any;
+    confidence: number;
+    kind?: 'preference' | 'pattern' | 'constraint' | 'identity';
+    source_event_id?: string;
+    updated_at: string;
 }
 
 export class MemoryService {
 
-    /**
-     * Creates or retrieves a conversation for a specific context.
-     * For 'coach', we might want one continuous thread or daily threads.
-     * Let's support creating new ones for now.
-     */
-    static async createConversation(
-        userId: string,
-        type: 'coach' | 'brain_dump',
-        title?: string
-    ): Promise<Conversation | null> {
-        const supabase = await createClient();
+    // --- Coach Context ---
 
+    /**
+     * Creates a new Coach Thread.
+     */
+    static async createThread(userId: string, title: string = 'New Session'): Promise<CoachThread | null> {
+        const supabase = await createClient();
         try {
             const { data, error } = await supabase
-                .from('conversations')
-                .insert({
-                    user_id: userId,
-                    type,
-                    title
-                })
+                .from('coach_threads')
+                .insert({ user_id: userId, title })
                 .select()
                 .single();
-
             if (error) throw error;
-            return data as Conversation;
+            return data;
         } catch (e) {
-            console.error('MemoryService.createConversation failed', e);
+            console.error('[MemoryService] createThread failed', e);
             return null;
         }
     }
 
     /**
-     * Adds a message to history.
+     * Adds a message to a Coach Thread.
+     * Optionally triggers async fact extraction.
      */
-    static async addMessage(
+    static async addCoachMessage(
         userId: string,
-        conversationId: string,
+        threadId: string,
         role: 'user' | 'assistant' | 'system',
-        content: string,
-        metadata: Record<string, any> = {}
-    ): Promise<ConversationMessage | null> {
+        content: string, // Text or JSON string
+        triggerExtraction: boolean = false
+    ): Promise<CoachMessage | null> {
         const supabase = await createClient();
-
         try {
             const { data, error } = await supabase
-                .from('conversation_messages')
+                .from('coach_messages')
                 .insert({
+                    thread_id: threadId,
                     user_id: userId,
-                    conversation_id: conversationId,
                     role,
-                    content,
-                    metadata
+                    content
                 })
                 .select()
                 .single();
 
             if (error) throw error;
 
-            // Touch updated_at on conversation
-            await supabase
-                .from('conversations')
-                .update({ updated_at: new Date().toISOString() })
-                .eq('id', conversationId);
+            // Update thread timestamp
+            await supabase.from('coach_threads').update({ updated_at: new Date().toISOString() }).eq('id', threadId);
 
-            return data as ConversationMessage;
+            if (triggerExtraction && role === 'user') {
+                // Fire and forget fact extraction
+                this.extractFacts(userId, content, data.id).catch(err =>
+                    console.error('[MemoryService] Background extraction failed', err)
+                );
+            }
+
+            return data;
         } catch (e) {
-            console.error('MemoryService.addMessage failed', e);
+            console.error('[MemoryService] addCoachMessage failed', e);
             return null;
         }
     }
 
-    /**
-     * Gets the recent history for a conversation.
-     */
-    static async getHistory(conversationId: string, limit = 30, injectedClient?: SupabaseClient): Promise<ConversationMessage[]> {
-        const supabase = injectedClient ?? await createClient();
-
-        const { data } = await supabase
-            .from('conversation_messages')
-            .select('*')
-            .eq('conversation_id', conversationId)
-            .order('created_at', { ascending: true }) // Oldest first for LLM context
-            .limit(limit);
-
-        return (data || []) as ConversationMessage[];
-    }
+    // --- Brain Dump Context ---
 
     /**
-     * Gets the most recent conversation of a type.
+     * Stores a raw Brain Dump.
      */
-    /**
-     * Gets the most recent conversation of a type.
-     */
-    static async getLatestConversation(userId: string, type: 'coach' | 'brain_dump', injectedClient?: SupabaseClient): Promise<Conversation | null> {
-        const supabase = injectedClient ?? await createClient();
-
-        const { data } = await supabase
-            .from('conversations')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('type', type)
-            .order('updated_at', { ascending: false })
-            .limit(1)
-            .single();
-
-        return (data as Conversation) || null;
-    }
-
-    /**
-     * Log a behavioral signal (Talk = Action).
-     */
-    static async logSignal(
+    static async createBrainDumpEntry(
         userId: string,
-        type: 'rejection' | 'acceptance' | 'ignore',
-        content: string,
-        metadata: any = {},
-        injectedClient?: SupabaseClient
-    ) {
-        console.log("   [MemoryService] logSignal called. Has Client:", !!injectedClient);
-        const { BehaviorService } = await import('./behavior-service');
+        rawText: string,
+        extractedJson: any = {}
+    ): Promise<BrainDumpEntry | null> {
+        const supabase = await createClient();
+        try {
+            const { data, error } = await supabase
+                .from('brain_dump_entries')
+                .insert({
+                    user_id: userId,
+                    raw_text: rawText,
+                    extracted_json: extractedJson
+                })
+                .select()
+                .single();
+            if (error) throw error;
+            return data;
+        } catch (e) {
+            console.error('[MemoryService] createBrainDumpEntry failed', e);
+            return null;
+        }
+    }
 
-        let actionType: any = 'miss'; // default fallout
-        if (type === 'rejection') actionType = 'reject_suggestion';
-        if (type === 'acceptance') actionType = 'accept_suggestion';
-        if (type === 'ignore') actionType = 'miss'; // 'ignore' maps to miss/delete? Or maybe a new type?
-        // For now, let's map 'ignore' to 'reject_suggestion' with meta 'silent'.
-        if (type === 'ignore') {
-            actionType = 'reject_suggestion';
-            metadata.silent = true;
+    // --- Long-Term Memory (Facts) ---
+
+    /**
+     * Extracts facts from text using AI (Mock logic for now, or lightweight heuristic).
+     * In a real system, this calls a dedicated "Analyst" LLM pass.
+     */
+    static async extractFacts(userId: string, text: string, sourceId?: string) {
+        // TODO: Implement actual LLM call to extract facts.
+        // For now, checks for simple patterns to demonstrate persistence.
+
+        const lower = text.toLowerCase();
+        const factsToStore: Partial<MemoryFact>[] = [];
+
+        if (lower.includes('i prefer')) {
+            factsToStore.push({ key: 'preference', value: text, kind: 'preference', confidence: 0.7 });
+        }
+        if (lower.includes('never schedule')) {
+            factsToStore.push({ key: 'constraint', value: text, kind: 'constraint', confidence: 0.9 });
+        }
+        if (lower.includes('my goal is')) {
+            factsToStore.push({ key: 'goal_hint', value: text, kind: 'identity', confidence: 0.6 });
         }
 
-        await BehaviorService.record(userId, {
-            action_type: actionType,
-            meta: { ...metadata, content, signal_type: type }
-        }, injectedClient);
+        if (factsToStore.length > 0) {
+            const supabase = await createClient();
+            for (const fact of factsToStore) {
+                await supabase.from('memory_facts').insert({
+                    user_id: userId,
+                    key: fact.key!,
+                    value: fact.value,
+                    confidence: fact.confidence,
+                    kind: fact.kind,
+                    source_event_id: sourceId
+                });
+            }
+        }
     }
 
     /**
-     * Get recent behavioral signals to inject into Context.
+     * Retrieves relevant facts for context injection.
      */
-    static async getRecentSignals(userId: string, limit = 10, injectedClient?: SupabaseClient) {
-        const supabase = injectedClient ?? await createClient();
-
-        // Fetch last N events of relevant types
+    static async getRelevantFacts(userId: string, limit = 5): Promise<MemoryFact[]> {
+        const supabase = await createClient();
         const { data } = await supabase
-            .from('behavior_events')
+            .from('memory_facts')
             .select('*')
             .eq('user_id', userId)
-            .in('action_type', ['accept_suggestion', 'reject_suggestion'])
-            .order('created_at', { ascending: false })
+            .order('confidence', { ascending: false })
             .limit(limit);
-
         return data || [];
     }
 }

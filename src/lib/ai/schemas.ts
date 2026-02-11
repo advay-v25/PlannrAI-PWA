@@ -4,13 +4,21 @@ import { z } from "zod";
 export const ChannelEnum = z.enum([
     "onboarding",
     "home",
+    "home.insight",
+    "home.briefing",
     "calendar",
+    "calendar.optimize",
     "coach",
     "brain_dump",
     "weekly_review",
     "settings",
     "habit_stack",
+    "habit_stack.optimize",
     "goal_decomposition",
+    "goals.suggest",
+    "routines.generate",
+    "scans.analyze",
+    "system.translate",
 ]);
 
 export const ModeEnum = z.enum(["execute", "propose", "ask", "refuse"]);
@@ -50,6 +58,30 @@ export const PatchOpSchema = z.union([
         action: z.string().min(1),
         duration: z.number().min(1).max(60),
         time_of_day: z.enum(["morning", "afternoon", "evening", "anytime"]).optional(),
+    }),
+    z.object({
+        op: z.literal("update_habit_stack"),
+        stack_id: z.string().min(1),
+        fields: z.record(z.string(), z.any()),
+    }),
+    z.object({
+        op: z.literal("delete_habit_stack"),
+        stack_id: z.string().min(1),
+    }),
+    z.object({
+        op: z.literal("create_anchor"),
+        title: z.string().min(1),
+        start_time: z.string().min(1),
+        end_time: z.string().min(1),
+        days_of_week: z.array(z.number()).min(1),
+    }),
+    z.object({
+        op: z.literal("delete_anchor"),
+        anchor_id: z.string().min(1),
+    }),
+    z.object({
+        op: z.literal("analyze_content"),
+        analysis: z.record(z.string(), z.any()),
     }),
 ]);
 
@@ -111,4 +143,5 @@ export const AIResponseSchema = z.object({
 
 export type AIResponse = z.infer<typeof AIResponseSchema>;
 export type Patch = z.infer<typeof PatchSchema>;
+export type PatchOp = z.infer<typeof PatchOpSchema>;
 export type ChannelType = z.infer<typeof ChannelEnum>;

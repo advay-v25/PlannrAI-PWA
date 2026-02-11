@@ -22,11 +22,14 @@ export async function runAI(args: {
     userId?: string; // For rate limiting
     model?: string; // Optional override
     twoPass?: boolean; // analyze->act
+    maxTokens?: number; // Override default token limit
+    requestId?: string; // For observability
 }): Promise<AIResponse> {
-    const { channel, input, context, limits, userId, twoPass } = args;
+    const { channel, input, context, limits, userId, twoPass, requestId } = args;
 
     // Default to versatile model unless overridden
     const model = args.model || 'llama-3.3-70b-versatile';
+    const maxTokens = args.maxTokens || 1000;
 
     // Optional 2-pass: first call produces distilled constraints/facts (hidden), second call produces final JSON.
     let distilledContext = context;
@@ -55,7 +58,7 @@ ${input}
             });
 
             const analysisJson = safeJsonParse(analysisText);
-            // Feed as “distilled” block back into main context.
+            // Feed as "distilled" block back into main context.
             distilledContext = { ...context as any, __analysis: analysisJson };
         } catch (e) {
             console.warn("Two-pass analysis failed, proceeding with raw context", e);
@@ -81,18 +84,24 @@ ${input}
             model,
             messages: baseMessages,
             temperature: 0.2, // Low temp for strict schema compliance
-            max_tokens: 1000,
+            max_tokens: maxTokens,
             userId
         });
 
         try {
-            console.log(`[AI Raw Response] Request: ${input.slice(0, 50)}... \nResponse:`, text);
+            console.log(`[AI Raw Response] [${requestId || 'no-id'}] Request: ${input.slice(0, 50)}... \nResponse:`, text);
 
             const parsed = safeJsonParse(text);
             const validated = AIResponseSchema.parse(parsed);
+
+            // Strict Channel Matching
+            if (validated.channel !== channel) {
+                throw new Error(`AI returned channel '${validated.channel}' but expected '${channel}'`);
+            }
+
             return validated;
         } catch (err: any) {
-            console.error(`[AI Validation Error] Attempt ${attempt + 1}:`, err);
+            console.error(`[AI Validation Error] [${requestId || 'no-id'}] Attempt ${attempt + 1}:`, err);
 
             // Retry with strict corrective instruction (max 2 retries)
             if (attempt >= 2) {

@@ -10,8 +10,10 @@ import { useToast } from '@/components/ui/toast';
 import { AmbientPulse } from '@/components/dashboard/ambient-pulse';
 import { FocusCompass } from '@/components/dashboard/focus-compass';
 import { TimelineStrip } from '@/components/dashboard/timeline-strip';
-import { PillarPulse } from '@/components/dashboard/pillar-pulse';
+import { PillarBalance } from '@/components/dashboard/pillar-balance';
 import { RealityIntake } from '@/components/dashboard/reality-intake';
+import { EnergyGauge } from '@/components/ui/energy-gauge';
+import { WisdomFeed } from '@/components/dashboard/wisdom-feed';
 
 // Existing Components
 import { GlassCard } from '@/components/ui/glass-card';
@@ -25,7 +27,6 @@ import { getOptimizationContextAction } from '@/app/actions/intelligence';
 import type { OptimizationContext } from '@/lib/intelligence/context-engine';
 
 import { formatDate, getGreeting } from '@/lib/utils';
-import { Zap } from 'lucide-react';
 import type { ScheduleBlock, InterventionLog, Goal } from '@/types/database';
 
 export default function HomePage() {
@@ -122,15 +123,11 @@ export default function HomePage() {
     }, [supabase, setProfile, setGoals, setTodayLog]);
 
     // Post-Onboarding Signal
-    // Using window.location.search to avoid Next.js Suspense boundary issues on client-side strictly for this toast
     useEffect(() => {
         if (typeof window !== 'undefined') {
             const params = new URLSearchParams(window.location.search);
             if (params.get('setup') === 'complete') {
-                // Remove param cleanly
                 window.history.replaceState(null, '', '/app');
-
-                // Show Signal
                 showToast(
                     "System Baselined",
                     'ai',
@@ -166,6 +163,19 @@ export default function HomePage() {
             updateProfile({ low_energy_mode: true });
             await supabase.from('profiles').update({ low_energy_mode: true }).eq('id', user.id);
         }
+    };
+
+    const refreshBlocks = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const today = new Date().toISOString().split('T')[0];
+        const { data: blocksData } = await supabase
+            .from('schedule_blocks')
+            .select('*, goal:goals(*)')
+            .eq('user_id', user.id)
+            .eq('date', today)
+            .order('start_time', { ascending: true });
+        if (blocksData) setTodayBlocks(blocksData);
     };
 
     const handleCompleteBlock = async (id: string) => {
@@ -241,19 +251,12 @@ export default function HomePage() {
                         </div>
 
                         {/* Energy Badge */}
-                        {todayLog?.energy_level && (
-                            <motion.div
-                                initial={{ opacity: 0, scale: 0.8 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10"
-                            >
-                                <Zap className={`w-4 h-4 ${todayLog.energy_level >= 4 ? 'text-[var(--color-success)]' :
-                                    todayLog.energy_level >= 3 ? 'text-[var(--color-primary)]' :
-                                        'text-[var(--color-warning)]'
-                                    }`} />
-                                <span className="text-xs font-mono font-bold">{todayLog.energy_level}/5</span>
-                            </motion.div>
-                        )}
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                        >
+                            <EnergyGauge level={todayLog?.energy_level || 3} />
+                        </motion.div>
                     </motion.div>
                 </header>
 
@@ -305,8 +308,8 @@ export default function HomePage() {
                     <TimelineStrip blocks={todayBlocks} />
                 </div>
 
-                {/* Pillar Balance */}
-                <PillarPulse
+                {/* Pillar Balance (Replaced Pulse) */}
+                <PillarBalance
                     plannedMinutes={plannedByPillar}
                     completedMinutes={completedByPillar}
                 />
@@ -316,14 +319,24 @@ export default function HomePage() {
                     <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-tertiary)] mb-3 px-1">
                         Habit Stacks
                     </h3>
-                    <HabitStacksList />
+                    <HabitStacksList
+                        todayBlocks={todayBlocks}
+                        goals={goals}
+                        onBlocksUpdated={refreshBlocks}
+                    />
                 </div>
+
+                {/* Wisdom Feed (New) */}
+                <WisdomFeed />
             </div>
 
             {/* Floating Reality Intake */}
             <RealityIntake
                 currentEnergy={todayLog?.energy_level}
                 onEnergySet={handleEnergySet}
+                todayBlocks={todayBlocks}
+                goals={goals}
+                onBlocksUpdated={refreshBlocks}
             />
         </>
     );

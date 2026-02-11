@@ -27,12 +27,87 @@ interface AgentState {
     applyOption: (optionId: string) => Promise<any>;
     undoAction: (token: string) => Promise<any>;
     clearMessages: () => void;
+    loadHistory: () => Promise<void>;
 }
 
 export const useAgentStore = create<AgentState>((set, get) => ({
     messages: [],
     isLoading: false,
     isApplying: false,
+
+    loadHistory: async () => {
+        set({ isLoading: true });
+        try {
+            // Lazy load client to avoid SSR issues if store init early
+            const { createClient } = await import('@/lib/supabase/client');
+            const supabase = createClient();
+
+            const { data: dbMessages } = await supabase
+                .from('coach_messages')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(50);
+
+            if (!dbMessages) {
+                set({ isLoading: false });
+                return;
+            }
+
+            const parsedMessages: Message[] = dbMessages.reverse().map(msg => {
+                let content = msg.content;
+                let options: CoachOption[] = [];
+                let mode: CoachMode = 'choice';
+                let refusal = undefined;
+
+                if (msg.role === 'assistant') {
+                    try {
+                        const parsed = JSON.parse(msg.content);
+                        // Handle AIResponse structure
+                        if (parsed.summary || parsed.options || parsed.question || parsed.refusal) {
+                            content = parsed.summary || parsed.question || "How can I help?";
+
+                            options = parsed.options?.map((opt: any, idx: number) => ({
+                                id: `hist_${msg.id}_${idx}`,
+                                title: opt.title,
+                                impact: opt.impact || opt.title,
+                                patch: opt.patch
+                            })) || [];
+
+                            if (parsed.refusal) {
+                                mode = 'refusal';
+                                refusal = { reason: parsed.refusal };
+                                content = parsed.refusal; // Override content if refusal
+                            } else if (parsed.question && (!parsed.options?.length)) {
+                                mode = 'choice';
+                            } else if (parsed.options?.length > 0) {
+                                mode = 'choice';
+                            } else {
+                                mode = 'executed';
+                            }
+                        }
+                    } catch (e) {
+                        // Fallback: raw text content if not JSON
+                        mode = 'choice';
+                    }
+                }
+
+                return {
+                    id: msg.id,
+                    role: msg.role === 'assistant' ? 'agent' : 'user',
+                    content,
+                    mode,
+                    options,
+                    refusal,
+                    timestamp: new Date(msg.created_at)
+                };
+            });
+
+            set({ messages: parsedMessages, isLoading: false });
+        } catch (e) {
+            console.error("Failed to load history", e);
+            set({ isLoading: false });
+        }
+    },
 
     sendMessage: async (text: string) => {
         const userMsg: Message = {
@@ -48,23 +123,24 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         }));
 
         try {
-            // Call AI Gateway
-            // Channel: coach (V4 logic)
+            // Call AI Gateway with Channel: coach
             const gatewayRes = await apiClient.post<any>('/api/ai/execute', {
                 channel: 'coach',
                 input: text,
                 context: {
-                    history: get().messages.slice(-6).map(m => ({ role: m.role, content: m.content })),
+                    // Send recent messages as history for context continuity
+                    // Filter out complex objects, send simplified history
+                    history: get().messages.slice(-6).map(m => ({
+                        role: m.role === 'agent' ? 'assistant' : 'user',
+                        content: m.content
+                    })),
                     mode: 'chat'
                 }
             });
 
             const data = gatewayRes.data || gatewayRes;
 
-            // Map AIResponse to Coach Message Structure
-            // AIResponse: { summary, options, question, refusal }
-            // Message: { content, options, mode, refusal, ... }
-
+            // Map AIResponse to Coach Message
             let mode: CoachMode = 'choice';
             let content = data.summary;
             let refusal = undefined;
@@ -72,23 +148,15 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             if (data.refusal) {
                 mode = 'refusal';
                 refusal = { reason: data.refusal };
+                content = data.refusal;
             } else if (data.question && (!data.options || data.options.length === 0)) {
-                // If question but no options, it's effectively a chat/ask turn
-                // We keep mode as 'choice' (default) or could add 'ask' if needed
-                // UI handles questions via content usually
                 content = data.question || data.summary;
             } else if (data.options?.length > 0) {
                 mode = 'choice';
             } else {
-                // Just text response
-                mode = 'executed'; // 'executed' usually means "done". 
-                // But for chat, maybe we just use 'choice' with no options?
-                // Or leave mode undefined?
-                // Let's use 'choice' with empty options to imply "I'm listening/talking".
-                mode = 'choice';
+                mode = 'executed';
             }
 
-            // Map Options
             const options: CoachOption[] = data.options?.map((opt: any, idx: number) => ({
                 id: `opt_${Date.now()}_${idx}`,
                 title: opt.title,

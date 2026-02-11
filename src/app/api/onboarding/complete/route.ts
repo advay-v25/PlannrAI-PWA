@@ -204,8 +204,9 @@ export const POST = secureApiRoute(
         // 4. Persist Plan
         let blocksCreated = 0;
         try {
-            blocksCreated = await persistWeekPlan(userId, plan, today, supabase);
-            console.log(`[Onboarding] Generated ${blocksCreated} initial blocks.`);
+            const result = await persistWeekPlan(userId, plan, today, supabase, 'onboarding');
+            blocksCreated = result.blocksInserted;
+            console.log(`[Onboarding] Generated ${blocksCreated} initial blocks. Version: ${result.versionId}`);
         } catch (planError) {
             console.error("Failed to persist initial plan:", planError);
             // Non-blocking, but warned

@@ -21,60 +21,35 @@ export function Step8Generate() {
         "Donna is finalizing your optimization..."
     ];
 
-    // Real Generation Logic
+    // Thinking animation, then show preview
     useEffect(() => {
-        // Thinking Step Loop
         const messageInterval = setInterval(() => {
             setThinkingStep(prev => prev < thinkingMessages.length - 1 ? prev + 1 : prev);
         }, 800);
 
-        let mounted = true;
-
-        async function completeOnboarding() {
-            try {
-                // Call API
-                const response = await fetch('/api/onboarding/complete', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-
-                if (!response.ok) throw new Error('Failed to save profile');
-
-                if (mounted) {
-                    setGenerating(false);
-                    // We can now redirect or show the timeline.
-                    // Since the API creates the schedule, we should ideally fetch it.
-                    // But Step8 logic below visualizes 'generatedPlan'.
-                    // For now, let's assume successful persistence and mock the visualization 
-                    // (since we just need to get to Dashboard where real data is loaded).
-                    // Or ideally render what we created.
-
-                    setGeneratedPlan({
-                        schedule: [
-                            { time: data.sleep_end || '07:00', title: 'Wake Up & Hydrate', type: 'bio' },
-                            // ... existing logic ...
-                            // This visualization is ephemeral anyway.
-                            { time: data.sleep_start || '23:00', title: 'Sleep', type: 'bio' },
-                        ]
-                    });
-                }
-            } catch (err) {
-                console.error("Onboarding Completion Failed", err);
-                // Optionally show error state
-            }
-        }
-
-        // Delay slightly for effect, then save
+        // After 4 seconds of animation, show the static preview
         const timer = setTimeout(() => {
-            completeOnboarding();
-        }, 2000);
+            setGenerating(false);
+            setGeneratedPlan({
+                schedule: [
+                    { time: data.sleep_end || '07:00', title: 'Wake Up & Hydrate', type: 'bio' },
+                    { time: data.meal_windows?.breakfast || '08:00', title: 'Breakfast', type: 'meal' },
+                    ...data.goals.map((g, i) => ({
+                        time: `${String(9 + i).padStart(2, '0')}:30`,
+                        title: g.title,
+                        type: 'work'
+                    })),
+                    { time: data.meal_windows?.lunch || '12:30', title: 'Lunch', type: 'meal' },
+                    { time: data.meal_windows?.dinner || '19:00', title: 'Dinner', type: 'meal' },
+                    { time: data.sleep_start || '23:00', title: 'Sleep', type: 'bio' },
+                ]
+            });
+        }, 4000);
 
         return () => {
-            mounted = false;
             clearTimeout(timer);
             clearInterval(messageInterval);
-        }
+        };
     }, [data]);
 
     if (generating) {

@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
+import { apiClient } from '@/lib/api-client';
+import type { Patch, AIResponse } from '@/lib/ai/schemas';
 import {
     Calendar,
     Sparkles,
@@ -50,7 +52,7 @@ interface WeekPlannerProps {
 
 export function WeekPlanner({ onClose, onApply, context }: WeekPlannerProps) {
     const [plan, setPlan] = useState<WeekPlan | null>(null);
-    const [patch, setPatch] = useState<any>(null); // Store the raw patch for application
+    const [patch, setPatch] = useState<Patch | null>(null);
     const [loading, setLoading] = useState(false);
     const [applying, setApplying] = useState(false);
     const [error, setError] = useState('');
@@ -67,34 +69,23 @@ export function WeekPlanner({ onClose, onApply, context }: WeekPlannerProps) {
         setPlan(null);
 
         try {
-            // Call AI Gateway
-            // We use 'calendar' channel. We construct a strong prompt in 'input'
-            const response = await fetch('/api/ai/execute', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    channel: 'calendar',
-                    input: `Plan my week starting ${weekStart}. Create a balanced schedule with my goals and anchors.`,
-                    context: {
-                        week_start: weekStart,
-                        goals: context?.goals || [],
-                        anchors: context?.anchors || [],
-                        priorities: context?.user_profile?.priorities || [],
-                        energy_level: context?.user_profile?.energy_level || 3
-                    },
-                    limits: { max_options: 1 }
-                }),
+            const aiData = await apiClient.ai.execute({
+                channel: 'calendar',
+                input: `Plan my week starting ${weekStart}. Create a balanced schedule with my goals and anchors.`,
+                context: {
+                    week_start: weekStart,
+                    goals: context?.goals || [],
+                    anchors: context?.anchors || [],
+                    priorities: context?.user_profile?.priorities || [],
+                    energy_level: context?.user_profile?.energy_level || 3
+                },
+                // limits passed as generic object if needed, but schema doesn't strict check extra keys in execute arguments usually
+                // but types might. API client `execute` allows schema checking.
+                // The client allows 'limits' prop? yes.
+                limits: { max_options: 1 }
             });
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to generate plan');
-            }
-
-            const aiData = data.data || data;
-
-            if (aiData.options?.[0]?.patch) {
+            if (aiData.options && aiData.options.length > 0) {
                 const generatedPatch = aiData.options[0].patch;
                 setPatch(generatedPatch); // Store for applying later
 
@@ -104,42 +95,15 @@ export function WeekPlanner({ onClose, onApply, context }: WeekPlannerProps) {
                 days.forEach(d => schedule[d] = []);
 
                 // Iterate ops
-                generatedPatch.ops?.forEach((op: any) => {
+                generatedPatch.ops.forEach((op: any) => {
                     if (op.op === 'create_event') {
-                        const date = op.payload.start_time.split('T')[0]; // Assuming ISO or YYYY-MM-DD logic? 
-                        // Wait, create_event payload in Calendar Channel usually implies "Today" or relative?
-                        // The Prompt needs to handle dates.
-                        // If AI returns explicit dates, we map them.
-                        // If AI returns generic structure, we have a problem.
-                        // Let's assume AI returns ISO strings or date-attached payloads if we give it specific dates in context.
-
-                        // BUT 'calendar' channel prompt says: "Use 'create_event' op with payload: { title, start_time: 'HH:MM'... }"
-                        // It doesn't enforce DATE in payload.
-                        // We might need to handle multi-day patches.
-                        // For now, let's assume the AI puts the date in 'start_time' ISO or we need to infer/ask AI to include date.
-                        // Actually, 'calendar' default prompt is for "Today". 
-                        // We might need to override the prompt or instructions?
-                        // "Plan my week..." -> The AI *should* know to use dates.
-                        // Let's hope the Gateway's runAI logic (which uses 'calendar') allows flexible payloads if schema permits.
-                        // PatchOpSchema payload is 'Record<string, any>'. So it can contain 'date'.
-                        // I will Assume payload has 'date' or 'start_time' is full ISO.
+                        // Logic to put events into visualization
+                        // For now, parsing logic remains minimal as in previous version
                     }
                 });
 
-                // Fallback Mock for Visualization if AI output isn't perfect for Grid immediately
-                // To safely refactor without breaking demo:
-                // We will rely on the endpoint returning a valid Patch.
-                // Converting Patch -> Grid is complex logic to write inline.
-                // I will simplify: I will just show the "Summary" in reasoning and a generic 'Plan Generated' state?
-                // OR better: I will ask the AI to output exactly what WeekPlan needs? No, schema is strict.
-
-                // Real approach:
-                // I'll parse the patch ops.
-                // If op has 'date', use it. Else default to weekStart + offset?
-                // Let's rely on standard 'summary' first.
-
                 setPlan({
-                    schedule: { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] }, // TODO: Hydrate from patch
+                    schedule: { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] }, // TODO: Hydrate from patch or response
                     reasoning: {
                         overview: aiData.summary || 'Plan generated.',
                         energy_considerations: 'Optimized for you.',
@@ -151,7 +115,7 @@ export function WeekPlanner({ onClose, onApply, context }: WeekPlannerProps) {
 
                 setSource('ai');
             } else {
-                setError('AI suggested no changes.');
+                setError(aiData.refusal?.reason || 'AI suggested no changes.');
             }
 
         } catch (err: any) {
@@ -169,30 +133,17 @@ export function WeekPlanner({ onClose, onApply, context }: WeekPlannerProps) {
         setError('');
 
         try {
-            const response = await fetch('/api/calendar/apply-patch', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ patch }),
-            });
+            await apiClient.patch.apply(patch, 'week_planner');
 
-            const data = await response.json();
-
-            if (response.ok) {
-                setSuccess(true);
-                // Call props.onApply if needed (though we applied via API)
-                // We might want to pass something to onApply to trigger refresh
-                if (onApply) {
-                    onApply(plan as WeekPlan);
-                    // Note: 'plan' here is the UI model. Parent might reload data.
-                }
-                setTimeout(() => {
-                    if (onClose) onClose();
-                }, 2000);
-            } else {
-                setError(data.error || 'Failed to apply plan');
+            setSuccess(true);
+            if (onApply) {
+                onApply(plan as WeekPlan);
             }
-        } catch (err) {
-            setError('Failed to apply plan to calendar');
+            setTimeout(() => {
+                if (onClose) onClose();
+            }, 2000);
+        } catch (err: any) {
+            setError(err.message || 'Failed to apply plan to calendar');
         } finally {
             setApplying(false);
         }

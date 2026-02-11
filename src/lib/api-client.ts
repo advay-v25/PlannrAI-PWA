@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
+import type { ChannelType, AIResponse, Patch } from '@/lib/ai/schemas';
 
 type ApiOptions = RequestInit & {
     skipAuth?: boolean;
@@ -140,6 +141,23 @@ export const apiClient = {
             method: 'DELETE',
             body: body ? JSON.stringify(body) : undefined
         });
+    },
+
+    // Unified AI & Patch Pipeline
+    get ai() {
+        return {
+            execute: (data: { channel: ChannelType; input: string; context?: any; limits?: any; twoPass?: boolean; maxTokens?: number }) =>
+                this.post<AIResponse>('/api/ai/execute', data),
+        };
+    },
+
+    get patch() {
+        return {
+            apply: (patch: Patch, source: string = 'ai_assist') =>
+                this.post<{ success: boolean; results: any; versionId?: string; updatedBlocks?: any[] }>('/api/patch/apply', { patch, source }),
+            undo: () =>
+                this.post<{ success: boolean; updatedBlocks?: any[] }>('/api/patch/undo', {}),
+        };
     },
 
     // Domain APIs

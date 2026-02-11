@@ -35,9 +35,12 @@ export async function POST(request: Request) {
         // Admin is safer for "Cleanup".
 
         const tables = [
-            'brain_dumps',
+            'brain_dump_entries',
+            'coach_threads',
+            'coach_messages',
+            'memory_facts',
             'schedule_blocks',
-            'coach_interactions',
+            'coach_interactions', // Legacy?
             'weekly_reviews',
             'commitments',
             'goals',

@@ -5,8 +5,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
 import { useToast } from '@/components/ui/toast';
+import { apiClient } from '@/lib/api-client';
 import { X, Sparkles, Check, Calendar, List, Clock, RefreshCw, ChevronDown, ChevronUp, AlertTriangle, Replace, SkipForward } from 'lucide-react';
 import type { Goal } from '@/types/database';
+import type { Patch, PatchOp } from '@/lib/ai/schemas';
 
 interface ConflictInfo {
     date: string;
@@ -50,7 +52,7 @@ export function GoalStrategyModal({
     const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5]); // Mon-Fri default
     const [scheduledWeeks, setScheduledWeeks] = useState(1); // 1-4 weeks
 
-    // Conflict state
+    // Conflict state (disabled for client-side patch generation for now)
     const [conflicts, setConflicts] = useState<ConflictInfo[]>([]);
     const [showConflictDialog, setShowConflictDialog] = useState(false);
 
@@ -62,126 +64,136 @@ export function GoalStrategyModal({
     const handleDecompose = async () => {
         setIsLoading(true);
         try {
-            const res = await fetch('/api/ai/execute', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    channel: 'goal_decomposition',
-                    input: `Decompose goal: ${goal.title}`,
-                    context: {
-                        goal_id: goal.id,
-                        goal_title: goal.title,
-                        goal_category: goal.category,
-                        minutes_per_day: goal.minutes_per_day,
-                        skill_level: 'Beginner'
-                    }
-                })
+            const aiData = await apiClient.ai.execute({
+                channel: 'goal_decomposition',
+                input: `Decompose goal: ${goal.title}`,
+                context: {
+                    goal_id: goal.id,
+                    goal_title: goal.title,
+                    goal_category: goal.category,
+                    minutes_per_day: goal.minutes_per_day,
+                    skill_level: 'Beginner'
+                }
             });
-            const data = await res.json();
 
-            // The Gateway returns { summary, options: [ { patch: ... } ] }
-            // But for this specific channel, we asked for a specific JSON structure in the prompt.
-            // The `runAI` wrapper wraps "free" JSON in `options[0].patch` OR we standardise.
-            // Wait, `runAI` enforces the `AIResponse` schema which has `options`, `patch`, etc.
-            // My prompt asked for: strategy_one_liner, routine, milestones...
-            // The `AIResponse` schema is strict. I need to map this.
-            // Actually, for `goal_decomposition`, I should probably use a `patch` op `update_goal`?
-            // OR I can stick to the pattern where the AI returns the plan in `options[0].patch` or a custom field?
-            // The `AIResponse` schema is: { summary, mode, options: [...] }
-            // If I want custom JSON, I might need to put it inside `options[0].patch` or `options[0].impact`?
-            // A better approach is to ask the AI to return `mode: 'propose'` and putting the plan in `options[0].args` or similar.
-            // Let's look at `AIResponse` again.
-
-            // Re-reading `runAI`: it forces `AIResponse`.
-            // My prompt in `prompts.ts` says: "Output strict JSON with: strategy_one_liner..."
-            // This CONFLICTS with `AIResponse`.
-            // Correct approach: The AI should return `mode: 'execute'` (or propose)
-            // and the `patch` should contain an op: `update_goal` with the strategy as payload.
-
-            if (data.success && data.data) {
-                const response = data.data;
-                const option = response.options?.[0];
-
-                // Check for update_goal op
+            if (aiData.options && aiData.options.length > 0) {
+                const option = aiData.options[0];
                 let plan = null;
-                if (option?.patch?.ops) {
+
+                if (option.patch?.ops) {
                     const updateOp = option.patch.ops.find((op: any) => op.op === 'update_goal');
-                    if (updateOp?.fields?.ai_strategy) {
+                    if (updateOp && 'fields' in updateOp && updateOp.fields.ai_strategy) {
                         plan = updateOp.fields.ai_strategy;
                     }
                 }
 
                 if (plan) {
                     setStrategy(plan);
-                    showToast('Strategy generated!', 'ai', 3000);
+                    showToast('Strategy generated!', 'success', 3000);
                     onStrategyGenerated?.(plan);
-
-                    // The Gateway doesn't auto-execute 'execute' mode for safety unless we built a client-side executor.
-                    // For now, we just take the payload and let the UI/Store handle the save, 
-                    // OR we can rely on the fact that `onStrategyGenerated` likely saves it to DB via `updateGoal`.
-                    // Looking at `GoalsPage`: onStrategyGenerated calls `updateGoal(id, { ai_strategy: strategy })`.
-                    // So we are good!
+                    // Also execute the patch to save it to DB
+                    await apiClient.patch.apply(option.patch, 'goal_strategy');
                 } else {
-                    console.warn("AI Response missing strategy patch", response);
+                    console.warn("AI Response missing strategy patch", aiData);
                     showToast('AI format mismatch', 'error');
                 }
             } else {
-                showToast(data.message || 'Failed to generate strategy', 'error');
+                showToast(aiData.refusal?.reason || 'Failed to generate strategy', 'error');
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
-            showToast('Failed to generate strategy', 'error');
+            showToast(e.message || 'Failed to generate strategy', 'error');
         } finally {
             setIsLoading(false);
         }
     };
 
+    const generateScheduleOps = (): PatchOp[] => {
+        const ops: PatchOp[] = [];
+        const startDate = new Date(scheduleDate);
+        const durationMins = goal.minutes_per_day || 60;
+
+        // Calculate total days to schedule
+        const totalDays = isRecurring ? scheduledWeeks * 7 : 1;
+
+        for (let i = 0; i < totalDays; i++) {
+            const current = new Date(startDate);
+            current.setDate(startDate.getDate() + i);
+            const dayOfWeek = current.getDay(); // 0=Sun, 1=Mon...
+
+            // If not recurring, we just schedule for start date (loop runs once)
+            // If recurring, check if day matches selectedDays
+            if (!isRecurring || selectedDays.includes(dayOfWeek)) {
+                // Calculate Start/End ISO strings
+                const yyyy = current.getFullYear();
+                const mm = String(current.getMonth() + 1).padStart(2, '0');
+                const dd = String(current.getDate()).padStart(2, '0');
+                const dateStr = `${yyyy}-${mm}-${dd}`;
+
+                const startIso = `${dateStr}T${scheduleTime}:00`;
+                const endDate = new Date(new Date(startIso).getTime() + durationMins * 60000);
+                // Simple formatting for end time ISO
+                const endIso = endDate.toISOString().replace(/\.\d{3}Z$/, ''); // Local time simplified usage
+                // Wait, ISO string from Date is UTC. We need literal string construction to avoid timezone mess if we treat inputs as local.
+                // Better approach:
+                // Construct Date object from input date+time (assuming local browser context)
+                // Then convert to ISO? Supabase expects ISO with Offset or UTC.
+                // To be safe and simple: use the 'start_time' and 'end_time' fields in payload as full ISO strings
+                // calculated carefully.
+
+                // Let's assume user inputs are Local Time.
+                const startD = new Date(`${dateStr}T${scheduleTime}:00`);
+                const endD = new Date(startD.getTime() + durationMins * 60000);
+
+                ops.push({
+                    op: 'create_event',
+                    payload: {
+                        title: goal.title,
+                        start_time: startD.toISOString(),
+                        end_time: endD.toISOString(),
+                        block_type: 'goal',
+                        goal_id: goal.id
+                    }
+                });
+            }
+        }
+        return ops;
+    };
+
+
     const handleSchedule = async (skipConflicts = false, replaceConflicts = false) => {
         if (!strategy) return;
-
         setIsScheduling(true);
+
         try {
-            const res = await fetch('/api/goals/schedule-strategy', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    goal_id: goal.id,
-                    start_time: scheduleTime,
-                    date: scheduleDate,
-                    recurring: isRecurring,
-                    days_of_week: isRecurring ? selectedDays : undefined,
-                    weeks: isRecurring ? scheduledWeeks : 1,
-                    skipConflicts,
-                    replaceConflicts
-                })
-            });
+            const ops = generateScheduleOps();
 
-            const data = await res.json();
-
-            if (res.status === 409 && data.data?.conflicts) {
-                // Conflicts detected - show resolution dialog
-                setConflicts(data.data.conflicts);
-                setShowConflictDialog(true);
+            if (ops.length === 0) {
+                showToast('No days selected to schedule', 'error');
+                setIsScheduling(false);
                 return;
             }
 
-            if (res.ok && data.success) {
-                const blockCount = data.data?.blocks?.length || 1;
-                const weeksText = scheduledWeeks > 1 ? ` (${scheduledWeeks} weeks)` : '';
-                showToast(
-                    isRecurring
-                        ? `✅ Scheduled ${blockCount} blocks${weeksText}!`
-                        : `✅ Scheduled for ${scheduleDate} at ${scheduleTime}`,
-                    'success',
-                    4000
-                );
-                setShowScheduler(false);
-                setShowConflictDialog(false);
-                setConflicts([]);
-            } else {
-                showToast(data.error || 'Failed to schedule', 'error');
-            }
-        } catch (e) {
+            const patch: Patch = {
+                undoable: true,
+                ops: ops
+            };
+
+            await apiClient.patch.apply(patch, 'goal_schedule');
+
+            const blockCount = ops.length;
+            const weeksText = scheduledWeeks > 1 ? ` (${scheduledWeeks} weeks)` : '';
+            showToast(
+                isRecurring
+                    ? `✅ Scheduled ${blockCount} blocks${weeksText}!`
+                    : `✅ Scheduled for ${scheduleDate} at ${scheduleTime}`,
+                'success',
+                4000
+            );
+            setShowScheduler(false);
+            setConflicts([]);
+
+        } catch (e: any) {
             console.error(e);
             showToast('Failed to schedule strategy', 'error');
         } finally {
@@ -405,6 +417,7 @@ export function GoalStrategyModal({
                                                 variant="primary"
                                                 className="w-full"
                                                 onClick={() => handleSchedule()}
+                                                disabled={isScheduling}
                                             >
                                                 {isScheduling ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Calendar className="w-4 h-4 mr-2" />}
                                                 {isScheduling ? 'Scheduling...' : (isRecurring
@@ -416,80 +429,6 @@ export function GoalStrategyModal({
                                 )}
                             </AnimatePresence>
                         </div>
-
-                        {/* Conflict Resolution Dialog */}
-                        <AnimatePresence>
-                            {showConflictDialog && conflicts.length > 0 && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: 10 }}
-                                    className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80"
-                                    onClick={() => setShowConflictDialog(false)}
-                                >
-                                    <GlassCard
-                                        className="w-full max-w-md"
-                                        padding="lg"
-                                        onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                                    >
-                                        <div className="flex items-center gap-3 mb-4">
-                                            <div className="w-10 h-10 rounded-full bg-[var(--color-warning)]/20 flex items-center justify-center">
-                                                <AlertTriangle className="w-5 h-5 text-[var(--color-warning)]" />
-                                            </div>
-                                            <div>
-                                                <h3 className="font-bold">Scheduling Conflicts</h3>
-                                                <p className="text-sm text-[var(--color-text-tertiary)]">
-                                                    {conflicts.length} existing block{conflicts.length > 1 ? 's' : ''} overlap
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        {/* Conflict List */}
-                                        <div className="space-y-2 max-h-48 overflow-y-auto mb-4">
-                                            {conflicts.slice(0, 5).map((conflict, i) => (
-                                                <div key={i} className="p-3 rounded-lg bg-white/5 border border-[var(--color-warning)]/20">
-                                                    <p className="text-sm font-medium">{conflict.existingBlock.context}</p>
-                                                    <p className="text-xs text-[var(--color-text-tertiary)]">
-                                                        {conflict.date} • {conflict.existingBlock.start_time.slice(0, 5)} - {conflict.existingBlock.end_time.slice(0, 5)}
-                                                    </p>
-                                                </div>
-                                            ))}
-                                            {conflicts.length > 5 && (
-                                                <p className="text-xs text-[var(--color-text-tertiary)] text-center">
-                                                    +{conflicts.length - 5} more conflicts
-                                                </p>
-                                            )}
-                                        </div>
-
-                                        {/* Resolution Options */}
-                                        <div className="space-y-2">
-                                            <GlassButton
-                                                variant="primary" // Changed from danger to primary as danger is not supported
-                                                className="w-full bg-red-500/20 hover:bg-red-500/30 text-red-200 border-red-500/30"
-                                                onClick={() => handleSchedule(false, true)}
-                                            >
-                                                {isScheduling ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Replace className="w-4 h-4 mr-2" />}
-                                                {isScheduling ? 'Replacing...' : 'Replace Existing Blocks'}
-                                            </GlassButton>
-                                            <GlassButton
-                                                variant="ghost"
-                                                className="w-full"
-                                                onClick={() => handleSchedule(true, false)}
-                                            >
-                                                {isScheduling ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <SkipForward className="w-4 h-4 mr-2" />}
-                                                {isScheduling ? 'Skipping...' : 'Skip Conflicts'}
-                                            </GlassButton>
-                                            <button
-                                                onClick={() => setShowConflictDialog(false)}
-                                                className="w-full py-2 text-sm text-[var(--color-text-tertiary)] hover:text-white transition-colors"
-                                            >
-                                                Cancel
-                                            </button>
-                                        </div>
-                                    </GlassCard>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
 
                         {/* Footer Actions */}
                         <div className="pt-4 flex gap-3 border-t border-white/10">

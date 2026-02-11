@@ -161,6 +161,32 @@ export const PUT = secureApiRoute(
                 return apiError('Failed to update habit stack', 500);
             }
 
+            // Also mark linked schedule_block as done via habit_instances
+            try {
+                const { data: instance } = await supabase
+                    .from('habit_instances')
+                    .select('schedule_block_id')
+                    .eq('habit_stack_id', id)
+                    .eq('date', today)
+                    .single();
+
+                if (instance?.schedule_block_id) {
+                    await supabase
+                        .from('schedule_blocks')
+                        .update({ status: 'done' })
+                        .eq('id', instance.schedule_block_id)
+                        .eq('user_id', context.userId);
+
+                    await supabase
+                        .from('habit_instances')
+                        .update({ status: 'done' })
+                        .eq('habit_stack_id', id)
+                        .eq('date', today);
+                }
+            } catch (e) {
+                console.warn('[habit-stacks] Failed to cascade completion to schedule_block:', e);
+            }
+
             return apiSuccess({
                 stack: updated,
                 streakInfo: {

@@ -6,7 +6,9 @@ import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
 import { GlassInput } from '@/components/ui/glass-input';
 import { useHabitStacksStore } from '@/stores';
-import { habitStacksApi, type HabitStack } from '@/lib/api-client';
+import { habitStacksApi, type HabitStack, apiClient } from '@/lib/api-client';
+import type { ScheduleBlock, Goal, Database } from '@/types/database';
+import type { Patch } from '@/lib/ai/schemas';
 import {
     Link as LinkIcon,
     Plus,
@@ -22,22 +24,42 @@ import {
     Loader2,
     RefreshCw,
 } from 'lucide-react';
+import { HabitGrid } from './habit-grid';
+import { createClient } from '@/lib/supabase/client';
+
+type HabitInstance = Database['public']['Tables']['habit_instances']['Row'];
+
+// Helper to sanitize DB data for Store (which expects numbers not nulls)
+const sanitizeStack = (s: HabitStack): any => ({
+    ...s,
+    action_duration_mins: s.action_duration_mins ?? 5,
+    current_streak: s.current_streak ?? 0,
+    longest_streak: s.longest_streak ?? 0,
+    total_completions: s.total_completions ?? 0,
+    grace_days_used: s.grace_days_used ?? 0,
+    max_grace_days: s.max_grace_days ?? 1,
+    is_active: s.is_active ?? true,
+});
 
 /**
  * Habit Stack Card - Individual habit stack with completion
  */
 interface HabitStackCardProps {
     stack: HabitStack;
+    instances?: HabitInstance[];
     onComplete?: () => void;
     onDelete?: () => void;
 }
 
-export function HabitStackCard({ stack, onComplete, onDelete }: HabitStackCardProps) {
+export function HabitStackCard({ stack, instances = [], onComplete, onDelete }: HabitStackCardProps) {
     const [isCompleting, setIsCompleting] = useState(false);
     const [showCelebration, setShowCelebration] = useState(false);
     const { completeStack, updateStack } = useHabitStacksStore();
 
     const isCompletedToday = stack.last_completed === new Date().toISOString().split('T')[0];
+    const currentStreak = stack.current_streak ?? 0;
+    const longestStreak = stack.longest_streak ?? 0;
+    const duration = stack.action_duration_mins ?? 5;
 
     const handleComplete = async () => {
         if (isCompletedToday || isCompleting) return;
@@ -48,7 +70,7 @@ export function HabitStackCard({ stack, onComplete, onDelete }: HabitStackCardPr
             const result = await habitStacksApi.complete(stack.id);
 
             if (result.success && result.data) {
-                updateStack(stack.id, result.data.stack);
+                updateStack(stack.id, sanitizeStack(result.data.stack));
 
                 // Show celebration for new records
                 if (result.data.streakInfo?.isNewRecord) {
@@ -118,25 +140,28 @@ export function HabitStackCard({ stack, onComplete, onDelete }: HabitStackCardPr
                             <ChevronRight className="w-4 h-4 text-[var(--color-primary)]" />
                             <span className="font-medium">{stack.action_habit}</span>
                             <span className="text-xs text-[var(--text-tertiary)]">
-                                ({stack.action_duration_mins}m)
+                                ({duration}m)
                             </span>
                         </div>
                     </div>
 
                     {/* Streak */}
                     <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--glass-bg)]">
-                        <Flame className={`w-4 h-4 ${stack.current_streak > 0 ? 'text-orange-500' : 'text-[var(--text-tertiary)]'}`} />
-                        <span className="text-sm font-semibold">{stack.current_streak}</span>
+                        <Flame className={`w-4 h-4 ${currentStreak > 0 ? 'text-orange-500' : 'text-[var(--text-tertiary)]'}`} />
+                        <span className="text-sm font-semibold">{currentStreak}</span>
                     </div>
                 </div>
 
-                {/* Streak Info */}
-                {stack.longest_streak > 0 && (
-                    <div className="mt-3 pt-3 border-t border-[var(--glass-border)] flex items-center justify-between text-xs text-[var(--text-tertiary)]">
-                        <span>Best: {stack.longest_streak} days</span>
-                        <span>Total: {stack.total_completions} times</span>
+                {/* Grid Visualization */}
+                <div className="mt-4 pt-3 border-t border-[var(--glass-border)]">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] uppercase tracking-widest text-[var(--text-tertiary)]">Consistency</span>
+                        {longestStreak > 0 && (
+                            <span className="text-[10px] text-[var(--text-tertiary)]">Best: {longestStreak} days</span>
+                        )}
                     </div>
-                )}
+                    <HabitGrid stackId={stack.id} instances={instances} />
+                </div>
             </div>
         </motion.div>
     );
@@ -181,8 +206,9 @@ export function CreateHabitStack({ goalId, onCreated, onCancel }: CreateHabitSta
             });
 
             if (result.success && result.data?.stack) {
-                addStack(result.data.stack);
-                onCreated?.(result.data.stack);
+                const s = sanitizeStack(result.data.stack);
+                addStack(s);
+                onCreated?.(s);
                 setTriggerHabit('');
                 setActionHabit('');
                 setDuration(5);
@@ -281,13 +307,22 @@ export function CreateHabitStack({ goalId, onCreated, onCancel }: CreateHabitSta
 /**
  * AI-Powered Habit Stack Creator
  */
-function CreateHabitStackWithAI({ onCreated, onCancel }: { onCreated: () => void, onCancel: () => void }) {
+interface CreateHabitStackWithAIProps {
+    onCreated: () => void;
+    onCancel: () => void;
+    todayBlocks?: ScheduleBlock[];
+    goals?: Goal[];
+    onBlocksUpdated?: () => void;
+}
+
+function CreateHabitStackWithAI({ onCreated, onCancel, todayBlocks = [], goals = [], onBlocksUpdated }: CreateHabitStackWithAIProps) {
     const [step, setStep] = useState<'input' | 'chat' | 'confirm'>('input');
     const [habitName, setHabitName] = useState('');
     const [messages, setMessages] = useState<Array<{ role: 'assistant' | 'user', content: string }>>([]);
     const [userInput, setUserInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [generatedStack, setGeneratedStack] = useState<HabitStack | null>(null);
+    const [calendarEvent, setCalendarEvent] = useState<{ title: string; start_time: string; end_time: string; block_type: string } | null>(null);
     const { addStack } = useHabitStacksStore();
 
     // Initial message
@@ -297,39 +332,74 @@ function CreateHabitStackWithAI({ onCreated, onCancel }: { onCreated: () => void
         }
     }, [step]);
 
+    const buildAIContext = () => ({
+        mode: 'chat',
+        current_schedule: todayBlocks.map(b => ({
+            id: b.id,
+            title: b.title || b.context,
+            start_time: b.start_time,
+            end_time: b.end_time,
+            block_type: b.block_type,
+            is_fixed: b.is_fixed,
+        })),
+        goals: goals.map(g => ({
+            id: g.id,
+            title: g.title,
+            category: g.category,
+            importance: g.importance,
+        })),
+    });
+
+    const extractStackAndEvent = (aiData: any) => {
+        if (aiData.options && aiData.options.length > 0) {
+            const ops = aiData.options[0].patch?.ops || [];
+            const stackOp = ops.find((o: any) => o.op === 'create_habit_stack');
+            const eventOp = ops.find((o: any) => o.op === 'create_event');
+            if (stackOp) {
+                setGeneratedStack({
+                    trigger_habit: stackOp.trigger || stackOp.payload?.trigger,
+                    action_habit: stackOp.action || stackOp.payload?.action,
+                    action_duration_mins: stackOp.duration || stackOp.payload?.duration || 2,
+                    // Defensively set other fields
+                    id: '', user_id: '',
+                    current_streak: 0, longest_streak: 0,
+                    total_completions: 0, grace_days_used: 0, max_grace_days: 1,
+                    is_active: true,
+                    created_at: new Date().toISOString(), updated_at: new Date().toISOString()
+                } as any);
+                if (eventOp) {
+                    const p = eventOp.payload || eventOp;
+                    setCalendarEvent({
+                        title: p.title || stackOp.action || stackOp.payload?.action,
+                        start_time: p.start_time,
+                        end_time: p.end_time,
+                        block_type: p.block_type || 'habit',
+                    });
+                }
+                setStep('confirm');
+                return true;
+            }
+        }
+        return false;
+    };
+
     const startConversation = async () => {
         setIsLoading(true);
         try {
-            const res = await fetch('/api/ai/execute', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    channel: 'habit_stack',
-                    input: `I want to build a habit: ${habitName}`,
-                    context: { mode: 'chat' }
-                })
+            const aiData = await apiClient.ai.execute({
+                channel: 'habit_stack',
+                input: `I want to build a habit: ${habitName}`,
+                context: buildAIContext()
             });
-            const data = await res.json();
-            const aiData = data.data || data;
 
             if (aiData.summary) {
-                // Check if it's a question or a proposal
-                if (aiData.mode === 'ask' || (aiData.question && !aiData.options?.length)) {
+                if (aiData.mode === 'ask' || (aiData.mode !== 'propose' && !aiData.options?.length)) {
                     setMessages([{
                         role: 'assistant',
-                        content: aiData.question || aiData.summary
+                        content: aiData.summary // Use summary as the question/response
                     }]);
-                } else if (aiData.options?.length > 0) {
-                    // Direct proposal (rare for first turn but possible)
-                    const op = aiData.options[0].patch?.ops?.find((o: any) => o.op === 'create_habit_stack');
-                    if (op) {
-                        setGeneratedStack({
-                            trigger_habit: op.payload.trigger,
-                            action_habit: op.payload.action,
-                            action_duration_mins: op.payload.duration || 2
-                        } as any);
-                        setStep('confirm');
-                    }
+                } else {
+                    extractStackAndEvent(aiData);
                 }
             }
         } catch (error) {
@@ -351,44 +421,22 @@ function CreateHabitStackWithAI({ onCreated, onCancel }: { onCreated: () => void
         setIsLoading(true);
 
         try {
-            const res = await fetch('/api/ai/execute', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    channel: 'habit_stack',
-                    input: userInput,
-                    context: {
-                        history: newMessages.map(m => ({ role: m.role, content: m.content })),
-                        habit_goal: habitName
-                    }
-                })
+            const aiData = await apiClient.ai.execute({
+                channel: 'habit_stack',
+                input: userInput,
+                context: {
+                    ...buildAIContext(),
+                    history: newMessages.map(m => ({ role: m.role, content: m.content })),
+                    habit_goal: habitName
+                }
             });
-            const data = await res.json();
-            const aiData = data.data || data;
 
             if (aiData.summary) {
-                if (aiData.options?.length > 0) {
-                    // Found a stack!
-                    const op = aiData.options[0].patch?.ops?.find((o: any) => o.op === 'create_habit_stack');
-                    if (op) {
-                        setGeneratedStack({
-                            trigger_habit: op.payload.trigger,
-                            action_habit: op.payload.action,
-                            action_duration_mins: op.payload.duration || 2
-                        } as any);
-                        setStep('confirm');
-                    } else {
-                        // Fallback if no op found but options exist (maybe just text?)
-                        setMessages(prev => [...prev, {
-                            role: 'assistant',
-                            content: aiData.summary //+ "\n(I couldn't generate a valid stack object, please try again)"
-                        }]);
-                    }
-                } else {
+                if (!extractStackAndEvent(aiData)) {
                     // Continue chatting
                     setMessages(prev => [...prev, {
                         role: 'assistant',
-                        content: aiData.question || aiData.summary
+                        content: aiData.summary
                     }]);
                 }
             }
@@ -404,15 +452,37 @@ function CreateHabitStackWithAI({ onCreated, onCancel }: { onCreated: () => void
         setIsLoading(true);
 
         try {
-            // Use existing create API
+            // 1. Create habit stack (using existing helper for simplicity)
             const result = await habitStacksApi.create({
                 trigger_habit: generatedStack.trigger_habit,
                 action_habit: generatedStack.action_habit,
-                action_duration_mins: generatedStack.action_duration_mins,
+                action_duration_mins: generatedStack.action_duration_mins ?? 5,
             });
 
             if (result.success && result.data?.stack) {
-                addStack(result.data.stack);
+                addStack(sanitizeStack(result.data.stack));
+
+                // 2. Apply calendar mutation if we have an event
+                if (calendarEvent) {
+                    try {
+                        const patch: Patch = {
+                            undoable: true,
+                            ops: [{
+                                op: 'create_event',
+                                payload: {
+                                    ...calendarEvent,
+                                    habit_stack_id: result.data.stack.id
+                                }
+                            }]
+                        };
+
+                        await apiClient.patch.apply(patch, 'habit_stack');
+                        onBlocksUpdated?.();
+                    } catch (e) {
+                        console.warn('Calendar mutation failed, stack still created:', e);
+                    }
+                }
+
                 onCreated();
             }
         } catch (error) {
@@ -521,8 +591,13 @@ function CreateHabitStackWithAI({ onCreated, onCancel }: { onCreated: () => void
                                 </div>
                                 <div className="pt-2 border-t border-[var(--glass-border)] flex items-center gap-2 text-sm text-[var(--text-secondary)]">
                                     <Clock className="w-4 h-4" />
-                                    {generatedStack.action_duration_mins} minutes
+                                    {generatedStack.action_duration_mins ?? 5} minutes
                                 </div>
+                                {calendarEvent && (
+                                    <div className="pt-2 border-t border-[var(--glass-border)] text-xs text-[var(--text-tertiary)]">
+                                        📅 Will be placed at {calendarEvent.start_time} – {calendarEvent.end_time}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -555,25 +630,52 @@ function CreateHabitStackWithAI({ onCreated, onCancel }: { onCreated: () => void
         </motion.div>
     );
 }
-export function HabitStacksList() {
+
+interface HabitStacksListProps {
+    todayBlocks?: ScheduleBlock[];
+    goals?: Goal[];
+    onBlocksUpdated?: () => void;
+}
+
+export function HabitStacksList({ todayBlocks = [], goals = [], onBlocksUpdated }: HabitStacksListProps) {
     const [creationMode, setCreationMode] = useState<'manual' | 'ai' | null>(null);
     const { stacks, setStacks, setLoading, isLoading } = useHabitStacksStore();
+    const [allInstances, setAllInstances] = useState<HabitInstance[]>([]);
 
     useEffect(() => {
-        async function loadStacks() {
+        async function loadData() {
             try {
+                // Load Stacks
                 const result = await habitStacksApi.list();
                 if (result.success && result.data?.stacks) {
-                    setStacks(result.data.stacks);
+                    setStacks(result.data.stacks.map(sanitizeStack));
                 }
+
+                // Load History (Last 28 days)
+                const supabase = createClient();
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const today = new Date();
+                    const past = new Date(today);
+                    past.setDate(past.getDate() - 30);
+
+                    const { data: history } = await supabase
+                        .from('habit_instances')
+                        .select('*')
+                        .eq('user_id', user.id)
+                        .gte('date', past.toISOString().split('T')[0]);
+
+                    if (history) setAllInstances(history);
+                }
+
             } catch (error) {
-                console.error('Failed to load habit stacks:', error);
+                console.error('Failed to load habit data:', error);
             } finally {
                 setLoading(false);
             }
         }
 
-        loadStacks();
+        loadData();
     }, [setStacks, setLoading]);
 
     // Today's stacks (not yet completed today)
@@ -628,6 +730,9 @@ export function HabitStacksList() {
                     <CreateHabitStackWithAI
                         onCreated={() => setCreationMode(null)}
                         onCancel={() => setCreationMode(null)}
+                        todayBlocks={todayBlocks}
+                        goals={goals}
+                        onBlocksUpdated={onBlocksUpdated}
                     />
                 )}
             </AnimatePresence>
@@ -636,7 +741,11 @@ export function HabitStacksList() {
             {todaysStacks.length > 0 && !creationMode && (
                 <div className="space-y-3">
                     {todaysStacks.map((stack) => (
-                        <HabitStackCard key={stack.id} stack={stack} />
+                        <HabitStackCard
+                            key={stack.id}
+                            stack={stack as unknown as HabitStack}
+                            instances={allInstances.filter(i => i.habit_stack_id === stack.id)}
+                        />
                     ))}
                 </div>
             )}
@@ -646,7 +755,11 @@ export function HabitStacksList() {
                 <div className="space-y-3">
                     <p className="text-overline text-[var(--color-success)]">✓ Completed today</p>
                     {completedToday.map((stack) => (
-                        <HabitStackCard key={stack.id} stack={stack} />
+                        <HabitStackCard
+                            key={stack.id}
+                            stack={stack as unknown as HabitStack}
+                            instances={allInstances.filter(i => i.habit_stack_id === stack.id)}
+                        />
                     ))}
                 </div>
             )}

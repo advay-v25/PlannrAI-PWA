@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
+import { apiClient } from '@/lib/api-client';
 import {
     Sparkles,
     Tag,
@@ -13,7 +14,6 @@ import {
     ChevronDown,
     ChevronUp,
     Plus,
-    X
 } from 'lucide-react';
 
 interface ExtractedTask {
@@ -72,7 +72,9 @@ export function BrainDumpAnalyzer({
     className = ''
 }: BrainDumpAnalyzerProps) {
     const [analysis, setAnalysis] = useState<BrainDumpAnalysis | null>(null);
+    const [aiOptions, setAiOptions] = useState<any[]>([]); // Store actionable options
     const [isLoading, setIsLoading] = useState(false);
+    const [isApplying, setIsApplying] = useState<string | null>(null); // Track applying state by option ID
     const [error, setError] = useState('');
     const [showTasks, setShowTasks] = useState(true);
     const [acceptedTasks, setAcceptedTasks] = useState<Set<string>>(new Set());
@@ -94,25 +96,57 @@ export function BrainDumpAnalyzer({
 
         setIsLoading(true);
         setError('');
+        setAiOptions([]);
 
         try {
-            const response = await fetch('/api/ai/categorize-dump', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ content, dumpId })
+            const aiData = await apiClient.ai.execute({
+                channel: 'brain_dump',
+                input: content,
+                context: { dumpId }
             });
 
-            const data = await response.json();
+            if (aiData.options && aiData.options.length > 0) {
+                // 1. Extract Analysis from first option (all options have it)
+                const firstOption = aiData.options[0];
+                const analysisOp = firstOption.patch?.ops.find((op: any) => op.op === 'analyze_content');
 
-            if (data.error && !data.categories) {
-                setError(data.error);
+                if (analysisOp && 'analysis' in analysisOp) {
+                    setAnalysis(analysisOp.analysis as BrainDumpAnalysis);
+                } else {
+                    setError('Analysis format invalid');
+                }
+
+                // 2. Filter Actionable Options (those doing more than just analysis)
+                // Or show all, allowing user to pick "Just Log" explicitly
+                setAiOptions(aiData.options);
+
+            } else if (aiData.refusal) {
+                setError(aiData.refusal.reason || 'AI refused to analyze');
             } else {
-                setAnalysis(data);
+                if (aiData.summary) {
+                    setError('AI analysis incomplete');
+                }
             }
-        } catch (err) {
-            setError('Failed to analyze content');
+        } catch (err: any) {
+            console.error('Analysis error:', err);
+            setError(err.message || 'Failed to analyze content');
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleApplyOption = async (option: any) => {
+        setIsApplying(option.id || 'unknown');
+        try {
+            await apiClient.patch.apply(option.patch, 'brain_dump_action');
+            // Show success, maybe remove options?
+            setAiOptions([]); // Clear options after apply to prevent double apply
+            // Maybe show a toast or status?
+        } catch (err) {
+            console.error("Apply failed", err);
+            setError("Failed to apply changes");
+        } finally {
+            setIsApplying(null);
         }
     };
 
@@ -247,6 +281,45 @@ export function BrainDumpAnalyzer({
                                         </motion.div>
                                     )}
                                 </AnimatePresence>
+                            </div>
+                        )}
+
+                        {/* Recommended Actions */}
+                        {aiOptions.length > 0 && (
+                            <div className="py-4 border-t border-[var(--glass-border)] space-y-3">
+                                <h4 className="text-sm font-medium text-[var(--color-text-secondary)] flex items-center gap-2">
+                                    <Sparkles className="w-4 h-4 text-[var(--color-primary)]" />
+                                    Recommended Actions
+                                </h4>
+                                <div className="space-y-2">
+                                    {aiOptions.map((opt, i) => (
+                                        <GlassButton
+                                            key={opt.id || i}
+                                            variant="default"
+                                            className="w-full text-left justify-start group"
+                                            onClick={() => handleApplyOption(opt)}
+                                            disabled={!!isApplying}
+                                        >
+                                            <div className="flex items-center gap-3 w-full">
+                                                <div className="flex-1">
+                                                    <div className="font-medium text-sm text-[var(--color-text-primary)]">
+                                                        {opt.title || "Apply Adjustments"}
+                                                    </div>
+                                                    <div className="text-xs text-[var(--color-text-secondary)] opacity-80">
+                                                        {opt.impact || "Update schedule based on analysis"}
+                                                    </div>
+                                                </div>
+                                                {isApplying === (opt.id || 'unknown') ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />
+                                                ) : (
+                                                    <div className="text-[10px] px-2 py-1 rounded bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/20 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        Apply
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </GlassButton>
+                                    ))}
+                                </div>
                             </div>
                         )}
 

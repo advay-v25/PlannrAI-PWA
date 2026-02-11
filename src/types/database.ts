@@ -1,423 +1,1616 @@
-// Database entity types matching Supabase schema
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
 
-export interface Profile {
-    id: string;
-    created_at: string;
-    updated_at: string;
-    timezone: string;
-    sleep_start: string; // TIME format: "HH:MM"
-    sleep_end: string;
-    energy_level: number; // 1-5
-    stress_level: number; // 1-5
-    ai_can_suggest: boolean;
-    ai_can_analyze: boolean;
-    ai_can_draft: boolean;
-    onboarding_complete: boolean;
-    low_energy_mode: boolean;
-    full_name?: string;
-    preferred_name?: string;
-    meal_preferences?: {
-        breakfast: string;
-        lunch: string;
-        dinner: string;
-    };
-    // Onboarding V3 Fields
-    body_preferences?: {
-        activity_types: string[]; // e.g., ['gym', 'walk']
-        preferred_time: string;   // 'morning', 'afternoon', 'evening'
-        duration_mins: number;
-    };
-    buffer_config?: {
-        gap_mins: number;
-        type: 'light' | 'normal' | 'spacious';
-    };
-    wind_down_mins?: number;
-    meals_per_day?: number;
-    meal_windows?: {
-        breakfast?: string;
-        lunch: string;
-        dinner: string;
-    };
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.1"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+  public: {
+    Tables: {
+      agent_options: {
+        Row: {
+          context_snapshot: Json | null
+          created_at: string
+          expires_at: string
+          id: string
+          label: string
+          patch: Json
+          user_id: string
+        }
+        Insert: {
+          context_snapshot?: Json | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          label: string
+          patch: Json
+          user_id: string
+        }
+        Update: {
+          context_snapshot?: Json | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          label?: string
+          patch?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ai_interventions: {
+        Row: {
+          action_taken_at: string | null
+          created_at: string | null
+          id: string
+          message: string
+          payload: Json | null
+          status: string | null
+          type: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action_taken_at?: string | null
+          created_at?: string | null
+          id?: string
+          message: string
+          payload?: Json | null
+          status?: string | null
+          type: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action_taken_at?: string | null
+          created_at?: string | null
+          id?: string
+          message?: string
+          payload?: Json | null
+          status?: string | null
+          type?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      ai_proposals: {
+        Row: {
+          action_data: Json
+          created_at: string | null
+          description: string | null
+          expires_at: string | null
+          id: string
+          priority: number | null
+          proposal_type: string
+          responded_at: string | null
+          source_id: string | null
+          source_type: string | null
+          status: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          action_data: Json
+          created_at?: string | null
+          description?: string | null
+          expires_at?: string | null
+          id?: string
+          priority?: number | null
+          proposal_type: string
+          responded_at?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          status?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          action_data?: Json
+          created_at?: string | null
+          description?: string | null
+          expires_at?: string | null
+          id?: string
+          priority?: number | null
+          proposal_type?: string
+          responded_at?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          status?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      auth_attempts: {
+        Row: {
+          attempts: number | null
+          blocked_until: string | null
+          ip_address: unknown
+          last_attempt: string | null
+        }
+        Insert: {
+          attempts?: number | null
+          blocked_until?: string | null
+          ip_address: unknown
+          last_attempt?: string | null
+        }
+        Update: {
+          attempts?: number | null
+          blocked_until?: string | null
+          ip_address?: unknown
+          last_attempt?: string | null
+        }
+        Relationships: []
+      }
+      behavior_events: {
+        Row: {
+          action_type: string
+          created_at: string
+          event_id: string | null
+          id: string
+          meta: Json | null
+          user_id: string
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          event_id?: string | null
+          id?: string
+          meta?: Json | null
+          user_id: string
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          event_id?: string | null
+          id?: string
+          meta?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "behavior_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      behavior_patterns: {
+        Row: {
+          avoidance_data: Json | null
+          completion_rates: Json | null
+          confidence_score: number | null
+          density_tolerance: Json | null
+          id: string
+          preferred_windows: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avoidance_data?: Json | null
+          completion_rates?: Json | null
+          confidence_score?: number | null
+          density_tolerance?: Json | null
+          id?: string
+          preferred_windows?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avoidance_data?: Json | null
+          completion_rates?: Json | null
+          confidence_score?: number | null
+          density_tolerance?: Json | null
+          id?: string
+          preferred_windows?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "behavior_patterns_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      block_logs: {
+        Row: {
+          ai_analysis: Json | null
+          block_id: string
+          created_at: string | null
+          deviation_type: string | null
+          id: string
+          log_date: string
+          reason: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          ai_analysis?: Json | null
+          block_id: string
+          created_at?: string | null
+          deviation_type?: string | null
+          id?: string
+          log_date?: string
+          reason?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          ai_analysis?: Json | null
+          block_id?: string
+          created_at?: string | null
+          deviation_type?: string | null
+          id?: string
+          log_date?: string
+          reason?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "block_logs_block_id_fkey"
+            columns: ["block_id"]
+            isOneToOne: false
+            referencedRelation: "schedule_blocks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      brain_dump_entries: {
+        Row: {
+          created_at: string | null
+          extracted_json: Json | null
+          id: string
+          raw_text: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          extracted_json?: Json | null
+          id?: string
+          raw_text: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          extracted_json?: Json | null
+          id?: string
+          raw_text?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      brain_dumps: {
+        Row: {
+          ai_categories: string[] | null
+          ai_sentiment: string | null
+          ai_themes: string[] | null
+          content: string
+          created_at: string | null
+          detected_constraints: Json | null
+          extracted_signals: Json | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          ai_categories?: string[] | null
+          ai_sentiment?: string | null
+          ai_themes?: string[] | null
+          content: string
+          created_at?: string | null
+          detected_constraints?: Json | null
+          extracted_signals?: Json | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          ai_categories?: string[] | null
+          ai_sentiment?: string | null
+          ai_themes?: string[] | null
+          content?: string
+          created_at?: string | null
+          detected_constraints?: Json | null
+          extracted_signals?: Json | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brain_dumps_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coach_interactions: {
+        Row: {
+          coach_response: Json | null
+          created_at: string | null
+          id: string
+          user_action: string | null
+          user_id: string
+          user_message: string | null
+        }
+        Insert: {
+          coach_response?: Json | null
+          created_at?: string | null
+          id?: string
+          user_action?: string | null
+          user_id: string
+          user_message?: string | null
+        }
+        Update: {
+          coach_response?: Json | null
+          created_at?: string | null
+          id?: string
+          user_action?: string | null
+          user_id?: string
+          user_message?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_interactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coach_messages: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          role: string
+          thread_id: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          role: string
+          thread_id: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          role?: string
+          thread_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "coach_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coach_threads: {
+        Row: {
+          created_at: string | null
+          id: string
+          title: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          title?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          title?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      commitments: {
+        Row: {
+          checklist: Json | null
+          days_of_week: number[] | null
+          end_time: string
+          flexible_frequency_per_week: number | null
+          id: string
+          is_active: boolean | null
+          preferred_time_window: string | null
+          start_time: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          checklist?: Json | null
+          days_of_week?: number[] | null
+          end_time: string
+          flexible_frequency_per_week?: number | null
+          id?: string
+          is_active?: boolean | null
+          preferred_time_window?: string | null
+          start_time: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          checklist?: Json | null
+          days_of_week?: number[] | null
+          end_time?: string
+          flexible_frequency_per_week?: number | null
+          id?: string
+          is_active?: boolean | null
+          preferred_time_window?: string | null
+          start_time?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      conversation_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          role: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          role: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          created_at: string | null
+          id: string
+          title: string | null
+          type: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          title?: string | null
+          type: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          title?: string | null
+          type?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      daily_logs: {
+        Row: {
+          challenges: string[] | null
+          created_at: string | null
+          energy_level: number | null
+          gratitude: string[] | null
+          id: string
+          log_date: string
+          mood: string | null
+          signals: Json | null
+          updated_at: string | null
+          user_id: string
+          wins: string[] | null
+        }
+        Insert: {
+          challenges?: string[] | null
+          created_at?: string | null
+          energy_level?: number | null
+          gratitude?: string[] | null
+          id?: string
+          log_date?: string
+          mood?: string | null
+          signals?: Json | null
+          updated_at?: string | null
+          user_id: string
+          wins?: string[] | null
+        }
+        Update: {
+          challenges?: string[] | null
+          created_at?: string | null
+          energy_level?: number | null
+          gratitude?: string[] | null
+          id?: string
+          log_date?: string
+          mood?: string | null
+          signals?: Json | null
+          updated_at?: string | null
+          user_id?: string
+          wins?: string[] | null
+        }
+        Relationships: []
+      }
+      daily_stats: {
+        Row: {
+          cognitive_load_score: number | null
+          created_at: string | null
+          date: string
+          dominant_mode: string | null
+          fragmentation_score: number | null
+          id: string
+          physical_load_score: number | null
+          total_active_mins: number | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          cognitive_load_score?: number | null
+          created_at?: string | null
+          date: string
+          dominant_mode?: string | null
+          fragmentation_score?: number | null
+          id?: string
+          physical_load_score?: number | null
+          total_active_mins?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          cognitive_load_score?: number | null
+          created_at?: string | null
+          date?: string
+          dominant_mode?: string | null
+          fragmentation_score?: number | null
+          id?: string
+          physical_load_score?: number | null
+          total_active_mins?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      goals: {
+        Row: {
+          ai_routine: Json | null
+          ai_strategy: Json | null
+          category: string
+          constraints: Json | null
+          created_at: string | null
+          days_per_week: number | null
+          description: string | null
+          energy_demand: string | null
+          id: string
+          importance: string | null
+          is_paused: boolean | null
+          milestone_progress: number | null
+          minutes_per_day: number | null
+          non_negotiables: string[] | null
+          notes: string | null
+          parent_id: string | null
+          preferred_windows: string[] | null
+          sort_order: number | null
+          status: string | null
+          time_commitment_mins: number | null
+          title: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          ai_routine?: Json | null
+          ai_strategy?: Json | null
+          category: string
+          constraints?: Json | null
+          created_at?: string | null
+          days_per_week?: number | null
+          description?: string | null
+          energy_demand?: string | null
+          id?: string
+          importance?: string | null
+          is_paused?: boolean | null
+          milestone_progress?: number | null
+          minutes_per_day?: number | null
+          non_negotiables?: string[] | null
+          notes?: string | null
+          parent_id?: string | null
+          sort_order?: number | null
+          status?: string | null
+          time_commitment_mins?: number | null
+          title: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          ai_routine?: Json | null
+          ai_strategy?: Json | null
+          category?: string
+          constraints?: Json | null
+          created_at?: string | null
+          days_per_week?: number | null
+          description?: string | null
+          energy_demand?: string | null
+          id?: string
+          importance?: string | null
+          is_paused?: boolean | null
+          milestone_progress?: number | null
+          minutes_per_day?: number | null
+          non_negotiables?: string[] | null
+          notes?: string | null
+          parent_id?: string | null
+          sort_order?: number | null
+          status?: string | null
+          time_commitment_mins?: number | null
+          title?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goals_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      habit_instances: {
+        Row: {
+          created_at: string | null
+          date: string
+          habit_stack_id: string
+          id: string
+          schedule_block_id: string | null
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          habit_stack_id: string
+          id?: string
+          schedule_block_id?: string | null
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          habit_stack_id?: string
+          id?: string
+          schedule_block_id?: string | null
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "habit_instances_habit_stack_id_fkey"
+            columns: ["habit_stack_id"]
+            isOneToOne: false
+            referencedRelation: "habit_stacks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "habit_instances_schedule_block_id_fkey"
+            columns: ["schedule_block_id"]
+            isOneToOne: false
+            referencedRelation: "schedule_blocks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      habit_stacks: {
+        Row: {
+          action_duration_mins: number | null
+          action_habit: string
+          created_at: string | null
+          current_streak: number | null
+          goal_id: string | null
+          grace_days_used: number | null
+          id: string
+          is_active: boolean | null
+          last_completed: string | null
+          longest_streak: number | null
+          max_grace_days: number | null
+          total_completions: number | null
+          trigger_habit: string
+          trigger_time: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          action_duration_mins?: number | null
+          action_habit: string
+          created_at?: string | null
+          current_streak?: number | null
+          goal_id?: string | null
+          grace_days_used?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_completed?: string | null
+          longest_streak?: number | null
+          max_grace_days?: number | null
+          total_completions?: number | null
+          trigger_habit: string
+          trigger_time?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          action_duration_mins?: number | null
+          action_habit?: string
+          created_at?: string | null
+          current_streak?: number | null
+          goal_id?: string | null
+          grace_days_used?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_completed?: string | null
+          longest_streak?: number | null
+          max_grace_days?: number | null
+          total_completions?: number | null
+          trigger_habit?: string
+          trigger_time?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "habit_stacks_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      intervention_logs: {
+        Row: {
+          action_taken_at: string | null
+          created_at: string | null
+          id: string
+          message: string | null
+          status: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          action_taken_at?: string | null
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          status?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          action_taken_at?: string | null
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          status?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      memory_facts: {
+        Row: {
+          confidence: number | null
+          created_at: string | null
+          id: string
+          key: string
+          kind: string
+          source_event_id: string | null
+          updated_at: string | null
+          user_id: string
+          value: Json
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string | null
+          id?: string
+          key: string
+          kind: string
+          source_event_id?: string | null
+          updated_at?: string | null
+          user_id: string
+          value: Json
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string | null
+          id?: string
+          key?: string
+          kind?: string
+          source_event_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+          value?: Json
+        }
+        Relationships: []
+      }
+      patch_runs: {
+        Row: {
+          applied: boolean | null
+          created_at: string
+          id: string
+          inverse_patch: Json
+          patch: Json
+          source: string
+          user_id: string
+        }
+        Insert: {
+          applied?: boolean | null
+          created_at?: string
+          id?: string
+          inverse_patch: Json
+          patch: Json
+          source: string
+          user_id: string
+        }
+        Update: {
+          applied?: boolean | null
+          created_at?: string
+          id?: string
+          inverse_patch?: Json
+          patch?: Json
+          source?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patch_runs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          ai_can_analyze: boolean | null
+          ai_can_draft: boolean | null
+          ai_can_suggest: boolean | null
+          bio_data: Json | null
+          bio_scan_url: string | null
+          body_preferences: Json | null
+          buffer_config: Json | null
+          created_at: string | null
+          energy_level: number | null
+          full_name: string | null
+          id: string
+          low_energy_mode: boolean | null
+          meal_preferences: Json | null
+          meal_windows: Json | null
+          meals_per_day: number | null
+          onboarding_complete: boolean | null
+          preferred_name: string | null
+          sleep_end: string | null
+          sleep_start: string | null
+          stress_level: number | null
+          timezone: string | null
+          updated_at: string | null
+          wind_down_mins: number | null
+        }
+        Insert: {
+          ai_can_analyze?: boolean | null
+          ai_can_draft?: boolean | null
+          ai_can_suggest?: boolean | null
+          bio_data?: Json | null
+          bio_scan_url?: string | null
+          body_preferences?: Json | null
+          buffer_config?: Json | null
+          created_at?: string | null
+          energy_level?: number | null
+          full_name?: string | null
+          id: string
+          low_energy_mode?: boolean | null
+          meal_preferences?: Json | null
+          meal_windows?: Json | null
+          meals_per_day?: number | null
+          onboarding_complete?: boolean | null
+          preferred_name?: string | null
+          sleep_end?: string | null
+          sleep_start?: string | null
+          stress_level?: number | null
+          timezone?: string | null
+          updated_at?: string | null
+          wind_down_mins?: number | null
+        }
+        Update: {
+          ai_can_analyze?: boolean | null
+          ai_can_draft?: boolean | null
+          ai_can_suggest?: boolean | null
+          bio_data?: Json | null
+          bio_scan_url?: string | null
+          body_preferences?: Json | null
+          buffer_config?: Json | null
+          created_at?: string | null
+          energy_level?: number | null
+          full_name?: string | null
+          id?: string
+          low_energy_mode?: boolean | null
+          meal_preferences?: Json | null
+          meal_windows?: Json | null
+          meals_per_day?: number | null
+          onboarding_complete?: boolean | null
+          preferred_name?: string | null
+          sleep_end?: string | null
+          sleep_start?: string | null
+          stress_level?: number | null
+          timezone?: string | null
+          updated_at?: string | null
+          wind_down_mins?: number | null
+        }
+        Relationships: []
+      }
+      routine_recommendations: {
+        Row: {
+          accepted: boolean | null
+          calendar_event_id: string | null
+          created_at: string | null
+          id: string
+          routine: Json
+          routine_type: string
+          source: string
+          user_id: string
+        }
+        Insert: {
+          accepted?: boolean | null
+          calendar_event_id?: string | null
+          created_at?: string | null
+          id?: string
+          routine: Json
+          routine_type: string
+          source: string
+          user_id: string
+        }
+        Update: {
+          accepted?: boolean | null
+          calendar_event_id?: string | null
+          created_at?: string | null
+          id?: string
+          routine?: Json
+          routine_type?: string
+          source?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "routine_recommendations_calendar_event_id_fkey"
+            columns: ["calendar_event_id"]
+            isOneToOne: false
+            referencedRelation: "schedule_blocks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scan_sessions: {
+        Row: {
+          confidence_score: number | null
+          created_at: string | null
+          id: string
+          image_url: string | null
+          notes: string | null
+          readable: boolean | null
+          signals: Json | null
+          store_mode: string
+          user_id: string
+        }
+        Insert: {
+          confidence_score?: number | null
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          notes?: string | null
+          readable?: boolean | null
+          signals?: Json | null
+          store_mode: string
+          user_id: string
+        }
+        Update: {
+          confidence_score?: number | null
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          notes?: string | null
+          readable?: boolean | null
+          signals?: Json | null
+          store_mode?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      schedule_blocks: {
+        Row: {
+          block_type: string | null
+          checklist: Json | null
+          commitment_id: string | null
+          context: string | null
+          created_at: string | null
+          date: string
+          end_time: string
+          energy_cost: string | null
+          goal_id: string | null
+          id: string
+          is_fixed: boolean | null
+          is_locked: boolean | null
+          priority: number | null
+          start_time: string
+          status: string | null
+          title: string | null
+          user_id: string
+        }
+        Insert: {
+          block_type?: string | null
+          checklist?: Json | null
+          commitment_id?: string | null
+          context?: string | null
+          created_at?: string | null
+          date: string
+          end_time: string
+          energy_cost?: string | null
+          goal_id?: string | null
+          id?: string
+          is_fixed?: boolean | null
+          is_locked?: boolean | null
+          priority?: number | null
+          start_time: string
+          status?: string | null
+          title?: string | null
+          user_id: string
+        }
+        Update: {
+          block_type?: string | null
+          checklist?: Json | null
+          commitment_id?: string | null
+          context?: string | null
+          created_at?: string | null
+          date?: string
+          end_time?: string
+          energy_cost?: string | null
+          goal_id?: string | null
+          id?: string
+          is_fixed?: boolean | null
+          is_locked?: boolean | null
+          priority?: number | null
+          start_time?: string
+          status?: string | null
+          title?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_blocks_commitment_id_fkey"
+            columns: ["commitment_id"]
+            isOneToOne: false
+            referencedRelation: "commitments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "schedule_blocks_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      schedule_versions: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          snapshot: Json
+          source: string
+          user_id: string
+          week_start: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          snapshot?: Json
+          source: string
+          user_id: string
+          week_start: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          snapshot?: Json
+          source?: string
+          user_id?: string
+          week_start?: string
+        }
+        Relationships: []
+      }
+      security_audit_log: {
+        Row: {
+          action: string
+          created_at: string | null
+          id: string
+          ip_address: unknown
+          metadata: Json | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          id?: string
+          ip_address?: unknown
+          metadata?: Json | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          id?: string
+          ip_address?: unknown
+          metadata?: Json | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      session_bindings: {
+        Row: {
+          created_at: string | null
+          id: string
+          ip_address: unknown
+          is_valid: boolean | null
+          last_seen: string | null
+          session_hash: string
+          user_agent_hash: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          ip_address?: unknown
+          is_valid?: boolean | null
+          last_seen?: string | null
+          session_hash: string
+          user_agent_hash?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          ip_address?: unknown
+          is_valid?: boolean | null
+          last_seen?: string | null
+          session_hash?: string
+          user_agent_hash?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      streaks: {
+        Row: {
+          created_at: string | null
+          current_streak: number | null
+          goal_id: string | null
+          grace_days_used: number | null
+          habit_stack_id: string | null
+          id: string
+          last_completed: string | null
+          longest_streak: number | null
+          max_grace_days: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          current_streak?: number | null
+          goal_id?: string | null
+          grace_days_used?: number | null
+          habit_stack_id?: string | null
+          id?: string
+          last_completed?: string | null
+          longest_streak?: number | null
+          max_grace_days?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          current_streak?: number | null
+          goal_id?: string | null
+          grace_days_used?: number | null
+          habit_stack_id?: string | null
+          id?: string
+          last_completed?: string | null
+          longest_streak?: number | null
+          max_grace_days?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "streaks_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "streaks_habit_stack_id_fkey"
+            columns: ["habit_stack_id"]
+            isOneToOne: false
+            referencedRelation: "habit_stacks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_context: {
+        Row: {
+          confidence: number | null
+          content: string
+          created_at: string | null
+          id: string
+          last_used_at: string | null
+          source: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          confidence?: number | null
+          content: string
+          created_at?: string | null
+          id?: string
+          last_used_at?: string | null
+          source?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          confidence?: number | null
+          content?: string
+          created_at?: string | null
+          id?: string
+          last_used_at?: string | null
+          source?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_states: {
+        Row: {
+          cognitive_load: number | null
+          current_mode: Database["public"]["Enums"]["user_mode"]
+          emotional_bandwidth: number | null
+          emotional_state: string | null
+          energy_level: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          cognitive_load?: number | null
+          current_mode?: Database["public"]["Enums"]["user_mode"]
+          emotional_bandwidth?: number | null
+          emotional_state?: string | null
+          energy_level?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          cognitive_load?: number | null
+          current_mode?: Database["public"]["Enums"]["user_mode"]
+          emotional_bandwidth?: number | null
+          emotional_state?: string | null
+          energy_level?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      weekly_reviews: {
+        Row: {
+          actual_minutes: number | null
+          created_at: string | null
+          energy_trend: string | null
+          friction_patterns: Json | null
+          id: string
+          lever_action: Json | null
+          planned_minutes: number | null
+          stress_trend: string | null
+          suggested_adjustment: string | null
+          user_id: string
+          user_response: string | null
+          week_end: string
+          week_start: string
+        }
+        Insert: {
+          actual_minutes?: number | null
+          created_at?: string | null
+          energy_trend?: string | null
+          friction_patterns?: Json | null
+          id?: string
+          lever_action?: Json | null
+          planned_minutes?: number | null
+          stress_trend?: string | null
+          suggested_adjustment?: string | null
+          user_id: string
+          user_response?: string | null
+          week_end: string
+          week_start: string
+        }
+        Update: {
+          actual_minutes?: number | null
+          created_at?: string | null
+          energy_trend?: string | null
+          friction_patterns?: Json | null
+          id?: string
+          lever_action?: Json | null
+          planned_minutes?: number | null
+          stress_trend?: string | null
+          suggested_adjustment?: string | null
+          user_id?: string
+          user_response?: string | null
+          week_end?: string
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_reviews_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      check_auth_attempt: {
+        Args: { p_ip_address: unknown }
+        Returns: {
+          attempts_remaining: number
+          is_blocked: boolean
+        }[]
+      }
+      cleanup_old_audit_logs: { Args: never; Returns: undefined }
+      update_streak: {
+        Args: {
+          p_goal_id?: string
+          p_habit_stack_id?: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+    }
+    Enums: {
+      block_type: "anchor" | "body" | "craft" | "mind" | "meal" | "buffer"
+      user_mode: "survival" | "maintenance" | "growth"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
 }
 
-export type GoalCategory = 'mind' | 'body' | 'craft';
-export type GoalImportance = 'low' | 'medium' | 'high';
-export type EnergyDemand = 'light' | 'medium' | 'heavy';
-export type GoalStatus = 'active' | 'paused' | 'archived';
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
-export interface Goal {
-    id: string;
-    user_id: string;
-    created_at: string;
-    updated_at: string;
-    title: string;
-    category: GoalCategory;
-    minutes_per_day: number;
-    importance: GoalImportance;
-    energy_demand: EnergyDemand;
-    status: GoalStatus;
-    days_per_week: number; // 1-7
-    is_paused?: boolean; // deprecated
-    // V2 fields - subtasks and AI
-    parent_id?: string | null;
-    constraints?: Record<string, unknown>;
-    non_negotiables?: string[];
-    time_commitment_mins?: number;
-    ai_plan?: GoalAIPlan; // structured decomposition
-    milestone_progress?: number;
-    sort_order?: number;
-    notes?: string; // User-provided context for AI
-    description?: string; // Longer description
-    ai_strategy?: any; // JSONB cache for AI plan (Phase 7)
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+  | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+  | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+  ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+  : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
 }
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+  ? R
+  : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+    DefaultSchema["Views"])
+  ? (DefaultSchema["Tables"] &
+    DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+      Row: infer R
+    }
+  ? R
+  : never
+  : never
 
-export interface GoalAIPlan {
-    phases: Array<{
-        week: number;
-        focus: string;
-        milestone: string;
-    }>;
-    daily_routine: {
-        name: string;
-        total_mins: number;
-        blocks: Array<{
-            type: 'warmup' | 'core' | 'fun' | 'review';
-            name: string;
-            duration_mins: number;
-            tips: string;
-        }>;
-    };
-    subtasks: string[]; // One-off setup tasks
-    advice: string;
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+  | keyof DefaultSchema["Tables"]
+  | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+  : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
 }
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+    Insert: infer I
+  }
+  ? I
+  : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+    Insert: infer I
+  }
+  ? I
+  : never
+  : never
 
-export interface Commitment {
-    id: string;
-    user_id: string;
-    title: string;
-    days_of_week: number[]; // 0=Sun, 6=Sat
-    start_time: string; // "HH:MM"
-    end_time: string;   // "HH:MM"
-    is_active: boolean;
-    // Post-MVP Fields
-    preferred_time_window?: string; // e.g. 'morning', '09:00-12:00'
-    flexible_frequency_per_week?: number; // e.g. 3
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+  | keyof DefaultSchema["Tables"]
+  | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+  : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
 }
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+    Update: infer U
+  }
+  ? U
+  : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+    Update: infer U
+  }
+  ? U
+  : never
+  : never
 
-export type BlockStatus = 'planned' | 'done' | 'partial' | 'missed';
-
-export interface ScheduleBlock {
-    id: string;
-    user_id: string;
-    goal_id: string | null;
-    date: string; // DATE format: "YYYY-MM-DD"
-    start_time: string;
-    end_time: string;
-    status: BlockStatus;
-    block_type?: 'anchor' | 'goal' | 'meal' | 'buffer' | 'routine' | 'sleep' | 'wind_down';
-    checklist?: { id: string; text: string; completed: boolean }[]; // JSONB
-    context: string | null;
-    created_at: string;
-    // V5 Authority Fields
-    commitment_id?: string | null;
-    is_fixed?: boolean;
-    title?: string | null;
-    // Joined data
-    goal?: Goal;
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+  | keyof DefaultSchema["Enums"]
+  | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+  ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+  : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
 }
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+  : never
 
-export interface BrainDump {
-    id: string;
-    user_id: string;
-    created_at: string;
-    content: string;
-    extracted_signals: ExtractedSignal[];
-    detected_constraints: DetectedConstraint[];
-    ai_sentiment?: string;
-    processed_data?: any; // strict type: BrainDumpProcessedData
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+  | keyof DefaultSchema["CompositeTypes"]
+  | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+  ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+  : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
 }
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+  : never
 
-export interface ExtractedSignal {
-    type: 'stress' | 'priority' | 'emotion' | 'blocker';
-    content: string;
-    intensity: number; // 1-5
-}
+export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
+  public: {
+    Enums: {
+      block_type: ["anchor", "body", "craft", "mind", "meal", "buffer"],
+      user_mode: ["survival", "maintenance", "growth"],
+    },
+  },
+} as const
 
-export interface DetectedConstraint {
-    type: 'time' | 'energy' | 'dependency' | 'external';
-    content: string;
-}
-
-export interface HiddenGoal {
-    content: string;
-}
-
-export interface CoachResponse {
-    facts: string;
-    interpretation: string;
-    options: string[];
-    permission_check: string;
-}
-
-export interface CoachInteraction {
-    id: string;
-    user_id: string;
-    created_at: string;
-    user_message: string | null;
-    coach_response: CoachResponse | null;
-    user_action: string | null;
-}
-
-// --- 6. WEEKLY REVIEW TYPES ---
-
-export interface LeverAction {
-    type: 'update_goal' | 'update_preference' | 'update_schedule';
-    payload: any;
-    description: string;
-}
-
-// --- 6. WEEKLY REVIEW TYPES ---
-
-export type TrendDirection = 'improving' | 'stable' | 'declining' | 'increasing';
-export type ReviewResponse = 'accepted' | 'edited' | 'ignored';
-
-export interface LeverAction {
-    type: 'update_goal' | 'update_preference' | 'update_schedule';
-    payload: any;
-    description: string;
-}
-
-export interface WeeklyReview {
-    id: string;
-    user_id: string;
-    week_start: string;
-    week_end: string;
-
-    // Narrative Sections
-    actual_minutes: number;
-    planned_minutes: number;
-
-    // Trends (Reality)
-    energy_trend: 'improving' | 'declining' | 'stable';
-    stress_trend: 'increasing' | 'decreasing' | 'stable';
-
-    // Patterns (Max 3)
-    friction_patterns: string[];
-
-    // One Lever
-    suggested_adjustment: string; // The "One Lever" text
-    lever_action: LeverAction | null;    // The executable payload (NEW)
-
-    // User Interaction
-    user_response: ReviewResponse | null;
-
-    created_at: string;
-}
-
-// Onboarding types
-export interface OnboardingData {
-    timezone: string;
-    sleep_start: string;
-    sleep_end: string;
-    commitments: Omit<Commitment, 'id' | 'user_id'>[];
-    goals: Omit<Goal, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'is_paused'>[];
-    energy_level: number;
-    stress_level: number;
-    ai_can_suggest: boolean;
-    ai_can_analyze: boolean;
-    ai_can_draft: boolean;
-    full_name: string; // Restored
-    // V3 Fields
-    wind_down_mins: number;
-    meals_per_day: number;
-    meal_windows: {
-        breakfast: string;
-        lunch: string;
-        dinner: string;
-    };
-    buffer_config: {
-        gap_mins: number;
-        type: 'light' | 'normal' | 'spacious';
-    };
-    body_preferences: {
-        activity_types: string[];
-        preferred_time: string;
-        duration_mins: number;
-    };
-    scan_skipped: boolean;
-    bio_scan_url?: string;
-}
-// Post-MVP Intelligence
-export interface DailyStats {
-    id: string;
-    user_id: string;
-    date: string;
-    total_active_mins: number;
-    fragmentation_score: number; // 0-1
-    cognitive_load_score: number; // 0-10
-    physical_load_score: number; // 0-10
-    dominant_mode: 'focus' | 'admin' | 'recovery' | 'mixed';
-    created_at: string;
-}
-
-// UI types
-export interface DailyOverview {
-    date: string;
-    primaryFocus: ScheduleBlock | null;
-    secondaryOptions: ScheduleBlock[];
-    plannedMinutes: number;
-    completedMinutes: number;
-}
-
-// Master Meta Prompt Types
-export interface AIProposal {
-    id: string; // generated UUID
-    type: 'calendar' | 'goal' | 'habit' | 'project';
-    action: 'add' | 'modify' | 'delete' | 'reschedule';
-    data: Record<string, any>; // The proposed change payload
-    reasoning: string;
-    confidence: number; // 0.0 to 1.0
-    status: 'pending' | 'accepted' | 'rejected' | 'ignored';
-    generated_at: string;
-}
-
-export interface BrainDumpProcessedData {
-    captures: Array<{
-        text: string;
-        type: 'task' | 'note' | 'idea';
-        estimated_mins?: number;
-        urgency?: 'high' | 'medium' | 'low';
-    }>;
-    deviations: Array<{
-        type: 'schedule' | 'energy' | 'constraint';
-        description: string;
-        detected_at: string;
-    }>;
-    proposals: AIProposal[];
-    state_signals: {
-        energy: number; // 1-5
-        stress: number; // 1-5
-        mood?: string;
-    };
-    impact_summary: string;
-}
-
-export interface UserContext {
-    id: string;
-    user_id: string;
-    type: 'fact' | 'preference' | 'pattern' | 'constraint';
-    content: string;
-    source: string | null;
-    confidence: number;
-    last_used_at: string;
-    created_at: string;
-    updated_at: string;
-}
-
-export interface InterventionLog {
-    id: string;
-    user_id: string;
-    type: 'stagnation' | 'burnout' | 'disengagement' | 'win_streak';
-    message: string;
-    status: 'pending' | 'dismissed' | 'accepted';
-    created_at: string;
-    action_taken_at?: string;
-}
-
-export interface ScanSession {
-    id: string;
-    user_id: string;
-    created_at: string;
-    store_mode: 'signals_only' | 'store_image';
-    image_url: string | null;
-    signals: any[]; // JSONB
-    confidence_score: number;
-    readable: boolean;
-    notes?: string;
-}
-
-export interface RoutineRecommendation {
-    id: string;
-    user_id: string;
-    created_at: string;
-    routine_type: 'morning' | 'night' | 'workout';
-    source: 'scan' | 'context' | 'mixed';
-    routine: RoutineOutput;
-    accepted: boolean;
-    calendar_event_id?: string | null;
-}
-
-export interface RoutineOutput {
-    routine_type: 'morning' | 'night' | 'workout';
-    name: string;
-    duration_minutes: number;
-    goal: 'mobility' | 'activation' | 'recovery' | 'downshift' | 'strength' | 'cardio' | 'mixed';
-    intensity: 'low' | 'medium';
-    steps: string[];
-    avoid_today?: string;
-    best_time_window: string;
-    confidence_score: number;
-    questions?: string[];
-}
-// Habit Stacks (Phase 2)
-export interface HabitStack {
-    id: string;
-    user_id: string;
-    trigger_habit: string;
-    action_habit: string;
-    goal_id: string | null;
-    action_duration_mins: number;
-    trigger_time: string | null; // Optional for now
-    current_streak: number;
-    longest_streak: number;
-    total_completions: number;
-    last_completed: string | null;
-    grace_days_used: number;
-    max_grace_days: number;
-    is_active: boolean;
-    created_at: string;
-    updated_at: string;
-}
-
-// Phase 3: Trust + Stickiness
-export interface BehaviorEvent {
-    id: string;
-    user_id: string;
-    event_id?: string | null;
-    action_type: 'complete' | 'miss' | 'reschedule' | 'overrun' | 'accept_suggestion' | 'reject_suggestion' | 'delete';
-    meta: Record<string, any>;
-    created_at: string;
-}
-
-export interface BehaviorPattern {
-    id: string;
-    user_id: string;
-    preferred_windows: Record<string, string[]>; // { "craft": ["09:00", "11:00"] }
-    completion_rates: Record<string, number>; // { "mind": 0.8 }
-    avoidance_data: Record<string, any>;
-    density_tolerance: Record<string, any>;
-    confidence_score: number;
-    updated_at: string;
-}
-
-export interface PatchRun {
-    id: string;
-    user_id: string;
-    patch: any; // JSONB
-    inverse_patch: any; // JSONB
-    applied: boolean;
-    source: 'coach' | 'calendar' | 'brain_dump' | 'system';
-    created_at: string;
-}
-
-export interface AIIntervention {
-    id: string;
-    user_id: string;
-    type: 'stagnation' | 'burnout' | 'pivot' | 'win_streak' | 'optimization';
-    message: string;
-    payload: any;
-    status: 'pending' | 'accepted' | 'dismissed' | 'ignored';
-    action_taken_at?: string;
-    created_at: string;
-    updated_at: string;
-}
+export type ScheduleBlock = Tables<'schedule_blocks'>;
+export type Goal = Tables<'goals'>;
+export type HabitStack = Tables<'habit_stacks'>;
+export type HabitInstance = Tables<'habit_instances'>;
+export type InterventionLog = Tables<'intervention_logs'>;
+export type Commitment = Tables<'commitments'>;
+export type BlockStatus = string;
+export type Profile = Tables<'profiles'>;

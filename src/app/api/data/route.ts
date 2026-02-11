@@ -20,8 +20,10 @@ export const GET = secureApiRoute(
             supabase.from('profiles').select('*').eq('id', context.userId).single(),
             supabase.from('goals').select('*').eq('user_id', context.userId),
             supabase.from('schedule_blocks').select('*').eq('user_id', context.userId),
-            supabase.from('brain_dumps').select('id, content, created_at').eq('user_id', context.userId),
-            supabase.from('coach_interactions').select('*').eq('user_id', context.userId),
+            supabase.from('brain_dump_entries').select('id, raw_text, created_at').eq('user_id', context.userId),
+            supabase.from('coach_threads').select('*').eq('user_id', context.userId),
+            supabase.from('coach_messages').select('*').eq('user_id', context.userId),
+            supabase.from('memory_facts').select('*').eq('user_id', context.userId),
             supabase.from('weekly_reviews').select('*').eq('user_id', context.userId),
         ]);
 
@@ -65,8 +67,10 @@ export const DELETE = secureApiRoute(
         // Delete in order (respecting foreign keys)
         await Promise.all([
             supabase.from('weekly_reviews').delete().eq('user_id', context.userId),
-            supabase.from('coach_interactions').delete().eq('user_id', context.userId),
-            supabase.from('brain_dumps').delete().eq('user_id', context.userId),
+            supabase.from('coach_messages').delete().eq('user_id', context.userId),
+            supabase.from('coach_threads').delete().eq('user_id', context.userId),
+            supabase.from('memory_facts').delete().eq('user_id', context.userId),
+            supabase.from('brain_dump_entries').delete().eq('user_id', context.userId),
             supabase.from('schedule_blocks').delete().eq('user_id', context.userId),
             supabase.from('goals').delete().eq('user_id', context.userId),
             supabase.from('session_bindings').delete().eq('user_id', context.userId),

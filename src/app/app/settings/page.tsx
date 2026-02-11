@@ -108,7 +108,7 @@ export default function SettingsPage() {
         const [profileData, goalsData, dumpsData, blocksData] = await Promise.all([
             supabase.from('profiles').select('*').eq('id', user.id).single(),
             supabase.from('goals').select('*').eq('user_id', user.id),
-            supabase.from('brain_dumps').select('id, created_at, content').eq('user_id', user.id),
+            supabase.from('brain_dump_entries').select('id, created_at, raw_text').eq('user_id', user.id),
             supabase.from('schedule_blocks').select('*').eq('user_id', user.id),
         ]);
 

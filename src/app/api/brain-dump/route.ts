@@ -9,8 +9,8 @@ export const GET = secureApiRoute(
         const supabase = await createClient();
 
         const { data: dumps, error } = await supabase
-            .from('brain_dumps')
-            .select('id, content, created_at')
+            .from('brain_dump_entries')
+            .select('id, raw_text, created_at')
             .eq('user_id', context.userId)
             .order('created_at', { ascending: false })
             .limit(50);
@@ -40,18 +40,11 @@ export const POST = secureApiRoute(
             return apiError(contentValidation.errors.join(', '));
         }
 
-        const supabase = await createClient();
+        // Create brain dump entry via MemoryService
+        const { MemoryService } = await import('@/lib/services/memory-service');
+        const dump = await MemoryService.createBrainDumpEntry(context.userId, contentValidation.sanitized);
 
-        const { data: dump, error } = await supabase
-            .from('brain_dumps')
-            .insert({
-                user_id: context.userId,
-                content: contentValidation.sanitized,
-            })
-            .select()
-            .single();
-
-        if (error) {
+        if (!dump) {
             return apiError('Failed to create brain dump', 500);
         }
 

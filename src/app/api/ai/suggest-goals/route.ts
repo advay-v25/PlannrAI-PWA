@@ -52,8 +52,8 @@ export const GET = secureApiRoute(
                     .order('created_at', { ascending: false })
                     .limit(10),
                 supabase
-                    .from('brain_dumps')
-                    .select('content, signals')
+                    .from('brain_dump_entries')
+                    .select('extracted_json')
                     .eq('user_id', userId)
                     .order('created_at', { ascending: false })
                     .limit(5),
@@ -76,8 +76,9 @@ export const GET = secureApiRoute(
             // Extract themes from brain dumps
             const recentThemes = dumpsResult.data
                 ?.flatMap(d => {
-                    if (d.signals && Array.isArray(d.signals)) {
-                        return d.signals.map((s: { content?: string }) => s.content).filter(Boolean);
+                    const signals = d.extracted_json?.signals || [];
+                    if (Array.isArray(signals)) {
+                        return signals.map((s: { content?: string, description?: string }) => s.content || s.description).filter(Boolean);
                     }
                     return [];
                 })
