@@ -1,30 +1,5 @@
-import { secureApiRoute, apiSuccess, apiError, validateRequiredFields } from '@/lib/security/api-protection';
+import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { createClient } from '@/lib/supabase/server';
-import { OnboardingData } from '@/types/database';
-import { generateAIWeekPlan, generateStaticWeekPlan, persistWeekPlan } from '@/lib/scheduling/week-service';
-import { SupabaseClient } from '@supabase/supabase-js';
-
-/**
- * Wrapper to decide plan generation strategy
- */
-async function generateWeekPlan(
-    userId: string,
-    goals: any[],
-    profile: any,
-    commitments: any[],
-    supabase: SupabaseClient
-) {
-    try {
-        return await generateAIWeekPlan(userId, goals, profile, commitments);
-    } catch (e) {
-        console.error("AI Generation failed, falling back:", e);
-        return {
-            plan: generateStaticWeekPlan(goals, profile, commitments),
-            source: 'template',
-            message: 'Fallback to static template'
-        };
-    }
-}
 
 export const POST = secureApiRoute(
     async (context, body) => {
@@ -35,7 +10,7 @@ export const POST = secureApiRoute(
             body_preferences, buffer_config,
             wind_down_mins, full_name,
             commitments // Destructure commitments from body (Fallback Flow)
-        } = body as OnboardingData;
+        } = body as any;
 
         // Basic validation
         if (!sleep_start || !sleep_end) {
@@ -84,7 +59,7 @@ export const POST = secureApiRoute(
                 .eq('user_id', userId);
 
             const existingTitles = new Set(existingGoals?.map(g => g.title));
-            const newGoals = goals.filter(g => !existingTitles.has(g.title)).map(g => ({
+            const newGoals = goals.filter((g: any) => !existingTitles.has(g.title)).map((g: any) => ({
                 user_id: userId,
                 title: g.title,
                 category: g.category,
@@ -122,13 +97,13 @@ export const POST = secureApiRoute(
         if (commitments && commitments.length > 0) {
             // Check which ones are missing from DB
             const existingTitles = new Set(finalCommitments.map(c => c.title));
-            const missingCommitments = commitments.filter(c => !existingTitles.has(c.title));
+            const missingCommitments = commitments.filter((c: any) => !existingTitles.has(c.title));
 
             if (missingCommitments.length > 0) {
                 console.log(`[Onboarding] Syncing ${missingCommitments.length} missing commitments to DB...`);
                 const { data: synced, error: syncError } = await supabase
                     .from('commitments')
-                    .insert(missingCommitments.map(c => ({
+                    .insert(missingCommitments.map((c: any) => ({
                         user_id: userId,
                         title: c.title,
                         start_time: c.start_time,
@@ -149,27 +124,12 @@ export const POST = secureApiRoute(
         // 4. Generate Initial Schedule (Server-Side)
         // Use finalCommitments (Merged DB + Fallback)
 
-        // Post-MVP: Use Context Engine to derive Intelligence Parameters
-        const { ContextEngine } = await import('@/lib/intelligence/context-engine');
-        // We use today's date for context building
-        const contextData = await ContextEngine.build(userId, new Date().toISOString().split('T')[0], supabase);
+        // 4. Generate Initial Schedule via WeekOrchestrator
+        const { WeekOrchestrator } = await import('@/lib/calendar/week-orchestrator');
+        const { CoachActionService } = await import('@/lib/coach/coach-actions');
 
-        console.log(`[Onboarding] Context Mode: ${contextData.computedMode}, Density: ${contextData.densityLimit}`);
-
-        const profileConfig = {
-            preferred_name: full_name?.split(' ')[0],
-            sleep_end,
-            sleep_start,
-            energy_level,
-            stress_level,
-            low_energy_mode: contextData.computedMode === 'recovery' || contextData.computedMode === 'survival'
-        };
-
-        // Determine Week Start (Today or Next Monday?)
-        // For onboarding, we start TODAY to give immediate value.
         const today = new Date().toISOString().split('T')[0];
 
-        // Generate Plan
         // If processedGoals is empty (maybe user didn't add new ones), fetch all active goals
         if (processedGoals.length === 0) {
             const { data: allGoals } = await supabase
@@ -180,36 +140,43 @@ export const POST = secureApiRoute(
             processedGoals = allGoals || [];
         }
 
-        const { plan, message, source } = await generateWeekPlan(
-            userId,
-            processedGoals.map(g => ({
-                id: g.id,
-                title: g.title,
-                category: g.category,
-                minutes_per_day: g.minutes_per_day || 30, // Default if missing
-                importance: g.importance
-            })),
-            profileConfig,
-            finalCommitments.map(c => ({
-                days_of_week: c.days_of_week,
-                start_time: c.start_time,
-                end_time: c.end_time,
-                title: c.title
-            })) || [],
-            supabase
-        );
-
-        console.log(`[Onboarding] Plan generated via ${source}: ${message}`);
-
-        // 4. Persist Plan
         let blocksCreated = 0;
+        let patchRunId: string | null = null;
+
         try {
-            const result = await persistWeekPlan(userId, plan, today, supabase, 'onboarding');
-            blocksCreated = result.blocksInserted;
-            console.log(`[Onboarding] Generated ${blocksCreated} initial blocks. Version: ${result.versionId}`);
+            const result = await WeekOrchestrator.generateWeek({
+                userId,
+                weekStartISO: today,
+                mode: 'plan',
+                supabase: supabase as any,
+            });
+
+            if (result.patch && result.patch.changes.length > 0) {
+                // Convert WeekOrchestrator patch format to CalendarPatch format for CoachActionService
+                const calendarPatch = {
+                    ops: result.patch.changes.map((c: any) => {
+                        if (c.op === 'create_event') {
+                            return { op: 'create' as const, event: c.payload };
+                        } else if (c.op === 'update_event') {
+                            return { op: 'update' as const, event_id: c.event_id, fields: c.payload };
+                        } else if (c.op === 'delete_event') {
+                            return { op: 'delete' as const, event_id: c.event_id };
+                        }
+                        return c;
+                    }),
+                    scope: 'week' as const,
+                    reason: 'Onboarding initial schedule generation',
+                };
+
+                patchRunId = await CoachActionService.applyPatch(userId, calendarPatch, supabase as any);
+                blocksCreated = result.previewBlocks.length;
+                console.log(`[Onboarding] Generated ${blocksCreated} blocks via WeekOrchestrator. PatchRun: ${patchRunId}`);
+            } else {
+                console.log('[Onboarding] WeekOrchestrator returned empty patch');
+            }
         } catch (planError) {
-            console.error("Failed to persist initial plan:", planError);
-            // Non-blocking, but warned
+            console.error('Failed to generate/apply initial schedule:', planError);
+            // Non-blocking — user can still proceed
         }
 
         return apiSuccess({

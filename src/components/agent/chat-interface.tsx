@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Sparkles, X, Brain, ChevronRight } from 'lucide-react';
 import { useAgentStore } from '@/stores/agent-store';
@@ -11,7 +11,7 @@ interface ChatInterfaceProps {
 }
 
 export const ChatInterface = ({ className, onClose }: ChatInterfaceProps) => {
-    const { messages, sendMessage, isLoading, clearMessages, loadHistory } = useAgentStore();
+    const { messages, sendMessage, isLoading, clearMessages, loadHistory, applyOption, undoAction } = useAgentStore();
     const [input, setInput] = useState('');
     const endRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -76,6 +76,9 @@ export const ChatInterface = ({ className, onClose }: ChatInterfaceProps) => {
                         role={msg.role === 'agent' ? 'assistant' : msg.role}
                         content={msg.content}
                         options={msg.options}
+                        undoToken={msg.undoToken}
+                        onApplyOption={applyOption}
+                        onUndo={undoAction}
                         timestamp={msg.timestamp instanceof Date ? msg.timestamp.getTime() : msg.timestamp}
                         isImpossible={msg.isImpossible}
                     />

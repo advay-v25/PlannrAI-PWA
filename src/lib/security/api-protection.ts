@@ -69,10 +69,7 @@ export function secureApiRoute(
                     endpoint: request.url,
                 });
 
-                return NextResponse.json(
-                    { error: 'Unauthorized' },
-                    { status: 401 }
-                );
+                return apiError('Unauthorized', 401);
             }
 
             // 2. Rate limiting
@@ -112,10 +109,7 @@ export function secureApiRoute(
                         body = JSON.parse(text);
                     }
                 } catch {
-                    return NextResponse.json(
-                        { error: 'Invalid JSON body' },
-                        { status: 400 }
-                    );
+                    return apiError('Invalid JSON body');
                 }
             }
 
@@ -160,10 +154,7 @@ export function secureApiRoute(
             });
 
             // Never expose internal errors
-            return NextResponse.json(
-                { error: 'An unexpected error occurred' },
-                { status: 500 }
-            );
+            return apiError('An unexpected error occurred', 500);
         }
     };
 }
@@ -176,14 +167,32 @@ export function apiError(
     status: number = 400,
     details?: unknown
 ): NextResponse {
-    return NextResponse.json({ error: message, details }, { status });
+    const requestId = crypto.randomUUID();
+    console.error(`[API] [${requestId}] Error: ${status} - ${message}`, details);
+    return NextResponse.json({
+        ok: false,
+        request_id: requestId,
+        error: {
+            code: status === 401 ? 'UNAUTHORIZED' : status === 403 ? 'FORBIDDEN' : status === 429 ? 'RATE_LIMITED' : 'API_ERROR',
+            message,
+            details
+        },
+        timestamp: new Date().toISOString()
+    }, { status });
 }
 
 /**
  * Create standard API success response
  */
 export function apiSuccess<T>(data: T, status: number = 200): NextResponse {
-    return NextResponse.json(data, { status });
+    const requestId = crypto.randomUUID();
+    const response = {
+        ok: true,
+        request_id: requestId,
+        ...(typeof data === 'object' && data !== null && !Array.isArray(data) ? data : { data }),
+        timestamp: new Date().toISOString()
+    };
+    return NextResponse.json(response, { status });
 }
 
 /**

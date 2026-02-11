@@ -1,110 +1,189 @@
-import { startOfDay, endOfDay, parseISO, areIntervalsOverlapping, format } from 'date-fns';
-import { ScheduleItem, resolveOverlaps } from './solver';
-import { isImmutable } from '@/lib/validation/calendar-contract';
+import { ScheduleBlock } from '@/types/database';
+import { addMinutes, parseISO, areIntervalsOverlapping, format, isBefore, isAfter, startOfDay, endOfDay, differenceInMinutes } from 'date-fns';
 
-export type ResolutionStatus = 'resolved' | 'requires_choice' | 'rejected' | 'no_conflict';
+export type ResolutionOption = {
+    id: string;
+    label: string;
+    description: string;
+    patch: {
+        reason: string;
+        changes: any[];
+    };
+    tradeoff?: string;
+    score: number;
+};
 
-export interface ConflictResolution {
-    status: ResolutionStatus;
-    reason?: string;
-    resolved_patch?: any; // A patch that fixes it
-    options?: any[]; // Choices for the user
-    conflicting_items?: string[];
-}
+export type ConflictVerdict =
+    | { status: 'allowed' }
+    | { status: 'requires_choice', reason: string, options: ResolutionOption[] };
 
 export class ConflictService {
-    /**
-     * Judge a proposed move/insert.
-     * Returns a definitive ruling.
-     */
-    static judgeChange(
-        currentSchedule: any[],
-        proposedItem: { start: Date; end: Date; id?: string; type?: 'fixed' | 'flexible' },
-        constraints: { workStart: number; workEnd: number } = { workStart: 8, workEnd: 22 }
-    ): ConflictResolution {
-        // 1. Identify Conflicts
-        const validSchedule = currentSchedule.filter(s => s !== null && s !== undefined);
-        const conflicts = validSchedule.filter(existing => {
-            if (existing.id === proposedItem.id) return false; // Ignore self
-            const existingStart = parseISO(existing.start_time ? `${format(proposedItem.start, 'yyyy-MM-dd')}T${existing.start_time}` : existing.start_ts); // Handle different formats
-            const existingEnd = parseISO(existing.end_time ? `${format(proposedItem.start, 'yyyy-MM-dd')}T${existing.end_time}` : existing.end_ts);
 
+    static solve(currentSchedule: ScheduleBlock[], proposal: { id?: string, start: Date, end: Date, title?: string, priority?: number, is_fixed?: boolean }): ConflictVerdict {
+        // 1. Filter out self
+        const others = currentSchedule.filter(b => b.id !== proposal.id);
+
+        // 2. Check Overlaps
+        const collisions = others.filter(b => {
+            const bStart = parseISO(`${b.date}T${b.start_time}`);
+            const bEnd = parseISO(`${b.date}T${b.end_time}`);
             return areIntervalsOverlapping(
-                { start: proposedItem.start, end: proposedItem.end },
-                { start: existingStart, end: existingEnd }
+                { start: proposal.start, end: proposal.end },
+                { start: bStart, end: bEnd }
             );
         });
 
-        if (conflicts.length === 0) {
-            return { status: 'no_conflict' };
+        if (collisions.length === 0) {
+            return { status: 'allowed' };
         }
 
-        // 2. Analyze Conflicts (The Judge)
-        const hitImmutable = conflicts.some(c => isImmutable(c));
+        const options: ResolutionOption[] = [];
 
-        if (hitImmutable) {
-            // Immediate Rejection
-            return {
-                status: 'rejected',
-                reason: "Cannot overlap with an Anchor (Sleep/Meal/Locked).",
-                conflicting_items: conflicts.map(c => c.id?.toString())
-            };
+        // Strategy 1: Minimal Move (Find next gap)
+        const nextGap = this.findNextGap(proposal, others);
+        if (nextGap) {
+            options.push({
+                id: 'minimal-move',
+                label: `Shift to ${format(nextGap.start, 'HH:mm')}`,
+                description: 'Move this block to the next available opening.',
+                patch: {
+                    reason: 'Minimal move to nearest gap',
+                    changes: [{
+                        op: 'create_event',
+                        payload: {
+                            date: format(nextGap.start, 'yyyy-MM-dd'),
+                            start_time: format(nextGap.start, 'HH:mm'),
+                            end_time: format(nextGap.end, 'HH:mm'),
+                            title: proposal.title || 'New Event',
+                            block_type: 'adhoc'
+                        }
+                    }]
+                },
+                score: 80
+            });
         }
 
-        // 3. Attempt Auto-Resolution (Push flexible blocks)
-        // We simulate the day with the new item forced in
-        const solverItems: ScheduleItem[] = currentSchedule.map(s => ({
-            id: s.id,
-            start: parseISO(s.start_time ? `${format(proposedItem.start, 'yyyy-MM-dd')}T${s.start_time}` : s.start_ts),
-            end: parseISO(s.end_time ? `${format(proposedItem.start, 'yyyy-MM-dd')}T${s.end_time}` : s.end_ts),
-            type: (isImmutable(s) ? 'fixed' : 'flexible') as 'fixed' | 'flexible'
-        })).filter(s => s.id !== proposedItem.id);
-
-        // Add our proposed item as 'fixed' temporarily to see if we can flow around it
-        solverItems.push({
-            id: 'PROPOSAL',
-            start: proposedItem.start,
-            end: proposedItem.end,
-            type: 'fixed' // We want to force this position
-        });
-
-        const result = resolveOverlaps(solverItems, proposedItem.start, {
-            workStartHour: constraints.workStart,
-            workEndHour: constraints.workEnd
-        });
-
-        if (result.conflicts.length > 0) {
-            // Even logic couldn't fix it (e.g. squeezed between two anchors)
-            return {
-                status: 'requires_choice',
-                reason: "Not enough space to auto-fit.",
-                options: [
-                    { label: "Cancel", action: "cancel" },
-                    { label: "Force (Overlap)", action: "force" }, // Or maybe sacrifice logic
-                ]
-            };
+        // Strategy 2: Shift Chain (Only if no collisions are fixed)
+        const hasFixed = collisions.some(c => c.is_fixed || c.commitment_id);
+        if (!hasFixed) {
+            const shiftPatch = this.calculateShiftChain(proposal, collisions);
+            if (shiftPatch) {
+                options.push({
+                    id: 'shift-chain',
+                    label: 'Chain Shift',
+                    description: 'Push flexible blocks forward to make room.',
+                    patch: {
+                        reason: 'Push flexible blocks forward',
+                        changes: shiftPatch
+                    },
+                    score: 70
+                });
+            }
         }
 
-        // 4. Success - Auto-Resolve Possible
-        // We need to generate a patch for the *moved* items
-        const movedIds = result.moved;
-        const moves = result.resolved
-            .filter(r => movedIds.includes(r.id) && r.id !== 'PROPOSAL')
-            .map(r => ({
-                op: 'MOVE',
-                event_id: r.id,
-                new_start_ts: r.start.toISOString(),
-                new_end_ts: r.end.toISOString()
-            }));
+        // Strategy 3: Drop Lowest (Only if no collisions are fixed)
+        if (!hasFixed) {
+            const lowest = [...collisions].sort((a, b) => (a.priority || 0) - (b.priority || 0))[0];
+            options.push({
+                id: 'drop-lowest',
+                label: `Drop "${lowest.title}"`,
+                description: `Replace the lowest priority flexible task.`,
+                patch: {
+                    reason: `Priority conflict resolution: dropping ${lowest.title}`,
+                    changes: [
+                        { op: 'delete_event', event_id: lowest.id },
+                        {
+                            op: 'create_event',
+                            payload: {
+                                date: format(proposal.start, 'yyyy-MM-dd'),
+                                start_time: format(proposal.start, 'HH:mm'),
+                                end_time: format(proposal.end, 'HH:mm'),
+                                title: proposal.title || 'New Event',
+                                block_type: 'adhoc'
+                            }
+                        }
+                    ]
+                },
+                tradeoff: `You'll lose the slot for ${lowest.title}`,
+                score: 50
+            });
+        }
 
         return {
-            status: 'resolved',
-            resolved_patch: {
-                summary: `Auto-adjusted ${moves.length} blocks to fit.`,
-                affected_date: format(proposedItem.start, 'yyyy-MM-dd'),
-                changes: moves,
-                requires_confirmation: false // It's auto-resolved!
-            }
+            status: 'requires_choice',
+            reason: `Overlaps with ${collisions.map(c => c.title).join(', ')}`,
+            options
         };
+    }
+
+    private static findNextGap(proposal: { start: Date, end: Date }, schedule: ScheduleBlock[]) {
+        const duration = differenceInMinutes(proposal.end, proposal.start);
+        const dayStart = startOfDay(proposal.start);
+        const dayEnd = endOfDay(proposal.start);
+
+        const blocks = schedule
+            .filter(b => b.date === format(proposal.start, 'yyyy-MM-dd'))
+            .map(b => ({
+                start: parseISO(`${b.date}T${b.start_time}`),
+                end: parseISO(`${b.date}T${b.end_time}`)
+            }))
+            .sort((a, b) => a.start.getTime() - b.start.getTime());
+
+        let checkStart = proposal.start;
+
+        for (const b of blocks) {
+            if (isBefore(b.start, checkStart)) {
+                checkStart = isAfter(b.end, checkStart) ? b.end : checkStart;
+                continue;
+            }
+
+            const gap = differenceInMinutes(b.start, checkStart);
+            if (gap >= duration) {
+                return { start: checkStart, end: addMinutes(checkStart, duration) };
+            }
+            checkStart = b.end;
+        }
+
+        if (differenceInMinutes(dayEnd, checkStart) >= duration) {
+            return { start: checkStart, end: addMinutes(checkStart, duration) };
+        }
+
+        return null;
+    }
+
+    private static calculateShiftChain(proposal: { start: Date, end: Date, title?: string }, collisions: ScheduleBlock[]) {
+        const duration = differenceInMinutes(proposal.end, proposal.start);
+        const shiftAmount = duration; // Naive shift: push everything by the duration of the new block
+
+        const changes: any[] = [{
+            op: 'create_event',
+            payload: {
+                date: format(proposal.start, 'yyyy-MM-dd'),
+                start_time: format(proposal.start, 'HH:mm'),
+                end_time: format(proposal.end, 'HH:mm'),
+                title: proposal.title || 'New Event',
+                block_type: 'adhoc'
+            }
+        }];
+
+        for (const c of collisions) {
+            const cStart = parseISO(`${c.date}T${c.start_time}`);
+            const cEnd = parseISO(`${c.date}T${c.end_time}`);
+            const newStart = addMinutes(cStart, shiftAmount);
+            const newEnd = addMinutes(cEnd, shiftAmount);
+
+            if (isAfter(newEnd, endOfDay(cStart))) return null; // Cannot shift past midnight
+
+            changes.push({
+                op: 'update_event',
+                event_id: c.id,
+                payload: {
+                    start_time: format(newStart, 'HH:mm'),
+                    end_time: format(newEnd, 'HH:mm')
+                }
+            });
+        }
+
+        return changes;
     }
 }

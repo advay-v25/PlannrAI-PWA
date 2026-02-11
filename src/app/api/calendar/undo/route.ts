@@ -1,42 +1,74 @@
-import { NextResponse } from 'next/server';
-import { apiError, apiSuccess, secureApiRoute, SecureApiContext } from '@/lib/security/api-protection';
-import { PatchService } from '@/lib/services/patch-service';
-import { apiClient } from '@/lib/api-client'; // Wait, server route calling client? NO.
-// Route should call internal logic or reuse apply logic.
-// Problem: Apply logic is in `api/calendar/apply-patch`. We can't easily call another route internally in Next.js app directory without fetch.
-// Better: Refactor apply logic into a shared service? 
-// Or just let client handle it?
-// The undo endpoint should:
-// 1. Get inverse patch from PatchService.
-// 2. Call the Apply Logic (which is complex).
 
-// Option A: Client fetches undo patch, then calls apply-patch. (Least risk, reuses pipeline).
-// Option B: Server endpoint does it all. (Cleaner API).
+import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
+import { createClient } from '@/lib/supabase/server';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { PatchService } from '@/lib/calendar/patch-service';
+import { addDays, format, parseISO } from 'date-fns';
+import { z } from 'zod';
 
-// Let's go with Option A for Phase 3 MVP stability.
-// Endpoint: GET /api/calendar/undo -> Returns the Inverse Patch.
-// Client: Receives patch -> Calls POST /api/calendar/apply-patch.
-
-export const POST = secureApiRoute(async (context: SecureApiContext) => {
-    // Note: Using POST because we are creating an 'undo' action, even if it just returns data primarily.
-    // Actually, if we just want to fetch the inverse patch, GET is fine.
-    // But if we want the server to EXECUTE the undo, that's different.
-
-    // User request: "Undo must rollback transactionally + refresh calendar."
-
-    // Let's try to execute it server side to be robust.
-    const result = await PatchService.undoLast(context.userId);
-
-    if (!result.success || !result.patch) {
-        return apiError(result.message || 'Undo unavailable', 400);
-    }
-
-    // To execute the inverse patch, we need to invoke the logic from apply-patch.
-    // Since we can't easily import the route handler, let's allow the CLIENT to receive the patch and apply it.
-    // This also lets the client show the "Reverting..." state.
-
-    // So this endpoint just Retrieves the Undo Patch.
-    return apiSuccess({
-        undo_patch: result.patch
-    });
+const UndoBodySchema = z.object({
+    version_id: z.string().uuid().optional(),
+    range: z.object({
+        start: z.string(),
+        end: z.string()
+    }).optional()
 });
+
+export const POST = secureApiRoute(
+    async (context: any, body: any) => {
+        // 1. Validate Structure
+        const parsed = UndoBodySchema.safeParse(body);
+        if (!parsed.success) {
+            return apiError('Invalid undo request', 400, parsed.error.format());
+        }
+
+        const { version_id, range } = parsed.data;
+        const userId = context.user?.id || context.userId;
+
+        if (!userId) {
+            return apiError('Unauthorized', 401);
+        }
+
+        const supabase = await createClient() as unknown as SupabaseClient<any, "public", any>;
+
+        let targetRange = range;
+        let targetVersionId = version_id;
+
+        // 2. Infer Range if missing
+        if (!targetRange) {
+            let query = supabase.from('schedule_versions').select('id, week_start').eq('user_id', userId);
+
+            if (version_id) {
+                query = query.eq('id', version_id);
+            } else {
+                query = query.order('created_at', { ascending: false }).limit(1);
+            }
+
+            const { data, error } = await query.single();
+
+            if (error || !data) {
+                return apiError('Nothing to undo', 400);
+            }
+
+            // Infer proper range
+            const start = data.week_start; // DATE string YYYY-MM-DD
+            const end = format(addDays(parseISO(start), 6), 'yyyy-MM-dd');
+            targetRange = { start, end };
+
+            // If we found the latest version, we should use its ID to be explicit
+            if (!targetVersionId) {
+                targetVersionId = data.id;
+            }
+        }
+
+        // 3. Undo
+        try {
+            const result = await PatchService.undo(userId, targetVersionId, targetRange!, supabase);
+            return apiSuccess(result);
+        } catch (err: any) {
+            console.error('[undo] Failed:', err.message);
+            return apiError('Undo failed: ' + err.message, 500);
+        }
+    },
+    { requireAuth: true }
+);

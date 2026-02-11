@@ -60,41 +60,60 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                 let refusal = undefined;
 
                 if (msg.role === 'assistant') {
-                    try {
-                        const parsed = JSON.parse(msg.content);
-                        // Handle AIResponse structure
-                        if (parsed.summary || parsed.options || parsed.question || parsed.refusal) {
-                            content = parsed.summary || parsed.question || "How can I help?";
-
-                            options = parsed.options?.map((opt: any, idx: number) => ({
-                                id: `hist_${msg.id}_${idx}`,
-                                title: opt.title,
-                                impact: opt.impact || opt.title,
-                                patch: opt.patch
-                            })) || [];
-
-                            if (parsed.refusal) {
-                                mode = 'refusal';
-                                refusal = { reason: parsed.refusal };
-                                content = parsed.refusal; // Override content if refusal
-                            } else if (parsed.question && (!parsed.options?.length)) {
-                                mode = 'choice';
-                            } else if (parsed.options?.length > 0) {
-                                mode = 'choice';
-                            } else {
-                                mode = 'executed';
-                            }
+                    // Try content_json first (V5), then content (legacy/fallback)
+                    const rawJson = msg.content_json;
+                    if (rawJson) {
+                        // V5 Structured
+                        content = rawJson.explanation || "Computed options.";
+                        if (rawJson.intent === 'none') {
+                            mode = 'refusal'; // Or just text
                         }
-                    } catch (e) {
-                        // Fallback: raw text content if not JSON
-                        mode = 'choice';
+
+                        options = rawJson.options?.map((opt: any, idx: number) => ({
+                            id: `hist_${msg.id}_${idx}`,
+                            title: opt.label, // Label from V5
+                            impact: opt.tradeoff || opt.label,
+                            patch: opt.patch
+                        })) || [];
+
+                        if (options.length > 0) mode = 'choice';
+                    } else {
+                        // Legacy V4 or text
+                        try {
+                            const parsed = JSON.parse(msg.content);
+                            // Handle AIResponse structure
+                            if (parsed.summary || parsed.options || parsed.question || parsed.refusal) {
+                                content = parsed.summary || parsed.question || "How can I help?";
+
+                                options = parsed.options?.map((opt: any, idx: number) => ({
+                                    id: `hist_${msg.id}_${idx}`,
+                                    title: opt.title,
+                                    impact: opt.impact || opt.title,
+                                    patch: opt.patch
+                                })) || [];
+
+                                if (parsed.refusal) {
+                                    mode = 'refusal';
+                                    refusal = { reason: parsed.refusal };
+                                    content = parsed.refusal;
+                                } else if (parsed.question && (!parsed.options?.length)) {
+                                    mode = 'choice';
+                                } else if (parsed.options?.length > 0) {
+                                    mode = 'choice';
+                                } else {
+                                    mode = 'executed';
+                                }
+                            }
+                        } catch (e) {
+                            mode = 'choice';
+                        }
                     }
                 }
 
                 return {
                     id: msg.id,
                     role: msg.role === 'assistant' ? 'agent' : 'user',
-                    content,
+                    content: content || '',
                     mode,
                     options,
                     refusal,
@@ -123,44 +142,29 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         }));
 
         try {
-            // Call AI Gateway with Channel: coach
-            const gatewayRes = await apiClient.post<any>('/api/ai/execute', {
-                channel: 'coach',
-                input: text,
-                context: {
-                    // Send recent messages as history for context continuity
-                    // Filter out complex objects, send simplified history
-                    history: get().messages.slice(-6).map(m => ({
-                        role: m.role === 'agent' ? 'assistant' : 'user',
-                        content: m.content
-                    })),
-                    mode: 'chat'
-                }
+            // Call Coach V5 API
+            const gatewayRes = await apiClient.post<any>('/api/coach/chat', {
+                message: text
             });
 
             const data = gatewayRes.data || gatewayRes;
 
-            // Map AIResponse to Coach Message
+            // Map V5 Response to Message
             let mode: CoachMode = 'choice';
-            let content = data.summary;
+            let content = data.explanation;
             let refusal = undefined;
 
-            if (data.refusal) {
-                mode = 'refusal';
-                refusal = { reason: data.refusal };
-                content = data.refusal;
-            } else if (data.question && (!data.options || data.options.length === 0)) {
-                content = data.question || data.summary;
+            if (data.intent === 'none' && (!data.options || data.options.length === 0)) {
+                // Conversational or Refusal
+                mode = 'choice'; // Text only
             } else if (data.options?.length > 0) {
                 mode = 'choice';
-            } else {
-                mode = 'executed';
             }
 
             const options: CoachOption[] = data.options?.map((opt: any, idx: number) => ({
                 id: `opt_${Date.now()}_${idx}`,
-                title: opt.title,
-                impact: opt.impact || opt.title,
+                title: opt.label,
+                impact: opt.tradeoff || opt.label,
                 patch: opt.patch
             })) || [];
 
@@ -171,7 +175,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                 mode: mode,
                 options: options,
                 refusal: refusal,
-                isImpossible: mode === 'refusal',
+                isImpossible: false,
                 timestamp: new Date()
             };
 
@@ -182,14 +186,16 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
         } catch (error) {
             console.error("Agent Error:", error);
+            const errorMsg: Message = {
+                id: crypto.randomUUID(),
+                role: 'agent',
+                content: "I encountered a system error. Please try again.",
+                timestamp: new Date(),
+                mode: 'refusal',
+                options: []
+            };
             set(state => ({
-                messages: [...state.messages, {
-                    id: crypto.randomUUID(),
-                    role: 'agent',
-                    content: "I encountered a system error. Please try again.",
-                    timestamp: new Date(),
-                    mode: 'refusal'
-                }],
+                messages: [...state.messages, errorMsg],
                 isLoading: false
             }));
         }
@@ -258,7 +264,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             // Use standard Undo Patch endpoint
             // It undoes the *last* action for the user, logic is LIFO.
             // We pass token just in case we want to validate, but currently endpoint ignores it.
-            await apiClient.post('/api/patch/undo', { undo_token: token });
+            await apiClient.post('/api/calendar/undo', { patch_run_id: token });
 
             // Add confirmation
             const undoMsg: Message = {

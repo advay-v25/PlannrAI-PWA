@@ -1,4 +1,3 @@
-
 import { createClient } from '@/lib/supabase/server';
 import { ScheduleBlock } from '@/types/database';
 import { ConflictService } from '@/lib/scheduling/conflict-service';
@@ -17,33 +16,26 @@ export class CalendarEngine {
             throw new Error("Missing required fields: date, start_time, end_time");
         }
 
-        // 2. Conflict Check (Simulate the state)
-        // We need the current schedule to judge.
+        // 2. Conflict Check
         const currentSchedule = await this.fetchDaySchedule(userId, block.date, supabase);
 
-        // Construct proposal for judge
         const proposal = {
             start: parseISO(`${block.date}T${block.start_time}`),
             end: parseISO(`${block.date}T${block.end_time}`),
-            type: (block.is_fixed ? 'fixed' : 'flexible') as 'fixed' | 'flexible'
+            title: block.title || undefined,
+            priority: block.priority || undefined,
+            is_fixed: block.is_fixed || undefined
         };
 
-        const verdict = ConflictService.judgeChange(currentSchedule, proposal);
-
-        if (verdict.status === 'rejected') {
-            throw new Error(`Conflict: ${verdict.reason}`);
-        }
+        const verdict = ConflictService.solve(currentSchedule, proposal);
 
         if (verdict.status === 'requires_choice') {
-            // For V5 Manual Add, we might auto-reject or require UI to handle.
-            // For now, strict mode -> reject.
-            throw new Error(`Not enough space. ${verdict.reason}`);
+            const error = new Error(`Conflict detected: ${verdict.reason}`);
+            (error as any).code = 'CONFLICT_REQUIRES_CHOICE';
+            (error as any).options = verdict.options;
+            throw error;
         }
 
-        // 3. Auto-Resolution Application (if items moved)
-        if (verdict.status === 'resolved' && verdict.resolved_patch) {
-            await this.applyPatch(userId, verdict.resolved_patch, supabase);
-        }
 
         // 4. Persist the New Block
         const { data, error } = await supabase
@@ -84,7 +76,6 @@ export class CalendarEngine {
 
         if (!original) throw new Error("Block not found");
         if (original.commitment_id && (updates.start_time !== original.start_time || updates.end_time !== original.end_time)) {
-            // V5: Anchors are locked!
             throw new Error("Cannot move a locked Anchor. Edit the Commitment instead.");
         }
 
@@ -100,16 +91,18 @@ export class CalendarEngine {
                 id: blockId, // Pass ID so we ignore self-collision
                 start: parseISO(`${targetDate}T${targetStart}`),
                 end: parseISO(`${targetDate}T${targetEnd}`),
-                type: (original.is_fixed ? 'fixed' : 'flexible') as 'fixed' | 'flexible'
+                title: updates.title || original.title || undefined,
+                priority: updates.priority || original.priority || undefined,
+                is_fixed: updates.is_fixed || original.is_fixed || undefined
             };
 
-            const verdict = ConflictService.judgeChange(currentSchedule, proposal);
+            const verdict = ConflictService.solve(currentSchedule, proposal);
 
-            if (verdict.status === 'rejected') throw new Error(verdict.reason);
-            if (verdict.status === 'requires_choice') throw new Error(verdict.reason);
-
-            if (verdict.status === 'resolved' && verdict.resolved_patch) {
-                await this.applyPatch(userId, verdict.resolved_patch, supabase);
+            if (verdict.status === 'requires_choice') {
+                const error = new Error(`Conflict detected: ${verdict.reason}`);
+                (error as any).code = 'CONFLICT_REQUIRES_CHOICE';
+                (error as any).options = verdict.options;
+                throw error;
             }
         }
 
@@ -130,6 +123,17 @@ export class CalendarEngine {
         });
 
         return data;
+    }
+
+    /**
+     * Specialized Move Block (Drag & Drop wrapper for updateBlock)
+     */
+    static async moveBlock(userId: string, blockId: string, newDate: string, newStart: string, newEnd: string, supabase: SupabaseClient) {
+        return this.updateBlock(userId, blockId, {
+            date: newDate,
+            start_time: newStart,
+            end_time: newEnd
+        }, supabase);
     }
 
     static async deleteBlock(userId: string, blockId: string, supabase: SupabaseClient) {
@@ -159,23 +163,111 @@ export class CalendarEngine {
 
     // --- Patch Application (Shared with Coach) ---
     static async applyPatch(userId: string, patch: any, supabase: SupabaseClient) {
-        // This reuses the CoachActionService logic essentially, but purely.
-        // For MVP V5, we can just execute the moves from the resolution.
-        if (patch.changes) {
-            for (const change of patch.changes) {
-                if (change.op === 'MOVE') {
-                    // Convert TS to HH:MM
-                    const s = new Date(change.new_start_ts);
-                    const e = new Date(change.new_end_ts);
-                    const start_time = s.toISOString().split('T')[1].substring(0, 5);
-                    const end_time = e.toISOString().split('T')[1].substring(0, 5);
+        // 1. Versioning Snapshot (Optional for MVP, but recommended)
+        if (!patch.changes) return { success: false };
 
+        const inverseChanges: any[] = [];
+
+        for (const change of patch.changes) {
+            // A. CREATE
+            if (change.op === 'create_event') {
+                const payload = change.payload;
+                // Ensure required fields
+                if (!payload.date || !payload.start_time || !payload.end_time) continue;
+
+                const { data: newBlock, error } = await supabase.from('schedule_blocks').insert({
+                    ...payload,
+                    user_id: userId, // Enforce ID
+                    id: undefined,   // Let DB generate ID
+                    created_at: undefined,
+                    updated_at: undefined
+                }).select().single();
+
+                if (newBlock) {
+                    inverseChanges.unshift({
+                        op: 'delete_event',
+                        event_id: newBlock.id
+                    });
+                }
+            }
+
+            // B. UPDATE (MOVE/RESIZE)
+            else if (change.op === 'update_event') {
+                const blockId = change.event_id || change.id; // Support both formats
+                if (!blockId) continue;
+
+                // Fetch original state for Undo
+                const { data: original } = await supabase.from('schedule_blocks').select('*').eq('id', blockId).single();
+
+                const updates: any = {};
+                // Handle various payload formats (coach vs engine)
+                if (change.payload) {
+                    // Engine format
+                    if (change.payload.start_time) updates.start_time = change.payload.start_time;
+                    if (change.payload.end_time) updates.end_time = change.payload.end_time;
+                    if (change.payload.date) updates.date = change.payload.date;
+                } else {
+                    // Legacy Coach format?
+                    if (change.new_start_ts) {
+                        const s = new Date(change.new_start_ts);
+                        const e = new Date(change.new_end_ts);
+                        updates.start_time = s.toISOString().split('T')[1].substring(0, 5);
+                        updates.end_time = e.toISOString().split('T')[1].substring(0, 5);
+                        // Date might change too if moved across days?
+                        updates.date = s.toISOString().split('T')[0];
+                    }
+                }
+
+                if (Object.keys(updates).length > 0) {
                     await supabase
                         .from('schedule_blocks')
-                        .update({ start_time, end_time })
-                        .eq('id', change.event_id);
+                        .update(updates)
+                        .eq('id', blockId)
+                        .eq('user_id', userId); // Security
+
+                    if (original) {
+                        inverseChanges.unshift({
+                            op: 'update_event',
+                            event_id: blockId,
+                            payload: {
+                                start_time: original.start_time,
+                                end_time: original.end_time,
+                                date: original.date
+                            }
+                        });
+                    }
+                }
+            }
+
+            // C. DELETE
+            else if (change.op === 'delete_event') {
+                const blockId = change.event_id || change.id;
+                if (!blockId) continue;
+
+                // Fetch original for Undo
+                const { data: original } = await supabase.from('schedule_blocks').select('*').eq('id', blockId).single();
+
+                // Check lock status? Engine should have checked. 
+                // DB RLS or Constraint might block deletion if anchors.
+                await supabase
+                    .from('schedule_blocks')
+                    .delete()
+                    .eq('id', blockId);
+
+                if (original) {
+                    inverseChanges.unshift({
+                        op: 'create_event',
+                        payload: {
+                            ...original,
+                            id: undefined, // Let DB generate new ID or force? forcing might fail on PK collision if not careful. Let's act like a new block.
+                            created_at: undefined,
+                            updated_at: undefined
+                        }
+                    });
                 }
             }
         }
+
+        return { success: true, undoPatch: { changes: inverseChanges } };
     }
 }

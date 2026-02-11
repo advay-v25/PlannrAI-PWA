@@ -68,51 +68,37 @@ export default function BrainDumpPage() {
         setIsLoading(true);
 
         try {
-            // Call AI Gateway
-            const response = await apiClient.post<any>('/api/ai/execute', {
-                channel: 'brain_dump',
-                input: messageText,
-                context: {
-                    history: messages.slice(-6).map(m => ({ role: m.role, content: m.content })),
-                    goals: goals.filter(g => g.status === 'active').map(g => ({ title: g.title, id: g.id })),
-                    mode: 'chat'
-                }
+            // Call New Brain Dump Engine
+            const response = await apiClient.post<any>('/api/brain-dump/process', {
+                text: messageText
             });
 
             // Handle Response
-            const aiData = response.data || response;
+            const data = response.data || response;
 
-            if (aiData.summary) {
+            if (data.analysis) {
                 const assistantMessage: Message = {
                     id: `donna-${Date.now()}`,
                     role: 'assistant',
-                    content: aiData.summary,
-                    // Map 'options' to 'recommendedActions'
-                    recommendedActions: aiData.options?.map((opt: any) => ({
-                        label: opt.title,
-                        patch: opt.patch,
-                        reasoning: opt.impact
+                    content: data.analysis.note || "I've processed that.",
+                    // Map hydrated patches to UI
+                    recommendedActions: data.patches?.map((p: any) => ({
+                        label: p.title,
+                        patch: p.patch,
+                        reasoning: p.impact
                     })),
                     timestamp: new Date(),
                 };
                 setMessages(prev => [...prev, assistantMessage]);
-            } else if (aiData.refusal) {
-                const refusalMsg: Message = {
-                    id: `donna-${Date.now()}`,
-                    role: 'assistant',
-                    content: aiData.refusal.reason,
-                    timestamp: new Date(),
-                };
-                setMessages(prev => [...prev, refusalMsg]);
             } else {
-                throw new Error('No valid response');
+                throw new Error('No analysis returned');
             }
         } catch (error) {
             console.error('Chat error:', error);
             setMessages(prev => [...prev, {
                 id: `error-${Date.now()}`,
                 role: 'assistant',
-                content: "Something went wrong on my end. Give me a sec and try that again.",
+                content: "I couldn't process that brain dump. Please try again.",
                 timestamp: new Date(),
             }]);
         } finally {

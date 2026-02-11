@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
 import { GlassInput } from '@/components/ui/glass-input';
-import { useHabitStacksStore } from '@/stores';
+import { useHabitStacksStore, useUserStore } from '@/stores';
 import { habitStacksApi, type HabitStack, apiClient } from '@/lib/api-client';
 import type { ScheduleBlock, Goal, Database } from '@/types/database';
 import type { Patch } from '@/lib/ai/schemas';
@@ -312,17 +312,19 @@ interface CreateHabitStackWithAIProps {
     onCancel: () => void;
     todayBlocks?: ScheduleBlock[];
     goals?: Goal[];
+    profile?: any;
     onBlocksUpdated?: () => void;
 }
 
-function CreateHabitStackWithAI({ onCreated, onCancel, todayBlocks = [], goals = [], onBlocksUpdated }: CreateHabitStackWithAIProps) {
+function CreateHabitStackWithAI({ onCreated, onCancel, todayBlocks = [], goals = [], profile, onBlocksUpdated }: CreateHabitStackWithAIProps) {
     const [step, setStep] = useState<'input' | 'chat' | 'confirm'>('input');
     const [habitName, setHabitName] = useState('');
     const [messages, setMessages] = useState<Array<{ role: 'assistant' | 'user', content: string }>>([]);
     const [userInput, setUserInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [generatedStack, setGeneratedStack] = useState<HabitStack | null>(null);
-    const [calendarEvent, setCalendarEvent] = useState<{ title: string; start_time: string; end_time: string; block_type: string } | null>(null);
+    const [options, setOptions] = useState<any[]>([]);
+    const [selectedOptionIndex, setSelectedOptionIndex] = useState<number>(0);
     const { addStack } = useHabitStacksStore();
 
     // Initial message
@@ -334,6 +336,10 @@ function CreateHabitStackWithAI({ onCreated, onCancel, todayBlocks = [], goals =
 
     const buildAIContext = () => ({
         mode: 'chat',
+        profile: {
+            wake_up: (profile as any)?.sleep_end || '07:00',
+            sleep_start: (profile as any)?.sleep_start || '23:00'
+        },
         current_schedule: todayBlocks.map(b => ({
             id: b.id,
             title: b.title || b.context,
@@ -350,32 +356,23 @@ function CreateHabitStackWithAI({ onCreated, onCancel, todayBlocks = [], goals =
         })),
     });
 
-    const extractStackAndEvent = (aiData: any) => {
-        if (aiData.options && aiData.options.length > 0) {
-            const ops = aiData.options[0].patch?.ops || [];
-            const stackOp = ops.find((o: any) => o.op === 'create_habit_stack');
-            const eventOp = ops.find((o: any) => o.op === 'create_event');
-            if (stackOp) {
-                setGeneratedStack({
-                    trigger_habit: stackOp.trigger || stackOp.payload?.trigger,
-                    action_habit: stackOp.action || stackOp.payload?.action,
-                    action_duration_mins: stackOp.duration || stackOp.payload?.duration || 2,
-                    // Defensively set other fields
-                    id: '', user_id: '',
-                    current_streak: 0, longest_streak: 0,
-                    total_completions: 0, grace_days_used: 0, max_grace_days: 1,
-                    is_active: true,
-                    created_at: new Date().toISOString(), updated_at: new Date().toISOString()
-                } as any);
-                if (eventOp) {
-                    const p = eventOp.payload || eventOp;
-                    setCalendarEvent({
-                        title: p.title || stackOp.action || stackOp.payload?.action,
-                        start_time: p.start_time,
-                        end_time: p.end_time,
-                        block_type: p.block_type || 'habit',
-                    });
-                }
+    const extractStacksAndOptions = (aiData: any) => {
+        if (aiData.stacks && aiData.stacks.length > 0) {
+            const stack = aiData.stacks[0];
+            setGeneratedStack({
+                trigger_habit: stack.steps?.[0]?.trigger || stack.name,
+                action_habit: stack.steps?.[0]?.title || stack.name,
+                action_duration_mins: stack.steps?.[0]?.minutes || 5,
+                id: '', user_id: '',
+                current_streak: 0, longest_streak: 0,
+                total_completions: 0, grace_days_used: 0, max_grace_days: 1,
+                is_active: true,
+                created_at: new Date().toISOString(), updated_at: new Date().toISOString()
+            } as any);
+
+            if (aiData.options && aiData.options.length > 0) {
+                setOptions(aiData.options);
+                setSelectedOptionIndex(0);
                 setStep('confirm');
                 return true;
             }
@@ -386,20 +383,18 @@ function CreateHabitStackWithAI({ onCreated, onCancel, todayBlocks = [], goals =
     const startConversation = async () => {
         setIsLoading(true);
         try {
-            const aiData = await apiClient.ai.execute({
+            const aiData = (await apiClient.ai.execute({
                 channel: 'habit_stack',
                 input: `I want to build a habit: ${habitName}`,
                 context: buildAIContext()
-            });
+            })) as any;
 
-            if (aiData.summary) {
-                if (aiData.mode === 'ask' || (aiData.mode !== 'propose' && !aiData.options?.length)) {
+            if (aiData.summary || aiData.stacks) {
+                if (!extractStacksAndOptions(aiData)) {
                     setMessages([{
                         role: 'assistant',
-                        content: aiData.summary // Use summary as the question/response
+                        content: aiData.summary || "Tell me more about when you'd like to do this habit."
                     }]);
-                } else {
-                    extractStackAndEvent(aiData);
                 }
             }
         } catch (error) {
@@ -421,7 +416,7 @@ function CreateHabitStackWithAI({ onCreated, onCancel, todayBlocks = [], goals =
         setIsLoading(true);
 
         try {
-            const aiData = await apiClient.ai.execute({
+            const aiData = (await apiClient.ai.execute({
                 channel: 'habit_stack',
                 input: userInput,
                 context: {
@@ -429,14 +424,13 @@ function CreateHabitStackWithAI({ onCreated, onCancel, todayBlocks = [], goals =
                     history: newMessages.map(m => ({ role: m.role, content: m.content })),
                     habit_goal: habitName
                 }
-            });
+            })) as any;
 
-            if (aiData.summary) {
-                if (!extractStackAndEvent(aiData)) {
-                    // Continue chatting
+            if (aiData.summary || aiData.stacks) {
+                if (!extractStacksAndOptions(aiData)) {
                     setMessages(prev => [...prev, {
                         role: 'assistant',
-                        content: aiData.summary
+                        content: aiData.summary || "I'm still thinking. Tell me more."
                     }]);
                 }
             }
@@ -446,6 +440,7 @@ function CreateHabitStackWithAI({ onCreated, onCancel, todayBlocks = [], goals =
             setIsLoading(false);
         }
     };
+
 
     const handleConfirm = async () => {
         if (!generatedStack) return;
@@ -462,19 +457,29 @@ function CreateHabitStackWithAI({ onCreated, onCancel, todayBlocks = [], goals =
             if (result.success && result.data?.stack) {
                 addStack(sanitizeStack(result.data.stack));
 
-                // 2. Apply calendar mutation if we have an event
-                if (calendarEvent) {
+                // 2. Apply calendar mutation if we have options
+                const selectedOption = options[selectedOptionIndex];
+                if (selectedOption?.patch) {
                     try {
                         const patch: Patch = {
+                            ...selectedOption.patch,
                             undoable: true,
-                            ops: [{
-                                op: 'create_event',
-                                payload: {
-                                    ...calendarEvent,
-                                    habit_stack_id: result.data.stack.id
-                                }
-                            }]
+                            reason: selectedOption.patch.reason || 'Habit stack placement'
                         };
+
+                        // Inject habit_stack_id into any create_event ops
+                        patch.ops = patch.ops.map((op: any) => {
+                            if (op.op === 'create_event') {
+                                return {
+                                    ...op,
+                                    payload: {
+                                        ...op.payload,
+                                        habit_stack_id: result.data.stack.id
+                                    }
+                                };
+                            }
+                            return op;
+                        });
 
                         await apiClient.patch.apply(patch, 'habit_stack');
                         onBlocksUpdated?.();
@@ -593,9 +598,28 @@ function CreateHabitStackWithAI({ onCreated, onCancel, todayBlocks = [], goals =
                                     <Clock className="w-4 h-4" />
                                     {generatedStack.action_duration_mins ?? 5} minutes
                                 </div>
-                                {calendarEvent && (
-                                    <div className="pt-2 border-t border-[var(--glass-border)] text-xs text-[var(--text-tertiary)]">
-                                        📅 Will be placed at {calendarEvent.start_time} – {calendarEvent.end_time}
+                                {options.length > 0 && (
+                                    <div className="pt-2 border-t border-[var(--glass-border)] space-y-2">
+                                        <p className="text-[10px] uppercase text-[var(--text-tertiary)] font-bold">Select Placement</p>
+                                        <div className="flex flex-col gap-2">
+                                            {options.map((opt, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    onClick={() => setSelectedOptionIndex(idx)}
+                                                    className={`text-left p-2 rounded-lg text-xs transition-all border ${selectedOptionIndex === idx
+                                                        ? 'bg-[var(--color-primary)]/20 border-[var(--color-primary)] text-[var(--color-primary)]'
+                                                        : 'bg-[var(--glass-bg)] border-transparent text-[var(--text-secondary)] hover:border-[var(--glass-border)]'
+                                                        }`}
+                                                >
+                                                    <span className="font-semibold block">{opt.label}</span>
+                                                    {opt.patch?.ops?.[0]?.payload && (
+                                                        <span className="opacity-70">
+                                                            📅 {opt.patch.ops[0].payload.start_time} – {opt.patch.ops[0].payload.end_time}
+                                                        </span>
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -732,6 +756,7 @@ export function HabitStacksList({ todayBlocks = [], goals = [], onBlocksUpdated 
                         onCancel={() => setCreationMode(null)}
                         todayBlocks={todayBlocks}
                         goals={goals}
+                        profile={useUserStore.getState().profile}
                         onBlocksUpdated={onBlocksUpdated}
                     />
                 )}

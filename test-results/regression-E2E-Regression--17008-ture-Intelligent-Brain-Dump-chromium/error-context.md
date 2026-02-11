@@ -1,0 +1,86 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e5]: PlannrAI
+      - navigation [ref=e6]:
+        - link "Home" [ref=e7] [cursor=pointer]:
+          - /url: /app
+          - img [ref=e8]
+          - generic [ref=e13]: Home
+        - link "Goals" [ref=e14] [cursor=pointer]:
+          - /url: /app/goals
+          - img [ref=e15]
+          - generic [ref=e19]: Goals
+        - link "Time" [ref=e20] [cursor=pointer]:
+          - /url: /app/calendar
+          - img [ref=e21]
+          - generic [ref=e23]: Time
+        - link "Dump" [ref=e24] [cursor=pointer]:
+          - /url: /app/brain-dump
+          - img [ref=e25]
+          - generic [ref=e33]: Dump
+        - link "Review" [ref=e34] [cursor=pointer]:
+          - /url: /app/weekly-review
+          - img [ref=e35]
+          - generic [ref=e37]: Review
+        - button "AI Coach" [ref=e38]:
+          - img [ref=e39]
+          - generic [ref=e42]: AI Coach
+      - link "User Settings" [ref=e44] [cursor=pointer]:
+        - /url: /app/settings
+        - img [ref=e46]
+        - generic [ref=e49]:
+          - paragraph [ref=e50]: User
+          - paragraph [ref=e51]: Settings
+    - main [ref=e52]:
+      - generic [ref=e55]:
+        - generic [ref=e56]:
+          - img [ref=e58]
+          - generic [ref=e66]:
+            - heading "Donna" [level=1] [ref=e67]
+            - paragraph [ref=e68]: Your mind declutter assistant
+        - generic [ref=e70]:
+          - img [ref=e72]
+          - heading "Hey there." [level=2] [ref=e80]
+          - paragraph [ref=e81]: I'm Donna. Think of me as your brilliant friend who also happens to be really good at cutting through the noise. What's on your mind?
+          - generic [ref=e82]:
+            - button "I can't focus today" [ref=e83]
+            - button "My head is all over the place" [ref=e84]
+            - button "I'm overwhelmed with everything" [ref=e85]
+            - button "I don't know what to prioritize" [ref=e86]
+            - button "I'm stressed about work" [ref=e87]
+            - button "I need to vent for a second" [ref=e88]
+        - generic [ref=e91]:
+          - textbox "What's on your mind?" [active] [ref=e93]: I am completely exhausted today. Cannot do anything.
+          - button [ref=e94]:
+            - img [ref=e95]
+    - complementary [ref=e97]:
+      - generic [ref=e98]:
+        - generic [ref=e99]:
+          - generic [ref=e100]:
+            - img [ref=e102]
+            - generic [ref=e105]:
+              - heading "Neural Coach" [level=3] [ref=e106]
+              - paragraph [ref=e107]: Cortex V2 • Active
+          - button [ref=e108]:
+            - img [ref=e109]
+        - generic [ref=e113]:
+          - img [ref=e115]
+          - heading "Systems Online" [level=3] [ref=e123]
+          - paragraph [ref=e124]: I'm ready to analyze your schedule, optimize your energy, and clear your mind.
+        - generic [ref=e126]:
+          - textbox "Ask me to adjust your plan..." [ref=e127]
+          - button [disabled] [ref=e128]:
+            - img [ref=e129]
+  - button "Open Next.js Dev Tools" [ref=e137] [cursor=pointer]:
+    - generic [ref=e140]:
+      - text: Rendering
+      - generic [ref=e141]:
+        - generic [ref=e142]: .
+        - generic [ref=e143]: .
+        - generic [ref=e144]: .
+  - alert [ref=e145]
+```

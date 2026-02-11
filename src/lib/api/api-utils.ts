@@ -18,16 +18,34 @@ export function apiError(
     status: number = 400,
     details?: any
 ) {
+    const requestId = crypto.randomUUID();
+    console.error(`[API] [${requestId}] Error: ${code} - ${message}`, details);
+
     return NextResponse.json({
-        error: code,
-        message,
-        details,
+        ok: false,
+        request_id: requestId,
+        error: {
+            code,
+            message,
+            details
+        },
         timestamp: new Date().toISOString()
     }, { status });
 }
 
 export function apiSuccess<T>(data: T, status: number = 200) {
-    return NextResponse.json(data, { status });
+    const requestId = crypto.randomUUID();
+    // Wrap data or merge? User specified health returns top-level fields.
+    // "Return: { ok: true, request_id, env: {...} }" -> implies merging data if object, or wrapping?
+    // Let's merge if data is object, else wrap in 'data'.
+    const response = {
+        ok: true,
+        request_id: requestId,
+        ...(typeof data === 'object' && data !== null && !Array.isArray(data) ? data : { data }),
+        timestamp: new Date().toISOString()
+    };
+
+    return NextResponse.json(response, { status });
 }
 
 // Common patterns

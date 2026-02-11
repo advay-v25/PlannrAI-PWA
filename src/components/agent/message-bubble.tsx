@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Bot, User, AlertTriangle, Check, ArrowRight } from 'lucide-react';
+import { Bot, User, AlertTriangle, Check, ArrowRight, Undo2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { GlassCard } from '@/components/ui/glass-card';
 
@@ -10,9 +10,12 @@ interface MessageBubbleProps {
     options?: any[]; // For structured patches
     timestamp?: number;
     isImpossible?: boolean;
+    undoToken?: string | null;
+    onApplyOption?: (optionId: string) => void;
+    onUndo?: (token: string) => void;
 }
 
-export function MessageBubble({ role, content, options, isImpossible }: MessageBubbleProps) {
+export function MessageBubble({ role, content, options, isImpossible, undoToken, onApplyOption, onUndo }: MessageBubbleProps) {
     const isUser = role === 'user';
 
     return (
@@ -60,26 +63,30 @@ export function MessageBubble({ role, content, options, isImpossible }: MessageB
                 {options && options.length > 0 && (
                     <div className="space-y-3 mt-2">
                         {options.map((option, idx) => (
-                            <GlassCard key={idx} className="p-3 border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5 hover:bg-[var(--color-primary)]/10 transition-colors group cursor-pointer">
+                            <GlassCard
+                                key={idx}
+                                className="p-3 border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5 hover:bg-[var(--color-primary)]/10 transition-colors group cursor-pointer"
+                                onClick={() => onApplyOption?.(option.id)}
+                            >
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="space-y-1">
                                         <h4 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
                                             <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)]" />
-                                            {option.title || "Proposed Change"}
+                                            {option.title || option.label || "Proposed Change"}
                                         </h4>
                                         <p className="text-xs text-[var(--text-secondary)] line-clamp-2">
-                                            {option.impact || "Click to apply this adjustment."}
+                                            {option.tradeoff || option.impact || "Click to apply this adjustment."}
                                         </p>
                                     </div>
                                     <ArrowRight className="w-4 h-4 text-[var(--color-primary)] opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
                                 </div>
 
-                                {/* Mini Visualization of Ops (e.g. +1 Event, -1 Event) */}
+                                {/* Mini Visualization of Ops */}
                                 {option.patch?.ops && (
                                     <div className="mt-3 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
                                         {option.patch.ops.slice(0, 3).map((op: any, i: number) => (
                                             <div key={i} className="text-[10px] px-2 py-1 rounded bg-[var(--glass-bg)] border border-[var(--glass-border)] whitespace-nowrap font-mono text-[var(--text-tertiary)]">
-                                                {op.op.replace('_event', '').toUpperCase()}
+                                                {(op.op || '').replace('_event', '').toUpperCase()}
                                             </div>
                                         ))}
                                         {option.patch.ops.length > 3 && (
@@ -90,6 +97,17 @@ export function MessageBubble({ role, content, options, isImpossible }: MessageB
                             </GlassCard>
                         ))}
                     </div>
+                )}
+
+                {/* Undo Button */}
+                {undoToken && onUndo && (
+                    <button
+                        onClick={() => onUndo(undoToken)}
+                        className="flex items-center gap-1.5 text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors mt-1"
+                    >
+                        <Undo2 className="w-3 h-3" />
+                        <span>Undo</span>
+                    </button>
                 )}
             </div>
         </motion.div>

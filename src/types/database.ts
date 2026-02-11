@@ -651,8 +651,11 @@ export type Database = {
           days_per_week: number | null
           description: string | null
           energy_demand: string | null
+          energy: string | null
           id: string
           importance: string | null
+          priority: string | null
+          pillar: string | null
           is_paused: boolean | null
           milestone_progress: number | null
           minutes_per_day: number | null
@@ -676,8 +679,11 @@ export type Database = {
           days_per_week?: number | null
           description?: string | null
           energy_demand?: string | null
+          energy?: string | null
           id?: string
           importance?: string | null
+          priority?: string | null
+          pillar?: string | null
           is_paused?: boolean | null
           milestone_progress?: number | null
           minutes_per_day?: number | null
@@ -700,8 +706,11 @@ export type Database = {
           days_per_week?: number | null
           description?: string | null
           energy_demand?: string | null
+          energy?: string | null
           id?: string
           importance?: string | null
+          priority?: string | null
+          pillar?: string | null
           is_paused?: boolean | null
           milestone_progress?: number | null
           minutes_per_day?: number | null
@@ -951,25 +960,31 @@ export type Database = {
           ai_can_analyze: boolean | null
           ai_can_draft: boolean | null
           ai_can_suggest: boolean | null
+          behavior_patterns_id: string | null
           bio_data: Json | null
           bio_scan_url: string | null
           body_preferences: Json | null
           buffer_config: Json | null
+          buffer_minutes: number | null
           created_at: string | null
           energy_level: number | null
           full_name: string | null
           id: string
           low_energy_mode: boolean | null
           meal_preferences: Json | null
+          meal_duration_minutes: number | null
           meal_windows: Json | null
           meals_per_day: number | null
           onboarding_complete: boolean | null
+          pillar_preferences: Json | null
           preferred_name: string | null
+          preferred_workdays: number[] | null
           sleep_end: string | null
           sleep_start: string | null
           stress_level: number | null
           timezone: string | null
           updated_at: string | null
+          weekend_intensity: string | null
           wind_down_mins: number | null
         }
         Insert: {
@@ -980,21 +995,26 @@ export type Database = {
           bio_scan_url?: string | null
           body_preferences?: Json | null
           buffer_config?: Json | null
+          buffer_minutes?: number | null
           created_at?: string | null
           energy_level?: number | null
           full_name?: string | null
           id: string
           low_energy_mode?: boolean | null
           meal_preferences?: Json | null
+          meal_duration_minutes?: number | null
           meal_windows?: Json | null
           meals_per_day?: number | null
           onboarding_complete?: boolean | null
+          pillar_preferences?: Json | null
           preferred_name?: string | null
+          preferred_workdays?: number[] | null
           sleep_end?: string | null
           sleep_start?: string | null
           stress_level?: number | null
           timezone?: string | null
           updated_at?: string | null
+          weekend_intensity?: string | null
           wind_down_mins?: number | null
         }
         Update: {
@@ -1005,21 +1025,26 @@ export type Database = {
           bio_scan_url?: string | null
           body_preferences?: Json | null
           buffer_config?: Json | null
+          buffer_minutes?: number | null
           created_at?: string | null
           energy_level?: number | null
           full_name?: string | null
           id?: string
           low_energy_mode?: boolean | null
           meal_preferences?: Json | null
+          meal_duration_minutes?: number | null
           meal_windows?: Json | null
           meals_per_day?: number | null
           onboarding_complete?: boolean | null
+          pillar_preferences?: Json | null
           preferred_name?: string | null
+          preferred_workdays?: number[] | null
           sleep_end?: string | null
           sleep_start?: string | null
           stress_level?: number | null
           timezone?: string | null
           updated_at?: string | null
+          weekend_intensity?: string | null
           wind_down_mins?: number | null
         }
         Relationships: []
@@ -1115,7 +1140,10 @@ export type Database = {
           id: string
           is_fixed: boolean | null
           is_locked: boolean | null
+          meta: Json | null
+          pillar: string | null
           priority: number | null
+          source: string | null
           start_time: string
           status: string | null
           title: string | null
@@ -1134,7 +1162,10 @@ export type Database = {
           id?: string
           is_fixed?: boolean | null
           is_locked?: boolean | null
+          meta?: Json | null
+          pillar?: string | null
           priority?: number | null
+          source?: string | null
           start_time: string
           status?: string | null
           title?: string | null
@@ -1153,7 +1184,10 @@ export type Database = {
           id?: string
           is_fixed?: boolean | null
           is_locked?: boolean | null
+          meta?: Json | null
+          pillar?: string | null
           priority?: number | null
+          source?: string | null
           start_time?: string
           status?: string | null
           title?: string | null
@@ -1613,4 +1647,7 @@ export type HabitInstance = Tables<'habit_instances'>;
 export type InterventionLog = Tables<'intervention_logs'>;
 export type Commitment = Tables<'commitments'>;
 export type BlockStatus = string;
-export type Profile = Tables<'profiles'>;
+export type Profile = Tables<'profiles'> & {
+  preferred_workdays?: number[];
+  weekend_intensity?: 'normal' | 'light' | 'off';
+};

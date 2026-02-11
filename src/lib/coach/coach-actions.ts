@@ -88,39 +88,77 @@ export class CoachActionService {
     // --- Internal Execution Helpers ---
 
     private static async executeOp(userId: string, op: CalendarPatchOp, supabase: SupabaseClient) {
-        if (op.op === 'create') {
-            const { error } = await supabase.from('schedule_blocks').insert({
-                ...op.event,
-                user_id: userId,
-                // Ensure critical fields
-                status: op.event.status || 'planned',
-                created_at: new Date().toISOString()
-            });
-            if (error) throw new Error(`Create failed: ${error.message}`);
-        }
-        else if (op.op === 'update') {
-            if (!op.event_id) throw new Error('Update requires event_id');
-            const { error } = await supabase.from('schedule_blocks')
-                .update(op.fields)
-                .eq('id', op.event_id)
-                .eq('user_id', userId);
-            if (error) throw new Error(`Update failed: ${error.message}`);
-        }
-        else if (op.op === 'delete') {
-            if (!op.event_id) throw new Error('Delete requires event_id');
-            const { error } = await supabase.from('schedule_blocks')
-                .delete()
-                .eq('id', op.event_id)
-                .eq('user_id', userId);
-            if (error) throw new Error(`Delete failed: ${error.message}`);
-        }
-        else if (op.op === 'move') {
-            if (!op.event_id || !op.to_start || !op.to_end) throw new Error('Move requires event_id, to_start, to_end');
-            const { error } = await supabase.from('schedule_blocks')
-                .update({ start_time: op.to_start, end_time: op.to_end })
-                .eq('id', op.event_id)
-                .eq('user_id', userId);
-            if (error) throw new Error(`Move failed: ${error.message}`);
+        const operation = op.op;
+
+        switch (operation) {
+            case 'create':
+            case 'create_event': {
+                const event = op.event || op.payload;
+                const { error } = await supabase.from('schedule_blocks').insert({
+                    ...event,
+                    user_id: userId,
+                    status: event.status || 'planned',
+                    created_at: new Date().toISOString()
+                });
+                if (error) throw new Error(`Create failed: ${error.message}`);
+                break;
+            }
+            case 'update':
+            case 'update_event': {
+                const id = op.event_id;
+                const fields = op.fields || op.payload;
+                if (!id) throw new Error('Update requires event_id');
+                const { error } = await supabase.from('schedule_blocks')
+                    .update(fields)
+                    .eq('id', id)
+                    .eq('user_id', userId);
+                if (error) throw new Error(`Update failed: ${error.message}`);
+                break;
+            }
+            case 'delete':
+            case 'delete_event': {
+                if (!op.event_id) throw new Error('Delete requires event_id');
+                const { error } = await supabase.from('schedule_blocks')
+                    .delete()
+                    .eq('id', op.event_id)
+                    .eq('user_id', userId);
+                if (error) throw new Error(`Delete failed: ${error.message}`);
+                break;
+            }
+            case 'move':
+            case 'move_event': {
+                const id = op.event_id;
+                const start = op.to_start;
+                const end = op.to_end;
+                if (!id || !start || !end) throw new Error('Move requires event_id, to_start, to_end');
+                const { error } = await supabase.from('schedule_blocks')
+                    .update({ start_time: start, end_time: end })
+                    .eq('id', id)
+                    .eq('user_id', userId);
+                if (error) throw new Error(`Move failed: ${error.message}`);
+                break;
+            }
+            case 'update_goal': {
+                const id = op.goal_id;
+                const fields = op.fields || op.payload;
+                if (!id) throw new Error('Update goal requires goal_id');
+                const { error } = await supabase.from('goals')
+                    .update(fields)
+                    .eq('id', id)
+                    .eq('user_id', userId);
+                if (error) throw new Error(`Update goal failed: ${error.message}`);
+                break;
+            }
+            case 'update_settings': {
+                const fields = op.fields || op.payload;
+                const { error } = await supabase.from('profiles')
+                    .update(fields)
+                    .eq('id', userId);
+                if (error) throw new Error(`Update settings failed: ${error.message}`);
+                break;
+            }
+            default:
+                console.warn(`[CoachAction] Unknown op: ${operation}`);
         }
     }
 

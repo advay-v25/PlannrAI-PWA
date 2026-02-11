@@ -1,7 +1,21 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
-import { generateAIResponse } from '@/lib/ai/groq-client';
+import { groqChat } from '@/lib/ai/groq-client';
+import { JSONReliability } from '@/lib/ai/json-reliability';
 import { createClient } from '@/lib/supabase/server';
 import { logAIRequest } from '@/lib/security/audit-logger';
+import { z } from 'zod';
+
+const SuggestGoalsOutputSchema = z.object({
+    suggestions: z.array(z.object({
+        title: z.string(),
+        category: z.enum(['mind', 'body', 'craft']),
+        why: z.string(),
+        importance: z.enum(['high', 'medium', 'low']),
+        minutes_per_day: z.number().optional(),
+        energy_demand: z.enum(['light', 'medium', 'heavy']).optional()
+    })),
+    insight: z.string()
+});
 
 /**
  * AI Goal Suggestions API
@@ -110,29 +124,25 @@ Based on this analysis, suggest 2-3 new goals that would:
 Avoid suggesting duplicates of existing goals.
 `;
 
-            const response = await generateAIResponse(prompt, 'GOAL_SUGGESTION', userId);
-            await logAIRequest(userId, '/api/ai/suggest-goals', context.request, true);
+            const rawText = await groqChat({
+                model: 'llama-3.3-70b-versatile',
+                messages: [
+                    { role: 'system', content: 'You are a goal strategist. Output STRICT JSON only. Schema: { suggestions: [{ title, category: mind|body|craft, why, importance: high|medium|low, minutes_per_day?, energy_demand?: light|medium|heavy }], insight: string }' },
+                    { role: 'user', content: prompt }
+                ],
+                temperature: 0.4,
+                max_tokens: 1500,
+                userId
+            });
 
-            // Parse JSON response
-            let result: SuggestionsResponse;
-            try {
-                const jsonMatch = response.match(/\{[\s\S]*\}/);
-                result = jsonMatch ? JSON.parse(jsonMatch[0]) : { suggestions: [], insight: '' };
-            } catch {
-                result = {
-                    suggestions: [
-                        {
-                            title: 'Journaling',
-                            category: 'mind',
-                            why: 'Helps process thoughts',
-                            importance: 'high',
-                            minutes_per_day: 15,
-                            energy_demand: 'light'
-                        },
-                    ],
-                    insight: 'Consider adding balance to your goals.',
-                };
-            }
+            if (!rawText) throw new Error('AI returned no content');
+
+            const result = await JSONReliability.validateOrRepair(
+                rawText,
+                SuggestGoalsOutputSchema,
+                'llama-3.3-70b-versatile'
+            );
+            await logAIRequest(userId, '/api/ai/suggest-goals', context.request, true);
 
             return apiSuccess({
                 ...result,

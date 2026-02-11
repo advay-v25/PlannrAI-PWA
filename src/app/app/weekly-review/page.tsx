@@ -18,9 +18,27 @@ import {
     AlertCircle
 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, subWeeks } from 'date-fns';
-import type { WeeklyReview, ReviewResponse } from '@/types/database';
 import { apiClient } from '@/lib/api-client';
 import { applyLeverAction } from '@/app/actions/apply-lever';
+
+type ReviewResponse = 'accepted' | 'ignored';
+
+interface WeeklyReview {
+    id: string;
+    user_id: string;
+    week_start: string;
+    week_end: string;
+    planned_minutes: number;
+    actual_minutes: number;
+    energy_trend: string;
+    stress_trend: string;
+    friction_patterns: any[];
+    suggested_adjustment: string;
+    lever_action: { type: 'update_schedule' | 'update_goal' | 'update_preference'; payload: any; description?: string } | null;
+    user_response?: ReviewResponse;
+    lever_note?: string;
+    raw_patterns?: any[];
+}
 
 export default function WeeklyReviewPage() {
     const supabase = createClient();
@@ -76,23 +94,26 @@ export default function WeeklyReviewPage() {
             });
             const aiData = aiRes.data || aiRes;
 
-            if (aiData.summary) {
+            if (aiData.reality) {
                 // 3. Construct Review Object
-                // We default trends/patterns for now as AI schema doesn't strictly support them yet without custom parsing
                 const reviewPayload = {
                     week_start: startStr,
                     week_end: endStr,
                     planned_minutes: Math.round(contextRes.plannedMinutes || 0),
                     actual_minutes: Math.round(contextRes.actualMinutes || 0),
-                    energy_trend: 'stable', // Placeholder
-                    stress_trend: 'stable', // Placeholder
-                    friction_patterns: [], // Placeholder
-                    suggested_adjustment: aiData.summary,
-                    lever_action: aiData.options?.[0] ? {
-                        type: 'update_schedule', // Default type, AI needs to be specific in patch
-                        payload: aiData.options[0].patch,
-                        description: aiData.options[0].title
-                    } : null
+                    energy_trend: 'stable',
+                    stress_trend: 'stable',
+                    friction_patterns: (aiData.patterns || []).map((p: any) =>
+                        `${p.title}: ${p.evidence}`
+                    ),
+                    suggested_adjustment: aiData.reality,
+                    lever_action: aiData.lever ? {
+                        type: 'update_schedule',
+                        payload: aiData.lever.patch,
+                        description: aiData.lever.label
+                    } : null,
+                    lever_note: aiData.note || '',
+                    raw_patterns: aiData.patterns || []
                 };
 
                 // 4. Save Review
@@ -205,7 +226,10 @@ export default function WeeklyReviewPage() {
                             </div>
                             <GlassCard padding="lg" className="border-white/5 shadow-xl text-center">
                                 <div className="flex flex-col gap-4">
-                                    <p className="text-base text-[var(--text-secondary)] leading-relaxed">
+                                    <p className="text-base text-white font-medium leading-relaxed italic">
+                                        "{review.suggested_adjustment}"
+                                    </p>
+                                    <p className="text-sm text-[var(--text-secondary)]">
                                         You invested <span className="text-white font-bold">{review.actual_minutes} minutes</span> in your goals this week,
                                         achieving <span className="text-white font-bold">{Math.round((review.actual_minutes / (review.planned_minutes || 1)) * 100)}%</span> of your planned depth.
                                     </p>
@@ -239,7 +263,7 @@ export default function WeeklyReviewPage() {
                                     <div className="h-[1px] w-12 bg-gradient-to-l from-transparent to-white/10" />
                                 </div>
                                 <div className="grid grid-cols-1 gap-3">
-                                    {review.friction_patterns.map((pattern, i) => (
+                                    {review.friction_patterns.map((pattern: any, i: number) => (
                                         <motion.div
                                             key={i}
                                             initial={{ opacity: 0, y: 10 }}
@@ -251,7 +275,14 @@ export default function WeeklyReviewPage() {
                                                     <div className="w-6 h-6 rounded-full bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
                                                         <span className="text-[10px] font-bold text-[var(--color-primary)]">{i + 1}</span>
                                                     </div>
-                                                    <p className="text-sm font-medium leading-relaxed text-[var(--text-secondary)]">{pattern}</p>
+                                                    <div>
+                                                        <p className="text-sm font-medium leading-relaxed">
+                                                            {typeof pattern === 'string' ? pattern : (pattern as any).title || pattern}
+                                                        </p>
+                                                        {typeof pattern !== 'string' && (pattern as any).evidence && (
+                                                            <p className="text-xs text-[var(--text-tertiary)] mt-1">{(pattern as any).evidence}</p>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </GlassCard>
                                         </motion.div>
@@ -273,9 +304,12 @@ export default function WeeklyReviewPage() {
                                 </div>
 
                                 <div className="relative z-10">
-                                    <p className="text-xl font-bold tracking-tight text-center mb-8 leading-snug">
-                                        "{review.suggested_adjustment}"
+                                    <p className="text-xl font-bold tracking-tight text-center mb-4 leading-snug">
+                                        "{review.lever_action?.description || review.suggested_adjustment}"
                                     </p>
+                                    {(review as any).lever_note && (
+                                        <p className="text-xs text-center text-[var(--text-tertiary)] mb-6">{(review as any).lever_note}</p>
+                                    )}
 
                                     {!review.user_response ? (
                                         <div className="flex flex-col gap-3">

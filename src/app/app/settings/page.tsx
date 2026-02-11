@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import type { Profile } from '@/types/database';
 import { apiClient } from '@/lib/api-client';
+import { StatusPanel } from '@/components/settings/status-panel';
 
 export default function SettingsPage() {
     const router = useRouter();
@@ -321,6 +322,15 @@ export default function SettingsPage() {
                         />
                     </div>
                 </GlassCard>
+            </section>
+
+            {/* System Status */}
+            <section className="space-y-4">
+                <div className="flex items-center gap-2 px-1">
+                    <Activity className="w-4 h-4 text-[var(--color-primary)]" />
+                    <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">System Reliability</h2>
+                </div>
+                <StatusPanel />
             </section>
 
             {/* AI Usage Stats */}

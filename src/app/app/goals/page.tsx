@@ -30,7 +30,8 @@ import {
     Save,
     AlertTriangle,
     Anchor,
-    MoreVertical
+    MoreVertical,
+    RefreshCw
 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import type { Goal } from '@/types/database';
@@ -57,6 +58,8 @@ export default function GoalsPage() {
     const [creatingAnchor, setCreatingAnchor] = useState(false);
     const [clearingGoals, setClearingGoals] = useState(false);
     const [selectedStrategyGoal, setSelectedStrategyGoal] = useState<Goal | null>(null);
+    const [pendingReschedule, setPendingReschedule] = useState(false);
+    const [isRescheduling, setIsRescheduling] = useState(false);
 
     // UI State for editing
     const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null);
@@ -89,31 +92,69 @@ export default function GoalsPage() {
         return calculateGoalCapacity(profile, goals, commitments);
     }, [profile, goals, commitments]);
 
-    const totalMinutes = capacity?.totalGoalMinutes || 0;
-    const isOverCapacity = capacity?.isOvercommitted || false;
     const capacityPercentage = capacity?.percentage || 0;
+    const totalMinutes = capacity?.totalGoalMinutes || 0;
+    const isExtremeOverload = capacityPercentage > 120;
+    const isOverCapacity = capacityPercentage > 100;
 
-    // Sync Handler
+    // Sync Handler — uses PUT /api/goals for proper scheduling integration
     const handleUpdate = async (id: string, updates: Partial<Goal>) => {
         // Optimistic UI Update
         updateGoal(id, updates);
 
-        // Feedback
         if ('status' in updates) {
             showToast(updates.status === 'paused' ? '⏸️ Goal paused' : '▶️ Goal resumed', 'info');
         }
 
-        // Backend Sync
         try {
-            await apiClient.post('/api/goals/sync', {
-                operation: 'update',
-                goal_id: id,
-                payload: updates
-            });
+            const result = await apiClient.put<any>('/api/goals', { id, ...updates });
+            // If schedule was affected, offer reschedule
+            const scheduleFields = ['minutes_per_day', 'status', 'days_per_week', 'importance', 'is_paused'];
+            const affectsSchedule = scheduleFields.some(f => f in updates);
+            if (affectsSchedule || result?.scheduleChanged) {
+                setPendingReschedule(true);
+            }
         } catch (e) {
             console.error(e);
             showToast('Failed to save changes', 'error');
-            // Revert? (Not implemented for MVP)
+        }
+    };
+
+    // Reschedule handler
+    const handleReschedule = async () => {
+        setIsRescheduling(true);
+        try {
+            const { startOfWeek, format } = await import('date-fns');
+            const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+
+            const planResult = await apiClient.post<any>('/api/calendar/plan-week', {
+                startDate: format(weekStart, 'yyyy-MM-dd'),
+            });
+
+            const data = planResult?.data || planResult;
+            if (data?.patch?.changes?.length > 0) {
+                // Apply the optimized patch
+                const patchOps = data.patch.changes.map((c: any) => {
+                    if (c.op === 'create_event') return { op: 'create', event: c.payload };
+                    if (c.op === 'update_event') return { op: 'update', event_id: c.event_id, fields: c.payload };
+                    if (c.op === 'delete_event') return { op: 'delete', event_id: c.event_id };
+                    return c;
+                });
+
+                await apiClient.post('/api/calendar/apply-patch', {
+                    patch: { ops: patchOps, scope: 'week', reason: 'Goal change reschedule' }
+                });
+
+                showToast(`✅ Rescheduled: ${data.patch.changes.length} blocks updated`, 'success');
+            } else {
+                showToast('Schedule is already optimal', 'info');
+            }
+            setPendingReschedule(false);
+        } catch (err: any) {
+            console.error('Reschedule failed:', err);
+            showToast(err.message || 'Reschedule failed', 'error');
+        } finally {
+            setIsRescheduling(false);
         }
     };
 
@@ -132,6 +173,28 @@ export default function GoalsPage() {
             showToast('Failed to delete goal', 'error');
         }
     };
+
+    const handleReduceIntensity = async () => {
+        setIsRescheduling(true);
+        try {
+            const data = await apiClient.post<any>('/api/coach/chat', {
+                message: "I'm overloaded. Please help me reduce my goal intensity to fit my capacity."
+            });
+            // This will trigger the coach to propose a "reduce_intensity" patch
+            if (data.options) {
+                showToast("Coach is preparing a reduction plan.", "info");
+                // Navigate to coach or show options here? 
+                // For now, let's just trigger the intention.
+                window.location.href = '/app/coach';
+            }
+        } catch (e) {
+            showToast("Failed to reach coach", "error");
+        } finally {
+            setIsRescheduling(false);
+        }
+    };
+
+    // ... rest of component logic ...
 
     return (
         <div className="space-y-8 pb-20">
@@ -154,7 +217,40 @@ export default function GoalsPage() {
                 </div>
             </header>
 
-            {/* 2. Total Commitment Bar */}
+            {/* Reschedule Banner */}
+            <AnimatePresence>
+                {pendingReschedule && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                    >
+                        <GlassCard padding="sm" className="border-[var(--color-primary)]/40 bg-[var(--color-primary)]/5">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <RefreshCw className={`w-4 h-4 text-[var(--color-primary)] ${isRescheduling ? 'animate-spin' : ''}`} />
+                                    <span className="text-sm font-medium">Goals changed. Reschedule week?</span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <GlassButton variant="ghost" size="sm" onClick={() => setPendingReschedule(false)}>
+                                        Dismiss
+                                    </GlassButton>
+                                    <GlassButton
+                                        variant="primary"
+                                        size="sm"
+                                        onClick={handleReschedule}
+                                        disabled={isRescheduling}
+                                    >
+                                        {isRescheduling ? 'Rescheduling...' : 'Reschedule'}
+                                    </GlassButton>
+                                </div>
+                            </div>
+                        </GlassCard>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Total Commitment Bar */}
             <GlassCard padding="md" className="relative overflow-hidden">
                 <div className="flex justify-between items-end mb-2">
                     <div>
@@ -162,7 +258,7 @@ export default function GoalsPage() {
                         <span className="text-sm text-[var(--text-tertiary)] ml-1">min / day</span>
                     </div>
                     <div className="text-right">
-                        <span className={`text-xs font-bold ${isOverCapacity ? 'text-[var(--color-error)]' : 'text-[var(--text-tertiary)]'}`}>
+                        <span className={`text-xs font-bold ${isExtremeOverload ? 'text-[var(--color-error)]' : isOverCapacity ? 'text-[var(--color-warning)]' : 'text-[var(--text-tertiary)]'}`}>
                             {capacityPercentage}% Capacity
                         </span>
                     </div>
@@ -173,22 +269,40 @@ export default function GoalsPage() {
                     <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${Math.min(capacityPercentage || 0, 100)}%` }}
-                        className={`h-full ${isOverCapacity ? 'bg-[var(--color-error)]' : 'bg-[var(--color-primary)]'}`}
+                        className={`h-full ${isExtremeOverload ? 'bg-[var(--color-error)]' : isOverCapacity ? 'bg-[var(--color-warning)]' : 'bg-[var(--color-primary)]'}`}
                     />
                 </div>
 
-                {isOverCapacity && (
-                    <div className="flex items-start gap-2 text-[var(--color-error)] text-xs bg-[var(--color-error)]/10 p-2 rounded-lg mt-2">
-                        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                        <p>You’re committing more time than your day allows. PlannrAI will adapt, but your plan will spill over.</p>
+                {(isOverCapacity || isExtremeOverload) && (
+                    <div className={`flex flex-col gap-3 p-3 rounded-lg mt-2 ${isExtremeOverload ? 'bg-[var(--color-error)]/10 text-[var(--color-error)]' : 'bg-[var(--color-warning)]/10 text-[var(--color-warning)]'}`}>
+                        <div className="flex items-start gap-2 text-xs">
+                            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                            <p>
+                                {isExtremeOverload
+                                    ? "CRITICAL OVERLOAD: You have committed 120%+ of your daily reality window. This plan is mathematically impossible to sustain."
+                                    : "Warning: You are slightly over-committed. Some blocks might be skipped."}
+                            </p>
+                        </div>
+                        {isExtremeOverload && (
+                            <GlassButton
+                                variant="primary"
+                                size="sm"
+                                className="w-full bg-[var(--color-error)] hover:bg-[var(--color-error-hover)] border-none"
+                                onClick={handleReduceIntensity}
+                                disabled={isRescheduling}
+                            >
+                                <Zap className="w-3 h-3 mr-2" /> Reduce Intensity
+                            </GlassButton>
+                        )}
                     </div>
                 )}
             </GlassCard>
 
+
             {/* 3. Pillar Sections */}
             {PILLARS.map(pillar => {
                 const pillarGoals = goals.filter(g => g.category === pillar.id && g.status !== 'archived');
-                const pillarMinutes = pillarGoals.reduce((sum, g) => sum + (g.status === 'active' ? g.minutes_per_day : 0), 0);
+                const pillarMinutes = pillarGoals.reduce((sum, g) => sum + (g.status === 'active' ? (g.minutes_per_day || 0) : 0), 0);
 
                 return (
                     <section key={pillar.id} className="space-y-3">

@@ -9,7 +9,9 @@
     "lint": "eslint",
     "test:memory": "export $(grep -v '^#' .env.local | xargs) && npx tsx scripts/test-memory.ts",
     "test:interventions": "export $(grep -v '^#' .env.local | xargs) && npx tsx scripts/test-interventions.ts",
-    "test:briefing": "export $(grep -v '^#' .env.local | xargs) && npx tsx scripts/test-morning-briefing.ts"
+    "test:briefing": "export $(grep -v '^#' .env.local | xargs) && npx tsx scripts/test-morning-briefing.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -37,8 +39,9 @@
     "zustand": "^5.0.10"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^20.19.33",
     "@types/pg": "^8.16.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",

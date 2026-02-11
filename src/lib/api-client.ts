@@ -166,11 +166,13 @@ export const apiClient = {
             list: (start: string, end: string) =>
                 this.get<{ blocks: (ScheduleBlock & { goal?: Goal })[] }>(`/api/schedule?start=${start}&end=${end}`),
             createBlock: (data: { date: string; start_time: string; end_time: string; goal_id?: string | null; context?: string | null }) =>
-                this.post<{ block: ScheduleBlock }>('/api/schedule', data),
+                this.post<{ block: ScheduleBlock }>('/api/calendar/add-block', { block: data }), // Wrapped in block object
             updateBlock: (id: string, updates: Record<string, any>) =>
-                this.put<{ block: ScheduleBlock }>('/api/schedule', { id, ...updates }),
+                this.post<{ block: ScheduleBlock }>('/api/calendar/update-block', { blockId: id, updates }),
+            moveBlock: (id: string, newDate: string, newStart: string, newEnd: string) =>
+                this.post<{ block: ScheduleBlock }>('/api/calendar/move-block', { blockId: id, newDate, newStart, newEnd }),
             deleteBlock: (id: string) =>
-                this.delete<{ success: boolean }>('/api/schedule', { id }),
+                this.delete<{ success: boolean }>('/api/schedule', { id }), // Keep for now or migrate? Engine has deleteBlock.
             updateStatus: (id: string, status: BlockStatus) =>
                 this.put<{ block: ScheduleBlock }>('/api/schedule/status', { id, status }),
             sync: (date: string, blocks: Partial<ScheduleBlock>[]) =>

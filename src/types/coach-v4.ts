@@ -4,9 +4,11 @@
 export type CoachMode = 'executed' | 'choice' | 'refusal';
 
 export interface CalendarPatchOp {
-    op: 'create' | 'update' | 'delete' | 'move';
+    op: 'create' | 'update' | 'delete' | 'move' | 'create_event' | 'update_event' | 'delete_event' | 'move_event' | 'update_goal' | 'update_settings';
     event_id?: string; // Required for update/delete/move
-    event?: any; // Required for create (Partial<ScheduleBlock>)
+    goal_id?: string;  // Required for update_goal
+    event?: any; // Required for create
+    payload?: any; // Alias for event/fields
     fields?: Record<string, any>; // Required for update
     to_start?: string; // Required for move (ISO)
     to_end?: string; // Required for move (ISO)

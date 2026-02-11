@@ -1,156 +1,208 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
-import { runAI } from '@/lib/ai/run-ai';
 import { createClient } from '@/lib/supabase/server';
 import { z } from 'zod';
-import { ChannelEnum } from '@/lib/ai/schemas';
+import { ChannelRegistry } from '@/lib/ai/registry';
+import { JSONReliability } from '@/lib/ai/json-reliability';
+import { groqChat } from '@/lib/ai/groq-client';
 
-// Request Schema
+// --- Request Schema ---
 const ExecuteRequestSchema = z.object({
-    channel: ChannelEnum,
-    input: z.string().min(1).max(2000), // Reasonable limit for user input
+    channel: z.string(),
+    input: z.string().min(1).max(4000),
     context: z.record(z.string(), z.any()).optional().default({}),
-    twoPass: z.boolean().optional(),
-    maxTokens: z.number().min(100).max(8000).optional(),
     limits: z.object({
+        max_options: z.number().min(1).max(3).optional(),
         low_energy: z.boolean().optional(),
         overwhelmed: z.boolean().optional(),
-        max_options: z.number().min(1).max(5).optional(),
     }).optional(),
 });
 
+// --- Constants ---
+const AI_TIMEOUT_MS = 15_000; // 15s timeout
+const MAX_RETRIES = 1;
+
 export const POST = secureApiRoute(
     async (context, body) => {
-        // 1. Validate Input
+        const requestId = crypto.randomUUID();
+        const startTime = Date.now();
+
+        // 1. Validate Request
         const result = ExecuteRequestSchema.safeParse(body);
         if (!result.success) {
             return apiError('Invalid request format', 400, result.error.format());
         }
 
-        const { channel, input, context: aiContext, limits, twoPass, maxTokens } = result.data;
-        const requestId = crypto.randomUUID();
-        const supabase = await createClient(); // Use createClient (cached per request)
+        const { channel, input, context: aiContext, limits } = result.data;
+
+        // 2. Validate Channel
+        if (!(channel in ChannelRegistry)) {
+            return apiError(`Unknown channel: ${channel}`, 400);
+        }
+
+        const channelDef = ChannelRegistry[channel];
 
         try {
-            // 2. Enrich Context (if applicable)
+            // 3. Enrich Context (channel-specific)
             let richContext = { ...aiContext };
+            let coachSupabase: any = null;
 
-            // Only fetch rich context for relevant channels to save perf
-            if (channel.startsWith('coach') || channel.startsWith('brain_dump')) {
-                const { ContextService } = await import('@/lib/context-service');
-                const userContext = await ContextService.getContext(context.userId!);
-                richContext = { ...richContext, ...userContext };
-            }
+            if (channel === 'coach') {
+                try {
+                    const { buildCoachContext, saveCoachMessage } = await import('@/lib/coach/coach-context');
+                    coachSupabase = await createClient();
+                    const coachCtx = await buildCoachContext(context.userId!, coachSupabase);
+                    richContext = { ...richContext, ...coachCtx };
 
-            // 3. Persist User Message (Coach Only)
-            // Determine thread_id from input context or create new?
-            // For now, minimal persistence: if valid thread_id provided in context, use it.
-            // If not, we might need to create one, or just store without thread if schema allows?
-            // Schema requires thread_id.
-            // Client should send thread_id. If missing, we create a new thread.
-            let threadId = aiContext.thread_id;
-
-            if (channel.startsWith('coach')) {
-                if (!threadId) {
-                    const { MemoryService } = await import('@/lib/services/memory-service');
-                    const thread = await MemoryService.createThread(context.userId!, input.slice(0, 30) + '...');
-                    threadId = thread?.id;
+                    // Save user message to thread BEFORE LLM call
+                    await saveCoachMessage(context.userId!, 'user', input, coachSupabase);
+                } catch (e) {
+                    console.warn(`[AI Gateway] Coach context enrichment failed:`, e);
                 }
-
-                if (threadId) {
-                    const { MemoryService } = await import('@/lib/services/memory-service');
-                    await MemoryService.addCoachMessage(
-                        context.userId!,
-                        threadId,
-                        'user',
-                        input,
-                        true // Trigger Fact Extraction
-                    );
-                }
-                if (threadId) {
-                    const { MemoryService } = await import('@/lib/services/memory-service');
-                    await MemoryService.addCoachMessage(
-                        context.userId!,
-                        threadId,
-                        'user',
-                        input,
-                        true // Trigger Fact Extraction
-                    );
+            } else if (channel === 'brain_dump') {
+                try {
+                    const { buildBrainDumpContext } = await import('@/lib/brain-dump/brain-dump-context');
+                    coachSupabase = coachSupabase || await createClient();
+                    const bdCtx = await buildBrainDumpContext(context.userId!, coachSupabase);
+                    richContext = { ...richContext, ...bdCtx };
+                } catch (e) {
+                    console.warn(`[AI Gateway] Brain dump context enrichment failed:`, e);
                 }
             }
 
-            // [NEW] Branch for Expert Strategy
-            if (channel === 'goals.expert_strategy' as any) {
-                const { runExpertStrategy } = await import('@/lib/ai/goals-strategy');
-                const strategy = await runExpertStrategy(input, aiContext as any, context.userId!);
-                return apiSuccess(strategy);
+            // 4. Build Prompts
+            const systemMsg = channelDef.systemPrompt(richContext, limits);
+            const userMsg = channelDef.userPrompt(input, richContext);
+
+            // 5. Execute LLM with timeout and retry
+            let rawText: string | null = null;
+            let lastError: Error | null = null;
+
+            for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+                try {
+                    rawText = await Promise.race([
+                        groqChat({
+                            model: channelDef.config.model,
+                            messages: [
+                                { role: 'system', content: systemMsg },
+                                { role: 'user', content: userMsg }
+                            ],
+                            temperature: channelDef.config.temperature,
+                            max_tokens: channelDef.config.maxTokens,
+                            userId: context.userId
+                        }),
+                        new Promise<never>((_, reject) =>
+                            setTimeout(() => reject(new Error('AI_TIMEOUT')), AI_TIMEOUT_MS)
+                        )
+                    ]);
+                    break; // Success, exit retry loop
+                } catch (e: any) {
+                    lastError = e;
+                    console.warn(`[AI Gateway] [${requestId}] Attempt ${attempt + 1} failed:`, e.message);
+                    if (attempt < MAX_RETRIES && (e.message.includes('429') || e.message.includes('network') || e.message.includes('TIMEOUT'))) {
+                        await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); // Backoff
+                        continue;
+                    }
+                    throw e;
+                }
             }
 
-            // 4. Execute AI Pipeline
-            const response = await runAI({
-                channel,
-                input,
-                context: richContext,
-                limits,
-                userId: context.userId,
-                twoPass,
-                maxTokens,
-                requestId,
-            });
-
-            // 5. Persist AI Response (Coach Only)
-            if (channel.startsWith('coach') && threadId) {
-                const { MemoryService } = await import('@/lib/services/memory-service');
-                await MemoryService.addCoachMessage(
-                    context.userId!,
-                    threadId,
-                    'assistant',
-                    JSON.stringify(response)
-                );
+            if (!rawText) {
+                throw lastError || new Error('AI returned no content');
             }
 
-            // 6. Persist Brain Dump (Brain Dump Only)
+            console.log(`[AI Gateway] [${requestId}] Raw response (${channel}):`, rawText.slice(0, 200));
+
+            // 6. Parse, Validate, Repair
+            const data = await JSONReliability.validateOrRepair(
+                rawText,
+                channelDef.schema,
+                channelDef.config.model
+            );
+
+            // 7. Audit log (latency)
+            const latencyMs = Date.now() - startTime;
+            console.log(`[AI Gateway] [${requestId}] channel=${channel} latency=${latencyMs}ms ok=true`);
+
+            // Optional: Store audit row (non-blocking)
+            try {
+                const auditSupabase = coachSupabase || await createClient();
+                void (async () => {
+                    try {
+                        await auditSupabase.from('ai_audit_log').insert({
+                            request_id: requestId,
+                            user_id: context.userId,
+                            channel,
+                            success: true,
+                            latency_ms: latencyMs,
+                        });
+                    } catch { /* ignore */ }
+                })();
+            } catch { /* ignore audit failures */ }
+
+            // Save assistant response to coach thread (non-blocking)
+            if (channel === 'coach' && coachSupabase) {
+                void (async () => {
+                    try {
+                        const { saveCoachMessage } = await import('@/lib/coach/coach-context');
+                        await saveCoachMessage(context.userId!, 'assistant', JSON.stringify(data), coachSupabase);
+                    } catch { /* ignore */ }
+                })();
+            }
+
+            // Save brain dump extraction + update user state (non-blocking)
             if (channel === 'brain_dump') {
-                // Extract analysis from ops
-                let extractedJson = null;
-                const analysisOp = response.options?.[0]?.patch?.ops.find((op: any) => op.op === 'analyze_content');
-                if (analysisOp && 'analysis' in analysisOp) {
-                    extractedJson = analysisOp.analysis;
-                }
+                void (async () => {
+                    try {
+                        const { saveBrainDumpExtraction, updateUserStateFromSignals } = await import('@/lib/brain-dump/brain-dump-context');
+                        const bdSupabase = coachSupabase || await createClient();
 
-                await supabase.from('brain_dump_entries').insert({
-                    user_id: context.userId!,
-                    raw_text: input,
-                    extracted_json: extractedJson || {}
-                });
+                        // Save extraction
+                        await saveBrainDumpExtraction(context.userId!, input, data, bdSupabase);
+
+                        // Update user state on strong signals
+                        if (data.extracted?.signals) {
+                            await updateUserStateFromSignals(context.userId!, data.extracted.signals, bdSupabase);
+                        }
+                    } catch (e) {
+                        console.warn('[AI Gateway] Brain dump persistence failed:', e);
+                    }
+                })();
             }
 
-            // 7. Return Standardized Success w/ ThreadID if created
-            return apiSuccess({
-                ...response,
-                thread_id: threadId // Return thread_id so client can continue conversation
-            });
+            return apiSuccess({ ...data, _meta: { request_id: requestId, latency_ms: latencyMs } });
 
         } catch (error: any) {
-            console.error('[AI Gateway Error]', error);
+            const latencyMs = Date.now() - startTime;
+            console.error(`[AI Gateway] [${requestId}] channel=${channel} latency=${latencyMs}ms FAILED:`, error.message);
 
-            // 4. Handle Execution Failures
-            // Differentiate between validation errors and system errors
-            if (error.message.includes('schema validation')) {
-                return apiError('AI response validation failed', 502, {
-                    message: 'The AI model produced invalid output.',
-                    original_error: error.message
+            if (error.message === 'AI_TIMEOUT') {
+                return apiError('AI_TIMEOUT', 504, { message: 'AI call timed out', request_id: requestId });
+            }
+
+            if (error.message.includes('Schema validation failed')) {
+                return apiError('AI_INVALID_JSON', 502, {
+                    message: 'AI output did not match expected schema',
+                    request_id: requestId
                 });
             }
 
-            return apiError('AI execution failed', 500, {
-                message: error.message || 'Internal Server Error'
+            if (error.message.includes('Rate limited')) {
+                return apiError('RATE_LIMITED', 429, {
+                    message: error.message,
+                    request_id: requestId
+                });
+            }
+
+            return apiError('AI_EXECUTION_ERROR', 500, {
+                message: error.message || 'Unknown AI error',
+                request_id: requestId
             });
         }
     },
     {
         requireAuth: true,
-        rateLimit: 'ai', // Use standard 'ai' limit
+        rateLimit: 'ai',
         auditAction: 'ai_execute',
     }
 );

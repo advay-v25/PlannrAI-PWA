@@ -12,6 +12,7 @@ interface DailyGridProps {
     onBlockClick?: (block: ScheduleBlock & { goal?: Goal }) => void;
     onSlotClick?: (startTime: string, endTime: string) => void;
     onStatusChange?: (blockId: string, status: 'planned' | 'done' | 'partial' | 'missed') => void;
+    onBlockMove?: (blockId: string, newStartTime: string, newEndTime: string) => void;
 }
 
 const HOUR_HEIGHT = 80; // pixels per hour
@@ -24,7 +25,8 @@ export function DailyGrid({
     blocks,
     onBlockClick,
     onSlotClick,
-    onStatusChange
+    onStatusChange,
+    onBlockMove
 }: DailyGridProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const hours = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
@@ -149,39 +151,43 @@ export function DailyGrid({
                             key={block.id}
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            whileHover={{ scale: 1.01, y: -2, rotate: 0.5 }}
-                            whileTap={{ scale: 0.98 }}
-                            className={`block-card absolute rounded-3xl border bg-gradient-to-br backdrop-blur-xl p-4 flex flex-col gap-2 cursor-pointer transition-all hover:border-white/20 active:shadow-inner ${colorClasses}`}
-                            style={{
-                                top: top + 4,
-                                height: height - 8,
-                                left: `${left}%`,
-                                width: `${width - 1}%`, // Small gap between lanes
-                                zIndex: 10 + lane,
-                            }}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onBlockClick?.(block);
-                            }}
-                        >
-                            <div className="flex items-start justify-between gap-2 overflow-hidden">
-                                <span className="text-sm font-bold truncate tracking-tight">
-                                    {block.goal?.title || block.context || 'Untitled'}
-                                </span>
-                                {block.status === 'done' && (
-                                    <div className="flex-shrink-0 w-4 h-4 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
-                                        <Check className="w-2.5 h-2.5 text-emerald-500" />
-                                    </div>
-                                )}
-                            </div>
+                            drag={isAnchor ? false : "y"}
+                            dragMomentum={false}
+                            dragElastic={0.1}
+                            onDragEnd={(_, info) => {
+                                const moveY = info.offset.y;
+                                const slotsMoved = Math.round(moveY / MINUTE_HEIGHT / 15);
+                                if (slotsMoved !== 0 && onBlockMove) {
+                                    const minutesMoved = slotsMoved * 15;
+                                    const [sh, sm] = block.start_time.split(':').map(Number);
+                                    const [eh, em] = block.end_time.split(':').map(Number);
 
-                            <div className="flex items-center gap-2 text-[10px] text-[var(--text-secondary)] font-medium opacity-80 mt-auto">
-                                <div className="flex items-center gap-1">
-                                    <Clock className="w-3 h-3 opacity-50" />
-                                    <span>{block.start_time.slice(0, 5)}</span>
-                                </div>
-                                <div className="w-1 h-1 rounded-full bg-white/10" />
-                                <span>{differenceInMinutes(parseISO(`1970-01-01T${block.end_time}`), parseISO(`1970-01-01T${block.start_time}`))}m</span>
+                                    const oldStartMin = sh * 60 + sm;
+                                    const oldEndMin = eh * 60 + em;
+
+                                    const newStartMin = Math.max(START_HOUR * 60, Math.min(END_HOUR * 60, oldStartMin + minutesMoved));
+                                    const newEndMin = newStartMin + (oldEndMin - oldStartMin);
+
+                                    if (newEndMin <= END_HOUR * 60) {
+                                        const h1 = Math.floor(newStartMin / 60);
+                                        const m1 = newStartMin % 60;
+                                        const h2 = Math.floor(newEndMin / 60);
+                                        const m2 = newEndMin % 60;
+
+                                        const toTime = (h: number, m: number) =>
+                                            `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+
+                                        onBlockMove(block.id, toTime(h1, m1), toTime(h2, m2));
+                                    }
+                                }
+                            }}
+                            whileDrag={{ scale: 1.05, zIndex: 50, cursor: 'grabbing', opacity: 0.8 }}
+                            style={{ top: `${top}%`, height: `${height}%`, left: `${left}%`, width: `${width}%` }}
+                            className={`absolute p-1 rounded-lg border backdrop-blur-md bg-gradient-to-br transition-all hover:z-20 group cursor-grab active:cursor-grabbing ${colorClasses}`}
+                        >
+                            <div className="flex flex-col h-full justify-between pointer-events-none">
+                                <div className="text-[10px] font-bold truncate opacity-80 pl-1">{block.title}</div>
+                                <div className="text-[9px] opacity-60 pl-1 pb-1 font-mono">{format(new Date(block.start_time), 'HH:mm')}</div>
                             </div>
 
                             {/* Status Indicator */}
@@ -191,11 +197,12 @@ export function DailyGrid({
                         </motion.div>
                     );
                 })}
+
             </div>
 
             {/* Current Time Indicator */}
             <CurrentTimeLine startHour={START_HOUR} />
-        </div>
+        </div >
     );
 }
 

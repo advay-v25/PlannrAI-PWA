@@ -238,19 +238,30 @@ export const PUT = secureApiRoute(
             return apiError('Failed to update goal', 500);
         }
 
+        // If paused, remove future schedule blocks for this goal
+        let blocksRemoved = 0;
+        if (updates.status === 'paused' || updates.is_paused === true) {
+            const today = new Date().toISOString().split('T')[0];
+            const { data: deleted } = await supabase
+                .from('schedule_blocks')
+                .delete()
+                .eq('user_id', context.userId)
+                .eq('goal_id', id)
+                .gte('date', today)
+                .select('id');
+            blocksRemoved = deleted?.length || 0;
+            console.log(`[Goals PUT] Removed ${blocksRemoved} future blocks for paused goal ${id}`);
+        }
+
         // Trigger Reactive Scheduling (One Engine)
         try {
             const { ReactiveGoalService } = await import('@/lib/services/reactive-goal-service');
-            // We fire and forget this to not block the UI response, 
-            // OR await it if we want immediate feedback. 
-            // For now, let's await to ensure consistency during testing.
             await ReactiveGoalService.onGoalUpdated(context.userId, goal.id, supabase);
         } catch (scheduleError) {
             console.error('Reactive Scheduling Failed:', scheduleError);
-            // Non-blocking error
         }
 
-        return apiSuccess({ goal });
+        return apiSuccess({ goal, blocksRemoved, scheduleChanged: true });
     },
     { requireAuth: true, auditAction: 'goal_update' }
 );

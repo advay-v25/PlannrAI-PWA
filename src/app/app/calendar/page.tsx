@@ -17,6 +17,8 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { CommitmentModal } from '@/components/goals/commitment-modal';
 import { DailyGrid } from '@/components/calendar/daily-grid';
+import { ConflictResolutionModal } from '@/components/calendar/conflict-resolution-modal';
+import { ConflictResolver, ResolutionOption } from '@/lib/calendar/conflict-resolver';
 
 const STATUS_CONFIG: Record<BlockStatus, { icon: React.ReactNode; color: string; label: string }> = {
     planned: { icon: null, color: 'var(--color-text-muted)', label: 'Planned' },
@@ -42,13 +44,17 @@ function CalendarContent() {
     const [aiReasoning, setAiReasoning] = useState<string | null>(null);
     const [isOptimizing, setIsOptimizing] = useState(false);
 
+    // Conflict Resolution State
+    const [conflictOptions, setConflictOptions] = useState<ResolutionOption[] | null>(null);
+    const [pendingAction, setPendingAction] = useState<{ type: 'move' | 'create', payload: any } | null>(null); // Refactored for B2
+
     // Watchdog Integration
     const { profile } = useUserStore();
     const { todayLog } = useDailyLogStore();
     const { conflicts, hasConflicts } = useScheduleWatchdog({
         blocks,
         energyLevel: isSameDay(selectedDate, new Date()) ? todayLog?.energy_level : undefined,
-        lowEnergyMode: profile?.low_energy_mode
+        lowEnergyMode: profile?.low_energy_mode || undefined
     });
 
     const isBlockImmutable = (block: ScheduleBlock) => {
@@ -63,7 +69,7 @@ function CalendarContent() {
                 start_time: editingBlock.start_time,
                 end_time: editingBlock.end_time,
                 context: editingBlock.context,
-                checklist: editingBlock.checklist || null
+                checklist: editingBlock.checklist || undefined
             });
 
             // Resonance Signal (Reschedule)
@@ -98,6 +104,7 @@ function CalendarContent() {
 
     const handleCreateBlock = async () => {
         if (!creatingBlock) return;
+
         try {
             const { block } = await apiClient.schedule.createBlock({
                 date: format(selectedDate, 'yyyy-MM-dd'),
@@ -118,7 +125,13 @@ function CalendarContent() {
             showToast('✅ Block added', 'success');
             setCreatingBlock(null);
         } catch (e: any) {
-            showToast(e.data?.error || 'Failed to create block', 'error');
+            if (e.status === 409 && e.data?.conflict) {
+                setConflictOptions(e.data.options);
+                setPendingAction({ type: 'create', payload: creatingBlock });
+                setCreatingBlock(null);
+                return;
+            }
+            showToast(e.data?.error || e.message || 'Failed to create block', 'error');
         }
     };
 
@@ -283,6 +296,61 @@ function CalendarContent() {
         }
     };
 
+    const handleResolveConflict = async (opt: ResolutionOption) => {
+        if (!pendingAction) return;
+
+        setIsOptimizing(true);
+        try {
+            if (opt.id === 'cancel') {
+                setConflictOptions(null);
+                setPendingAction(null);
+                return;
+            }
+
+            // Apply patch from resolution
+            await apiClient.post('/api/calendar/apply-patch', {
+                patch: opt.patch,
+                range: {
+                    start: format(selectedDate, 'yyyy-MM-dd'),
+                    end: format(selectedDate, 'yyyy-MM-dd')
+                }
+            });
+
+            showToast('Conflict resolved', 'success');
+            setConflictOptions(null);
+            setPendingAction(null);
+            loadData();
+        } catch (e) {
+            showToast('Failed to resolve conflict', 'error');
+        } finally {
+            setIsOptimizing(false);
+        }
+    };
+
+    const handleBlockMove = async (blockId: string, newStart: string, newEnd: string) => {
+        const originalBlock = blocks.find(b => b.id === blockId);
+        if (!originalBlock) return;
+
+        // Optimistic update
+        const originalBlocks = [...blocks];
+        setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, start_time: newStart, end_time: newEnd } : b));
+
+        try {
+            await apiClient.schedule.moveBlock(blockId, format(selectedDate, 'yyyy-MM-dd'), newStart, newEnd);
+            showToast('✅ Block moved', 'success');
+        } catch (e: any) {
+            setBlocks(originalBlocks); // Revert
+
+            if (e.status === 409 && e.data?.conflict) {
+                setConflictOptions(e.data.options);
+                setPendingAction({ type: 'move', payload: { id: blockId, start: newStart, end: newEnd } });
+                return;
+            }
+
+            showToast(e.data?.error || e.message || 'Move failed', 'error');
+        }
+    };
+
     return (
         <div className="space-y-8 pb-12">
             {/* Header Area */}
@@ -430,6 +498,7 @@ function CalendarContent() {
                             onBlockClick={(block) => !isBlockImmutable(block) && setEditingBlock(block)}
                             onSlotClick={(start, end) => setCreatingBlock({ start_time: start, end_time: end, context: '' })}
                             onStatusChange={handleStatusChange}
+                            onBlockMove={handleBlockMove}
                         />
                     )}
                 </div>
@@ -492,6 +561,16 @@ function CalendarContent() {
 
             {/* Modals */}
             <AnimatePresence>
+                {conflictOptions && (
+                    <ConflictResolutionModal
+                        options={conflictOptions}
+                        onSelect={handleResolveConflict}
+                        onCancel={() => {
+                            setConflictOptions(null);
+                            setPendingAction(null);
+                        }}
+                    />
+                )}
                 {showWeekPlanner && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={() => setShowWeekPlanner(false)}>
                         <div className="w-full max-w-lg" onClick={e => e.stopPropagation()}>
@@ -568,13 +647,13 @@ function CalendarContent() {
                                 )}
 
                                 {/* Checklist Section */}
-                                {editingBlock.checklist && editingBlock.checklist.length > 0 && (
+                                {editingBlock.checklist && (editingBlock.checklist as any[]).length > 0 && (
                                     <div className="space-y-2">
                                         <label className="text-xs uppercase text-[var(--text-tertiary)] font-bold flex items-center gap-1">
                                             <ListChecks className="w-3 h-3" /> Step-by-Step
                                         </label>
                                         <div className="space-y-1">
-                                            {editingBlock.checklist.map((item: any) => (
+                                            {(editingBlock.checklist as any[]).map((item: any) => (
                                                 <div key={item.id} className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
                                                     {item.completed ? <CheckSquare className="w-3 h-3 text-[var(--color-primary)]" /> : <Square className="w-3 h-3 opacity-30" />}
                                                     <span>{item.text}</span>

@@ -2,9 +2,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { secureApiRoute } from '@/lib/security/api-protection';
 import { apiSuccess, apiError, responses, API_ERROR_CODES } from '@/lib/api/api-utils';
 import { createClient } from '@/lib/supabase/server';
-import { generateAIResponse } from '@/lib/ai/groq-client';
+import { groqChat } from '@/lib/ai/groq-client';
+import { JSONReliability } from '@/lib/ai/json-reliability';
 import { addMinutes, format, parse, set, isBefore, isAfter, getDay } from 'date-fns';
 import { BioRegulator } from '@/lib/scheduling/bio-regulator';
+import { z } from 'zod';
+
+const OptimizeDayOutputSchema = z.object({
+    optimizedBlocks: z.array(z.object({
+        id: z.string().optional(),
+        title: z.string(),
+        start_time: z.string(),
+        end_time: z.string(),
+        type: z.string(),
+        reason: z.string().optional()
+    })),
+    droppedGoals: z.array(z.string()).optional(),
+    summary: z.string().optional()
+});
 
 // Types
 interface TimeBlock {
@@ -162,15 +177,24 @@ OUTPUT FORMAT (JSON):
 }
 `;
         try {
-            const response = await generateAIResponse(prompt, 'COACH', context.userId, true);
-            let result;
-            try {
-                result = JSON.parse(response);
-            } catch {
-                const match = response.match(/\{[\s\S]*\}/);
-                if (match) result = JSON.parse(match[0]);
-                else throw new Error("Invalid JSON");
-            }
+            const rawText = await groqChat({
+                model: 'llama-3.3-70b-versatile',
+                messages: [
+                    { role: 'system', content: 'You are a schedule optimizer. Output STRICT JSON only.' },
+                    { role: 'user', content: prompt }
+                ],
+                temperature: 0.3,
+                max_tokens: 2000,
+                userId: context.userId
+            });
+
+            if (!rawText) throw new Error('AI returned no content');
+
+            const result = await JSONReliability.validateOrRepair(
+                rawText,
+                OptimizeDayOutputSchema,
+                'llama-3.3-70b-versatile'
+            );
 
             const optimizedBlocks = result.optimizedBlocks;
             const droppedGoals = result.droppedGoals || [];

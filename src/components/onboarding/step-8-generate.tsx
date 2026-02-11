@@ -1,14 +1,29 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useOnboardingStore } from '@/stores';
-import { Sparkles, CalendarCheck, RefreshCw, AlertCircle } from 'lucide-react';
+import { Sparkles, CalendarCheck, RefreshCw, AlertCircle, Lock, Utensils, Moon, Sun } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
+import { format, parseISO, startOfWeek } from 'date-fns';
+
+interface PreviewBlock {
+    title: string;
+    date: string;
+    start_time: string;
+    end_time: string;
+    block_type: string;
+    source?: string;
+    is_locked?: boolean;
+    pillar?: string;
+}
 
 export function Step8Generate() {
     const { data } = useOnboardingStore();
-    const [generating, setGenerating] = useState(true);
-    const [generatedPlan, setGeneratedPlan] = useState<any>(null);
+    const [phase, setPhase] = useState<'generating' | 'preview' | 'error'>('generating');
+    const [previewBlocks, setPreviewBlocks] = useState<PreviewBlock[]>([]);
+    const [isRegenerating, setIsRegenerating] = useState(false);
+    const [genCount, setGenCount] = useState(0);
 
     const [thinkingStep, setThinkingStep] = useState(0);
     const thinkingMessages = [
@@ -21,38 +36,93 @@ export function Step8Generate() {
         "Donna is finalizing your optimization..."
     ];
 
-    // Thinking animation, then show preview
+    const generateSchedule = useCallback(async () => {
+        try {
+            const today = new Date();
+            const weekStart = startOfWeek(today, { weekStartsOn: 1 }); // Monday
+
+            const response = await apiClient.post<any>('/api/calendar/plan-week', {
+                startDate: format(weekStart, 'yyyy-MM-dd'),
+            });
+
+            const result = response.data || response;
+
+            if (result.previewBlocks && result.previewBlocks.length > 0) {
+                // Sort by date then start_time
+                const sorted = [...result.previewBlocks].sort((a: any, b: any) => {
+                    const dateComp = a.date.localeCompare(b.date);
+                    if (dateComp !== 0) return dateComp;
+                    return a.start_time.localeCompare(b.start_time);
+                });
+                setPreviewBlocks(sorted);
+                setPhase('preview');
+            } else {
+                // Fallback: show static preview from store data
+                setPreviewBlocks(buildFallbackPreview());
+                setPhase('preview');
+            }
+        } catch (err) {
+            console.error('[Step8] Schedule generation failed:', err);
+            // Fallback to static preview
+            setPreviewBlocks(buildFallbackPreview());
+            setPhase('preview');
+        }
+    }, [data]);
+
+    const buildFallbackPreview = (): PreviewBlock[] => {
+        const today = format(new Date(), 'yyyy-MM-dd');
+        const blocks: PreviewBlock[] = [
+            { title: 'Wake Up & Hydrate', date: today, start_time: data.sleep_end || '07:00', end_time: addMins(data.sleep_end || '07:00', 15), block_type: 'routine', source: 'planner' },
+            { title: 'Breakfast', date: today, start_time: data.meal_windows?.breakfast || '08:00', end_time: addMins(data.meal_windows?.breakfast || '08:00', 30), block_type: 'meal', source: 'meal', is_locked: true },
+        ];
+        data.goals.forEach((g: any, i: number) => {
+            const startHour = 9 + i;
+            blocks.push({
+                title: g.title,
+                date: today,
+                start_time: `${String(startHour).padStart(2, '0')}:30`,
+                end_time: `${String(startHour + 1).padStart(2, '0')}:00`,
+                block_type: 'goal',
+                pillar: g.category,
+            });
+        });
+        blocks.push(
+            { title: 'Lunch', date: today, start_time: data.meal_windows?.lunch || '12:30', end_time: addMins(data.meal_windows?.lunch || '12:30', 30), block_type: 'meal', source: 'meal', is_locked: true },
+            { title: 'Dinner', date: today, start_time: data.meal_windows?.dinner || '19:00', end_time: addMins(data.meal_windows?.dinner || '19:00', 30), block_type: 'meal', source: 'meal', is_locked: true },
+            { title: 'Wind Down & Sleep', date: today, start_time: data.sleep_start || '23:00', end_time: addMins(data.sleep_start || '23:00', 30), block_type: 'sleep', source: 'sleep' },
+        );
+        return blocks;
+    };
+
+    // Thinking animation + trigger generation
     useEffect(() => {
         const messageInterval = setInterval(() => {
             setThinkingStep(prev => prev < thinkingMessages.length - 1 ? prev + 1 : prev);
-        }, 800);
+        }, 700);
 
-        // After 4 seconds of animation, show the static preview
+        // Start real generation after 2s animation
         const timer = setTimeout(() => {
-            setGenerating(false);
-            setGeneratedPlan({
-                schedule: [
-                    { time: data.sleep_end || '07:00', title: 'Wake Up & Hydrate', type: 'bio' },
-                    { time: data.meal_windows?.breakfast || '08:00', title: 'Breakfast', type: 'meal' },
-                    ...data.goals.map((g, i) => ({
-                        time: `${String(9 + i).padStart(2, '0')}:30`,
-                        title: g.title,
-                        type: 'work'
-                    })),
-                    { time: data.meal_windows?.lunch || '12:30', title: 'Lunch', type: 'meal' },
-                    { time: data.meal_windows?.dinner || '19:00', title: 'Dinner', type: 'meal' },
-                    { time: data.sleep_start || '23:00', title: 'Sleep', type: 'bio' },
-                ]
-            });
-        }, 4000);
+            generateSchedule();
+        }, 2000);
 
         return () => {
             clearTimeout(timer);
             clearInterval(messageInterval);
         };
-    }, [data]);
+    }, []);
 
-    if (generating) {
+    const handleRegenerate = async () => {
+        if (genCount >= 2) return; // Max 2 regenerations
+        setIsRegenerating(true);
+        try {
+            await generateSchedule();
+            setGenCount(prev => prev + 1);
+        } finally {
+            setIsRegenerating(false);
+        }
+    };
+
+    if (phase === 'generating') {
         return (
             <div className="h-full flex flex-col items-center justify-center space-y-6 text-center">
                 <div className="w-24 h-24 relative">
@@ -60,7 +130,7 @@ export function Step8Generate() {
                     <div className="absolute inset-0 border-4 border-t-[var(--color-primary)] rounded-full animate-spin" />
                     <Sparkles className="absolute inset-0 m-auto w-8 h-8 text-[var(--color-primary)] animate-pulse" />
                 </div>
-                <h2 className="text-2xl font-bold animate-pulse">Synthesizing Your Day...</h2>
+                <h2 className="text-2xl font-bold animate-pulse">Synthesizing Your Week...</h2>
                 <motion.p
                     key={thinkingStep}
                     initial={{ opacity: 0, y: 10 }}
@@ -74,73 +144,118 @@ export function Step8Generate() {
         );
     }
 
+    // Group blocks by date for multi-day view
+    const blocksByDate = previewBlocks.reduce<Record<string, PreviewBlock[]>>((acc, b) => {
+        const d = b.date;
+        if (!acc[d]) acc[d] = [];
+        acc[d].push(b);
+        return acc;
+    }, {});
+
+    // Show only today + next 2 days for compact preview
+    const datesToShow = Object.keys(blocksByDate).sort().slice(0, 3);
+
     return (
         <div className="h-full flex flex-col w-full max-w-3xl mx-auto">
-            <div className="text-center mb-8">
+            <div className="text-center mb-6">
                 <h2 className="text-3xl font-display font-light">Your Calibration</h2>
-                <p className="text-[var(--color-text-secondary)]">A blueprint for a livable day.</p>
+                <p className="text-[var(--color-text-secondary)]">A real schedule generated for your week.</p>
             </div>
 
-            <div className="flex-1 bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-2xl p-6 overflow-hidden flex flex-col relative">
-                {/* Timeline Visualization */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar relative space-y-4">
-                    {/* Wake Anchor */}
-                    <TimelineItem time={data.sleep_end} title="System Online" type="anchor" />
-
-                    {/* Generated Blocks */}
-                    {generatedPlan?.schedule.map((block: any, i: number) => {
-                        if (block.time === data.sleep_end || block.time === data.sleep_start) return null;
-                        return <TimelineItem key={i} time={block.time} title={block.title} type={block.type} />;
-                    })}
-
-                    {/* Sleep Anchor */}
-                    <TimelineItem time={data.sleep_start} title="System Standby" type="anchor" />
+            <div className="flex-1 bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-2xl p-4 overflow-hidden flex flex-col relative">
+                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-5">
+                    {datesToShow.map(date => (
+                        <div key={date}>
+                            <p className="text-[10px] font-mono uppercase tracking-wider text-[var(--color-primary)] mb-2 sticky top-0 bg-[var(--glass-bg)] py-1 z-10">
+                                {formatDateLabel(date)}
+                            </p>
+                            <div className="space-y-2">
+                                {blocksByDate[date].map((block, i) => (
+                                    <TimelineItem key={`${date}-${i}`} block={block} />
+                                ))}
+                            </div>
+                        </div>
+                    ))}
                 </div>
 
-                {/* Overlay Gradient for Scroll */}
-                <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-black to-transparent pointer-events-none" />
+                <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
             </div>
 
-            <div className="mt-8 flex justify-center text-sm text-[var(--text-tertiary)] gap-6">
-                <span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-400" /> Bio / Energy</span>
-                <span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-400" /> Work / Goals</span>
-                <span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-orange-400" /> Meals</span>
+            {/* Actions */}
+            <div className="mt-4 flex items-center justify-between">
+                <div className="flex items-center gap-4 text-[10px] text-[var(--text-tertiary)]">
+                    <span className="flex items-center gap-1"><Lock className="w-3 h-3" /> Anchor</span>
+                    <span className="flex items-center gap-1"><Utensils className="w-3 h-3" /> Meal</span>
+                    <span className="flex items-center gap-1"><Sparkles className="w-3 h-3" /> Goal</span>
+                </div>
+
+                <button
+                    onClick={handleRegenerate}
+                    disabled={isRegenerating || genCount >= 2}
+                    className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg border border-[var(--glass-border)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                    <RefreshCw className={`w-3 h-3 ${isRegenerating ? 'animate-spin' : ''}`} />
+                    {genCount >= 2 ? 'Max reached' : 'Regenerate'}
+                </button>
             </div>
         </div>
     );
 }
 
-function TimelineItem({ time, title, type }: any) {
-    const getColor = (t: string) => {
-        if (t === 'bio') return 'bg-indigo-500/20 border-indigo-500/50 text-indigo-200';
-        if (t === 'work') return 'bg-emerald-500/20 border-emerald-500/50 text-emerald-200';
-        if (t === 'meal') return 'bg-orange-500/20 border-orange-500/50 text-orange-200';
-        return 'bg-white/5 border-white/10 text-white/50';
+function TimelineItem({ block }: { block: PreviewBlock }) {
+    const isAnchor = block.source === 'anchor' || block.is_locked;
+    const isMeal = block.source === 'meal' || block.block_type === 'meal';
+    const isSleep = block.source === 'sleep' || block.block_type === 'sleep';
+
+    const getStyle = () => {
+        if (isAnchor) return 'bg-amber-500/10 border-amber-500/40 text-amber-200';
+        if (isMeal) return 'bg-orange-500/10 border-orange-500/40 text-orange-200';
+        if (isSleep) return 'bg-indigo-500/10 border-indigo-500/40 text-indigo-200';
+        return 'bg-emerald-500/10 border-emerald-500/40 text-emerald-200';
     };
+
+    const getIcon = () => {
+        if (isAnchor) return <Lock className="w-3 h-3 opacity-60" />;
+        if (isMeal) return <Utensils className="w-3 h-3 opacity-60" />;
+        if (isSleep) return <Moon className="w-3 h-3 opacity-60" />;
+        return <Sparkles className="w-3 h-3 opacity-60" />;
+    };
+
+    const startTime = block.start_time?.includes('T')
+        ? format(parseISO(block.start_time), 'HH:mm')
+        : block.start_time;
+    const endTime = block.end_time?.includes('T')
+        ? format(parseISO(block.end_time), 'HH:mm')
+        : block.end_time;
 
     return (
         <motion.div
-            initial={{ opacity: 0, x: -10 }}
+            initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
-            className={`flex items-center gap-4 p-3 rounded-lg border ${getColor(type)}`}
+            className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${getStyle()}`}
         >
-            <span className="font-mono font-bold text-sm w-16 text-right opacity-70">{time}</span>
-            <span className="font-medium text-sm">{title}</span>
+            {getIcon()}
+            <span className="font-mono text-[11px] w-24 opacity-70">{startTime} – {endTime}</span>
+            <span className="text-sm font-medium flex-1 truncate">{block.title}</span>
+            {isAnchor && <span className="text-[9px] font-mono opacity-40">LOCKED</span>}
         </motion.div>
     );
 }
 
 // Helpers
-function addMinutes(time: string, mins: number) {
+function addMins(time: string, mins: number): string {
     const [h, m] = time.split(':').map(Number);
-    const date = new Date();
-    date.setHours(h, m + mins);
-    return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const total = h * 60 + m + mins;
+    return `${String(Math.floor(total / 60) % 24).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
 
-function subtractMinutes(time: string, mins: number) {
-    const [h, m] = time.split(':').map(Number);
-    const date = new Date();
-    date.setHours(h, m - mins);
-    return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+function formatDateLabel(dateStr: string): string {
+    try {
+        const d = parseISO(dateStr);
+        const today = new Date();
+        if (format(d, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')) return 'Today';
+        return format(d, 'EEEE, MMM d');
+    } catch {
+        return dateStr;
+    }
 }

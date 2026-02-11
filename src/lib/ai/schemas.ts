@@ -88,32 +88,32 @@ export const PatchOpSchema = z.union([
 export const PatchSchema = z.object({
     ops: z.array(PatchOpSchema).max(50),
     undoable: z.boolean().default(true),
-    reason: z.string().max(140).optional(),
+    reason: z.string().max(160).optional(),
 });
 
 export const OptionSchema = z.object({
     id: z.string().min(1),
-    title: z.string().max(40),
-    impact: z.string().max(80),
+    title: z.string().max(60), // Slightly more room for tactical titles
+    impact: z.string().max(100),
     patch: PatchSchema,
 });
 
 export const QuestionSchema = z.object({
-    prompt: z.string().max(120),
+    prompt: z.string().max(160),
     type: z.enum(["time", "choice", "number", "text"]),
-    choices: z.array(z.string()).max(12).optional(),
+    choices: z.array(z.string()).max(5).optional(), // Reduced choices for decisiveness
 });
 
 export const RefusalSchema = z.object({
-    reason: z.string().max(120),
-    next_best: z.string().max(120).nullable().optional(),
+    reason: z.string().max(160),
+    next_best: z.string().max(160).nullable().optional(),
 });
 
 export const AIResponseSchema = z.object({
     channel: ChannelEnum,
-    summary: z.string().max(120),
+    summary: z.string().max(160, "Summary must be tactical and under 160 chars"),
     mode: ModeEnum,
-    options: z.array(OptionSchema).max(3).optional(),
+    options: z.array(OptionSchema).max(3, "Max 3 options allowed").optional(),
     question: QuestionSchema.optional(),
     refusal: RefusalSchema.optional(),
 }).superRefine((val, ctx) => {
@@ -140,6 +140,53 @@ export const AIResponseSchema = z.object({
         if (val.question) ctx.addIssue({ code: "custom", message: "refuse must not include question" });
     }
 });
+
+
+// --- Canonical Patch Schema (Phase 2.5) ---
+export const CanonicalPatchOpSchema = z.discriminatedUnion('op', [
+    z.object({
+        op: z.literal('CREATE'),
+        block: z.object({
+            date: z.string(),
+            start_time: z.string(),
+            end_time: z.string(),
+            title: z.string(),
+            block_type: z.enum(['focus', 'routine', 'meal', 'social', 'rest', 'sleep', 'buffer']),
+            is_fixed: z.boolean().optional(),
+            status: z.enum(['planned', 'completed', 'skipped']).optional(),
+            goal_id: z.string().optional(),
+            pillar: z.string().optional(),
+            energy_cost: z.enum(['low', 'medium', 'high']).optional(),
+            commitment_id: z.string().optional(),
+            is_locked: z.boolean().optional(),
+            meta: z.record(z.string(), z.any()).optional()
+        })
+    }),
+    z.object({
+        op: z.literal('MOVE'),
+        block_id: z.string(),
+        new_date: z.string(),
+        new_start_time: z.string(),
+        new_end_time: z.string()
+    }),
+    z.object({
+        op: z.literal('UPDATE'),
+        block_id: z.string(),
+        fields: z.record(z.string(), z.any())
+    }),
+    z.object({
+        op: z.literal('DELETE'),
+        block_id: z.string()
+    })
+]);
+
+export const CanonicalPatchSchema = z.object({
+    reason: z.string(),
+    changes: z.array(CanonicalPatchOpSchema)
+});
+
+export type CanonicalPatch = z.infer<typeof CanonicalPatchSchema>;
+export type CanonicalPatchOp = z.infer<typeof CanonicalPatchOpSchema>;
 
 export type AIResponse = z.infer<typeof AIResponseSchema>;
 export type Patch = z.infer<typeof PatchSchema>;

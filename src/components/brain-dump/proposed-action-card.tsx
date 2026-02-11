@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
 import { CalendarPatch } from '@/types/calendar-patch';
-import { ArrowRight, Check, Sparkles, X, Clock, Calendar, AlertTriangle } from 'lucide-react';
+import { ArrowRight, Sparkles, X, Clock, Calendar, AlertTriangle } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { useToast } from '@/components/ui/toast';
 
@@ -45,10 +45,14 @@ export function ProposedActionCard({ action, onApply, onDismiss }: ProposedActio
         }
     };
 
-    const firstChange = action.patch.changes[0];
-    const isConstraint = firstChange?.op === 'CREATE_ANCHOR';
-    const isMove = firstChange?.op === 'MOVE';
-    const isHide = firstChange?.op === 'HIDE';
+    // Standard CalendarPatch structure uses 'changes'
+    const changes = action.patch.changes || [];
+    const firstChange: any = changes[0];
+
+    const op = firstChange?.op || '';
+    const isConstraint = op === 'CREATE_ANCHOR';
+    const isMove = op === 'MOVE';
+    const isHide = op === 'HIDE';
 
     return (
         <GlassCard padding="sm" className={`border-l-4 ${isConstraint ? 'border-l-[var(--color-warning)]' : 'border-l-[var(--color-primary)]'}`}>
@@ -74,17 +78,17 @@ export function ProposedActionCard({ action, onApply, onDismiss }: ProposedActio
                 {isMove && firstChange && (
                     <div className="flex items-center gap-2">
                         <Clock className="w-3 h-3" />
-                        <span>Move to {format(parseISO(firstChange.new_start_ts!), 'h:mm a')}</span>
+                        <span>Reschedule to {format(parseISO(firstChange.new_start_ts), 'h:mm a')}</span>
                     </div>
                 )}
                 {isConstraint && firstChange && (
                     <div className="flex items-center gap-2">
                         <Calendar className="w-3 h-3" />
-                        <span>Lock: {format(parseISO(firstChange.start_ts!), 'h:mm')} - {format(parseISO(firstChange.end_ts!), 'h:mm a')}</span>
+                        <span>Fixed: {format(parseISO(firstChange.start_ts), 'h:mm a')}</span>
                     </div>
                 )}
                 {isHide && (
-                    <span>Reducing schedule density...</span>
+                    <span>Clearing schedule slot...</span>
                 )}
             </div>
 

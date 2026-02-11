@@ -1,8 +1,21 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
-import { generateAIResponse } from '@/lib/ai/groq-client';
+import { groqChat } from '@/lib/ai/groq-client';
+import { JSONReliability } from '@/lib/ai/json-reliability';
 import { createClient } from '@/lib/supabase/server';
 import { logAIRequest } from '@/lib/security/audit-logger';
 import { subDays, format } from 'date-fns';
+import { z } from 'zod';
+
+const OptimizeHabitsOutputSchema = z.object({
+    optimizations: z.array(z.object({
+        habit: z.string(),
+        issue: z.string(),
+        suggestion: z.string(),
+        confidence: z.enum(['high', 'medium', 'low'])
+    })),
+    stackingSuggestion: z.string(),
+    bestTimeSlot: z.enum(['morning', 'afternoon', 'evening'])
+});
 
 /**
  * AI Habit Optimization API
@@ -115,34 +128,25 @@ Based on this analysis:
 3. Recommend the best time slot based on energy patterns
 `;
 
-            const response = await generateAIResponse(prompt, 'HABIT_OPTIMIZATION', userId);
+            const rawText = await groqChat({
+                model: 'llama-3.3-70b-versatile',
+                messages: [
+                    { role: 'system', content: 'You are a habit optimization expert. Output STRICT JSON only. Schema: { optimizations: [{ habit, issue, suggestion, confidence: high|medium|low }], stackingSuggestion: string, bestTimeSlot: morning|afternoon|evening }' },
+                    { role: 'user', content: prompt }
+                ],
+                temperature: 0.3,
+                max_tokens: 1500,
+                userId
+            });
+
+            if (!rawText) throw new Error('AI returned no content');
+
+            const result = await JSONReliability.validateOrRepair(
+                rawText,
+                OptimizeHabitsOutputSchema,
+                'llama-3.3-70b-versatile'
+            );
             await logAIRequest(userId, '/api/ai/optimize-habits', context.request, true);
-
-            // Parse JSON response
-            let result: OptimizationResponse;
-            try {
-                const jsonMatch = response.match(/\{[\s\S]*\}/);
-                result = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
-            } catch {
-                // Find best time slot based on energy
-                type TimeSlot = 'morning' | 'afternoon' | 'evening';
-                let bestTime: TimeSlot = 'morning';
-                let highestEnergy = avgEnergy.morning;
-
-                if (avgEnergy.afternoon > highestEnergy) {
-                    bestTime = 'afternoon';
-                    highestEnergy = avgEnergy.afternoon;
-                }
-                if (avgEnergy.evening > highestEnergy) {
-                    bestTime = 'evening';
-                }
-
-                result = {
-                    optimizations: [],
-                    stackingSuggestion: 'Try grouping related habits together.',
-                    bestTimeSlot: bestTime,
-                };
-            }
 
             return apiSuccess({
                 ...result,

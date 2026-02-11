@@ -1,7 +1,12 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { LeverAction } from '@/types/database';
+
+interface LeverAction {
+    type: 'update_goal' | 'update_preference' | 'update_schedule';
+    payload: any;
+    description?: string;
+}
 import { revalidatePath } from 'next/cache';
 
 export async function applyLeverAction(action: LeverAction) {
@@ -13,38 +18,32 @@ export async function applyLeverAction(action: LeverAction) {
     console.log(`[Lever] Applying action: ${action.type}`, action.payload);
 
     try {
-        switch (action.type) {
-            case 'update_goal':
-                // Payload: { goal_id: string, updates: Partial<Goal> }
-                const goalPayload = action.payload;
-                await supabase.from('goals')
-                    .update(goalPayload.updates)
-                    .eq('id', goalPayload.goal_id)
-                    .eq('user_id', user.id);
-                break;
+        const { CoachActionService } = await import('@/lib/coach/coach-actions');
 
-            case 'update_preference':
-                // Payload: { preference_key: string, value: any }
-                // Need to handle nested JSON updates if key is 'body_preferences' etc.
-                const prefPayload = action.payload;
+        // Normalize any action into a Patch format for CoachActionService
+        const patch: any = {
+            ops: [],
+            scope: 'week',
+            reason: action.description || `Lever: ${action.type}`
+        };
 
-                // Construct update object dynamically
-                const updateObj: Record<string, any> = {};
+        if (action.type === 'update_schedule') {
+            patch.ops = action.payload?.ops || action.payload?.patch?.ops || [];
+        } else if (action.type === 'update_goal') {
+            patch.ops = [{
+                op: 'update_goal',
+                goal_id: action.payload.goal_id,
+                payload: action.payload.updates
+            }];
+        } else if (action.type === 'update_preference') {
+            patch.ops = [{
+                op: 'update_settings',
+                payload: { [action.payload.preference_key]: action.payload.value }
+            }];
+        }
 
-                // Handle nested keys if notation is 'body_preferences.duration_mins' (simple implementation)
-                // For now, assume top-level or specific known columns
-                updateObj[prefPayload.preference_key] = prefPayload.value;
-
-                await supabase.from('profiles')
-                    .update(updateObj)
-                    .eq('id', user.id);
-                break;
-
-            case 'update_schedule':
-                // Payload: { updates: ... } - Implementation depends on specific schedule changes
-                // Phase 7 MVP: Maybe just logging it for now, unless specific constraints are defined
-                console.log("Schedule update lever not yet fully implemented, logging intent.");
-                break;
+        if (patch.ops.length > 0) {
+            await CoachActionService.applyPatch(user.id, patch, supabase as any);
         }
 
         // Log to Memory (Fact)

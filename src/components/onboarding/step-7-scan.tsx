@@ -32,7 +32,7 @@ export function Step7Scan() {
             const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
             const { error: uploadError } = await supabase.storage
-                .from('bio_uploads')
+                .from('bio_scans')
                 .upload(fileName, file);
 
             if (uploadError) throw uploadError;
