@@ -116,6 +116,7 @@ export const POST = secureApiRoute(
             // But rolling back the commitment insert is also complex.
         }
 
+        console.log(`[ANCHOR] Success ${data.id}`);
         return apiSuccess({ commitment: data }, 201);
     },
     { requireAuth: true, auditAction: 'anchor_create' }

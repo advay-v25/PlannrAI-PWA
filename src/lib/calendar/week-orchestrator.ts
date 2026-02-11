@@ -30,6 +30,12 @@ export interface ProfilePrefs {
     };
     // optional pillar preferences
     pillar_preferences?: Partial<Record<Pillar, { preferred?: string[]; avoid?: string[] }>>;
+    // New Bio-Context
+    bio: {
+        energy: 'low' | 'medium' | 'high';
+        stress: 'low' | 'medium' | 'high';
+        chronotype: string;
+    };
 }
 
 export interface Goal {
@@ -212,12 +218,12 @@ export class WeekOrchestrator {
     private static async loadProfilePrefs(userId: string, supabase: SupabaseClient): Promise<ProfilePrefs> {
         const { data, error } = await supabase
             .from("profiles")
-            .select("timezone,sleep_start,sleep_end,winddown_mins,buffer_minutes,meal_duration_minutes,meals_per_day,weekend_intensity,preferred_workdays,meal_windows,pillar_preferences")
+            .select("timezone,sleep_start,sleep_end,winddown_mins,buffer_minutes,meal_duration_minutes,meals_per_day,weekend_intensity,preferred_workdays,meal_windows,pillar_preferences,energy_level,stress_level,body_preferences")
             .eq("id", userId)
             .single();
 
         if (error || !data) {
-            // Provide sensible defaults if missing, but do not hallucinate anchors/goals
+            // Provide sensible defaults if missing
             return {
                 timezone: "UTC",
                 sleep_start: "23:00",
@@ -233,8 +239,16 @@ export class WeekOrchestrator {
                     lunch: { start: "12:00", end: "15:00" },
                     dinner: { start: "18:30", end: "21:30" },
                 },
+                bio: { energy: 'medium', stress: 'low', chronotype: 'bear' }
             };
         }
+
+        const mapLevel = (val: number | null): 'low' | 'medium' | 'high' => {
+            if (!val) return 'medium';
+            if (val <= 3) return 'low';
+            if (val >= 8) return 'high';
+            return 'medium';
+        };
 
         return {
             timezone: data.timezone ?? "UTC",
@@ -252,6 +266,12 @@ export class WeekOrchestrator {
                 dinner: { start: "18:30", end: "21:30" },
             },
             pillar_preferences: data.pillar_preferences ?? undefined,
+            // New Bio-Context
+            bio: {
+                energy: mapLevel(data.energy_level),
+                stress: mapLevel(data.stress_level),
+                chronotype: (data.body_preferences as any)?.chronotype || 'bear'
+            }
         };
     }
 
@@ -630,8 +650,9 @@ export class WeekOrchestrator {
     }
 
     private static scoreSlot(session: any, slot: TimeSlot, dc: DayContext): number {
-        // A4 Pillar Spacing Engine
+        // A4 Pillar Spacing Engine + Phase 5 Bio-Injection
         let score = 0;
+        const bio = dc.prefs.bio;
 
         // 1. Basic Availability (Binary - explicitly not checked here as slots are free)
 
@@ -652,18 +673,53 @@ export class WeekOrchestrator {
                 else if (gap < 120) score -= 50; // Within 2h
             } else {
                 // Alternation Bonus
-                // Mind -> Body -> Craft -> Mind
                 const flow: Record<string, string> = { mind: 'body', body: 'craft', craft: 'mind' };
                 if (flow[last.pillar as string] === session.pillar) score += 20;
                 else score += 10; // Still different, good
             }
         }
 
-        // 3. Energy / Time of Day
-        const bedtimeMin = this.hhmmToMin(dc.prefs.sleep_start);
+        // 3. Energy / Time of Day / Chronotype (Bio-Context)
+        const startHour = Math.floor(slot.startMin / 60);
 
-        // Heavy energy blocks after 8pm (20:00 = 1200 min) -> strong penalty
-        if (session.energy === 'heavy' && slot.endMin > 1200) {
+        // A. Chronotype Matching
+        const isLark = bio.chronotype === 'early_bird' || bio.chronotype === 'lark';
+        const isOwl = bio.chronotype === 'night_owl' || bio.chronotype === 'owl';
+        const isWolf = bio.chronotype === 'wolf'; // Late waker/peaker, distinct from pure owl
+        const isBear = bio.chronotype === 'bear' || !bio.chronotype; // Default
+
+        if (isLark && startHour >= 6 && startHour < 11) score += 40; // Peak Morning
+        if (isLark && startHour >= 19) score -= 50; // Anti-Peak Late
+
+        if (isBear && startHour >= 9 && startHour < 14) score += 30; // Mid-Day
+        if (isBear && startHour >= 15 && startHour < 18) score += 20; // Second wind
+
+        if (isWolf && startHour >= 13 && startHour < 20) score += 40; // Late Peak
+        if (isWolf && startHour < 12) score -= 50; // Anti-Peak Morning
+
+        if (isOwl && startHour >= 18 && startHour < 24) score += 50; // Evening Peak
+        if (isOwl && startHour < 12) score -= 50; // Anti-Peak Morning
+
+        // B. Personal Energy State Compatibility
+        // If user is currently LOW energy, heavily penalize HIGH energy tasks
+        if (bio.energy === 'low') {
+            if (session.energy === 'heavy') score -= 500; // Avoid burnout logic
+            else if (session.energy === 'medium') score -= 100;
+            else if (session.energy === 'low') score += 100; // Boost recovery tasks
+        } else if (bio.energy === 'high') {
+            if (session.energy === 'heavy') score += 50; // Strike while iron hot
+        }
+
+        // C. Stress Regulation
+        // If user is HIGH stress, avoid HIGH priority/intense work or dense packing
+        if (bio.stress === 'high') {
+            if (session.priority === 'high' || session.energy === 'heavy') score -= 150;
+            if (session.pillar === 'body' || session.pillar === 'mind') score += 50; // Encourage grounding
+        }
+
+        // D. General Time of Day Penalties
+        // Heavy energy blocks after 8pm (20:00 = 1200 min) -> strong penalty unless Owl
+        if (!isOwl && session.energy === 'heavy' && slot.endMin > 1200) {
             score -= 200;
         }
 
@@ -674,7 +730,7 @@ export class WeekOrchestrator {
         // 4. Priority
         score += this.priorityScore(session.priority) * 10;
 
-        // 5. Weekend Intensity Check (Redundant with distribution but logic safe)
+        // 5. Weekend Intensity Check
         const dow = this.dayOfWeek(slot.date);
         const isWeekend = dow === 0 || dow === 6;
         if (dc.prefs.weekend_intensity === "off" && isWeekend) score -= 5000;

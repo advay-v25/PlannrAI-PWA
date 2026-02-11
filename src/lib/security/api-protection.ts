@@ -12,6 +12,9 @@ import {
     RateLimitType,
 } from '@/lib/security/rate-limiter';
 import { logAuditEvent, logRateLimited, logSuspiciousActivity } from '@/lib/security/audit-logger';
+import { apiSuccess, apiError } from '@/lib/api/envelope';
+
+export { apiSuccess, apiError };
 
 export interface SecureApiContext {
     userId: string;
@@ -157,42 +160,6 @@ export function secureApiRoute(
             return apiError('An unexpected error occurred', 500);
         }
     };
-}
-
-/**
- * Create standard API error response
- */
-export function apiError(
-    message: string,
-    status: number = 400,
-    details?: unknown
-): NextResponse {
-    const requestId = crypto.randomUUID();
-    console.error(`[API] [${requestId}] Error: ${status} - ${message}`, details);
-    return NextResponse.json({
-        ok: false,
-        request_id: requestId,
-        error: {
-            code: status === 401 ? 'UNAUTHORIZED' : status === 403 ? 'FORBIDDEN' : status === 429 ? 'RATE_LIMITED' : 'API_ERROR',
-            message,
-            details
-        },
-        timestamp: new Date().toISOString()
-    }, { status });
-}
-
-/**
- * Create standard API success response
- */
-export function apiSuccess<T>(data: T, status: number = 200): NextResponse {
-    const requestId = crypto.randomUUID();
-    const response = {
-        ok: true,
-        request_id: requestId,
-        ...(typeof data === 'object' && data !== null && !Array.isArray(data) ? data : { data }),
-        timestamp: new Date().toISOString()
-    };
-    return NextResponse.json(response, { status });
 }
 
 /**

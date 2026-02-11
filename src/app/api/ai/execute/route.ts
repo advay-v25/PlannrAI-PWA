@@ -30,14 +30,19 @@ export const POST = secureApiRoute(
         // 1. Validate Request
         const result = ExecuteRequestSchema.safeParse(body);
         if (!result.success) {
-            return apiError('Invalid request format', 400, result.error.format());
+            return apiError('Invalid request format', 400, 'VALIDATION_ERROR', result.error.format());
         }
 
-        const { channel, input, context: aiContext, limits } = result.data;
+        let { channel, input, context: aiContext, limits } = result.data;
+
+        // Alias for frontend compatibility
+        if (channel === 'goal_decomposition') {
+            channel = 'goal_strategy';
+        }
 
         // 2. Validate Channel
         if (!(channel in ChannelRegistry)) {
-            return apiError(`Unknown channel: ${channel}`, 400);
+            return apiError(`Unknown channel: ${channel}`, 400, 'BAD_REQUEST');
         }
 
         const channelDef = ChannelRegistry[channel];
@@ -67,6 +72,15 @@ export const POST = secureApiRoute(
                     richContext = { ...richContext, ...bdCtx };
                 } catch (e) {
                     console.warn(`[AI Gateway] Brain dump context enrichment failed:`, e);
+                }
+            } else if (channel === 'goal_strategy' || channel === 'habit_stack') {
+                try {
+                    const { buildCoachContext } = await import('@/lib/coach/coach-context');
+                    coachSupabase = coachSupabase || await createClient();
+                    const coachCtx = await buildCoachContext(context.userId!, coachSupabase);
+                    richContext = { ...richContext, ...coachCtx };
+                } catch (e) {
+                    console.warn(`[AI Gateway] Context enrichment failed for ${channel}:`, e);
                 }
             }
 
@@ -177,25 +191,22 @@ export const POST = secureApiRoute(
             console.error(`[AI Gateway] [${requestId}] channel=${channel} latency=${latencyMs}ms FAILED:`, error.message);
 
             if (error.message === 'AI_TIMEOUT') {
-                return apiError('AI_TIMEOUT', 504, { message: 'AI call timed out', request_id: requestId });
+                return apiError('AI call timed out', 504, 'AI_TIMEOUT', { request_id: requestId });
             }
 
             if (error.message.includes('Schema validation failed')) {
-                return apiError('AI_INVALID_JSON', 502, {
-                    message: 'AI output did not match expected schema',
+                return apiError('AI output did not match expected schema', 502, 'AI_INVALID_JSON', {
                     request_id: requestId
                 });
             }
 
             if (error.message.includes('Rate limited')) {
-                return apiError('RATE_LIMITED', 429, {
-                    message: error.message,
+                return apiError(error.message, 429, 'RATE_LIMITED', {
                     request_id: requestId
                 });
             }
 
-            return apiError('AI_EXECUTION_ERROR', 500, {
-                message: error.message || 'Unknown AI error',
+            return apiError(error.message || 'Unknown AI error', 500, 'AI_EXECUTION_ERROR', {
                 request_id: requestId
             });
         }

@@ -91,18 +91,10 @@ export const HabitStackOutputSchema = z.object({
 
 // 5. Goal Strategy
 export const GoalStrategyOutputSchema = z.object({
-    strategy: z.object({
-        one_liner: z.string(),
-        routine: z.object({
-            frequency: z.string(),
-            duration_mins: z.number(),
-            steps: z.array(z.string()),
-            notes: z.string().optional()
-        }),
-        milestones: z.array(z.string()),
-        checklist: z.array(z.string())
-    }),
-    patch: PatchSchema
+    options: z.array(z.object({
+        label: z.string(),
+        patch: PatchSchema
+    })).describe('Provide 1-2 strategy options. The patch must contain an update_goal op with the ai_strategy field populated.')
 });
 
 // 6. Weekly Review
@@ -297,7 +289,7 @@ BEHAVIOR:
 - If it's a weekend habit, include a "Weekend Morning" option.
 
 PATCH OPS:
-- Use "create_event" with payload: { title, start_time, end_time, block_type: "habit", meta: { habit_stack_index: 0 } }
+- Use "create_event" with payload: { title, start_time, end_time, block_type: "habit", is_locked: true, is_fixed: true, meta: { habit_stack_index: 0 } }
 - Ensure start/end times matches context availability and respect existing anchors.
 
 OUTPUT JSON:
@@ -329,13 +321,25 @@ ${BASE_RULES}
 
 JSON schema:
 {
-  "strategy": {
-    "one_liner": "string",
-    "routine": { "frequency": "string", "duration_mins": number, "steps": ["string"], "notes?": "string" },
-    "milestones": ["string"],
-    "checklist": ["string"]
-  },
-  "patch": { "ops": [{ "op": "update_goal", "goal_id": "...", "fields": { "ai_strategy": {...} } }], "undoable": true, "reason": "string" }
+  "options": [{
+    "label": "string",
+    "patch": { 
+      "ops": [{ 
+        "op": "update_goal", 
+        "goal_id": "...", 
+        "fields": { 
+          "ai_strategy": {
+            "strategy_one_liner": "string",
+            "routine": { "frequency": "string", "duration_mins": number, "steps": ["string"], "notes?": "string" },
+            "milestones": ["string"],
+            "checklist": [{"text": "string"}]
+          } 
+        } 
+      }], 
+      "undoable": true, 
+      "reason": "string" 
+    }
+  }]
 }
 
 Context:

@@ -1,9 +1,13 @@
 import { createClient } from '@/lib/supabase/client';
 import type { ChannelType, AIResponse, Patch } from '@/lib/ai/schemas';
+import type { HabitStack, ScheduleBlock, Goal, BlockStatus, Commitment } from '@/types/database';
+
+export type { HabitStack, Commitment };
 
 type ApiOptions = RequestInit & {
     skipAuth?: boolean;
     throwOnError?: boolean;
+    clientMode?: 'default' | 'best_effort';
 };
 
 export class ApiError extends Error {
@@ -18,10 +22,8 @@ const MAX_RETRIES = 2;
 
 const getBaseUrl = () => {
     if (typeof window !== 'undefined') {
-        // Browser context
-        return ''; // Next.js handles relative /api routes
+        return '';
     }
-    // Server context (e.g. for absolute URLs if needed)
     return process.env.NEXT_PUBLIC_APP_URL || '';
 };
 
@@ -29,17 +31,22 @@ async function fetchWithTimeout(resource: RequestInfo, options: RequestInit & { 
     const { timeout = DEFAULT_TIMEOUT } = options;
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
-    const response = await fetch(resource, {
-        ...options,
-        signal: controller.signal
-    });
-    clearTimeout(id);
-    return response;
+    try {
+        const response = await fetch(resource, {
+            ...options,
+            signal: controller.signal
+        });
+        clearTimeout(id);
+        return response;
+    } catch (e) {
+        clearTimeout(id);
+        throw e;
+    }
 }
 
 export const apiClient = {
     async fetch<T = any>(endpoint: string, options: ApiOptions = {}): Promise<T> {
-        const { skipAuth, throwOnError = true, headers, ...rest } = options;
+        const { skipAuth, throwOnError = true, headers, clientMode = 'default', ...rest } = options;
         const finalHeaders: HeadersInit = { 'Content-Type': 'application/json', ...headers };
 
         // Inject Auth
@@ -54,6 +61,28 @@ export const apiClient = {
         const baseUrl = getBaseUrl();
         const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint}`;
 
+        // Best Effort Mode: Short timeout, swallow errors, no retry
+        if (clientMode === 'best_effort') {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), 1500); // 1.5s timeout
+
+            try {
+                const response = await fetch(url, {
+                    ...rest,
+                    headers: finalHeaders,
+                    signal: controller.signal
+                });
+                clearTimeout(id);
+                if (!response.ok) return { success: false, ignored: true } as unknown as T;
+
+                try { return await response.json(); } catch { return {} as T; }
+            } catch (e) {
+                console.warn(`[BestEffort] Failed ${endpoint}`, e);
+                return { success: false, ignored: true } as unknown as T;
+            }
+        }
+
+        // Default Mode: Retry Logic
         let attempt = 0;
         let lastError: any;
 
@@ -65,8 +94,8 @@ export const apiClient = {
                 });
 
                 if (!response.ok) {
-                    // Don't retry client errors (4xx), only 5xx or network
                     if (response.status >= 400 && response.status < 500) {
+                        // Client error - do not retry
                         if (throwOnError) {
                             let errorData;
                             try {
@@ -77,15 +106,8 @@ export const apiClient = {
                         }
                         return {} as T;
                     }
-
-                    if (throwOnError) {
-                        let errorData;
-                        try {
-                            const clone = response.clone();
-                            try { errorData = await clone.json(); } catch { errorData = { message: await response.text() }; }
-                        } catch { errorData = { message: 'Unknown error' }; }
-                        throw new ApiError(response.status, response.statusText, errorData);
-                    }
+                    // 5xx error -> throw to retry
+                    throw new Error(`Server Error: ${response.status}`);
                 }
 
                 if (response.status === 204) return {} as T;
@@ -98,16 +120,19 @@ export const apiClient = {
 
             } catch (error: any) {
                 lastError = error;
-                // Retry only if network error or 5xx (ApiError with status >= 500)
-                const isRetryable = error.name === 'AbortError' || (error instanceof ApiError && error.status >= 500) || error.message.includes('fetch');
+                const isRetryable = error.name === 'AbortError' || error.message.includes('Server Error') || error.message.includes('fetch');
 
                 if (!isRetryable || attempt === MAX_RETRIES) {
-                    console.error(`API Call Failed [${endpoint}] (Attempt ${attempt + 1})`, error);
-                    throw error;
+                    if (throwOnError) {
+                        console.error(`API Call Failed [${endpoint}]`, error);
+                        throw error;
+                    }
+                    return {} as T;
                 }
 
-                console.warn(`API Retry [${endpoint}] attempt ${attempt + 1}/${MAX_RETRIES}`);
-                await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); // Backoff
+                const delay = 1000 * Math.pow(2, attempt);
+                // console.warn(`API Retry [${endpoint}] attempt ${attempt + 1}/${MAX_RETRIES} in ${delay}ms`);
+                await new Promise(r => setTimeout(r, delay));
                 attempt++;
             }
         }
@@ -166,13 +191,13 @@ export const apiClient = {
             list: (start: string, end: string) =>
                 this.get<{ blocks: (ScheduleBlock & { goal?: Goal })[] }>(`/api/schedule?start=${start}&end=${end}`),
             createBlock: (data: { date: string; start_time: string; end_time: string; goal_id?: string | null; context?: string | null }) =>
-                this.post<{ block: ScheduleBlock }>('/api/calendar/add-block', { block: data }), // Wrapped in block object
+                this.post<{ block: ScheduleBlock }>('/api/calendar/add-block', { block: data }),
             updateBlock: (id: string, updates: Record<string, any>) =>
                 this.post<{ block: ScheduleBlock }>('/api/calendar/update-block', { blockId: id, updates }),
             moveBlock: (id: string, newDate: string, newStart: string, newEnd: string) =>
                 this.post<{ block: ScheduleBlock }>('/api/calendar/move-block', { blockId: id, newDate, newStart, newEnd }),
             deleteBlock: (id: string) =>
-                this.delete<{ success: boolean }>('/api/schedule', { id }), // Keep for now or migrate? Engine has deleteBlock.
+                this.delete<{ success: boolean }>('/api/schedule', { id }),
             updateStatus: (id: string, status: BlockStatus) =>
                 this.put<{ block: ScheduleBlock }>('/api/schedule/status', { id, status }),
             sync: (date: string, blocks: Partial<ScheduleBlock>[]) =>
@@ -201,29 +226,24 @@ export const apiClient = {
 
     get behavior() {
         return {
-            logSignal: (action: string, meta: any = {}) =>
-                this.post('/api/behavior/signal', { action, meta })
+            logSignal: (action: string, meta: any = {}) => {
+                // Fire and forget - use separate promise chain to not await
+                return apiClient.post('/api/behavior/signal', { action, meta }, { clientMode: 'best_effort' })
+                    .catch(e => ({ success: false, ignored: true }));
+            }
         };
     },
 
     async checkHealth() {
         try {
-            const data = await this.get<{ ok: boolean; env: string }>('/api/health', { skipAuth: true });
-            return data;
+            return await this.get<{ ok: boolean; status: string }>('/api/health', { skipAuth: true, clientMode: 'best_effort' });
         } catch (e) {
-            console.error('Health Check Failed:', e);
-            return { ok: false, env: 'unknown' };
+            return { ok: false, status: 'offline' };
         }
     }
 };
 
-// --- DOMAIN APIS ---
-
-import type { HabitStack, ScheduleBlock, Goal, BlockStatus, Commitment } from '@/types/database';
-
-export type { HabitStack, Commitment };
-
-// Keep legacy exports for compatibility if preferred
+// Legacy exports
 export const scheduleApi = apiClient.schedule;
 export const habitStacksApi = apiClient.habitStacks;
 export const anchorsApi = apiClient.anchors;

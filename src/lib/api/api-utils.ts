@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { apiSuccess as success, apiFail as fail } from '@/lib/api/envelope';
 
 export const API_ERROR_CODES = {
     VALIDATION_ERROR: 'VALIDATION_ERROR',
@@ -12,56 +12,23 @@ export const API_ERROR_CODES = {
 
 export type ApiErrorCode = keyof typeof API_ERROR_CODES;
 
-export function apiError(
-    code: ApiErrorCode | string,
-    message: string,
-    status: number = 400,
-    details?: any
-) {
-    const requestId = crypto.randomUUID();
-    console.error(`[API] [${requestId}] Error: ${code} - ${message}`, details);
-
-    return NextResponse.json({
-        ok: false,
-        request_id: requestId,
-        error: {
-            code,
-            message,
-            details
-        },
-        timestamp: new Date().toISOString()
-    }, { status });
-}
-
-export function apiSuccess<T>(data: T, status: number = 200) {
-    const requestId = crypto.randomUUID();
-    // Wrap data or merge? User specified health returns top-level fields.
-    // "Return: { ok: true, request_id, env: {...} }" -> implies merging data if object, or wrapping?
-    // Let's merge if data is object, else wrap in 'data'.
-    const response = {
-        ok: true,
-        request_id: requestId,
-        ...(typeof data === 'object' && data !== null && !Array.isArray(data) ? data : { data }),
-        timestamp: new Date().toISOString()
-    };
-
-    return NextResponse.json(response, { status });
-}
+export const apiError = fail;
+export const apiSuccess = success;
 
 // Common patterns
 export const responses = {
     unauthorized: (message = 'Unauthorized access') =>
-        apiError(API_ERROR_CODES.UNAUTHORIZED, message, 401),
+        apiError(message, 401, API_ERROR_CODES.UNAUTHORIZED),
 
     forbidden: (message = 'Forbidden access') =>
-        apiError(API_ERROR_CODES.FORBIDDEN, message, 403),
+        apiError(message, 403, API_ERROR_CODES.FORBIDDEN),
 
     validationError: (details: any, message = 'Validation failed') =>
-        apiError(API_ERROR_CODES.VALIDATION_ERROR, message, 400, details),
+        apiError(message, 400, API_ERROR_CODES.VALIDATION_ERROR, details),
 
     notFound: (message = 'Resource not found') =>
-        apiError(API_ERROR_CODES.NOT_FOUND, message, 404),
+        apiError(message, 404, API_ERROR_CODES.NOT_FOUND),
 
     internalError: (message = 'An internal server error occurred', details?: any) =>
-        apiError(API_ERROR_CODES.INTERNAL_ERROR, message, 500, details)
+        apiError(message, 500, API_ERROR_CODES.INTERNAL_ERROR, details)
 };
