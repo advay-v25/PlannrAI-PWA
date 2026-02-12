@@ -7,6 +7,7 @@ import { GlassButton } from '@/components/ui/glass-button';
 import { Brain, Send, User, Loader2, Sparkles, CheckCircle2, ArrowUp } from 'lucide-react';
 
 import { ProposedActionCard } from '@/components/brain-dump/proposed-action-card';
+import { SignalCard } from '@/components/brain-dump/signal-card';
 import { CalendarPatch } from '@/types/calendar-patch';
 import { apiClient } from '@/lib/api-client';
 
@@ -20,6 +21,11 @@ interface Message {
         patch: CalendarPatch;
         reasoning: string;
     }>;
+    signals?: {
+        energy_delta?: number;
+        sentiment?: number;
+        overwhelm?: number;
+    };
     timestamp: Date;
 }
 
@@ -84,6 +90,7 @@ export default function BrainDumpPage() {
                     id: `donna-${Date.now()}`,
                     role: 'assistant',
                     content: data.note || "I've processed that.",
+                    signals: data.extracted?.signals,
                     // Map Unified Schema options to UI actions
                     recommendedActions: data.options?.map((opt: any) => ({
                         label: opt.label,
@@ -185,6 +192,9 @@ export default function BrainDumpPage() {
                                         }
                                     >
                                         <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+
+                                        {/* Signals (Reactions) */}
+                                        {message.signals && <SignalCard signals={message.signals} />}
 
                                         {/* Recommended Actions (Rich UI) */}
                                         {message.recommendedActions && message.recommendedActions.length > 0 && (

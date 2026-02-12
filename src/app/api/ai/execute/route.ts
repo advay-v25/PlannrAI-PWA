@@ -19,7 +19,7 @@ const ExecuteRequestSchema = z.object({
 });
 
 // --- Constants ---
-const AI_TIMEOUT_MS = 15_000; // 15s timeout
+const AI_TIMEOUT_MS = 60_000; // 60s timeout (Vercel Limit)
 const MAX_RETRIES = 1;
 
 export const POST = secureApiRoute(
@@ -30,6 +30,8 @@ export const POST = secureApiRoute(
         // 1. Validate Request
         const result = ExecuteRequestSchema.safeParse(body);
         if (!result.success) {
+            console.error('[AI Gateway] Validation Failed:', JSON.stringify(result.error.format(), null, 2));
+            console.error('[AI Gateway] Invalid Body:', JSON.stringify(body, null, 2));
             return apiError('Invalid request format', 400, 'VALIDATION_ERROR', result.error.format());
         }
 

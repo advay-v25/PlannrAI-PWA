@@ -48,7 +48,7 @@ export function MessageBubble({ role, content, options, isImpossible, undoToken,
                         ? "bg-[var(--glass-bg-hover)] border border-[var(--glass-border)] text-[var(--text-primary)] rounded-tr-sm"
                         : "bg-[var(--color-bg-tertiary)] border border-[var(--glass-border)] text-[var(--text-secondary)] rounded-tl-sm"
                 )}>
-                    {content}
+                    {typeof content === 'string' ? content : JSON.stringify(content)}
                 </div>
 
                 {/* Error / Warning State */}
@@ -72,10 +72,12 @@ export function MessageBubble({ role, content, options, isImpossible, undoToken,
                                     <div className="space-y-1">
                                         <h4 className="text-sm font-semibold text-[var(--text-primary)] flex items-center gap-2">
                                             <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)]" />
-                                            {option.title || option.label || "Proposed Change"}
+                                            {typeof option.title === 'string' ? option.title :
+                                                typeof option.label === 'string' ? option.label : "Proposed Change"}
                                         </h4>
                                         <p className="text-xs text-[var(--text-secondary)] line-clamp-2">
-                                            {option.tradeoff || option.impact || "Click to apply this adjustment."}
+                                            {typeof option.tradeoff === 'string' ? option.tradeoff :
+                                                typeof option.impact === 'string' ? option.impact : "Click to apply this adjustment."}
                                         </p>
                                     </div>
                                     <ArrowRight className="w-4 h-4 text-[var(--color-primary)] opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />

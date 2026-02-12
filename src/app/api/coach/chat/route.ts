@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { buildCoachContext, saveCoachMessage } from '@/lib/coach/coach-context';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { JSONReliability } from '@/lib/ai/json-reliability';
+import { CoachOutputSchema } from '@/lib/ai/registry';
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_KEY!);
 
@@ -94,13 +96,9 @@ Generate executable JSON options.
 
         const result = await model.generateContent(prompt);
         const text = result.response.text();
-        let aiJson;
-        try {
-            aiJson = JSON.parse(text);
-        } catch (e) {
-            console.error('JSON Parse Error', text);
-            return NextResponse.json({ error: 'AI produced invalid JSON' }, { status: 500 });
-        }
+
+        // Validate and Repair
+        const aiJson = await JSONReliability.validateOrRepair(text, CoachOutputSchema, 'gemini-1.5-flash-latest');
 
         // 4. No Hydration needed - LLM generates full patches now.
         // Just standard validation or sanitization if needed.

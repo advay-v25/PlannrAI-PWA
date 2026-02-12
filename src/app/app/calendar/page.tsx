@@ -247,7 +247,7 @@ function CalendarContent() {
 
             // 2. Call AI Gateway
             const response = await apiClient.post<any>('/api/ai/execute', {
-                channel: 'calendar',
+                channel: 'coach',
                 input: "Optimize my schedule for today. Ensure all anchors are present and fit goals around them according to my energy.",
                 context,
                 limits: { max_options: 1 }

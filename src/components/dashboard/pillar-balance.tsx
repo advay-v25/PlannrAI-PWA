@@ -48,7 +48,7 @@ export function PillarBalance({ plannedMinutes, completedMinutes }: PillarBalanc
                 Pillar Balance
             </h3>
 
-            <div className="flex-1 w-full relative">
+            <div className="flex-1 w-full relative" style={{ minHeight: '200px' }}>
                 <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                         <Pie
