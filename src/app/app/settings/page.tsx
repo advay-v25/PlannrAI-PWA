@@ -324,14 +324,14 @@ export default function SettingsPage() {
                 </GlassCard>
             </section>
 
-            {/* System Status */}
-            <section className="space-y-4">
+            {/* System Status - Hidden for users */}
+            {/* <section className="space-y-4">
                 <div className="flex items-center gap-2 px-1">
                     <Activity className="w-4 h-4 text-[var(--color-primary)]" />
                     <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)]">System Reliability</h2>
                 </div>
                 <StatusPanel />
-            </section>
+            </section> */}
 
             {/* AI Usage Stats */}
             <section className="space-y-4">

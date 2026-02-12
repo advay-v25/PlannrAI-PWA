@@ -4,11 +4,11 @@ import { apiSuccess, apiFail } from '@/lib/api/envelope';
 export async function GET() {
     try {
         // Check 1: Env Vars
-        const checks = {
-            supabase_url: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-            supabase_anon: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-            openai_key: !!process.env.OPENAI_API_KEY,
-            groq_key: !!process.env.GROQ_API_KEY,
+        const env = {
+            supabase_url_present: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+            supabase_anon_present: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+            openai_key_present: !!process.env.OPENAI_API_KEY,
+            groq_key_present: !!process.env.GROQ_API_KEY,
         };
 
         // Check 2: Supabase Connectivity
@@ -17,8 +17,9 @@ export async function GET() {
 
         const healthData = {
             status: dbError ? 'degraded' : 'healthy',
-            checks,
-            db_connected: !dbError,
+            supabase_ok: !dbError,
+            ai_ok: env.groq_key_present, // Primary AI is Groq now
+            env,
             version: '1.0.0'
         };
 
