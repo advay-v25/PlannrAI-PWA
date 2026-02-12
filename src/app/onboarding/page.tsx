@@ -43,7 +43,7 @@ export default function OnboardingPage() {
     const isLastStep = currentStep === STEPS.length - 1;
     const isGoalsStep = currentStep === 2;
 
-    const totalMinutes = data.goals.reduce((sum, g) => sum + g.minutes_per_day, 0);
+    const totalMinutes = data.goals.reduce((sum: number, g: any) => sum + (g.minutes_per_day || 0), 0);
     // Simple check, real capacity logic is clearer in Step 2/3 themselves
 
     const handleComplete = async () => {
@@ -92,7 +92,8 @@ export default function OnboardingPage() {
 
             // 3. Reset & Redirect
             reset();
-            router.push('/app?setup=complete');
+            const warning = result.blocksCreated === 0 ? '&warning=empty_schedule' : '';
+            router.push(`/app?setup=complete${warning}`);
 
         } catch (error) {
             console.error('Onboarding sync failed:', error);

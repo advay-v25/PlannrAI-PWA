@@ -9,6 +9,9 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { startOfDay, endOfDay, addDays, format } from 'date-fns';
 
 // ── Types ────────────────────────────────────────────────────────────
+import { MemoryService } from '@/lib/services/memory-service';
+
+// ── Types ────────────────────────────────────────────────────────────
 export interface CoachContext {
     now: string;                   // ISO
     timezone: string;
@@ -53,6 +56,11 @@ export interface CoachContext {
         content_json: any | null;
         created_at: string;
     }>;
+    facts: Array<{
+        key: string;
+        value: any;
+        kind?: string;
+    }>;
 }
 
 // ── Builder ──────────────────────────────────────────────────────────
@@ -65,7 +73,7 @@ export async function buildCoachContext(
     const rangeEnd = endOfDay(addDays(now, 7));
 
     // Fire all queries in parallel
-    const [profileRes, goalsRes, scheduleRes, anchorsRes, threadRes] = await Promise.all([
+    const [profileRes, goalsRes, scheduleRes, anchorsRes, threadRes, factsRes] = await Promise.all([
         // 1. Profile preferences
         supabase
             .from('profiles')
@@ -98,6 +106,9 @@ export async function buildCoachContext(
 
         // 5. Thread history (last 20 messages), get-or-create thread
         getThreadHistory(userId, supabase),
+
+        // 6. Relevant Memory Facts
+        MemoryService.getRelevantFacts(userId, 10)
     ]);
 
     const profile = profileRes.data;
@@ -145,6 +156,11 @@ export async function buildCoachContext(
             days_of_week: a.days_of_week ?? [],
         })),
         thread: threadRes,
+        facts: (factsRes || []).map(f => ({
+            key: f.key,
+            value: f.value,
+            kind: f.kind
+        })),
     };
 }
 
@@ -208,11 +224,12 @@ export async function saveCoachMessage(
 ): Promise<void> {
     const threadId = await getOrCreateThread(userId, supabase);
 
-    await supabase.from('coach_messages').insert({
-        thread_id: threadId,
-        user_id: userId,
-        role,
-        content,
-        content_json: contentJson
-    });
+    // Use MemoryService to save and potentially trigger extraction
+    await MemoryService.addCoachMessage(
+        userId,
+        threadId,
+        role === 'user' ? 'user' : 'assistant', // 'assistant' maps to 'assistant'
+        contentJson ? JSON.stringify(contentJson) : (content || ''),
+        role === 'user' // Trigger extraction only for user messages
+    );
 }

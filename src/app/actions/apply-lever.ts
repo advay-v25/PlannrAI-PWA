@@ -47,12 +47,13 @@ export async function applyLeverAction(action: LeverAction) {
         }
 
         // Log to Memory (Fact)
-        await supabase.from('user_context').insert({
+        await supabase.from('memory_facts').insert({
             user_id: user.id,
-            type: 'fact',
-            content: `User accepted lever: ${action.description}`,
+            key: 'lever_accepted',
+            value: action.description,
+            kind: 'pattern', // Levers often establish new patterns
             confidence: 1.0,
-            source: 'weekly_review'
+            source_event_id: 'weekly_review' // abusing source_event_id a bit, or use a metadata field if exists
         });
 
         revalidatePath('/app');

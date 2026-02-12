@@ -4,125 +4,125 @@ import { PatchSchema } from './schemas';
 // --- Shared Types ---
 export type AIContext = Record<string, any>;
 export type AILimits = {
-    max_options?: number;
-    low_energy?: boolean;
-    overwhelmed?: boolean;
+  max_options?: number;
+  low_energy?: boolean;
+  overwhelmed?: boolean;
 };
 
 // --- Per-Channel Output Schemas ---
 
 // 1. Coach
 export const CoachOutputSchema = z.object({
-    intent: z.enum(['adjust_schedule', 'rebuild_day', 'rebuild_week', 'reduce_intensity', 'none']),
-    explanation: z.string().max(200),
-    options: z.array(z.object({
-        label: z.string().max(60),
-        patch: z.object({
-            ops: z.array(z.any()).max(50),
-            scope: z.enum(['day', 'week']).default('day'),
-            reason: z.string().max(140).optional(),
-        }),
-        tradeoff: z.string().max(120).optional()
-    })).max(3)
+  intent: z.enum(['adjust_schedule', 'rebuild_day', 'rebuild_week', 'reduce_intensity', 'none']),
+  explanation: z.string().max(200),
+  options: z.array(z.object({
+    label: z.string().max(60),
+    patch: z.object({
+      ops: z.array(z.any()).max(50),
+      scope: z.enum(['day', 'week']).default('day'),
+      reason: z.string().max(140).optional(),
+    }),
+    tradeoff: z.string().max(120).optional()
+  })).max(3)
 });
 
 // 2. Brain Dump
 export const BrainDumpOutputSchema = z.object({
-    extracted: z.object({
-        tasks: z.array(z.object({
-            title: z.string(),
-            estimated_minutes: z.number(),
-            pillar: z.string().optional(),
-            deadline: z.string().optional()
-        })).optional(),
-        constraints: z.array(z.object({
-            type: z.enum(['time_block', 'appointment', 'fatigue', 'travel', 'other']),
-            details: z.string(),
-            start: z.string().optional(),
-            end: z.string().optional(),
-            date: z.string().optional(),
-        })).optional(),
-        signals: z.object({
-            energy_delta: z.number().min(-2).max(2).optional(),
-            sentiment: z.number().min(-1).max(1).optional(),
-            overwhelm: z.number().min(0).max(1).optional()
-        })
+  extracted: z.object({
+    tasks: z.array(z.object({
+      title: z.string(),
+      estimated_minutes: z.number(),
+      pillar: z.string().optional(),
+      deadline: z.string().optional()
+    })).optional(),
+    constraints: z.array(z.object({
+      type: z.enum(['time_block', 'appointment', 'fatigue', 'travel', 'other']),
+      details: z.string(),
+      start: z.string().optional(),
+      end: z.string().optional(),
+      date: z.string().optional(),
+    })).optional(),
+    signals: z.object({
+      energy_delta: z.number().min(-2).max(2).optional(),
+      sentiment: z.number().min(-1).max(1).optional(),
+      overwhelm: z.number().min(0).max(1).optional()
+    })
+  }),
+  options: z.array(z.object({
+    label: z.string().max(60),
+    patch: z.object({
+      ops: z.array(z.any()).max(50),
+      scope: z.enum(['day', 'week']).default('day'),
+      reason: z.string().max(140).optional(),
     }),
-    options: z.array(z.object({
-        label: z.string().max(60),
-        patch: z.object({
-            ops: z.array(z.any()).max(50),
-            scope: z.enum(['day', 'week']).default('day'),
-            reason: z.string().max(140).optional(),
-        }),
-        tradeoff: z.string().max(120).optional()
-    })).max(3),
-    note: z.string().max(200)
+    tradeoff: z.string().max(120).optional()
+  })).max(3),
+  note: z.string().max(200)
 });
 
 // 3. Onboarding Plan
 export const OnboardingPlanOutputSchema = z.object({
-    patch: PatchSchema,
-    summary: z.object({
-        bullets: z.array(z.string()).max(5)
-    }),
-    warnings: z.array(z.string()).max(5)
+  patch: PatchSchema,
+  summary: z.object({
+    bullets: z.array(z.string()).max(5)
+  }),
+  warnings: z.array(z.string()).max(5)
 });
 
 // 4. Habit Stack
 export const HabitStackOutputSchema = z.object({
-    stacks: z.array(z.object({
-        name: z.string(),
-        steps: z.array(z.object({
-            title: z.string(),
-            minutes: z.number(),
-            trigger: z.string().optional(),
-            note: z.string().optional()
-        })),
-        schedule_hint: z.object({
-            time_of_day: z.enum(['morning', 'afternoon', 'evening'])
-        }).optional()
+  stacks: z.array(z.object({
+    name: z.string(),
+    steps: z.array(z.object({
+      title: z.string(),
+      minutes: z.number(),
+      trigger: z.string().optional(),
+      note: z.string().optional()
     })),
-    options: z.array(z.object({
-        label: z.string(),
-        patch: PatchSchema
-    })).optional()
+    schedule_hint: z.object({
+      time_of_day: z.enum(['morning', 'afternoon', 'evening'])
+    }).optional()
+  })),
+  options: z.array(z.object({
+    label: z.string(),
+    patch: PatchSchema
+  })).optional()
 });
 
 // 5. Goal Strategy
 export const GoalStrategyOutputSchema = z.object({
-    options: z.array(z.object({
-        label: z.string(),
-        patch: PatchSchema
-    })).describe('Provide 1-2 strategy options. The patch must contain an update_goal op with the ai_strategy field populated.')
+  options: z.array(z.object({
+    label: z.string(),
+    patch: PatchSchema
+  })).describe('Provide 1-2 strategy options. The patch must contain an update_goal op with the ai_strategy field populated.')
 });
 
 // 6. Weekly Review
 export const WeeklyReviewOutputSchema = z.object({
-    reality: z.string().max(300).describe('Narrative summary of what actually happened this week (max 300 chars)'),
-    patterns: z.array(z.object({
-        title: z.string().max(60),
-        evidence: z.string().max(120)
-    })).length(3).describe('Exactly 3 behavioral patterns with supporting data'),
-    lever: z.object({
-        label: z.string().max(80).describe('Short action label (max 80 chars)'),
-        patch: PatchSchema
-    }).describe('One executable lever that changes the system'),
-    note: z.string().max(160).describe('Encouraging closing remark (max 160 chars)')
+  reality: z.string().max(300).describe('Narrative summary of what actually happened this week (max 300 chars)'),
+  patterns: z.array(z.object({
+    title: z.string().max(60),
+    evidence: z.string().max(120)
+  })).length(3).describe('Exactly 3 behavioral patterns with supporting data'),
+  lever: z.object({
+    label: z.string().max(80).describe('Short action label (max 80 chars)'),
+    patch: PatchSchema
+  }).describe('One executable lever that changes the system'),
+  note: z.string().max(160).describe('Encouraging closing remark (max 160 chars)')
 });
 
 
 // --- Registry Definition ---
 
 export interface ChannelDef<T = any> {
-    schema: z.ZodSchema<T>;
-    systemPrompt: (context: AIContext, limits?: AILimits) => string;
-    userPrompt: (input: string, context?: AIContext) => string;
-    config: {
-        model: string;
-        temperature: number;
-        maxTokens: number;
-    };
+  schema: z.ZodSchema<T>;
+  systemPrompt: (context: AIContext, limits?: AILimits) => string;
+  userPrompt: (input: string, context?: AIContext) => string;
+  config: {
+    model: string;
+    temperature: number;
+    maxTokens: number;
+  };
 }
 
 const BASE_RULES = `
@@ -132,12 +132,12 @@ Rules:
 `.trim();
 
 export const ChannelRegistry: Record<string, ChannelDef> = {
-    coach: {
-        schema: CoachOutputSchema,
-        config: { model: 'llama-3.3-70b-versatile', temperature: 0.3, maxTokens: 1500 },
-        systemPrompt: (ctx, limits) => {
-            const maxOpts = limits?.low_energy || limits?.overwhelmed ? 2 : limits?.max_options ?? 3;
-            return `
+  coach: {
+    schema: CoachOutputSchema,
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.3, maxTokens: 1500 },
+    systemPrompt: (ctx, limits) => {
+      const maxOpts = limits?.low_energy || limits?.overwhelmed ? 2 : limits?.max_options ?? 3;
+      return `
 You are PlannrAI Coach — a TACTICAL Chief of Staff.
 ${BASE_RULES}
 
@@ -182,16 +182,19 @@ STRATEGY FOR OPTIONS:
 
 CONTEXT:
 ${JSON.stringify(ctx, null, 2)}
-`.trim();
-        },
-        userPrompt: (input) => input
-    },
 
-    brain_dump: {
-        schema: BrainDumpOutputSchema,
-        config: { model: 'llama-3.3-70b-versatile', temperature: 0.2, maxTokens: 2500 },
-        systemPrompt: (ctx) => {
-            return `
+LONG-TERM MEMORY (FACTS):
+${JSON.stringify((ctx as any).facts || [], null, 2)}
+`.trim();
+    },
+    userPrompt: (input) => input
+  },
+
+  brain_dump: {
+    schema: BrainDumpOutputSchema,
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.2, maxTokens: 2500 },
+    systemPrompt: (ctx) => {
+      return `
 You are PlannrAI Deviation Analyst — a TACTICAL signal extractor.
 ${BASE_RULES}
 
@@ -246,14 +249,14 @@ OUTPUT JSON:
 CONTEXT:
 ${JSON.stringify(ctx, null, 2)}
 `.trim();
-        },
-        userPrompt: (input) => `Brain dump text:\n${input}`
     },
+    userPrompt: (input) => `Brain dump text:\n${input}`
+  },
 
-    onboarding_plan: {
-        schema: OnboardingPlanOutputSchema,
-        config: { model: 'llama-3.3-70b-versatile', temperature: 0.2, maxTokens: 4000 },
-        systemPrompt: (ctx) => `
+  onboarding_plan: {
+    schema: OnboardingPlanOutputSchema,
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.2, maxTokens: 4000 },
+    systemPrompt: (ctx) => `
 You are PlannrAI Onboarding Planner.
 Generate a complete 7-day schedule from user constraints.
 ${BASE_RULES}
@@ -270,13 +273,13 @@ JSON schema:
 Constraints:
 ${JSON.stringify(ctx, null, 2)}
 `.trim(),
-        userPrompt: (input) => input
-    },
+    userPrompt: (input) => input
+  },
 
-    habit_stack: {
-        schema: HabitStackOutputSchema,
-        config: { model: 'llama-3.3-70b-versatile', temperature: 0.4, maxTokens: 1500 },
-        systemPrompt: (ctx) => `
+  habit_stack: {
+    schema: HabitStackOutputSchema,
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.4, maxTokens: 1500 },
+    systemPrompt: (ctx) => `
 You are PlannrAI Habit Designer.
 Design habit stacks using BJ Fogg's Tiny Habits method AND propose concrete calendar placements.
 ${BASE_RULES}
@@ -308,13 +311,13 @@ OUTPUT JSON:
 Context (Profile, Schedule, Goals):
 ${JSON.stringify(ctx, null, 2)}
 `.trim(),
-        userPrompt: (input) => input
-    },
+    userPrompt: (input) => input
+  },
 
-    goal_strategy: {
-        schema: GoalStrategyOutputSchema,
-        config: { model: 'llama-3.3-70b-versatile', temperature: 0.4, maxTokens: 2000 },
-        systemPrompt: (ctx) => `
+  goal_strategy: {
+    schema: GoalStrategyOutputSchema,
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.4, maxTokens: 2000 },
+    systemPrompt: (ctx) => `
 You are PlannrAI Goal Strategist.
 Decompose a goal into a high-precision execution plan.
 ${BASE_RULES}
@@ -345,13 +348,13 @@ JSON schema:
 Context:
 ${JSON.stringify(ctx, null, 2)}
 `.trim(),
-        userPrompt: (input) => `Goal: ${input}`
-    },
+    userPrompt: (input) => `Goal: ${input}`
+  },
 
-    weekly_review: {
-        schema: WeeklyReviewOutputSchema,
-        config: { model: 'llama-3.3-70b-versatile', temperature: 0.3, maxTokens: 1500 },
-        systemPrompt: (ctx) => `
+  weekly_review: {
+    schema: WeeklyReviewOutputSchema,
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.3, maxTokens: 1500 },
+    systemPrompt: (ctx) => `
 You are PlannrAI Weekly Analyst. Analyze the user's week and produce a structured review.
 ${BASE_RULES}
 
@@ -378,8 +381,8 @@ OUTPUT JSON:
 Context (Profile, Goals, Last 7 Days Schedule):
 ${JSON.stringify(ctx, null, 2)}
 `.trim(),
-        userPrompt: (input) => input
-    }
+    userPrompt: (input) => input
+  }
 };
 
 export type ChannelName = keyof typeof ChannelRegistry;

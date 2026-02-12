@@ -297,7 +297,7 @@ export class WeekOrchestrator {
             .select("*")
             .eq("user_id", userId)
             // Anchor = commitment_id IS NOT NULL OR is_locked = TRUE
-            .or("commitment_id.neq.null,is_locked.eq.true")
+            .or("commitment_id.not.is.null,is_locked.eq.true")
             .gte("date", start)
             .lte("date", end);
 

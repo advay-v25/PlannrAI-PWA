@@ -10,7 +10,7 @@ import {
     Brain, Dumbbell, Briefcase, // Pillars
     Clock, Zap, Sparkles, X, Plus, CalendarDays
 } from 'lucide-react';
-import type { GoalCategory, GoalImportance, EnergyDemand } from '@/types/database';
+import type { GoalCategory, GoalImportance, EnergyDemand } from '@/types/goals';
 
 // Helper for icons
 const PILLARS = [
@@ -79,54 +79,28 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
             return;
         }
 
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        try {
+            // Use API Client to ensure backend hooks (Context triggers) run
+            // This will trigger ReactiveGoalService -> Coach Proposal
+            const { apiClient } = await import('@/lib/api-client');
+            const { data } = await apiClient.post<{ data: { goal: any } }>('/api/goals', goalData);
 
-        const newGoal = {
-            ...goalData,
-            user_id: user.id,
-        };
+            if (data?.goal) {
+                addGoal(data.goal);
 
-        // Insert Goal
-        const { data: insertedGoal, error } = await supabase.from('goals').insert(newGoal).select().single();
-
-        if (insertedGoal && !error) {
-            addGoal(insertedGoal);
-
-            // Phase 4: Trigger Auto-Schedule
-            onClose(); // Close this modal
-
-            // Ideally call a callback to open the PreviewModal with results.
-            // But since this component is often used in isolation (e.g. from Dashboard),
-            // We need a way to pass this "Plan" up.
-            // For now, let's use the onSuccess callback to pass data if supported,
-            // OR trigger a global event like 'open-agent' with a special payload.
-
-            // Simplest for now: Use `useAgentStore` to inject a message pretending to be the AI offering a plan.
-            const { useAgentStore } = await import('@/stores/agent-store');
-            const agentStore = useAgentStore.getState();
-
-            agentStore.sendMessage(`I've added "${title}". Checking your calendar...`);
-
-            try {
-                const scheduleRes = await fetch('/api/goals/auto-schedule', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ goal_id: insertedGoal.id })
-                });
-                const scheduleData = await scheduleRes.json();
-
-                if (scheduleData.success && scheduleData.proposal) {
-                    // Inject Option
-                    // Force inject the option into the chat
-                    // This is a bit hacky but wires it into the standard flow
-                    // TODO: exposed a method in AgentStore to `presentOption` directy.
-                }
-            } catch (e) {
-                console.error("Auto-schedule failed", e);
+                // Notify user via Toast that Coach is thinking
+                const { useToast } = await import('@/components/ui/toast');
+                // Note: We can't easily access hook here if not imported at top level, 
+                // but we can assume success if no error.
+                // The parent component might handle toast, or we rely on 'addGoal' updating UI.
             }
 
             if (onSuccess) onSuccess();
+            onClose();
+
+        } catch (error) {
+            console.error('Failed to create goal:', error);
+            // Ideally show error toast here
         }
     };
 

@@ -63,6 +63,7 @@ export const POST = secureApiRoute(
                 user_id: userId,
                 title: g.title,
                 category: g.category,
+                pillar: g.pillar || g.category, // Sync pillar with category if missing
                 importance: g.importance || 'medium',
                 minutes_per_day: g.minutes_per_day || 30,
                 days_per_week: g.days_per_week || 5,

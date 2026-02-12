@@ -51,9 +51,10 @@ export const GET = secureApiRoute(
         const allSignals = dumps?.flatMap(d => d.extracted_json?.signals || d.extracted_json?.extracted_signals || []) || [];
         const allConstraints = dumps?.flatMap(d => d.extracted_json?.constraints || d.extracted_json?.detected_constraints || []) || [];
 
-        // Fetch Profile & Goals for context
+        // Fetch Profile, Goals & Facts
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', context.userId).single();
         const { data: goals } = await supabase.from('goals').select('*').eq('user_id', context.userId).eq('is_paused', false);
+        const { data: facts } = await supabase.from('memory_facts').select('*').eq('user_id', context.userId).order('confidence', { ascending: false }).limit(10);
 
         // Fetch Intelligence Context (if needed) or mock
         // We skip heavy ContextEngine for now as it's server-heavy. 
@@ -67,6 +68,7 @@ export const GET = secureApiRoute(
             constraints: allConstraints.slice(0, 10),
             goals: goals || [],
             preferences: profile || {},
+            facts: facts || [],
             weekStart,
             weekEnd
         });

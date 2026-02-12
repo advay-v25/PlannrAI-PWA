@@ -17,6 +17,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { CommitmentModal } from '@/components/goals/commitment-modal';
 import { DailyGrid } from '@/components/calendar/daily-grid';
+import { AgendaView } from '@/components/calendar/agenda-view';
 import { ConflictResolutionModal } from '@/components/calendar/conflict-resolution-modal';
 import { ConflictResolver, ResolutionOption } from '@/lib/calendar/conflict-resolver';
 
@@ -351,6 +352,9 @@ function CalendarContent() {
         }
     };
 
+    // View State
+    const [viewMode, setViewMode] = useState<'grid' | 'agenda'>('grid');
+
     return (
         <div className="space-y-8 pb-12">
             {/* Header Area */}
@@ -363,6 +367,22 @@ function CalendarContent() {
                 </div>
 
                 <div className="flex items-center gap-3">
+                    {/* View Toggle */}
+                    <div className="bg-white/5 p-1 rounded-lg flex items-center border border-white/5">
+                        <button
+                            onClick={() => setViewMode('grid')}
+                            className={`p-2 rounded-md transition-all ${viewMode === 'grid' ? 'bg-white/10 text-white shadow-sm' : 'text-[var(--text-tertiary)] hover:text-white'}`}
+                        >
+                            <CalendarIcon className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => setViewMode('agenda')}
+                            className={`p-2 rounded-md transition-all ${viewMode === 'agenda' ? 'bg-white/10 text-white shadow-sm' : 'text-[var(--text-tertiary)] hover:text-white'}`}
+                        >
+                            <ListChecks className="w-4 h-4" />
+                        </button>
+                    </div>
+
                     <GlassButton
                         variant="primary"
                         className="shadow-lg shadow-primary/20 bg-gradient-to-r from-primary to-blue-600 border-none group px-6"
@@ -492,14 +512,26 @@ function CalendarContent() {
                     {isLoading ? (
                         <div className="h-[600px] rounded-[2.5rem] bg-white/5 animate-pulse" />
                     ) : (
-                        <DailyGrid
-                            date={selectedDate}
-                            blocks={blocks}
-                            onBlockClick={(block) => !isBlockImmutable(block) && setEditingBlock(block)}
-                            onSlotClick={(start, end) => setCreatingBlock({ start_time: start, end_time: end, context: '' })}
-                            onStatusChange={handleStatusChange}
-                            onBlockMove={handleBlockMove}
-                        />
+                        viewMode === 'grid' ? (
+                            <DailyGrid
+                                date={selectedDate}
+                                blocks={blocks}
+                                onBlockClick={(block) => !isBlockImmutable(block) && setEditingBlock(block)}
+                                onSlotClick={(start, end) => setCreatingBlock({ start_time: start, end_time: end, context: '' })}
+                                onStatusChange={handleStatusChange}
+                                onBlockMove={handleBlockMove}
+                            />
+                        ) : (
+                            <AgendaView
+                                blocks={blocks}
+                                onBlockClick={(block: ScheduleBlock & { goal?: Goal }) => !isBlockImmutable(block) && setEditingBlock(block)}
+                                onStatusChange={handleStatusChange}
+                                onDelete={(block: ScheduleBlock) => {
+                                    setEditingBlock(block as any); // cast for now as setEditingBlock expects & { goal? }
+                                    handleDeleteBlock();
+                                }}
+                            />
+                        )
                     )}
                 </div>
 

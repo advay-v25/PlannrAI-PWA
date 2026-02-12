@@ -68,25 +68,28 @@ export default function BrainDumpPage() {
         setIsLoading(true);
 
         try {
-            // Call New Brain Dump Engine
-            const response = await apiClient.post<any>('/api/brain-dump/process', {
-                text: messageText
+            // Call Unified AI Gateway
+            const response = await apiClient.post<any>('/api/ai/execute', {
+                channel: 'brain_dump',
+                input: messageText,
+                context: {}, // Context is built on server
+                limits: { max_options: 3 }
             });
 
             // Handle Response
             const data = response.data || response;
 
-            if (data.analysis) {
+            if (data.note) {
                 const assistantMessage: Message = {
                     id: `donna-${Date.now()}`,
                     role: 'assistant',
-                    content: data.analysis.note || "I've processed that.",
-                    // Map hydrated patches to UI
-                    recommendedActions: data.patches?.map((p: any) => ({
-                        label: p.title,
-                        patch: p.patch,
-                        reasoning: p.impact
-                    })),
+                    content: data.note || "I've processed that.",
+                    // Map Unified Schema options to UI actions
+                    recommendedActions: data.options?.map((opt: any) => ({
+                        label: opt.label,
+                        patch: opt.patch,
+                        reasoning: opt.tradeoff || opt.patch.reason || 'Recommended action'
+                    })) || [],
                     timestamp: new Date(),
                 };
                 setMessages(prev => [...prev, assistantMessage]);

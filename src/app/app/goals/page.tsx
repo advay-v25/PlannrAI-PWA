@@ -35,11 +35,7 @@ import {
 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import type { Goal } from '@/types/database';
-
-export type GoalCategory = 'mind' | 'body' | 'craft';
-export type GoalImportance = 'low' | 'medium' | 'high';
-export type EnergyDemand = 'light' | 'medium' | 'heavy';
-export type GoalStatus = 'active' | 'paused' | 'archived';
+import type { GoalCategory, GoalImportance, EnergyDemand, GoalStatus } from '@/types/goals';
 
 const PILLARS = [
     { id: 'mind' as GoalCategory, label: 'Mind', icon: Brain, color: 'var(--color-mind)', softColor: 'var(--color-mind-soft)' },
@@ -163,10 +159,8 @@ export default function GoalsPage() {
         removeGoal(id);
 
         try {
-            await apiClient.post('/api/goals/sync', {
-                operation: 'delete',
-                goal_id: id
-            });
+            // Use standard REST DELETE
+            await apiClient.delete('/api/goals', { id });
             showToast('🗑️ Goal deleted', 'info');
         } catch (e) {
             console.error(e);

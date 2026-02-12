@@ -28,6 +28,7 @@ import type { OptimizationContext } from '@/lib/intelligence/context-engine';
 
 import { formatDate, getGreeting } from '@/lib/utils';
 import type { ScheduleBlock, InterventionLog, Goal } from '@/types/database';
+import { WeekPlanner, PlanWeekFAB } from '@/components/week-planner';
 
 export default function HomePage() {
     const supabase = createClient();
@@ -36,11 +37,15 @@ export default function HomePage() {
     const { todayLog, setTodayLog } = useDailyLogStore();
     const { showToast } = useToast();
     const [isLoading, setIsLoading] = useState(true);
-    const [todayBlocks, setTodayBlocks] = useState<ScheduleBlock[]>([]);
+
+    // Extended type for blocks with joined goal
+    type ScheduleBlockWithGoal = ScheduleBlock & { goal?: Goal };
+    const [todayBlocks, setTodayBlocks] = useState<ScheduleBlockWithGoal[]>([]);
     const [activeIntervention, setActiveIntervention] = useState<InterventionLog | null>(null);
     const [anticipationSignal, setAnticipationSignal] = useState<import('@/lib/intelligence/anticipation-service').AnticipationSignal | null>(null);
     const [intelContext, setIntelContext] = useState<OptimizationContext | null>(null);
     const [isSyncingIntel, setIsSyncingIntel] = useState(false);
+    const [showWeekPlanner, setShowWeekPlanner] = useState(false);
 
     useEffect(() => {
         async function loadData() {
@@ -189,7 +194,7 @@ export default function HomePage() {
 
     goals.forEach(g => {
         if (g.category in plannedByPillar) {
-            plannedByPillar[g.category as keyof typeof plannedByPillar] += g.minutes_per_day;
+            plannedByPillar[g.category as keyof typeof plannedByPillar] += (g.minutes_per_day || 0);
         }
     });
 
@@ -338,6 +343,38 @@ export default function HomePage() {
                 goals={goals}
                 onBlocksUpdated={refreshBlocks}
             />
+
+            {/* Week Planner Modal & Trigger */}
+            <AnimatePresence>
+                {showWeekPlanner && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="w-full max-w-4xl max-h-[90vh] overflow-y-auto"
+                        >
+                            <WeekPlanner
+                                onClose={() => setShowWeekPlanner(false)}
+                                onApply={() => {
+                                    refreshBlocks();
+                                    setShowWeekPlanner(false);
+                                }}
+                                context={{
+                                    goals,
+                                    anchors: [], // TODO: Load anchors if needed, orchestrator handles it mostly
+                                    user_profile: profile
+                                }}
+                            />
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* AI Floating Action Button (Bottom Right) - Above Reality Intake */}
+            <div className="fixed bottom-24 right-6 z-40">
+                <PlanWeekFAB onClick={() => setShowWeekPlanner(true)} />
+            </div>
         </>
     );
 }
