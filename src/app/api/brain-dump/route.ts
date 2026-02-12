@@ -48,26 +48,11 @@ export const POST = secureApiRoute(
             return apiError('Failed to create brain dump', 500);
         }
 
-        // Process with AI (Await for reliability)
-        try {
-            const { BrainDumpService } = await import('@/lib/brain-dump/brain-dump-service');
-            const { buildBrainDumpContext, saveBrainDumpExtraction, updateUserStateFromSignals } = await import('@/lib/brain-dump/brain-dump-context');
-            const { createClient } = await import('@/lib/supabase/server');
+        // Process with AI (Removed legacy service call - frontend now uses /api/ai/execute)
+        // The analysis is done via the Unified Gateway.
 
-            const supabase = await createClient();
-            const dumpContext = await buildBrainDumpContext(context.userId, supabase);
-
-            const { analysis } = await BrainDumpService.process(contentValidation.sanitized, dumpContext);
-
-            // Persist analysis
-            await saveBrainDumpExtraction(context.userId, dump.id, analysis.extracted, supabase);
-            await updateUserStateFromSignals(context.userId, analysis.extracted.signals, supabase);
-
-        } catch (error) {
-            console.error('Brain Dump Processing Failed (Background):', error);
-            // We do NOT fail the request if AI fails, as the dump is saved.
-            // But we might want to flag it?
-        }
+        // Return success with the created dump
+        return apiSuccess({ dump }, 201);
 
         return apiSuccess({ dump }, 201);
     },

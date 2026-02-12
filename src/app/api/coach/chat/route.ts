@@ -1,43 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { buildCoachContext, saveCoachMessage } from '@/lib/coach/coach-context';
-import { PatchGenerator } from '@/lib/coach/patch-generator';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_KEY!);
 
+const BASE_RULES = `
+Rules:
+- Output STRICT JSON only. No markdown, no commentary.
+- Use only provided context. Do not hallucinate.
+`.trim();
+
 const COACH_SYSTEM_INSTRUCTION = `
-ROLE: Chief of Staff.
-GOAL: Manage schedule with executable actions.
-TONE: Concise, tactical, low-ego.
-Forbidden: "I hope this helps", "Here are options", motivational fluff.
+You are PlannrAI Coach — a TACTICAL Chief of Staff.
+${BASE_RULES}
 
-INPUT:
-- User message
-- Schedule (JSON) in context
-- Thread history
+BEHAVIOUR:
+- Be SHORT and DECISIVE. No essays. Max 160 chars in explanation.
+- If the user's message implies a scheduling change, return 2-3 patch options.
+- If the user just chats or asks a question with no schedule impact, return intent="none" and explain briefly.
+- Every option MUST contain a valid patch with concrete ops referencing real event IDs from the schedule below.
+- No patch = no option. Never return an option without a patch.
 
-OUTPUT:
-Strict JSON adhering to this schema:
+HARD CONSTRAINTS — VIOLATION = FAILURE:
+1. NEVER move or delete blocks where is_locked=true.
+2. NEVER move or delete anchor blocks (source="anchor" or has commitment_id).
+3. NEVER schedule anything outside awake hours (assume 06:00-23:00 unless context says otherwise).
+4. NEVER delete or move meal blocks (source="meal").
+5. Respect buffer_minutes between blocks.
+6. All times in ISO format matching schedule data.
+
+PATCH OPS (use CoachV4 format):
+- { "op": "move", "event_id": "<uuid>", "to_start": "<ISO>", "to_end": "<ISO>" }
+- { "op": "create", "event": { "title": "...", "start_time": "<ISO>", "end_time": "<ISO>", "block_type": "...", "source": "coach" } }
+- { "op": "update", "event_id": "<uuid>", "fields": { ... } }
+- { "op": "delete", "event_id": "<uuid>" }
+
+OUTPUT JSON (strict):
 {
-  "intent": "adjust_schedule" | "rebuild_day" | "rebuild_week" | "reduce_intensity" | "insert_commitment" | "none",
-  "explanation": "one sentence diagnosis, max 160 chars",
-  "options": [
-    {
-      "label": "Action label (max 60 chars)",
-      "tradeoff": "Why this option? (max 100 chars)",
-      "patch_pattern": "busy_slot" | "fatigue" | "add_task" | "custom",
-      "args": { ... }
-    }
-  ]
+  "intent": "adjust_schedule"|"rebuild_day"|"rebuild_week"|"reduce_intensity"|"none",
+  "explanation": "string (max 160 chars)",
+  "options": [{
+    "label": "string (max 60 chars)",
+    "patch": { "ops": [...], "scope": "day"|"week", "reason": "string (max 100)" },
+    "tradeoff": "string (max 120 chars, optional)"
+  }]
 }
 
-RULES:
-1. "I'm busy at 4pm" -> pattern="busy_slot"
-2. "I'm exhausted" -> pattern="fatigue"
-3. "Add Task X" -> pattern="add_task"
-4. conversational -> intent="none", explanation="Ready. Share constraint."
-5. Max 3 options.
+If impossible: intent="none", options=[], explanation explains why.
+
+STRATEGY FOR OPTIONS:
+- Option 1: Minimal move (move one block to nearest free slot)
+- Option 2: Rebalance today (reshuffle flexible blocks)
+- Option 3: Rebalance week (spread load across days) — only if relevant
 `.trim();
 
 export async function POST(request: NextRequest) {
@@ -68,8 +83,9 @@ ${JSON.stringify({
             timezone: context.timezone,
             schedule_summary: context.schedule.map(b => `${b.start_time}: ${b.title} (${b.block_type})`).join('\n'),
             anchors: context.anchors.length,
-            profile: context.profile
-        })}
+            profile: context.profile,
+            facts: (context as any).facts || []
+        }, null, 2)}
 
 USER MESSAGE: "${message}"
 
@@ -86,37 +102,13 @@ Generate executable JSON options.
             return NextResponse.json({ error: 'AI produced invalid JSON' }, { status: 500 });
         }
 
-        // 4. Hydrate Patches (Server-side Logic)
-        // The LLM gives us the *intent* and *args*, we generate the *actual ops* using deterministic code.
-        // This is safer than asking LLM to generate raw JSON patches.
-
-        const hydratedOptions = await Promise.all((aiJson.options || []).map(async (opt: any) => {
-            let ops: any[] = [];
-
-            if (opt.patch_pattern === 'busy_slot') {
-                ops = await PatchGenerator.handleBusy(context, opt.args.start, opt.args.end);
-            } else if (opt.patch_pattern === 'fatigue') {
-                ops = await PatchGenerator.handleFatigue(context);
-            } else if (opt.patch_pattern === 'add_task') {
-                ops = await PatchGenerator.handleAdd(context, opt.args.title, opt.args.duration, opt.args.time);
-            }
-
-            return {
-                ...opt,
-                patch: {
-                    reason: opt.tradeoff,
-                    ops: ops
-                }
-            };
-        }));
-
-        // Filter out empty options (where heuristic failed)
-        const finalOptions = hydratedOptions.filter(o => o.patch.ops.length > 0);
+        // 4. No Hydration needed - LLM generates full patches now.
+        // Just standard validation or sanitization if needed.
 
         const finalResponse = {
-            intent: finalOptions.length > 0 ? aiJson.intent : 'none',
-            explanation: finalOptions.length > 0 ? aiJson.explanation : (aiJson.intent !== 'none' ? "I couldn't find a valid schedule change for that request." : aiJson.explanation),
-            options: finalOptions
+            intent: aiJson.intent || 'none',
+            explanation: aiJson.explanation || "I'm not sure what to do.",
+            options: aiJson.options || []
         };
 
         // 5. Save Assistant Message

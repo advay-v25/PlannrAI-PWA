@@ -301,24 +301,23 @@ export async function generateCoachResponse(
     userId: string
 ): Promise<any> {
     // RETRIEVE Context
-    const { MemoryManager } = await import('@/lib/ai/memory'); // Lazy import to avoid circular dep if any
-    const memoryContext = await MemoryManager.retrieveContext(userId);
+    // const { MemoryManager } = await import('@/lib/ai/memory'); // Removed legacy memory
+    // const memoryContext = await MemoryManager.retrieveContext(userId);
 
     const prompt = `
-[COACH INTENT]
-Direct user request: "${message}"
+        [COACH INTENT]
+        Direct user request: "${message}"
 
-CONTEXT:
-- Energy: ${context.energyLevel ? context.energyLevel + '/5' : 'Unknown'}
-- Goals: ${context.goals?.map(g => g.title).join(', ') || 'None'}
-- Memory: ${memoryContext || 'None'}
-- Signals: ${JSON.stringify(context.recentSignals) || 'None'}
+        CONTEXT:
+        - Energy: ${context.energyLevel ? context.energyLevel + '/5' : 'Unknown'}
+        - Goals: ${context.goals?.map(g => g.title).join(', ') || 'None'}
+        - Signals: ${JSON.stringify(context.recentSignals) || 'None'}
 
-MISSION:
-1. Act, don't talk. Respond in <= 2 lines.
-2. Max 3 options.
-3. If intent is to change something, use "mode": "propose" or "execute" with a patch.
-`;
+        MISSION:
+        1. Act, don't talk. Respond in <= 2 lines.
+        2. Max 3 options.
+        3. If intent is to change something, use "mode": "propose" or "execute" with a patch.
+    `;
 
     const response = await generateAIResponse(
         prompt,
