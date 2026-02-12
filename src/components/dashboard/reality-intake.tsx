@@ -72,7 +72,7 @@ export function RealityIntake({
 
         try {
             const aiData = await apiClient.ai.execute({
-                channel: 'home',
+                channel: 'brain_dump',
                 input: textInput,
                 context: {
                     current_schedule: todayBlocks.map(b => ({
@@ -94,21 +94,26 @@ export function RealityIntake({
                 }
             });
 
-            if (aiData.summary) {
+            if (aiData.note) {
+                setAiSummary(aiData.note);
+            } else if (aiData.summary) {
                 setAiSummary(aiData.summary);
             }
 
-            if (aiData.mode === 'propose' && aiData.options?.length > 0) {
+            if (aiData.options && aiData.options.length > 0) {
                 // Map AI options to mutation options
                 const mapped: MutationOption[] = aiData.options.map((opt: any) => ({
                     id: opt.id || crypto.randomUUID(),
-                    title: opt.title || 'Untitled Option',
-                    impact: opt.impact || 'Unknown',
+                    title: opt.label || opt.title || 'Untitled Option',
+                    impact: opt.tradeoff || opt.impact || 'Unknown',
                     patch: opt.patch
                 }));
                 setAiOptions(mapped);
-            } else if (aiData.mode === 'refuse') {
-                setError(aiData.refusal?.reason || 'AI could not process this request.');
+            } else {
+                // If no options, maybe it was just an extraction or refusal
+                if (!aiData.note && !aiData.summary) {
+                    setError('AI could not process this request.');
+                }
             }
         } catch (err: any) {
             setError(err.message || 'Failed to process. Please try again.');

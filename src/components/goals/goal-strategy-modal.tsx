@@ -65,7 +65,7 @@ export function GoalStrategyModal({
         setIsLoading(true);
         try {
             const aiData = await apiClient.ai.execute({
-                channel: 'goal_decomposition',
+                channel: 'goal_strategy',
                 input: `Decompose goal: ${goal.title}`,
                 context: {
                     goal_id: goal.id,

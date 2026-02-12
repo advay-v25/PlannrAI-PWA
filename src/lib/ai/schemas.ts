@@ -14,7 +14,8 @@ export const ChannelEnum = z.enum([
     "settings",
     "habit_stack",
     "habit_stack.optimize",
-    "goal_decomposition",
+    "goal_strategy",
+    "goal_decomposition", // kept for legacy if needed
     "goals.suggest",
     "routines.generate",
     "scans.analyze",
@@ -111,12 +112,15 @@ export const RefusalSchema = z.object({
 
 export const AIResponseSchema = z.object({
     channel: ChannelEnum,
-    summary: z.string().max(160, "Summary must be tactical and under 160 chars"),
+    summary: z.string().max(500).optional(), // Relaxed length and made optional as some use note
+    note: z.string().optional(), // Added for brain_dump/goal_strategy
+    explanation: z.string().optional(), // Added for coach
     mode: ModeEnum,
-    options: z.array(OptionSchema).max(3, "Max 3 options allowed").optional(),
+    options: z.array(OptionSchema).max(10).optional(), // Increased max options
     question: QuestionSchema.optional(),
     refusal: RefusalSchema.optional(),
 }).superRefine((val, ctx) => {
+
     const optionsLen = val.options?.length ?? 0;
 
     if (val.mode === "execute") {

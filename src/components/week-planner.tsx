@@ -70,7 +70,7 @@ export function WeekPlanner({ onClose, onApply, context }: WeekPlannerProps) {
 
         try {
             const aiData = await apiClient.ai.execute({
-                channel: 'calendar',
+                channel: 'coach',
                 input: `Plan my week starting ${weekStart}. Create a balanced schedule with my goals and anchors.`,
                 context: {
                     week_start: weekStart,
@@ -105,7 +105,7 @@ export function WeekPlanner({ onClose, onApply, context }: WeekPlannerProps) {
                 setPlan({
                     schedule: { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] }, // TODO: Hydrate from patch or response
                     reasoning: {
-                        overview: aiData.summary || 'Plan generated.',
+                        overview: aiData.explanation || aiData.summary || 'Plan generated.',
                         energy_considerations: 'Optimized for you.',
                         balance: 'Balanced schedule.'
                     },
@@ -115,7 +115,7 @@ export function WeekPlanner({ onClose, onApply, context }: WeekPlannerProps) {
 
                 setSource('ai');
             } else {
-                setError(aiData.refusal?.reason || 'AI suggested no changes.');
+                setError(aiData.refusal?.reason || aiData.explanation || 'AI suggested no changes.');
             }
 
         } catch (err: any) {
