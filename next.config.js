@@ -11,9 +11,7 @@ const nextConfig = {
     // Enable Turbopack with empty config for Next.js 16
     turbopack: {},
     // PWA will be handled via service worker registration in app code
-    eslint: {
-        ignoreDuringBuilds: true,
-    },
+    // PWA will be handled via service worker registration in app code
     typescript: {
         ignoreBuildErrors: true,
     },

@@ -6,26 +6,14 @@ import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
 import { Brain, Send, User, Loader2, Sparkles, CheckCircle2, ArrowUp } from 'lucide-react';
 
-import { ProposedActionCard } from '@/components/brain-dump/proposed-action-card';
-import { SignalCard } from '@/components/brain-dump/signal-card';
-import { CalendarPatch } from '@/types/calendar-patch';
+import { BrainDumpTriage } from '@/components/brain-dump/brain-dump-triage';
 import { apiClient } from '@/lib/api-client';
 
 interface Message {
     id: string;
     role: 'user' | 'assistant';
     content: string;
-    // New structured actions
-    recommendedActions?: Array<{
-        label: string;
-        patch: CalendarPatch;
-        reasoning: string;
-    }>;
-    signals?: {
-        energy_delta?: number;
-        sentiment?: number;
-        overwhelm?: number;
-    };
+    triageData?: any; // New schema data
     timestamp: Date;
 }
 
@@ -48,15 +36,6 @@ export default function BrainDumpPage() {
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
-
-    const [goals, setGoals] = useState<any[]>([]);
-
-    // Load context on mount
-    useEffect(() => {
-        apiClient.get('/api/goals').then((data: any) => {
-            if (data?.goals) setGoals(data.goals);
-        }).catch(() => { });
-    }, []);
 
     const sendMessage = async (text?: string) => {
         const messageText = text || input.trim();
@@ -85,24 +64,15 @@ export default function BrainDumpPage() {
             // Handle Response
             const data = response.data || response;
 
-            if (data.note) {
-                const assistantMessage: Message = {
-                    id: `donna-${Date.now()}`,
-                    role: 'assistant',
-                    content: data.note || "I've processed that.",
-                    signals: data.extracted?.signals,
-                    // Map Unified Schema options to UI actions
-                    recommendedActions: data.options?.map((opt: any) => ({
-                        label: opt.label,
-                        patch: opt.patch,
-                        reasoning: opt.tradeoff || opt.patch.reason || 'Recommended action'
-                    })) || [],
-                    timestamp: new Date(),
-                };
-                setMessages(prev => [...prev, assistantMessage]);
-            } else {
-                throw new Error('No analysis returned');
-            }
+            const assistantMessage: Message = {
+                id: `donna-${Date.now()}`,
+                role: 'assistant',
+                content: data.strategy.summary || "I've analyzed that for you.",
+                triageData: data,
+                timestamp: new Date(),
+            };
+            setMessages(prev => [...prev, assistantMessage]);
+
         } catch (error) {
             console.error('Chat error:', error);
             setMessages(prev => [...prev, {
@@ -183,41 +153,24 @@ export default function BrainDumpPage() {
                                     </div>
                                 )}
 
-                                <div className={`max-w-[80%] ${message.role === 'user' ? 'order-first' : ''}`}>
-                                    <GlassCard
-                                        padding="sm"
-                                        className={message.role === 'user'
-                                            ? 'bg-[var(--color-primary)]/20'
-                                            : 'border-l-2 border-[var(--color-accent-mind)]'
-                                        }
-                                    >
-                                        <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
-
-                                        {/* Signals (Reactions) */}
-                                        {message.signals && <SignalCard signals={message.signals} />}
-
-                                        {/* Recommended Actions (Rich UI) */}
-                                        {message.recommendedActions && message.recommendedActions.length > 0 && (
-                                            <div className="mt-4 pt-4 border-t border-[var(--glass-border)] space-y-3">
-                                                <p className="text-[10px] font-bold text-[var(--color-primary)] uppercase tracking-wider flex items-center gap-1">
-                                                    <Sparkles className="w-3 h-3" />
-                                                    Proposed Changes
-                                                </p>
-                                                {message.recommendedActions.map((action, i) => (
-                                                    <ProposedActionCard
-                                                        key={i}
-                                                        action={action}
-                                                        onApply={() => {
-                                                            // Optional: mark as applied visual state
-                                                        }}
-                                                        onDismiss={() => {
-                                                            // Optional: remove from view
-                                                        }}
-                                                    />
-                                                ))}
-                                            </div>
-                                        )}
-                                    </GlassCard>
+                                <div className={`max-w-[90%] md:max-w-[70%] ${message.role === 'user' ? 'order-first' : ''}`}>
+                                    {message.triageData ? (
+                                        <BrainDumpTriage
+                                            data={message.triageData}
+                                            onComplete={() => { }}
+                                            onCancel={() => { }}
+                                        />
+                                    ) : (
+                                        <GlassCard
+                                            padding="sm"
+                                            className={message.role === 'user'
+                                                ? 'bg-[var(--color-primary)]/20'
+                                                : 'border-l-2 border-[var(--color-accent-mind)]'
+                                            }
+                                        >
+                                            <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                                        </GlassCard>
+                                    )}
                                     <span className="text-[10px] text-[var(--text-tertiary)] px-2 mt-1 block">
                                         {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </span>
@@ -245,6 +198,7 @@ export default function BrainDumpPage() {
                         </div>
                         <GlassCard padding="sm" className="flex items-center gap-2">
                             <Loader2 className="w-4 h-4 animate-spin text-[var(--color-accent-mind)]" />
+                            <span className="text-xs text-[var(--text-tertiary)]">Analyzing intent...</span>
                         </GlassCard>
                     </motion.div>
                 )}
@@ -262,7 +216,7 @@ export default function BrainDumpPage() {
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
                                 onKeyDown={handleKeyDown}
-                                placeholder="What's on your mind?"
+                                placeholder="What's on your mind? (I'll sort it for you)"
                                 disabled={isLoading}
                                 className="w-full bg-transparent border-none outline-none resize-none max-h-[120px] min-h-[44px] py-3 px-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] custom-scrollbar"
                                 rows={1}

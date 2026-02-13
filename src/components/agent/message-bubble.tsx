@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { Bot, User, AlertTriangle, Check, ArrowRight, Undo2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 import { GlassCard } from '@/components/ui/glass-card';
 
@@ -43,12 +44,30 @@ export function MessageBubble({ role, content, options, isImpossible, undoToken,
                 isUser ? "items-end" : "items-start"
             )}>
                 <div className={cn(
-                    "px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap shadow-sm",
+                    "px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm overflow-hidden",
                     isUser
                         ? "bg-[var(--glass-bg-hover)] border border-[var(--glass-border)] text-[var(--text-primary)] rounded-tr-sm"
                         : "bg-[var(--color-bg-tertiary)] border border-[var(--glass-border)] text-[var(--text-secondary)] rounded-tl-sm"
                 )}>
-                    {typeof content === 'string' ? content : JSON.stringify(content)}
+                    {isUser ? (
+                        <span className="whitespace-pre-wrap">{content}</span>
+                    ) : (
+                        <ReactMarkdown
+                            className="space-y-2"
+                            components={{
+                                p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+                                ul: ({ node, ...props }) => <ul className="list-disc pl-4 mb-2 space-y-1 marker:text-[var(--color-primary)]" {...props} />,
+                                ol: ({ node, ...props }) => <ol className="list-decimal pl-4 mb-2 space-y-1 marker:text-[var(--color-primary)]" {...props} />,
+                                li: ({ node, ...props }) => <li className="pl-1" {...props} />,
+                                strong: ({ node, ...props }) => <strong className="font-semibold text-[var(--text-primary)]" {...props} />,
+                                em: ({ node, ...props }) => <em className="text-[var(--color-primary)] not-italic" {...props} />,
+                                blockquote: ({ node, ...props }) => <blockquote className="border-l-2 border-[var(--color-primary)]/50 pl-3 italic text-[var(--text-tertiary)] my-2" {...props} />,
+                                code: ({ node, ...props }) => <code className="bg-[var(--glass-bg)] px-1 py-0.5 rounded text-xs font-mono text-[var(--color-primary)]" {...props} />
+                            }}
+                        >
+                            {content}
+                        </ReactMarkdown>
+                    )}
                 </div>
 
                 {/* Error / Warning State */}

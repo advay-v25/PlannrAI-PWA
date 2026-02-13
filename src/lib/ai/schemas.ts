@@ -20,7 +20,39 @@ export const ChannelEnum = z.enum([
     "routines.generate",
     "scans.analyze",
     "system.translate",
+    "onboarding_architect",
 ]);
+
+export const OnboardingArchitectSchema = z.object({
+    analysis: z.object({
+        chronotype_insight: z.string().describe("Insight about their sleep/wake window"),
+        energy_strategy: z.string().describe("How we will manage their energy levels"),
+        conflict_resolution: z.string().describe("How we handled commitments vs goals"),
+    }),
+    blueprint: z.object({
+        narrative: z.string().describe("A 2-3 sentence 'Master Plan' summary"),
+        focus_block_time: z.enum(['morning', 'afternoon', 'evening']).describe("Best time for deep work"),
+        suggested_wake_time: z.string().optional().describe("HH:MM"),
+        suggested_sleep_time: z.string().optional().describe("HH:MM"),
+    }),
+    parameter_overrides: z.object({
+        weekend_intensity: z.enum(['normal', 'light', 'off']).optional(),
+        winddown_mins: z.number().optional(),
+        meals_per_day: z.number().optional()
+    }).optional()
+});
+
+export const RoutineGenerationSchema = z.object({
+    routine_type: z.enum(['morning', 'night', 'workout', 'stretch', 'break']),
+    name: z.string().describe("Catchy title"),
+    duration_minutes: z.number(),
+    goal: z.enum(['mobility', 'activation', 'recovery', 'downshift', 'energy']),
+    intensity: z.enum(['low', 'medium', 'high']),
+    steps: z.array(z.string()).describe("List of exercises/actions"),
+    avoid_today: z.string().optional().describe("Warning if pain detected"),
+    best_time_window: z.string().describe("When to perform"),
+    confidence_score: z.number().min(0).max(1)
+});
 
 export const ModeEnum = z.enum(["execute", "propose", "ask", "refuse"]);
 
@@ -92,6 +124,20 @@ export const PatchSchema = z.object({
     reason: z.string().max(160).optional(),
 });
 
+export const DayOptimizationSchema = z.object({
+    analysis: z.object({
+        energy_state: z.string().describe("User's current energy vibe"),
+        schedule_health: z.enum(['balanced', 'packed', 'loose', 'conflict']),
+        flow_opportunity: z.string().describe("Where is the best deep work slot?")
+    }),
+    strategy: z.object({
+        main_focus: z.string().describe("The one thing to nail today"),
+        changes_made: z.string().describe("Summary of what we moved and why"),
+        reality_check_applied: z.boolean().describe("Did we have to condense tasks?")
+    }),
+    patch: PatchSchema // Reusing existing PatchSchema
+});
+
 export const OptionSchema = z.object({
     id: z.string().min(1),
     title: z.string().max(60), // Slightly more room for tactical titles
@@ -110,13 +156,27 @@ export const RefusalSchema = z.object({
     next_best: z.string().max(160).nullable().optional(),
 });
 
+export const StackSchema = z.object({
+    name: z.string(),
+    steps: z.array(z.object({
+        title: z.string(),
+        minutes: z.number(),
+        trigger: z.string().optional(),
+        note: z.string().optional()
+    })),
+    schedule_hint: z.object({
+        time_of_day: z.enum(['morning', 'afternoon', 'evening'])
+    }).optional()
+});
+
 export const AIResponseSchema = z.object({
     channel: ChannelEnum,
-    summary: z.string().max(500).optional(), // Relaxed length and made optional as some use note
-    note: z.string().optional(), // Added for brain_dump/goal_strategy
-    explanation: z.string().optional(), // Added for coach
+    summary: z.string().max(500).optional(),
+    note: z.string().optional(),
+    explanation: z.string().optional(),
     mode: ModeEnum,
-    options: z.array(OptionSchema).max(10).optional(), // Increased max options
+    options: z.array(OptionSchema).max(10).optional(),
+    stacks: z.array(StackSchema).optional(),
     question: QuestionSchema.optional(),
     refusal: RefusalSchema.optional(),
 }).superRefine((val, ctx) => {

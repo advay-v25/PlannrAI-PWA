@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
             .from('security_audit_log')
             .select('*', { count: 'exact', head: true })
             .eq('user_id', user.id)
-            .eq('action', 'ai_request')
+            .eq('action', 'ai_execute')
             .gte('created_at', dayStart);
 
         // Count for this month
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
             .from('security_audit_log')
             .select('*', { count: 'exact', head: true })
             .eq('user_id', user.id)
-            .eq('action', 'ai_request')
+            .eq('action', 'ai_execute')
             .gte('created_at', monthStart);
 
         return NextResponse.json({

@@ -64,8 +64,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                     const rawJson = msg.content_json;
                     if (rawJson) {
                         // V5 Structured
-                        content = rawJson.explanation || "Computed options.";
-                        if (rawJson.intent === 'none') {
+                        content = rawJson.wisdom || rawJson.explanation || "Computed options.";
+                        if (rawJson.intent === 'none' && !rawJson.wisdom) {
                             mode = 'refusal'; // Or just text
                         }
 
@@ -77,6 +77,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                         })) || [];
 
                         if (options.length > 0) mode = 'choice';
+                        if (rawJson.intent === 'consultation') mode = 'choice';
                     } else {
                         // Legacy V4 or text
                         try {
@@ -142,21 +143,25 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         }));
 
         try {
-            // Call Coach V5 API
-            const gatewayRes = await apiClient.post<any>('/api/coach/chat', {
-                message: text
+            // Call Coach via Unified AI Gateway
+            const gatewayRes = await apiClient.post<any>('/api/ai/execute', {
+                channel: 'coach',
+                input: text
             });
 
+            // Gateway returns { data: { ... }, _meta: ... }
             const data = gatewayRes.data || gatewayRes;
 
             // Map V5 Response to Message
             let mode: CoachMode = 'choice';
-            let content = data.explanation;
+            let content = data.wisdom || data.explanation || ""; // Use wisdom if available
             let refusal = undefined;
 
             if (data.intent === 'none' && (!data.options || data.options.length === 0)) {
                 // Conversational or Refusal
                 mode = 'choice'; // Text only
+            } else if (data.intent === 'consultation') {
+                mode = 'choice'; // Rich text mode
             } else if (data.options?.length > 0) {
                 mode = 'choice';
             }

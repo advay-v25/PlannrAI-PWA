@@ -19,6 +19,7 @@ import { CommitmentModal } from '@/components/goals/commitment-modal';
 import { DailyGrid } from '@/components/calendar/daily-grid';
 import { AgendaView } from '@/components/calendar/agenda-view';
 import { ConflictResolutionModal } from '@/components/calendar/conflict-resolution-modal';
+import { DayOptimizerModal } from '@/components/calendar/day-optimizer-modal';
 import { ConflictResolver, ResolutionOption } from '@/lib/calendar/conflict-resolver';
 
 const STATUS_CONFIG: Record<BlockStatus, { icon: React.ReactNode; color: string; label: string }> = {
@@ -43,6 +44,7 @@ function CalendarContent() {
     const [creatingBlock, setCreatingBlock] = useState<{ start_time: string; end_time: string; context: string } | null>(null);
     const [creatingAnchor, setCreatingAnchor] = useState<any>(null);
     const [aiReasoning, setAiReasoning] = useState<string | null>(null);
+    const [showOptimizer, setShowOptimizer] = useState(false);
     const [isOptimizing, setIsOptimizing] = useState(false);
 
     // Conflict Resolution State
@@ -226,75 +228,8 @@ function CalendarContent() {
         showToast('Week plan applied successfully', 'success');
     };
 
-    const handleOptimizeDay = async () => {
-        setIsOptimizing(true);
-        showToast('✨ Optimizing your day...', 'info');
-        try {
-            // 1. Prepare Context
-            const context = {
-                date: format(selectedDate, 'yyyy-MM-dd'),
-                blocks: blocks.map(b => ({
-                    ...b,
-                    is_fixed: isBlockImmutable(b) // Helper for AI to know what not to touch
-                })),
-                goals: goals.filter(g => g.status === 'active'),
-                anchors: anchors, // Send full anchors list so AI can place them
-                user_energy: todayLog?.energy_level || 3,
-                preferences: {
-                    low_energy_mode: profile?.low_energy_mode
-                }
-            };
-
-            // 2. Call AI Gateway
-            const response = await apiClient.post<any>('/api/ai/execute', {
-                channel: 'coach',
-                input: "Optimize my schedule for today. Ensure all anchors are present and fit goals around them according to my energy.",
-                context,
-                limits: { max_options: 1 }
-            });
-
-            // 3. Process Response
-            const aiData = response.data || response; // Handle wrapped/unwrapped
-
-            if (aiData.options?.[0]?.patch?.ops) {
-                const ops = aiData.options[0].patch.ops;
-
-                // Convert ops to blocks
-                const newBlocks: any[] = [];
-
-                // We trust the AI to return the Full Day schedule in ops if we asked for optimization
-                // Or we can treat `create_event` as additions. 
-                // Given the 'sync' nature, we reconstruct the day.
-
-                ops.forEach((op: any) => {
-                    if (op.op === 'create_event') {
-                        newBlocks.push(op.payload);
-                    }
-                    // Handle move/update if needed, but for full opt usually it's create_event list
-                });
-
-                if (newBlocks.length > 0) {
-                    // 4. Apply Updates
-                    const result = await apiClient.schedule.sync(
-                        format(selectedDate, 'yyyy-MM-dd'),
-                        newBlocks
-                    );
-
-                    setBlocks(result.blocks.sort((a, b) => a.start_time.localeCompare(b.start_time)));
-                    setAiReasoning(aiData.summary);
-                    showToast('🚀 Day optimized!', 'success');
-                } else {
-                    showToast('AI suggested no changes.', 'info');
-                }
-            } else {
-                showToast('No valid plan generated', 'warning');
-            }
-        } catch (error: any) {
-            console.error(error);
-            showToast(error.message || 'Optimization failed', 'error');
-        } finally {
-            setIsOptimizing(false);
-        }
+    const handleOptimizeDay = () => {
+        setShowOptimizer(true);
     };
 
     const handleResolveConflict = async (opt: ResolutionOption) => {
@@ -600,6 +535,23 @@ function CalendarContent() {
                         onCancel={() => {
                             setConflictOptions(null);
                             setPendingAction(null);
+                        }}
+                    />
+                )}
+                {showOptimizer && (
+                    <DayOptimizerModal
+                        date={selectedDate}
+                        onClose={() => setShowOptimizer(false)}
+                        onApply={() => {
+                            loadData();
+                            showToast('🚀 Optimization applied!', 'success');
+                        }}
+                        context={{
+                            blocks,
+                            goals: goals.filter(g => g.status === 'active'),
+                            anchors,
+                            user_energy: todayLog?.energy_level || 3,
+                            preferences: { low_energy_mode: profile?.low_energy_mode }
                         }}
                     />
                 )}
