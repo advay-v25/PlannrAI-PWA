@@ -13,7 +13,7 @@ export const maxDuration = 60; // 60s timeout for Pro plan (or max allowed)
 // --- Request Schema ---
 const ExecuteRequestSchema = z.object({
     channel: z.string(),
-    input: z.string().min(1).max(12000), // Increased for larger context
+    input: z.string().min(1).max(4000), // ✅ Reduced to 4000 to prevent timeouts
     context: z.record(z.string(), z.any()).optional().default({}),
     limits: z.object({
         max_options: z.number().min(1).max(3).optional(),
@@ -23,12 +23,64 @@ const ExecuteRequestSchema = z.object({
 });
 
 // --- Constants ---
-const AI_TIMEOUT_MS = 55_000; // 55s internal timeout (safety buffer before Vercel kills it)
+const AI_TIMEOUT_MS = 20_000;   // ✅ reduced to avoid Vercel kill
 const MAX_RETRIES = 1;
+const MAX_CONTEXT_CHARS = 30_000; // ✅ prevent huge payloads
+
+// --- Helpers ---
+function makeRequestId() {
+    try {
+        // @ts-ignore
+        return crypto?.randomUUID?.() || `req_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    } catch {
+        return `req_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    }
+}
+
+function clipContext(ctx: any) {
+    try {
+        const s = JSON.stringify(ctx ?? {});
+        if (s.length <= MAX_CONTEXT_CHARS) return ctx;
+        // clip by string and reparse into object to keep it safe
+        return { __clipped: true, raw: s.slice(0, MAX_CONTEXT_CHARS) };
+    } catch {
+        return { __clipped: true, raw: '[unserializable_context]' };
+    }
+}
+
+function channelRequiresOptions(channel: string) {
+    return ['coach', 'brain_dump', 'weekly_review', 'goal_strategy', 'calendar_optimize', 'plan_week', 'optimize_week', 'habit_stack', 'habit_stacks'].includes(channel);
+}
+
+function safeFallback(channel: string, requestId: string) {
+    return {
+        channel,
+        summary: "AI temporarily unavailable. Choose a safe fallback.",
+        mode: "propose", // default to propose so UI sees options
+        options: [
+            {
+                id: "retry",
+                title: "Try again",
+                impact: "Retry generation",
+                patch: { ops: [], undoable: true, reason: "retry" },
+                explanation: "Temporary error. Retry now."
+            },
+            {
+                id: "open_calendar",
+                title: "Open Calendar",
+                impact: "Adjust manually",
+                patch: { ops: [], undoable: true, reason: "noop" },
+                explanation: "Adjust manually for now.",
+                actions: [{ type: "navigate", target: "/calendar" }]
+            }
+        ],
+        _meta: { request_id: requestId }
+    };
+}
 
 export const POST = secureApiRoute(
     async (context, body) => {
-        const requestId = crypto.randomUUID();
+        const requestId = makeRequestId();
         const startTime = Date.now();
 
         // 0. Top-Level Try/Catch to prevent 502s
@@ -54,13 +106,12 @@ export const POST = secureApiRoute(
 
             const channelDef = ChannelRegistry[channel];
             let richContext = { ...aiContext };
-            let coachSupabase: any = null;
 
             // 3. Context Enrichment (Fail-Safe)
             try {
                 if (channel === 'coach' || channel === 'goal_strategy' || channel === 'habit_stack') {
                     const { buildCoachContext, saveCoachMessage } = await import('@/lib/coach/coach-context');
-                    coachSupabase = await createClient();
+                    const coachSupabase = await createClient();
                     const coachCtx = await buildCoachContext(context.userId!, coachSupabase);
                     richContext = { ...richContext, ...coachCtx };
 
@@ -72,7 +123,7 @@ export const POST = secureApiRoute(
                     }
                 } else if (channel === 'brain_dump') {
                     const { buildBrainDumpContext } = await import('@/lib/brain-dump/brain-dump-context');
-                    coachSupabase = await createClient(); // reuse variable
+                    const coachSupabase = await createClient();
                     const bdCtx = await buildBrainDumpContext(context.userId!, coachSupabase);
                     richContext = { ...richContext, ...bdCtx };
                 }
@@ -81,6 +132,8 @@ export const POST = secureApiRoute(
                 // Continue with partial context
             }
 
+            richContext = clipContext(richContext); // ✅ ensure it can't explode tokens
+
             // 4. Build Prompts
             const systemMsg = channelDef.systemPrompt(richContext, limits);
             const userMsg = channelDef.userPrompt(input, richContext);
@@ -88,11 +141,12 @@ export const POST = secureApiRoute(
             // 5. Execute LLM with Strict Timeboxing & Retry
             let rawText: string | null = null;
             let lastError: Error | null = null;
+            let abortController: AbortController | null = null;
 
             for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
                 try {
-                    const abortController = new AbortController();
-                    const timeoutId = setTimeout(() => abortController.abort(), AI_TIMEOUT_MS);
+                    abortController = new AbortController();
+                    const timeoutId = setTimeout(() => abortController?.abort(), AI_TIMEOUT_MS);
 
                     try {
                         rawText = await groqChat({
@@ -103,7 +157,8 @@ export const POST = secureApiRoute(
                             ],
                             temperature: channelDef.config.temperature,
                             max_tokens: channelDef.config.maxTokens,
-                            userId: context.userId
+                            userId: context.userId,
+                            signal: abortController.signal, // ✅ NOW abort works
                         });
                     } finally {
                         clearTimeout(timeoutId);
@@ -114,7 +169,7 @@ export const POST = secureApiRoute(
                     lastError = e;
                     console.warn(`[AI Gateway] [${requestId}] Attempt ${attempt + 1} failed:`, e.message);
 
-                    const isRetryable = e.message.includes('429') || e.message.includes('network') || e.message.includes('fetch');
+                    const isRetryable = e.message.includes('429') || e.message.includes('network') || e.message.includes('fetch') || e.message.includes('timed out');
                     if (attempt < MAX_RETRIES && isRetryable) {
                         await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
                         continue;
@@ -125,60 +180,63 @@ export const POST = secureApiRoute(
             }
 
             if (!rawText) {
-                throw lastError || new Error('Upstream AI returned no content');
+                // Return safe fallback instead of throwing
+                console.error(`[AI Gateway] [${requestId}] All attempts failed. Returning fallback.`);
+                const fallback = safeFallback(channel, requestId);
+                return apiSuccess({ ...fallback, _meta: { request_id: requestId, degraded: true } });
             }
 
             // 6. JSON Structure Recovery
-            let data;
+            let data: any;
             try {
-                data = await JSONReliability.validateOrRepair(
-                    rawText,
-                    channelDef.schema,
-                    channelDef.config.model
-                );
+                // Use a fresh abort controller for repair if needed, or pass the remaining time?
+                // Better to give Repair its own short timeout
+                const repairController = new AbortController();
+                const repairTimeout = setTimeout(() => repairController.abort(), 8000); // 8s max for repair
+
+                try {
+                    // Extract Schema Hint if available on channelDef (it might not be typed yet, so cast or fallback)
+                    const schemaHint = (channelDef as any).schemaHint || "See attached schema";
+
+                    data = await JSONReliability.validateOrRepair(
+                        rawText,
+                        channelDef.schema,
+                        channelDef.config.model,
+                        schemaHint,
+                        repairController.signal
+                    );
+                } finally {
+                    clearTimeout(repairTimeout);
+                }
+
+                if (channelRequiresOptions(channel)) {
+                    const opts = (data as any)?.options;
+                    if (!Array.isArray(opts) || opts.length === 0) {
+                        // ✅ Prevent "AI returned no options" UI crash
+                        console.warn(`[AI Gateway] [${requestId}] No options returned for ${channel}. Injecting fallback.`);
+                        // Instead of replacing entirely, we can inject options if Mode is ask/refuse? 
+                        // Actually safeFallback is better to ensure UI has something to render.
+                        // But maybe we keep the summary if valid?
+                        const fallback = safeFallback(channel, requestId);
+                        data = {
+                            ...fallback,
+                            summary: data.summary || fallback.summary // keep summary if we have it
+                        };
+                    }
+                }
             } catch (e: any) {
                 console.error(`[AI Gateway] [${requestId}] Schema validation failed completely:`, e.message);
                 console.error(`[AI Gateway] [${requestId}] Raw Invalid Output:`, rawText.slice(0, 500));
-                return apiError('AI response format invalid', 502, 'AI_INVALID_JSON', {
-                    request_id: requestId,
-                    raw_preview: rawText.slice(0, 100)
-                });
+
+                // ✅ Never hard-fail the UI if AI returns junk.
+                // Return a safe fallback so the UI remains usable.
+                const fallback = safeFallback(channel, requestId);
+                return apiSuccess({ ...fallback, _meta: { request_id: requestId, degraded: true } });
             }
 
             // 7. Success & Side Effects
             const latencyMs = Date.now() - startTime;
             console.log(`[AI Gateway] [${requestId}] SUCCESS channel=${channel} latency=${latencyMs}ms`);
-
-            // Non-blocking Audit & Persistence
-            // We use setTimeout to detach from the response lifecycle on Vercel Node runtime
-            setTimeout(async () => {
-                try {
-                    const sb = coachSupabase || await createClient();
-
-                    // Audit Log
-                    await sb.from('ai_audit_log').insert({
-                        request_id: requestId,
-                        user_id: context.userId,
-                        channel,
-                        success: true,
-                        latency_ms: latencyMs,
-                    });
-
-                    // Persist History
-                    if (channel === 'coach') {
-                        const { saveCoachMessage } = await import('@/lib/coach/coach-context');
-                        await saveCoachMessage(context.userId!, 'assistant', JSON.stringify(data), sb);
-                    } else if (channel === 'brain_dump') {
-                        const { saveBrainDumpExtraction, updateUserStateFromSignals } = await import('@/lib/brain-dump/brain-dump-context');
-                        await saveBrainDumpExtraction(context.userId!, input, data, sb);
-                        if (data.extracted?.signals) {
-                            await updateUserStateFromSignals(context.userId!, data.extracted.signals, sb);
-                        }
-                    }
-                } catch (e) {
-                    console.error(`[AI Gateway] [${requestId}] Background tasks failed:`, e);
-                }
-            }, 0);
 
             return apiSuccess({ ...data, _meta: { request_id: requestId, latency_ms: latencyMs } });
 
@@ -187,24 +245,17 @@ export const POST = secureApiRoute(
             const duration = Date.now() - startTime;
             console.error(`[AI Gateway] [${requestId}] CRITICAL FAILURE:`, error);
 
-            // Map known errors to codes
-            let status = 500;
-            let code = 'INTERNAL_ERROR';
+            // Return fallback instead of 500/502 where possible, or at least a clean error
+            // Actually, for critical failure, let's also return a fallback if possible?
+            // "AI System Error" is better than 502, but UI might still break if it expects specific shape.
+            // Let's return apiSuccess with the fallback structure but marked as degraded.
 
-            if (error.message.includes('timeout') || error.message.includes('abort')) {
-                status = 504;
-                code = 'AI_TIMEOUT';
-            } else if (error.message.includes('429')) {
-                status = 429;
-                code = 'RATE_LIMITED';
-            } else if (error.message.includes('Upstream')) {
-                status = 502;
-                code = 'UPSTREAM_ERROR';
-            }
-
-            return apiError(error.message || 'AI System Error', status, code, {
-                request_id: requestId,
-                duration_ms: duration
+            const channelName = (body as any)?.channel || 'unknown';
+            const fallback = safeFallback(channelName, requestId);
+            return apiSuccess({
+                ...fallback,
+                summary: "System error. We've loaded a backup plan.",
+                _meta: { request_id: requestId, degraded: true, error: error.message }
             });
         }
     },

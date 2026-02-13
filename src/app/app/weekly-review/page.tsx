@@ -20,6 +20,7 @@ import {
 import { format, startOfWeek, endOfWeek, subWeeks } from 'date-fns';
 import { apiClient } from '@/lib/api-client';
 import { applyLeverAction } from '@/app/actions/apply-lever';
+import { PatchPreviewModal } from '@/components/calendar/patch-preview-modal';
 
 type ReviewResponse = 'accepted' | 'ignored';
 
@@ -73,6 +74,10 @@ export default function WeeklyReviewPage() {
         setIsLoading(false);
     };
 
+    const [previewData, setPreviewData] = useState<any>(null);
+    const [showPreview, setShowPreview] = useState(false);
+    const [isApplying, setIsApplying] = useState(false);
+
     const generateReview = async () => {
         setIsGenerating(true);
         setError('');
@@ -85,7 +90,6 @@ export default function WeeklyReviewPage() {
             const contextRes = await apiClient.get<any>(`/api/weekly-review/context?weekStart=${startStr}&weekEnd=${endStr}`);
 
             // 2. Call AI Gateway
-            // Note: We use 'weekly_review' channel which returns summary (adjustment) and options (lever)
             const aiRes = await apiClient.post<any>('/api/ai/execute', {
                 channel: 'weekly_review',
                 input: 'Generate Weekly Review',
@@ -103,12 +107,11 @@ export default function WeeklyReviewPage() {
                     actual_minutes: Math.round(contextRes.actualMinutes || 0),
                     energy_trend: 'stable',
                     stress_trend: 'stable',
-                    friction_patterns: (aiData.patterns || []).map((p: any) =>
-                        `${p.title}: ${p.evidence}`
-                    ),
+                    friction_patterns: (aiData.patterns || []), // distinct patterns
                     suggested_adjustment: aiData.reality,
+                    // The AI returns 'lever' with a patch.
                     lever_action: aiData.lever ? {
-                        type: 'update_schedule',
+                        type: 'update_schedule', // This is a simplification, patch acts on everything
                         payload: aiData.lever.patch,
                         description: aiData.lever.label
                     } : null,
@@ -123,226 +126,259 @@ export default function WeeklyReviewPage() {
                     setReview(saveRes.review);
                     showToast('✨ Review generated!', 'success');
                 } else {
-                    throw new Error('Failed to save');
+                    throw new Error('Failed to saveto DB');
                 }
             } else {
-                throw new Error('AI failed to generate review');
+                throw new Error('AI failed to generate review structure');
             }
         } catch (err: any) {
             console.error(err);
-            setError('Failed to generate review');
+            setError('Failed to generate review. Please try again.');
             showToast('Failed to generate review', 'error');
         } finally {
             setIsGenerating(false);
         }
     };
 
-    const handleResponse = async (response: ReviewResponse) => {
+    const handlePreviewLever = () => {
+        if (!review?.lever_action?.payload) return;
+
+        // Construct preview data for modal
+        // Simplification: We might need to generate a real diff. 
+        // For now, let's create a synthetic one or try to use the patch.
+        // Similar to DayOptimizer, we need 'diff' and 'warnings'.
+
+        const patch = review.lever_action.payload;
+        const diff = {
+            created: [],
+            moved: [],
+            deleted: []
+        };
+        const warnings: string[] = [];
+
+        // Simple patch parsing for preview
+        if (patch.ops) {
+            patch.ops.forEach((op: any) => {
+                if (op.op === 'create_block') {
+                    (diff.created as any[]).push({
+                        title: op.payload.title || "New Block",
+                        start_time: op.payload.start_time,
+                        date: op.payload.date
+                    });
+                } else if (op.op === 'update_goal') {
+                    (diff.moved as any[]).push({
+                        title: `Update Goal: ${op.args.id}`,
+                        from: { date: '...', start_time: '...' },
+                        to: { date: 'Adjusted', start_time: 'Now' }
+                    });
+                }
+                // Add more op handlers as needed
+            });
+        }
+
+        setPreviewData({ preview: { diff, warnings } });
+        setShowPreview(true);
+    };
+
+    const handleApplyLever = async () => {
         if (!review) return;
+        setIsApplying(true); // UI loading state
 
-        setReview({ ...review, user_response: response });
+        try {
+            await applyLeverAction(review.lever_action!); // Apply server-side or via patch
 
-        // Update Review Status
-        await supabase
-            .from('weekly_reviews')
-            .update({ user_response: response })
-            .eq('id', review.id);
+            // Update UI to accepted
+            setReview({ ...review, user_response: 'accepted' });
+            await supabase
+                .from('weekly_reviews')
+                .update({ user_response: 'accepted' })
+                .eq('id', review.id);
 
-        if (response === 'accepted' && review.lever_action) {
-            // Apply the One Lever
-            try {
-                await applyLeverAction(review.lever_action);
-                showToast('✅ Change applied successfully', 'success');
-            } catch (err) {
-                console.error("Apply Failed", err);
-                showToast('Failed to apply change', 'error');
-            }
-        } else if (response === 'ignored') {
-            showToast('Suggestion dismissed', 'info');
+            showToast('✅ Protocol synchronized successfully', 'success');
+            setShowPreview(false);
+        } catch (err) {
+            console.error("Apply Failed", err);
+            showToast('Failed to apply changes', 'error');
+        } finally {
+            setIsApplying(false);
         }
     };
 
-    const getTrendIcon = (trend: string) => {
-        if (trend === 'improving') return <TrendingUp className="w-4 h-4 text-[var(--color-success)]" />;
-        if (trend === 'declining' || trend === 'increasing') return <TrendingDown className="w-4 h-4 text-[var(--color-warning)]" />;
-        return <Minus className="w-4 h-4 text-[var(--color-text-muted)]" />;
+    const handleDismissLever = async () => {
+        if (!review) return;
+        setReview({ ...review, user_response: 'ignored' });
+        await supabase
+            .from('weekly_reviews')
+            .update({ user_response: 'ignored' })
+            .eq('id', review.id);
+        showToast('Suggestion dismissed', 'info');
     };
-
-    const progressPercent = review
-        ? Math.min(100, Math.round((review.actual_minutes / Math.max(review.planned_minutes, 1)) * 100))
-        : 0;
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center min-h-[50vh]">
+            <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
                 <Loader2 className="w-8 h-8 animate-spin text-[var(--color-primary)]" />
+                <p className="text-sm font-medium tracking-widest uppercase animate-pulse">Checking Review Status...</p>
             </div>
         );
     }
 
-    return (
-        <div className="space-y-6 max-w-2xl mx-auto">
-            {/* Header */}
-            <div className="text-center">
-                <h1 className="text-xl font-bold">Weekly Reflection</h1>
-                <p className="text-sm text-[var(--color-text-muted)]">
-                    {format(lastWeekStart, 'MMM d')} - {format(lastWeekEnd, 'MMM d')}
-                </p>
-            </div>
-
-            {!review ? (
-                <GlassCard padding="lg" className="text-center">
-                    <p className="text-sm text-[var(--color-text-muted)] mb-6">
-                        Take a moment to close the loop on last week.
+    if (!review) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
+                <GlassCard padding="lg" className="max-w-md text-center space-y-4">
+                    <h2 className="text-xl font-bold">Weekly Review</h2>
+                    <p className="text-sm text-[var(--text-secondary)]">
+                        Ready to analyze your week?
                     </p>
+                    {error && (
+                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-200">
+                            {error}
+                        </div>
+                    )}
                     <GlassButton
                         variant="primary"
+                        size="lg"
+                        className="w-full btn-glow"
                         onClick={generateReview}
                         disabled={isGenerating}
-                        className="w-full"
                     >
                         {isGenerating ? (
                             <>
-                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                                Generating...
+                                <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                                Analyzing...
                             </>
                         ) : (
-                            'Review Last Week'
+                            <>
+                                <Sparkles className="w-5 h-5 mr-2" />
+                                Initiate Review
+                            </>
                         )}
                     </GlassButton>
-                    {error && (
-                        <p className="text-sm text-red-400 mt-4">{error}</p>
-                    )}
                 </GlassCard>
-            ) : (
-                <div className="space-y-6">
-                    <div className="space-y-10 py-10">
-                        {/* SECTION 1: REALITY */}
-                        <section className="space-y-4">
-                            <div className="flex items-center justify-center gap-3">
-                                <div className="h-[1px] w-12 bg-gradient-to-r from-transparent to-white/10" />
-                                <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-[var(--text-tertiary)]">Reality</h2>
-                                <div className="h-[1px] w-12 bg-gradient-to-l from-transparent to-white/10" />
-                            </div>
-                            <GlassCard padding="lg" className="border-white/5 shadow-xl text-center">
-                                <div className="flex flex-col gap-4">
-                                    <p className="text-base text-white font-medium leading-relaxed italic">
-                                        "{review.suggested_adjustment}"
-                                    </p>
-                                    <p className="text-sm text-[var(--text-secondary)]">
-                                        You invested <span className="text-white font-bold">{review.actual_minutes} minutes</span> in your goals this week,
-                                        achieving <span className="text-white font-bold">{Math.round((review.actual_minutes / (review.planned_minutes || 1)) * 100)}%</span> of your planned depth.
-                                    </p>
-                                    <div className="flex items-center justify-center gap-6 pt-2">
-                                        <div className="text-center">
-                                            <div className="flex items-center justify-center gap-1.5 mb-1">
-                                                {getTrendIcon(review.energy_trend)}
-                                                <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-tertiary)]">Energy</span>
-                                            </div>
-                                            <p className="text-xs font-bold capitalize">{review.energy_trend}</p>
-                                        </div>
-                                        <div className="w-[1px] h-8 bg-white/5" />
-                                        <div className="text-center">
-                                            <div className="flex items-center justify-center gap-1.5 mb-1">
-                                                {getTrendIcon(review.stress_trend)}
-                                                <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-tertiary)]">Stress</span>
-                                            </div>
-                                            <p className="text-xs font-bold capitalize">{review.stress_trend}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </GlassCard>
-                        </section>
+            </div>
+        )
+    }
 
-                        {/* SECTION 2: PATTERNS */}
-                        {review.friction_patterns.length > 0 && (
-                            <section className="space-y-4">
-                                <div className="flex items-center justify-center gap-3">
-                                    <div className="h-[1px] w-12 bg-gradient-to-r from-transparent to-white/10" />
-                                    <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-[var(--text-tertiary)]">Neural Insights</h2>
-                                    <div className="h-[1px] w-12 bg-gradient-to-l from-transparent to-white/10" />
+    return (
+        <div className="max-w-4xl mx-auto space-y-8 pb-20">
+            {/* Header */}
+            <header className="space-y-2">
+                <h1 className="text-3xl font-bold tracking-tight">Weekly Review</h1>
+                <p className="text-[var(--text-secondary)]">
+                    <span className="text-[var(--color-primary)] font-bold">Week {format(new Date(review.week_start), 'w')}</span> Analysis
+                </p>
+            </header>
+
+            {/* Reality & Patterns Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* 1. Reality Anchor */}
+                <GlassCard variant="default" padding="lg">
+                    <div className="flex items-center gap-2 mb-4">
+                        <LineChartIcon className="w-5 h-5 text-blue-400" />
+                        <h2 className="text-sm font-bold uppercase tracking-widest text-[var(--text-secondary)]">Reality Anchor</h2>
+                    </div>
+                    <div className="space-y-4">
+                        <div className="flex items-end gap-2">
+                            <span className="text-4xl font-bold">
+                                {review.actual_minutes && review.planned_minutes ? Math.round((review.actual_minutes / review.planned_minutes) * 100) : 0}%
+                            </span>
+                            <span className="text-sm text-[var(--text-secondary)] mb-1">Execution</span>
+                        </div>
+                        <p className="text-sm leading-relaxed text-[var(--text-primary)]">
+                            "{review.suggested_adjustment}"
+                        </p>
+                    </div>
+                </GlassCard>
+
+                {/* 2. Detected Patterns */}
+                <GlassCard variant="default" padding="lg">
+                    <div className="flex items-center gap-2 mb-4">
+                        <TrendingUp className="w-5 h-5 text-purple-400" />
+                        <h2 className="text-sm font-bold uppercase tracking-widest text-[var(--text-secondary)]">Detected Patterns</h2>
+                    </div>
+                    <div className="space-y-3">
+                        {review.friction_patterns.map((p: any, i: number) => (
+                            <div key={i} className="flex items-start gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors group">
+                                <div className="mt-1 w-1.5 h-1.5 rounded-full bg-[var(--color-primary)] group-hover:scale-125 transition-transform" />
+                                <div>
+                                    <p className="text-sm font-bold">{p.title || p}</p>
+                                    <p className="text-xs text-[var(--text-secondary)]">{p.impact || ''}</p>
                                 </div>
-                                <div className="grid grid-cols-1 gap-3">
-                                    {review.friction_patterns.map((pattern: any, i: number) => (
-                                        <motion.div
-                                            key={i}
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: i * 0.1 }}
-                                        >
-                                            <GlassCard padding="md" className="border-white/5 hover:border-white/10 transition-colors">
-                                                <div className="flex items-start gap-4">
-                                                    <div className="w-6 h-6 rounded-full bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                                        <span className="text-[10px] font-bold text-[var(--color-primary)]">{i + 1}</span>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm font-medium leading-relaxed">
-                                                            {typeof pattern === 'string' ? pattern : (pattern as any).title || pattern}
-                                                        </p>
-                                                        {typeof pattern !== 'string' && (pattern as any).evidence && (
-                                                            <p className="text-xs text-[var(--text-tertiary)] mt-1">{(pattern as any).evidence}</p>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </GlassCard>
-                                        </motion.div>
-                                    ))}
-                                </div>
-                            </section>
+                            </div>
+                        ))}
+                    </div>
+                </GlassCard>
+            </div>
+
+            {/* 3. The ONE Lever (Strategic Intervention) */}
+            <section className="space-y-4">
+                <div className="flex items-center justify-center gap-3">
+                    <div className="h-[1px] w-12 bg-gradient-to-r from-transparent to-[var(--color-primary)]/20" />
+                    <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-[var(--color-primary)]">Strategic Lever</h2>
+                    <div className="h-[1px] w-12 bg-gradient-to-l from-transparent to-[var(--color-primary)]/20" />
+                </div>
+                <GlassCard variant="glow" padding="lg" className="border-[var(--color-primary)]/30 shadow-[0_0_50px_var(--color-primary-glow)] relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:scale-110 transition-transform duration-700">
+                        <TrendingUp className="w-32 h-32" />
+                    </div>
+
+                    <div className="relative z-10">
+                        <p className="text-xl font-bold tracking-tight text-center mb-4 leading-snug">
+                            "{review.lever_action?.description || review.suggested_adjustment}"
+                        </p>
+                        {(review as any).lever_note && (
+                            <p className="text-xs text-center text-[var(--text-tertiary)] mb-6">{(review as any).lever_note}</p>
                         )}
 
-                        {/* SECTION 3: THE LEVER */}
-                        <section className="space-y-4">
-                            <div className="flex items-center justify-center gap-3">
-                                <div className="h-[1px] w-12 bg-gradient-to-r from-transparent to-[var(--color-primary)]/20" />
-                                <h2 className="text-[10px] font-bold uppercase tracking-[0.3em] text-[var(--color-primary)]">Strategic Lever</h2>
-                                <div className="h-[1px] w-12 bg-gradient-to-l from-transparent to-[var(--color-primary)]/20" />
+                        {!review.user_response ? (
+                            <div className="flex flex-col gap-3">
+                                <GlassButton
+                                    variant="primary"
+                                    size="lg"
+                                    onClick={handlePreviewLever}
+                                    className="w-full justify-between h-14 group/btn"
+                                >
+                                    <span className="font-bold tracking-wide">Sync Protocol</span>
+                                    <Check className="w-5 h-5 group-hover/btn:scale-110 transition-transform" />
+                                </GlassButton>
+
+                                <button
+                                    onClick={handleDismissLever}
+                                    className="w-full py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)] text-center hover:text-[var(--text-secondary)] transition-colors"
+                                >
+                                    Dismiss Suggestion
+                                </button>
                             </div>
-                            <GlassCard variant="glow" padding="lg" className="border-[var(--color-primary)]/30 shadow-[0_0_50px_var(--color-primary-glow)] relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:scale-110 transition-transform duration-700">
-                                    <TrendingUp className="w-32 h-32" />
-                                </div>
-
-                                <div className="relative z-10">
-                                    <p className="text-xl font-bold tracking-tight text-center mb-4 leading-snug">
-                                        "{review.lever_action?.description || review.suggested_adjustment}"
-                                    </p>
-                                    {(review as any).lever_note && (
-                                        <p className="text-xs text-center text-[var(--text-tertiary)] mb-6">{(review as any).lever_note}</p>
-                                    )}
-
-                                    {!review.user_response ? (
-                                        <div className="flex flex-col gap-3">
-                                            <GlassButton
-                                                variant="primary"
-                                                size="lg"
-                                                onClick={() => handleResponse('accepted')}
-                                                className="w-full justify-between h-14 group/btn"
-                                            >
-                                                <span className="font-bold tracking-wide">Sync Protocol</span>
-                                                <Check className="w-5 h-5 group-hover/btn:scale-110 transition-transform" />
-                                            </GlassButton>
-
-                                            <button
-                                                onClick={() => handleResponse('ignored')}
-                                                className="w-full py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)] text-center hover:text-[var(--text-secondary)] transition-colors"
-                                            >
-                                                Dismiss Suggestion
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <div className="text-center py-4 bg-white/5 rounded-2xl border border-white/5">
-                                            <p className="text-xs font-bold uppercase tracking-widest text-[var(--color-primary)]">
-                                                {review.user_response === 'accepted' ? 'Protocol Synchronized' : 'Suggestion Archived'}
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                            </GlassCard>
-                        </section>
+                        ) : (
+                            <div className="text-center py-4 bg-white/5 rounded-2xl border border-white/5">
+                                <p className="text-xs font-bold uppercase tracking-widest text-[var(--color-primary)]">
+                                    {review.user_response === 'accepted' ? 'Protocol Synchronized' : 'Suggestion Archived'}
+                                </p>
+                            </div>
+                        )}
                     </div>
-                </div>
+                </GlassCard>
+            </section>
+
+            {/* Modal inside the component */}
+            {showPreview && previewData && (
+                <PatchPreviewModal
+                    isOpen={showPreview}
+                    onClose={() => setShowPreview(false)}
+                    onApply={handleApplyLever}
+                    isApplying={isApplying}
+                    previewData={previewData}
+                />
             )}
         </div>
     );
+}
+
+function Sparkles({ className }: { className?: string }) {
+    return (
+        <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+        </svg>
+    )
 }

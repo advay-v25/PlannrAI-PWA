@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
-import { ArrowRight, Check, CheckCircle2, ListTodo, Lightbulb, Heart, Calendar } from 'lucide-react';
+import { ArrowRight, Check, CheckCircle2, ListTodo, Lightbulb, Heart, Calendar, Loader2, Sparkles } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 
 interface BrainDumpTriageProps {
@@ -117,23 +117,26 @@ export function BrainDumpTriage({ data, onComplete, onCancel }: BrainDumpTriageP
             </div>
 
             {/* Action Area */}
-            <div className="flex items-center gap-3 pt-2">
-                <GlassButton variant="ghost" onClick={onCancel} className="flex-1 text-xs">
-                    Dismiss
+            <div className="flex flex-col gap-2 pt-2">
+                <GlassButton variant="primary" onClick={handleAction} className="w-full flex justify-between items-center group" disabled={status === 'processing'}>
+                    <span className="flex items-center gap-2">
+                        {status === 'processing' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-yellow-300" />}
+                        {status === 'processing' ? 'Processing...' : (
+                            <>
+                                {data.strategy.recommended_action === 'schedule_tasks' && "Auto-Schedule Tasks"}
+                                {data.strategy.recommended_action === 'plan_week' && "Open Week Planner"}
+                                {data.strategy.recommended_action === 'save_notes' && "Save to Notes"}
+                                {data.strategy.recommended_action === 'coaching_session' && "Start Coaching Session"}
+                                {data.strategy.recommended_action === 'nothing' && "Mark as Done"}
+                                {!['schedule_tasks', 'plan_week', 'save_notes', 'coaching_session', 'nothing'].includes(data.strategy.recommended_action) && "Execute Plan"}
+                            </>
+                        )}
+                    </span>
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                 </GlassButton>
 
-                <GlassButton variant="primary" onClick={handleAction} className="flex-[2]" disabled={status === 'processing'}>
-                    {status === 'processing' ? 'Processing...' : (
-                        <>
-                            {data.strategy.recommended_action === 'schedule_tasks' && "Schedule Tasks"}
-                            {data.strategy.recommended_action === 'plan_week' && "Open Planner"}
-                            {data.strategy.recommended_action === 'save_notes' && "Save Notes"}
-                            {data.strategy.recommended_action === 'coaching_session' && "Start Chat"}
-                            {data.strategy.recommended_action === 'nothing' && "Done"}
-                            {!['schedule_tasks', 'plan_week', 'save_notes', 'coaching_session', 'nothing'].includes(data.strategy.recommended_action) && "Proceed"}
-                            <ArrowRight className="w-4 h-4 ml-2" />
-                        </>
-                    )}
+                <GlassButton variant="ghost" onClick={onCancel} className="w-full text-xs text-[var(--text-tertiary)] hover:text-white">
+                    Dismiss Recommendations
                 </GlassButton>
             </div>
         </GlassCard>

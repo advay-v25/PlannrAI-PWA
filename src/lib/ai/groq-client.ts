@@ -1,4 +1,3 @@
-import { Groq } from 'groq-sdk';
 import { checkRateLimit, createRateLimitKey } from '@/lib/security/rate-limiter';
 
 /**
@@ -79,11 +78,6 @@ export class GroqError extends Error {
     }
 }
 
-// Singleton Groq instance
-const groq = new Groq({
-    apiKey: process.env.GROQ_API_KEY || 'dummy_key_for_build',
-});
-
 /**
  * Raw Groq Chat wrapper used by runAI
  */
@@ -95,8 +89,9 @@ export async function groqChat(params: {
     top_p?: number;
     max_tokens?: number;
     userId?: string; // For rate limiting
+    signal?: AbortSignal;
 }): Promise<string> {
-    const { model, messages, userId } = params;
+    const { model, messages, userId, signal } = params;
 
     // Sanitize & Rate Limit if userId provided
     if (userId) {
@@ -106,21 +101,42 @@ export async function groqChat(params: {
     }
 
     try {
-        const response = await groq.chat.completions.create({
-            model,
-            messages: messages as any,
-            temperature: params.temperature ?? 0.1,
-            top_p: params.top_p ?? 0.9,
-            max_tokens: params.max_tokens ?? 1000,
-            response_format: { type: 'json_object' } // Always force JSON object for Neural OS
+        const apiKey = params.apiKey || process.env.GROQ_API_KEY;
+        if (!apiKey) throw new Error("GROQ_API_KEY is missing");
+
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                model,
+                messages,
+                temperature: params.temperature ?? 0.1,
+                top_p: params.top_p ?? 0.9,
+                max_tokens: params.max_tokens ?? 1000,
+                response_format: { type: 'json_object' } // Always force JSON object for Neural OS
+            }),
+            signal
         });
 
-        const content = response.choices[0]?.message?.content;
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new GroqError(`Groq API Error: ${response.status}`, { body: errorText });
+        }
+
+        const data = await response.json();
+        const content = data.choices?.[0]?.message?.content;
+
         if (typeof content !== "string") {
-            throw new GroqError("Groq response missing message content", { body: response });
+            throw new GroqError("Groq response missing message content", { body: data });
         }
         return content;
     } catch (error: any) {
+        if (error.name === 'AbortError') {
+            throw new Error('Groq request timed out');
+        }
         console.error("Groq Chat Error:", error);
         throw new GroqError("Groq chat completion failed", { originalError: error.message });
     }
@@ -156,12 +172,6 @@ export const generateAIResponse = async (
         messages[0].content += "\nFEATURE CONTEXT: " + SYSTEM_PROMPTS[role as keyof typeof SYSTEM_PROMPTS];
     }
 
-    if (imageUrl) {
-        // Handle image input messiness manually or just skip for legacy wrapper
-        // The new wrapper encourages specialized calls.
-        // For legacy, we just append text.
-    }
-
     messages.push({
         role: 'user',
         content: prompt
@@ -175,11 +185,7 @@ export const generateAIResponse = async (
     });
 };
 
-// ... keep existing helpers (decomposeGoal, etc.) for temporary backward compatibility if needed, 
-// or let them break if we are fully migrating. 
-// Given the instruction to refactor, I'll keep them but they should ideally move to feature services.
-// For now, I'll strip them to keep file clean if they are not used, OR keep them if I haven't migrated call sites yet.
-// I will keep them for now to avoid breaking the build until I migrate the services.
+/* Keeping these stubbed helpers as they are imported elsewhere, but they just wrap groqChat strictly now */
 
 export async function decomposeGoal(
     goal: string,
@@ -287,7 +293,6 @@ MISSION:
     }
 }
 
-
 export async function generateCoachResponse(
     message: string,
     context: {
@@ -300,10 +305,6 @@ export async function generateCoachResponse(
     },
     userId: string
 ): Promise<any> {
-    // RETRIEVE Context
-    // const { MemoryManager } = await import('@/lib/ai/memory'); // Removed legacy memory
-    // const memoryContext = await MemoryManager.retrieveContext(userId);
-
     const prompt = `
         [COACH INTENT]
         Direct user request: "${message}"

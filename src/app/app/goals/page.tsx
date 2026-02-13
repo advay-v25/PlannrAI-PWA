@@ -150,6 +150,9 @@ export default function GoalsPage() {
                         onStrategyApplied={(strategy) => {
                             updateGoal(selectedGoalForStrategy.id, { ai_strategy: strategy });
                         }}
+                        context={{
+                            capacity: capacity
+                        }}
                     />
                 )}
             </AnimatePresence>

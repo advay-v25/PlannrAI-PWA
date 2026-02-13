@@ -15,8 +15,9 @@ import { OnboardingArchitectSchema, DayOptimizationSchema, RoutineGenerationSche
 
 // 1. Coach
 export const CoachOutputSchema = z.object({
-  intent: z.enum(['adjust_schedule', 'rebuild_day', 'rebuild_week', 'reduce_intensity', 'none']),
+  intent: z.enum(['adjust_schedule', 'rebuild_day', 'rebuild_week', 'reduce_intensity', 'consultation', 'none']),
   explanation: z.string().max(200),
+  wisdom: z.string().optional(),
   options: z.array(z.object({
     label: z.string().max(60),
     patch: z.object({
@@ -125,6 +126,8 @@ export interface ChannelDef<T = any> {
     temperature: number;
     maxTokens: number;
   };
+  minOptions?: number;
+  fallback: (input: string, context?: AIContext) => T;
 }
 
 const BASE_RULES = `
@@ -137,6 +140,25 @@ export const ChannelRegistry: Record<string, ChannelDef> = {
   coach: {
     schema: CoachOutputSchema,
     config: { model: 'llama-3.3-70b-versatile', temperature: 0.4, maxTokens: 2000 },
+    minOptions: 1,
+    fallback: () => ({
+      intent: 'consultation',
+      explanation: 'Service temporarily unavailable.',
+      analysis: { constraints_checked: [], reasoning: 'AI Service Unavailable' },
+      wisdom: "I'm having trouble connecting to my neural core right now. I've enabled manual controls for you.",
+      options: [
+        {
+          label: "Open Calendar",
+          tradeoff: "Manual control",
+          patch: { ops: [], undoable: false } // No-op
+        },
+        {
+          label: "Try Again",
+          tradeoff: "Retry connection",
+          patch: { ops: [], undoable: false }
+        }
+      ]
+    }),
     systemPrompt: (ctx, limits) => {
       const maxOpts = limits?.low_energy || limits?.overwhelmed ? 2 : limits?.max_options ?? 3;
       return `
@@ -174,6 +196,7 @@ PATCH OPS (CoachV4):
 OUTPUT JSON:
 {
   "intent": "adjust_schedule"|"rebuild_day"|"consultation"|"reduce_intensity"|"none",
+  "explanation": "string (brief)",
   "analysis": { "constraints_checked": ["string"], "reasoning": "string" },
   "wisdom": "markdown string (Advice/Answer)",
   "options": [{ "label": "string", "patch": {...}, "tradeoff": "string" }]
@@ -189,6 +212,22 @@ ${JSON.stringify(ctx, null, 2)}
   brain_dump: {
     schema: BrainDumpOutputSchema,
     config: { model: 'llama-3.3-70b-versatile', temperature: 0.2, maxTokens: 2500 },
+    fallback: (input) => ({
+      intent: 'journaling',
+      confidence: 0.5,
+      extracted: {
+        tasks: [],
+        ideas: [],
+        signals: { sentiment: 0, overwhelm: 0 }
+      },
+      strategy: {
+        summary: "Neural analysis unavailable. Content logged as journal entry.",
+        recommended_action: "save_notes",
+        reasoning: "Fallback mode"
+      },
+      note: "I've saved this to your notes for now.",
+      options: []
+    }),
     systemPrompt: (ctx) => {
       return `
 You are PlannrAI Interpretation Engine (Donna).
@@ -244,6 +283,11 @@ ${JSON.stringify(ctx, null, 2)}
   onboarding_plan: {
     schema: OnboardingPlanOutputSchema,
     config: { model: 'llama-3.3-70b-versatile', temperature: 0.2, maxTokens: 4000 },
+    fallback: () => ({
+      patch: { ops: [], undoable: false, reason: "Fallback" },
+      summary: { bullets: ["Plan generation unavailable."] },
+      warnings: ["Please try again later."]
+    }),
     systemPrompt: (ctx) => `
 You are PlannrAI Onboarding Planner.
 Generate a complete 7-day schedule from user constraints.
@@ -267,6 +311,14 @@ ${JSON.stringify(ctx, null, 2)}
   habit_stack: {
     schema: HabitStackOutputSchema,
     config: { model: 'llama-3.3-70b-versatile', temperature: 0.4, maxTokens: 1500 },
+    minOptions: 1,
+    fallback: () => ({
+      stacks: [],
+      options: [{
+        label: "Manual Setup",
+        patch: { ops: [], undoable: false, reason: "Fallback" }
+      }]
+    }),
     systemPrompt: (ctx) => `
 You are PlannrAI Habit Designer.
 Design habit stacks using BJ Fogg's Tiny Habits method AND propose concrete calendar placements.
@@ -305,6 +357,13 @@ ${JSON.stringify(ctx, null, 2)}
   goal_strategy: {
     schema: GoalStrategyOutputSchema,
     config: { model: 'llama-3.3-70b-versatile', temperature: 0.4, maxTokens: 2000 },
+    minOptions: 1,
+    fallback: () => ({
+      options: [{
+        label: "Strategy Unavailable",
+        patch: { ops: [], undoable: false, reason: "Fallback" }
+      }]
+    }),
     systemPrompt: (ctx) => `
 You are PlannrAI Goal Strategist.
 Decompose a goal into a high-precision execution plan.
@@ -342,6 +401,19 @@ ${JSON.stringify(ctx, null, 2)}
   weekly_review: {
     schema: WeeklyReviewOutputSchema,
     config: { model: 'llama-3.3-70b-versatile', temperature: 0.3, maxTokens: 1500 },
+    fallback: () => ({
+      reality: "AI Review temporarily unavailable.",
+      patterns: [
+        { title: "Data Sync", evidence: "Review generation failed." },
+        { title: "Manual Check", evidence: "Please review your logs manually." },
+        { title: "System Status", evidence: "Optimization in progress." }
+      ],
+      lever: {
+        label: "Check Goals",
+        patch: { ops: [], undoable: false, reason: "Fallback" }
+      },
+      note: "We're tuning the neural engine. Please try again shortly."
+    }),
     systemPrompt: (ctx) => `
 You are PlannrAI Weekly Analyst. Analyze the user's week and produce a structured review.
 ${BASE_RULES}
@@ -375,6 +447,19 @@ ${JSON.stringify(ctx, null, 2)}
   onboarding_architect: {
     schema: OnboardingArchitectSchema,
     config: { model: 'llama-3.3-70b-versatile', temperature: 0.4, maxTokens: 2000 },
+    fallback: () => ({
+      analysis: {
+        chronotype_insight: "Analysis pending.",
+        energy_strategy: "Standard balanced approach.",
+        conflict_resolution: "Prioritizing balance."
+      },
+      blueprint: {
+        narrative: "We've created a baseline schedule for you to refine.",
+        focus_block_time: "morning",
+        suggested_wake_time: "07:00",
+        suggested_sleep_time: "23:00"
+      }
+    }),
     systemPrompt: (ctx) => `
 You are PlannrAI Chief Architect.
 Analyze the user's bio-data, goals, and commitments to design a "Life Blueprint".
@@ -417,6 +502,19 @@ OUTPUT JSON:
   'calendar.optimize': {
     schema: DayOptimizationSchema,
     config: { model: 'llama-3.3-70b-versatile', temperature: 0.3, maxTokens: 1500 },
+    fallback: () => ({
+      analysis: {
+        energy_state: "Unknown",
+        schedule_health: "balanced",
+        flow_opportunity: "Check Schedule"
+      },
+      strategy: {
+        main_focus: "Maintenance",
+        changes_made: "No changes applied (Optimization Service Unavailable)",
+        reality_check_applied: false
+      },
+      patch: { ops: [], undoable: false }
+    }),
     systemPrompt: (ctx) => `
 You are the "Flow State Architect".
 Optimizing the user's day for maximum performance and sanity.
@@ -453,6 +551,16 @@ OUTPUT JSON:
   'routines.generate': {
     schema: RoutineGenerationSchema,
     config: { model: 'llama-3.3-70b-versatile', temperature: 0.5, maxTokens: 1000 },
+    fallback: () => ({
+      routine_type: "break",
+      name: "Quick Reset",
+      duration_minutes: 5,
+      goal: "recovery",
+      intensity: "low",
+      steps: ["Deep Breathe (1 min)", "Hydrate"],
+      best_time_window: "Anytime",
+      confidence_score: 1.0
+    }),
     systemPrompt: (ctx) => `
 You are an elite Biomechanics Coach.
 Generate a targeted movement or recovery routine.

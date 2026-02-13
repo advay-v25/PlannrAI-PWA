@@ -1,93 +1,121 @@
-
 import { groqChat } from './groq-client';
 import { z } from 'zod';
 
+const MAX_REPAIR_INPUT_CHARS = 12_000; // hard cap
+const REPAIR_TIMEOUT_MS = 8_000;       // short + safe
+
+function stripFences(text: string) {
+    const trimmed = (text || '').trim();
+    return trimmed
+        .replace(/^```(?:json)?/i, '')
+        .replace(/```$/i, '')
+        .trim();
+}
+
+function extractFirstJsonObject(text: string) {
+    const s = stripFences(text);
+    try { return JSON.parse(s); } catch { }
+    const a = s.indexOf('{');
+    const b = s.lastIndexOf('}');
+    if (a >= 0 && b > a) return JSON.parse(s.slice(a, b + 1));
+    throw new Error('No JSON object found');
+}
+
 export class JSONReliability {
-    /**
-     * Parse JSON from text, handling markdown fences.
-     */
     static parse(text: string): any {
-        try {
-            const trimmed = text.trim();
-            // Remove markdown code fences if present
-            const noFences = trimmed
-                .replace(/^```(json)?/i, "")
-                .replace(/```$/i, "")
-                .trim();
-            return JSON.parse(noFences);
-        } catch (e) {
-            throw new Error(`Invalid JSON format: ${(e as Error).message}`);
-        }
+        return extractFirstJsonObject(text);
     }
 
-    /**
-     * Attempt to repair broken JSON using a focused LLM call.
-     */
-    static async repair(brokenText: string, errorMessage: string, model: string = 'llama-3.3-70b-versatile'): Promise<any> {
-        console.warn('[JSONReliability] Repairing JSON...');
+    static async repairToJsonOnly(
+        brokenText: string,
+        model: string,
+        signal?: AbortSignal
+    ): Promise<any> {
+        const clipped = brokenText.slice(0, MAX_REPAIR_INPUT_CHARS);
 
         const repairPrompt = `
-You are a JSON repair bot.
-The following text was meant to be JSON but failed to parse.
-Error: ${errorMessage}
-
-Text to fix:
-${brokenText}
-
-Instructions:
-1. Fix syntax errors (missing brackets, quotes, commas).
-2. Remove any conversational text/commentary.
-3. Return STRICT VALID JSON ONLY. No markdown.
+Fix the following text into STRICT VALID JSON ONLY.
+Rules:
+- Output JSON only. No markdown. No prose.
+- Remove any commentary.
+TEXT:
+${clipped}
 `.trim();
 
-        try {
-            const fixedText = await groqChat({
-                model,
-                messages: [
-                    { role: 'system', content: 'You output only valid JSON.' },
-                    { role: 'user', content: repairPrompt }
-                ],
-                temperature: 0,
-                max_tokens: 4000
-            });
+        const fixedText = await groqChat({
+            model,
+            messages: [
+                { role: 'system', content: 'Return JSON only.' },
+                { role: 'user', content: repairPrompt }
+            ],
+            temperature: 0,
+            max_tokens: 900,
+            signal
+        });
 
-            return this.parse(fixedText);
-        } catch (e) {
-            throw new Error(`JSON Repair failed: ${(e as Error).message}`);
-        }
+        return this.parse(fixedText);
     }
 
-    /**
-     * validate or repair logic
-     */
+    static async schemaRepair<T>(
+        brokenText: string,
+        schemaHint: string,
+        model: string,
+        signal?: AbortSignal
+    ): Promise<any> {
+        const clipped = brokenText.slice(0, MAX_REPAIR_INPUT_CHARS);
+
+        const repairPrompt = `
+You MUST output JSON matching this schema exactly:
+${schemaHint}
+
+Rules:
+- JSON only
+- No extra keys
+- Provide required keys even if empty
+TEXT:
+${clipped}
+`.trim();
+
+        const fixedText = await groqChat({
+            model,
+            messages: [
+                { role: 'system', content: 'Return JSON only.' },
+                { role: 'user', content: repairPrompt }
+            ],
+            temperature: 0,
+            max_tokens: 900,
+            signal
+        });
+
+        return this.parse(fixedText);
+    }
+
     static async validateOrRepair<T>(
         text: string,
         schema: z.ZodSchema<T>,
-        model: string = 'llama-3.3-70b-versatile'
+        model: string,
+        schemaHint: string,
+        signal?: AbortSignal
     ): Promise<T> {
         let json: any;
 
-        // 1. Initial Parse
+        // Parse attempt
         try {
             json = this.parse(text);
-        } catch (parseError) {
-            // 2. Parse failed -> Try repair
-            json = await this.repair(text, (parseError as Error).message, model);
+        } catch {
+            // Parse repair (cheap)
+            json = await this.repairToJsonOnly(text, model, signal);
         }
 
-        // 3. Schema Validation
-        const result = schema.safeParse(json);
-        if (result.success) {
-            return result.data;
-        }
+        // Validate
+        const ok = schema.safeParse(json);
+        if (ok.success) return ok.data;
 
-        // 4. Validation failed -> Try repair (schema fix)
-        // We can re-use the repair mechanism but with schema instructions?
-        // For now, let's just throw, or maybe do a "schema repair" pass?
-        // The user requirement said: "If parse fails: run a “repair” prompt (one pass) that returns valid JSON only."
-        // It didn't explicitly say "repair validation errors", but implied "model output breaks JSON".
-        // Let's stick to parsing repair for now to keep it fast, but we can enhance error message.
+        // Schema repair pass (cheap)
+        const repaired = await this.schemaRepair(text, schemaHint, model, signal);
+        const ok2 = schema.safeParse(repaired);
+        if (ok2.success) return ok2.data;
 
-        throw new Error(`Schema validation failed: ${JSON.stringify(result.error.format())}`);
+        throw new Error(`Schema validation failed after repair`);
     }
 }
