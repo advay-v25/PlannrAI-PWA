@@ -53,29 +53,45 @@ function channelRequiresOptions(channel: string) {
 }
 
 function safeFallback(channel: string, requestId: string) {
-    return {
+    const baseOptions = [
+        {
+            id: "retry",
+            title: "Try again",
+            label: "Try again", // ✅ For StrategyOptionCard
+            impact: "Retry generation",
+            tradeoff: "Retry generation", // ✅ For StrategyOptionCard
+            patch: { ops: [], undoable: true, reason: "retry" },
+            explanation: "Temporary error. Retry now."
+        },
+        {
+            id: "open_calendar",
+            title: "Open Calendar",
+            label: "Open Calendar", // ✅ For StrategyOptionCard
+            impact: "Adjust manually",
+            tradeoff: "Adjust manually", // ✅ For StrategyOptionCard
+            patch: { ops: [], undoable: true, reason: "noop" },
+            explanation: "Adjust manually for now.",
+            actions: [{ type: "navigate", target: "/calendar" }]
+        }
+    ];
+
+    const fallback: any = {
         channel,
         summary: "AI temporarily unavailable. Choose a safe fallback.",
-        mode: "propose", // default to propose so UI sees options
-        options: [
-            {
-                id: "retry",
-                title: "Try again",
-                impact: "Retry generation",
-                patch: { ops: [], undoable: true, reason: "retry" },
-                explanation: "Temporary error. Retry now."
-            },
-            {
-                id: "open_calendar",
-                title: "Open Calendar",
-                impact: "Adjust manually",
-                patch: { ops: [], undoable: true, reason: "noop" },
-                explanation: "Adjust manually for now.",
-                actions: [{ type: "navigate", target: "/calendar" }]
-            }
-        ],
+        mode: "propose",
+        options: baseOptions,
         _meta: { request_id: requestId }
     };
+
+    // ✅ Special handling for Habit Stacks which expects 'stacks'
+    if (channel === 'habit_stack' || channel === 'habit_stacks') {
+        fallback.stacks = [{
+            name: "Manual Habit",
+            steps: [{ trigger: "Existing Routine", title: "New Habit", minutes: 5 }]
+        }];
+    }
+
+    return fallback;
 }
 
 export const POST = secureApiRoute(

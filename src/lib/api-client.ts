@@ -113,7 +113,12 @@ export const apiClient = {
                 if (response.status === 204) return {} as T;
 
                 try {
-                    return await response.json();
+                    const data = await response.json();
+                    // Unwrap ApiEnvelope if present
+                    if (data && typeof data === 'object' && 'ok' in data && 'data' in data) {
+                        return data.data;
+                    }
+                    return data;
                 } catch {
                     return {} as T;
                 }

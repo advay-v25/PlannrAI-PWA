@@ -33,6 +33,8 @@ interface OptimizationResult {
 export function DayOptimizerModal({ date, onClose, onApply, context }: DayOptimizerProps) {
     const [previewData, setPreviewData] = useState<any>(null);
     const [showPreview, setShowPreview] = useState(false);
+    const [step, setStep] = useState<'analyzing' | 'review' | 'applying'>('analyzing');
+    const [result, setResult] = useState<OptimizationResult | null>(null);
 
     // Auto-start analysis
     useState(() => {
