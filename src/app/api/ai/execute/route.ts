@@ -91,6 +91,16 @@ function safeFallback(channel: string, requestId: string) {
         }];
     }
 
+    // ✅ Special handling for Calendar Optimization which expects 'schedule_health'
+    if (channel === 'calendar' || channel === 'calendar.optimize' || channel === 'calendar_optimize') {
+        fallback.schedule_health = {
+            score: 70,
+            summary: "Day is manually managed (AI unavailable).",
+            issues: []
+        };
+        fallback.proposed_schedule = [];
+    }
+
     return fallback;
 }
 

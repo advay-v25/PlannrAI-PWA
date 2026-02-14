@@ -83,10 +83,10 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
             // Use API Client to ensure backend hooks (Context triggers) run
             // This will trigger ReactiveGoalService -> Coach Proposal
             const { apiClient } = await import('@/lib/api-client');
-            const { data } = await apiClient.post<{ data: { goal: any } }>('/api/goals', goalData);
+            const response = await apiClient.post<{ goal: any }>('/api/goals', goalData);
 
-            if (data?.goal) {
-                addGoal(data.goal);
+            if (response?.goal) {
+                addGoal(response.goal);
 
                 // Notify user via Toast that Coach is thinking
                 const { useToast } = await import('@/components/ui/toast');

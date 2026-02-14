@@ -55,11 +55,11 @@ export function useGoalsManager() {
 
     const handleCreateGoal = async (goalData: Partial<Goal>) => {
         try {
-            const newGoal = await apiClient.post<Goal>('/api/goals', goalData);
-            if (newGoal) {
-                addGoal(newGoal as any); // Cast if response type mismatch
+            const response = await apiClient.post<{ goal: Goal }>('/api/goals', goalData);
+            if (response?.goal) {
+                addGoal(response.goal); // Cast if response type mismatch
                 showToast('✅ Goal created successfully!', 'success');
-                return newGoal;
+                return response.goal;
             }
         } catch (error) {
             console.error('Failed to create goal:', error);
