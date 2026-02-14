@@ -91,14 +91,19 @@ function safeFallback(channel: string, requestId: string) {
         }];
     }
 
-    // ✅ Special handling for Calendar Optimization which expects 'schedule_health'
+    // ✅ Special handling for Calendar Optimization which expects 'analysis' structure
     if (channel === 'calendar' || channel === 'calendar.optimize' || channel === 'calendar_optimize') {
-        fallback.schedule_health = {
-            score: 70,
-            summary: "Day is manually managed (AI unavailable).",
-            issues: []
+        fallback.analysis = {
+            energy_state: 'normal',
+            schedule_health: 'balanced',
+            flow_opportunity: 'moderate'
         };
-        fallback.proposed_schedule = [];
+        fallback.strategy = {
+            main_focus: "Manual adjustment",
+            changes_made: "AI unavailable, no changes proposed.",
+            reality_check_applied: false
+        };
+        fallback.patch = { ops: [], undoable: false, reason: "fallback" };
     }
 
     return fallback;
@@ -233,6 +238,26 @@ export const POST = secureApiRoute(
                     );
                 } finally {
                     clearTimeout(repairTimeout);
+                }
+
+                // ✅ CRITICAL PATCH: Ensure schedule_health exists for calendar.optimize
+                if ((channel === 'calendar' || channel === 'calendar.optimize') && !(data as any)?.analysis) {
+                    console.warn(`[AI Gateway] [${requestId}] Missing analysis in response, patching default.`);
+                    (data as any).analysis = {
+                        energy_state: 'normal',
+                        schedule_health: 'balanced',
+                        flow_opportunity: 'moderate'
+                    };
+                    if (!(data as any).strategy) {
+                        (data as any).strategy = {
+                            main_focus: "Manual adjustment",
+                            changes_made: "AI response incomplete.",
+                            reality_check_applied: false
+                        };
+                    }
+                    if (!(data as any).patch) {
+                        (data as any).patch = { ops: [], undoable: false, reason: "repair" };
+                    }
                 }
 
                 if (channelRequiresOptions(channel)) {

@@ -3,6 +3,8 @@ import { secureApiRoute, apiSuccess, apiError, validateRequiredFields } from '@/
 import { validateGoalTitle, validateInput } from '@/lib/security/input-validator';
 import { createClient } from '@/lib/supabase/server';
 
+export const dynamic = 'force-dynamic';
+
 // GET - List all goals with subtasks
 export const GET = secureApiRoute(
     async (context) => {
@@ -27,6 +29,8 @@ export const GET = secureApiRoute(
         const { data: goals, error } = await query
             .order('sort_order', { ascending: true })
             .order('created_at', { ascending: false });
+
+        console.log(`[Goals GET] userId: ${context.userId}, found: ${goals?.length}, error: ${error?.message}`);
 
         if (error) {
             return apiError('Failed to fetch goals', 500);
@@ -72,8 +76,8 @@ export const POST = secureApiRoute(
         }
 
         // Validate category
-        if (!['mind', 'body', 'future'].includes(category)) {
-            return apiError('Category must be mind, body, or future');
+        if (!['mind', 'body', 'future', 'craft'].includes(category)) {
+            return apiError('Category must be mind, body, craft, or future');
         }
 
         // Validate importance
@@ -130,6 +134,12 @@ export const POST = secureApiRoute(
             })
             .select()
             .single();
+
+        if (goal) {
+            console.log(`[Goals POST] Created goal ${goal.id} for user ${context.userId}`);
+        } else if (error) {
+            console.error(`[Goals POST] Failed to create goal for user ${context.userId}: ${error.message}`);
+        }
 
         if (error) {
             return apiError('Failed to create goal', 500);
@@ -193,8 +203,8 @@ export const PUT = secureApiRoute(
         }
 
         if (category !== undefined) {
-            if (!['mind', 'body', 'future'].includes(category)) {
-                return apiError('Category must be mind, body, or future');
+            if (!['mind', 'body', 'future', 'craft'].includes(category)) {
+                return apiError('Category must be mind, body, craft, or future');
             }
             updates.category = category;
         }

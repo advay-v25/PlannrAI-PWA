@@ -65,6 +65,25 @@ export class MemoryService {
     }
 
     /**
+     * Get the latest active conversation thread.
+     */
+    static async getLatestConversation(userId: string, context: string = 'coach'): Promise<CoachThread | null> {
+        const supabase = await createClient();
+        try {
+            const { data } = await supabase
+                .from('coach_threads')
+                .select('*')
+                .eq('user_id', userId)
+                .order('updated_at', { ascending: false })
+                .limit(1)
+                .single();
+            return data;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    /**
      * Adds a message to a Coach Thread.
      * Optionally triggers async fact extraction.
      */

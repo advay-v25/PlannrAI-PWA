@@ -68,12 +68,28 @@ export function useGoalsManager() {
         }
     }
 
+    const fetchGoals = async () => {
+        setLoading(true);
+        try {
+            const { goals } = await apiClient.get<{ goals: Goal[] }>('/api/goals');
+            if (goals) {
+                setGoals(goals);
+            }
+        } catch (error) {
+            console.error('Failed to fetch goals:', error);
+            showToast('Failed to load goals.', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return {
         goals,
         capacity,
         isSyncing,
         updateGoal: handleUpdateGoal,
         deleteGoal: handleDeleteGoal,
-        createGoal: handleCreateGoal
+        createGoal: handleCreateGoal,
+        fetchGoals
     };
 }

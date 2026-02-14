@@ -61,6 +61,7 @@ export function secureApiRoute(
 
     return async (request: NextRequest): Promise<NextResponse> => {
         const ip = getClientIP(request);
+        console.log(`[API HIT] ${request.method} ${request.nextUrl.pathname} ip=${ip}`);
 
         try {
             // 1. Authentication check

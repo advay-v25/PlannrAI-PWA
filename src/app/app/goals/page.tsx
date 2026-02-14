@@ -20,7 +20,12 @@ import { AddGoalModal } from '@/components/goals/add-goal-modal';
 import type { Goal } from '@/types/database';
 
 export default function GoalsPage() {
-    const { goals, capacity, updateGoal, deleteGoal } = useGoalsManager();
+    const { goals, capacity, updateGoal, deleteGoal, fetchGoals } = useGoalsManager();
+
+    // Fetch goals on mount
+    useState(() => {
+        fetchGoals();
+    });
 
     // Feature Flags / UI State
     const [isAdding, setIsAdding] = useState(false);

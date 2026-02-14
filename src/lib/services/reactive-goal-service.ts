@@ -54,15 +54,20 @@ export class ReactiveGoalService {
         const conversation = await MemoryService.getLatestConversation(userId, 'coach');
 
         if (conversation) {
-            await MemoryService.addMessage(
+            const messageContent = JSON.stringify({
+                text: `I noticed you updated "${goal.title}". I've prepared a schedule adjustment for it.`,
+                metadata: {
+                    type: 'proposal_card',
+                    patch: patch
+                }
+            });
+
+            await MemoryService.addCoachMessage(
                 userId,
                 conversation.id,
                 'assistant',
-                `I noticed you updated "${goal.title}". I've prepared a schedule adjustment for it.`,
-                {
-                    type: 'proposal_card',
-                    patch: patch
-                } // Metadata used by UI to render "Apply/Reject"
+                messageContent,
+                false // Don't trigger extraction for assistant messages
             );
         }
     }
