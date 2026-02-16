@@ -1,23 +1,20 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { RefreshCw, Zap } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-
-// Components
+import { HomeLayout } from '@/components/home/home-layout';
+import { NowCard } from '@/components/home/now-card';
 import { TimelineStrip } from '@/components/home/timeline-strip';
-import { NextUpCard } from '@/components/home/next-up-card';
-import { TodayChecklist } from '@/components/home/today-checklist';
-import { HabitStacks } from '@/components/home/habit-stacks';
+import { StacksModule } from '@/components/home/stacks-module';
+import { InsightsCard } from '@/components/home/insights-card';
 import { RealityIntake } from '@/components/home/reality-intake';
-import { HomeHeader } from '@/components/home/home-header';
+import { format } from 'date-fns';
+import { Settings } from 'lucide-react';
+import Link from 'next/link';
 
 export default function HomePage() {
-    const supabase = createClient();
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
 
     const fetchHomeData = async () => {
         try {
@@ -31,7 +28,6 @@ export default function HomePage() {
             console.error(e);
         } finally {
             setLoading(false);
-            setRefreshing(false);
         }
     };
 
@@ -40,65 +36,79 @@ export default function HomePage() {
     }, []);
 
     const handleRefresh = () => {
-        setRefreshing(true);
         fetchHomeData();
     };
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-black flex items-center justify-center text-[var(--color-text-tertiary)] font-mono text-sm">
-                Loading Mission Control...
+            <div className="min-h-screen bg-black flex flex-col items-center justify-center text-[var(--color-text-tertiary)] gap-4">
+                <div className="w-8 h-8 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs font-mono uppercase tracking-widest animate-pulse">Initializing VisionOS...</span>
             </div>
         );
     }
 
     if (!data) return <div className="p-8 text-white">System Error. Check Network.</div>;
 
-    return (
-        <div className="min-h-screen bg-black text-white pb-32">
-
-            {/* A. Header */}
-            <HomeHeader
-                date={data.date}
-                metrics={data.metrics}
-                userState={data.user_state}
-                insight={data.insight}
-            />
-
-            <main className="max-w-md mx-auto px-4 space-y-8 mt-6">
-
-                {/* B. Mini Calendar Strip */}
-                <section>
-                    <TimelineStrip blocks={data.schedule_blocks} anchors={data.anchors} />
-                </section>
-
-                {/* C. "Next Up" Focus Card */}
-                <section>
-                    <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--color-text-tertiary)] mb-3">
-                        Required Action
-                    </h2>
-                    <NextUpCard nextBlock={data.next_up} onAction={handleRefresh} />
-                </section>
-
-                {/* D. Today Checklist (Subtasks) */}
-                <section>
-                    <h2 className="text-xs font-bold uppercase tracking-widest text-[var(--color-text-tertiary)] mb-3 flex items-center justify-between">
-                        <span>Execution Log</span>
-                        <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded-full">{data.tasks?.length || 0} ITEMS</span>
-                    </h2>
-                    <TodayChecklist tasks={data.tasks} onUpdate={handleRefresh} />
-                </section>
-
-                {/* E. Habit Stacks (AI Assist) */}
-                <section>
-                    <HabitStacks stacks={data.habit_stacks} onUpdate={handleRefresh} />
-                </section>
-
-            </main>
-
-            {/* F. Reality Intake (Floating) */}
-            <RealityIntake onUpdate={handleRefresh} />
-
+    // Header Content
+    const header = (
+        <div className="flex items-center justify-between">
+            <div>
+                <h1 className="text-4xl font-bold text-white tracking-tight">Today</h1>
+                <p className="text-sm text-white/40 font-mono mt-1">
+                    {format(new Date(), 'EEEE, MMMM do')}
+                </p>
+            </div>
+            <div className="flex items-center gap-4">
+                <div className="hidden md:block text-right">
+                    <div className="text-xs font-bold text-white/60">
+                        {Math.round(data.metrics.completed_min / 60)}h {Math.round(data.metrics.completed_min % 60)}m DONE
+                    </div>
+                    <div className="text-[10px] text-white/30 uppercase tracking-widest">
+                        {Math.round(data.metrics.planned_min / 60)}h {Math.round(data.metrics.planned_min % 60)}m PLANNED
+                    </div>
+                </div>
+                <Link href="/app/settings">
+                    <button className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-colors">
+                        <Settings className="w-5 h-5" />
+                    </button>
+                </Link>
+            </div>
         </div>
+    );
+
+    return (
+        <HomeLayout
+            header={header}
+            nowCard={
+                <NowCard
+                    block={data.next_up}
+                    onAction={handleRefresh}
+                />
+            }
+            timeline={
+                <TimelineStrip
+                    blocks={data.schedule_blocks}
+                    anchors={data.anchors}
+                />
+            }
+            stacks={
+                <StacksModule
+                    stacks={data.habit_stacks}
+                    onUpdate={handleRefresh}
+                />
+            }
+            insights={
+                <InsightsCard
+                    userState={data.user_state}
+                    insight={data.insight}
+                />
+            }
+            intake={
+                <RealityIntake
+                    onUpdate={handleRefresh}
+                />
+            }
+        />
     );
 }
