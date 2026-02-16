@@ -792,11 +792,14 @@ export type Database = {
           action_habit: string
           created_at: string | null
           current_streak: number | null
+          duration_min: number | null // NEW
+          enabled: boolean | null // NEW
           goal_id: string | null
           grace_days_used: number | null
           id: string
           is_active: boolean | null
           last_completed: string | null
+          preferred_window: string | null // NEW
 
 
           max_grace_days: number | null
@@ -1138,6 +1141,7 @@ export type Database = {
           end_time: string
           energy_cost: string | null
           goal_id: string | null
+          habit_stack_id: string | null // NEW
           id: string
           is_fixed: boolean | null
           is_locked: boolean | null

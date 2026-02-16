@@ -13,7 +13,7 @@ interface DayOptimizerProps {
     date: Date;
     onClose: () => void;
     onApply: () => void;
-    context: any; // User context for AI
+    // context no longer needed as API fetches it
 }
 
 interface OptimizationResult {
@@ -30,7 +30,7 @@ interface OptimizationResult {
     patch: any;
 }
 
-export function DayOptimizerModal({ date, onClose, onApply, context }: DayOptimizerProps) {
+export function DayOptimizerModal({ date, onClose, onApply }: DayOptimizerProps) {
     const [previewData, setPreviewData] = useState<any>(null);
     const [showPreview, setShowPreview] = useState(false);
     const [step, setStep] = useState<'analyzing' | 'review' | 'applying'>('analyzing');
@@ -40,40 +40,16 @@ export function DayOptimizerModal({ date, onClose, onApply, context }: DayOptimi
     useState(() => {
         const runOptimization = async () => {
             try {
-                // 1. Trim context for payload efficiency
-                const slimContext = {
-                    current_time: new Date().toISOString(),
-                    energy_level: context.user_energy,
-                    // Map blocks to essential fields only
-                    schedule: context.blocks.map((b: any) => ({
-                        id: b.id,
-                        title: b.title || b.context,
-                        start: b.start_time,
-                        end: b.end_time,
-                        fixed: b.block_type === 'anchor'
-                    })),
-                    // Only active goals
-                    goals: context.goals.map((g: any) => ({
-                        id: g.id,
-                        title: g.title,
-                        priority: g.priority
-                    }))
-                };
-
-                const response = await apiClient.ai.execute({
-                    channel: 'calendar.optimize',
-                    input: `Optimize my day for ${format(date, 'yyyy-MM-dd')}`,
-                    context: slimContext
+                // Call the dedicated endpoint which handles context fetching
+                const response = await apiClient.schedule.optimizeDay({
+                    date: format(date, 'yyyy-MM-dd')
                 }) as unknown as OptimizationResult;
 
                 setResult(response);
                 setStep('review');
             } catch (err: any) {
                 console.error("Optimization failed", err);
-                const msg = err.message || "Optimization failed";
-                // Show error in UI slightly? For now just close or toast
-                // But better to just let the user see a failure state if possible. 
-                // Since this is a modal, we might want to just close it.
+                // Optionally show error to user before closing
                 onClose();
             }
         };

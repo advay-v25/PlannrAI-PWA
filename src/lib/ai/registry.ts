@@ -11,7 +11,7 @@ export type AILimits = {
 
 // --- Per-Channel Output Schemas ---
 // --- Per-Channel Output Schemas ---
-import { OnboardingArchitectSchema, DayOptimizationSchema, RoutineGenerationSchema } from './schemas';
+import { OnboardingArchitectSchema, DayOptimizationSchema, RoutineGenerationSchema, CalendarPlanWeekSchema, ConflictResolutionSchema } from './schemas';
 
 // 1. Coach
 export const CoachOutputSchema = z.object({
@@ -603,6 +603,106 @@ OUTPUT JSON:
 }
 `.trim(),
     userPrompt: (input) => `Generate routine for: ${input}`
+  },
+  'calendar_plan_week': {
+    schema: CalendarPlanWeekSchema,
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.4, maxTokens: 3000 },
+    fallback: () => ({
+      options: [{
+        label: "Standard Balance",
+        description: "A balanced mix of work and recovery.",
+        patch: { ops: [], undoable: false, reason: "Fallback" }
+      }]
+    }),
+    systemPrompt: (ctx) => `
+    You are the Week Architect.
+    Generate 2-3 schedule variants based on the user's profile and goals.
+    ${BASE_RULES}
+
+    VARIANTS:
+    1. Balanced: Even distribution of work/rest.
+    2. Front-Loaded: Heavy work Mon-Wed, lighter Thu-Fri.
+    3. Recovery-Focused: Prioritizes breaks and sleep.
+
+    Constraints:
+    - Sleep/Wake times are immutable.
+    - Meals are immutable.
+    - Respect weekend intensity preference.
+
+    OUTPUT JSON:
+    {
+      "options": [{
+        "label": "string",
+        "description": "string",
+        "patch": { "ops": [{"op": "create_block", "payload": {...}}], "undoable": true, "reason": "string" }
+      }]
+    }
+
+    CONTEXT:
+    ${JSON.stringify(ctx, null, 2)}
+    `.trim(),
+    userPrompt: (input) => `Plan week: ${input}`
+  },
+
+  'calendar_optimize_day': {
+    schema: DayOptimizationSchema, // Reuse structure
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.3, maxTokens: 2000 },
+    fallback: () => ({
+      analysis: { energy_state: "normal", schedule_health: "balanced", flow_opportunity: "none" },
+      strategy: { main_focus: "Manual", changes_made: "Service offline", reality_check_applied: false },
+      options: [{ label: "Keep Current", patch: { ops: [], undoable: false } }]
+    }),
+    systemPrompt: (ctx) => `
+    You are the Day Optimizer. Re-organize today's blocks for better flow.
+    ${BASE_RULES}
+    
+    OBJECTIVE:
+    - Fix overlaps.
+    - Group similar tasks (batching).
+    - Insert breaks if intensity is high.
+    
+    OUTPUT JSON:
+    {
+      "analysis": { "energy_state": "string", "schedule_health": "string", "flow_opportunity": "string" },
+      "strategy": { "main_focus": "string", "changes_made": "string", "reality_check_applied": boolean },
+      "options": [{ "label": "string", "patch": { "ops": [...], "undoable": true } }]
+    }
+
+    CONTEXT:
+    ${JSON.stringify(ctx, null, 2)}
+    `.trim(),
+    userPrompt: (input) => `Optimize day: ${input}`
+  },
+
+  'conflict_resolution': {
+    schema: ConflictResolutionSchema,
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.3, maxTokens: 1000 },
+    fallback: () => ({
+      options: [{
+        label: "Manual Fix",
+        description: "Please adjust manually.",
+        patch: { ops: [], undoable: false }
+      }]
+    }),
+    systemPrompt: (ctx) => `
+    You are the Conflict Resolver.
+    Proposed block conflicts with existing schedule. Propose solutions.
+    ${BASE_RULES}
+
+    SOLUTIONS:
+    1. Move new block to next available slot.
+    2. Move conflicting block.
+    3. Shrink blocks to fit.
+
+    OUTPUT JSON:
+    {
+      "options": [{ "label": "string", "description": "string", "patch": { "ops": [...], "undoable": true } }]
+    }
+
+    CONTEXT:
+    ${JSON.stringify(ctx, null, 2)}
+    `.trim(),
+    userPrompt: (input) => `Resolve conflict: ${input}`
   }
 };
 

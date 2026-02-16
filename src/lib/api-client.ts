@@ -193,20 +193,57 @@ export const apiClient = {
     // Domain APIs
     get schedule() {
         return {
+            // New Summary Endpoint (Authoritative)
+            summary: (start: string, end: string) =>
+                this.get<{
+                    profile: any;
+                    blocks: (ScheduleBlock & { goal?: Goal })[];
+                    goals: Goal[];
+                    commitments: Commitment[];
+                    habitStacks: HabitStack[];
+                }>(`/api/calendar/summary?start=${start}&end=${end}`),
+
+            // Legacy list (redirect to summary or keep for compatibility if needed)
             list: (start: string, end: string) =>
                 this.get<{ blocks: (ScheduleBlock & { goal?: Goal })[] }>(`/api/schedule?start=${start}&end=${end}`),
+
+            // Mutations via apply-patch (Single Source of Truth)
             createBlock: (data: { date: string; start_time: string; end_time: string; goal_id?: string | null; context?: string | null }) =>
-                this.post<{ block: ScheduleBlock }>('/api/calendar/add-block', { block: data }),
+                this.post('/api/calendar/add-block', { block: data }), // Use add-block for conflict detection
+
             updateBlock: (id: string, updates: Record<string, any>) =>
-                this.post<{ block: ScheduleBlock }>('/api/calendar/update-block', { blockId: id, updates }),
+                this.post('/api/schedule/apply-patch', {
+                    patch: {
+                        ops: [{ op: 'update_event', event_id: id, payload: updates }]
+                    },
+                    source: 'manual_update'
+                }),
+
             moveBlock: (id: string, newDate: string, newStart: string, newEnd: string) =>
-                this.post<{ block: ScheduleBlock }>('/api/calendar/move-block', { blockId: id, newDate, newStart, newEnd }),
+                this.post('/api/calendar/move-block', { block_id: id, new_date: newDate, new_start_time: newStart, new_end_time: newEnd }),
+
             deleteBlock: (id: string) =>
-                this.delete<{ success: boolean }>('/api/schedule', { id }),
+                this.post('/api/schedule/apply-patch', {
+                    patch: {
+                        ops: [{ op: 'delete_event', event_id: id }]
+                    },
+                    source: 'manual_delete'
+                }),
+
             updateStatus: (id: string, status: BlockStatus) =>
-                this.put<{ block: ScheduleBlock }>('/api/schedule/status', { id, status }),
-            sync: (date: string, blocks: Partial<ScheduleBlock>[]) =>
-                this.post<{ success: boolean; blocks: ScheduleBlock[] }>('/api/schedule/sync', { date, blocks }),
+                this.post('/api/schedule/apply-patch', {
+                    patch: {
+                        ops: [{ op: 'update_event', event_id: id, payload: { status } }]
+                    },
+                    source: 'status_change'
+                }),
+
+            // AI Features
+            planWeek: (data: { start_date: string; mode: string; allow_weekend: boolean }) =>
+                this.post('/api/calendar/plan-week', data),
+
+            optimizeDay: (data: { date: string; focus?: string }) =>
+                this.post('/api/calendar/optimize-day', data),
         };
     },
 

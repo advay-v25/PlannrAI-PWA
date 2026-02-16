@@ -21,6 +21,8 @@ export const ChannelEnum = z.enum([
     "scans.analyze",
     "system.translate",
     "onboarding_architect",
+    "calendar_plan_week",
+    "conflict_resolution"
 ]);
 
 export const OnboardingArchitectSchema = z.object({
@@ -136,6 +138,22 @@ export const DayOptimizationSchema = z.object({
         reality_check_applied: z.boolean().describe("Did we have to condense tasks?")
     }),
     patch: PatchSchema // Reusing existing PatchSchema
+});
+
+export const CalendarPlanWeekSchema = z.object({
+    options: z.array(z.object({
+        label: z.string(),
+        description: z.string(),
+        patch: PatchSchema
+    }))
+});
+
+export const ConflictResolutionSchema = z.object({
+    options: z.array(z.object({
+        label: z.string(),
+        description: z.string(),
+        patch: PatchSchema
+    }))
 });
 
 export const OptionSchema = z.object({
