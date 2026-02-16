@@ -53,14 +53,15 @@ export function useCalendar() {
             const endStr = format(addDays(new Date(startStr), 6), 'yyyy-MM-dd');
 
             const data = await apiClient.schedule.summary(startStr, endStr);
+            console.log('[useCalendar] Loaded data:', data);
 
             // Filter blocks for current view if needed, or keeping all in state
             // Let's keep all and let UI filter by day
             setState({
-                blocks: data.blocks,
-                goals: data.goals,
-                commitments: data.commitments,
-                habitStacks: data.habitStacks,
+                blocks: data.blocks || [],
+                goals: data.goals || [],
+                commitments: data.commitments || [],
+                habitStacks: data.habitStacks || [],
                 isLoading: false,
                 error: null
             });

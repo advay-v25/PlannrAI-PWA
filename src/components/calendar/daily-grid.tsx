@@ -187,7 +187,7 @@ export function DailyGrid({
                         >
                             <div className="flex flex-col h-full justify-between pointer-events-none">
                                 <div className="text-[10px] font-bold truncate opacity-80 pl-1">{block.title}</div>
-                                <div className="text-[9px] opacity-60 pl-1 pb-1 font-mono">{format(new Date(block.start_time), 'HH:mm')}</div>
+                                <div className="text-[9px] opacity-60 pl-1 pb-1 font-mono">{block.start_time.slice(0, 5)}</div>
                             </div>
 
                             {/* Status Indicator */}

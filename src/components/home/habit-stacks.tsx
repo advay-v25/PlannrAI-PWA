@@ -63,7 +63,7 @@ export function HabitStacks({ stacks, onUpdate }: any) {
                                 <span className="text-[10px] text-white/50 uppercase">{stack.preferred_window}</span>
                             </div>
                             <div className="space-y-1">
-                                {stack.steps.map((step: any, i: number) => (
+                                {(stack.steps || []).map((step: any, i: number) => (
                                     <div key={i} className="flex items-center gap-2 text-xs text-white/70">
                                         <div className="w-1 h-1 rounded-full bg-white/20" />
                                         <span>{step.title}</span>

@@ -9,7 +9,7 @@ import { GlassButton } from '@/components/ui/glass-button';
 import { GlassInput } from '@/components/ui/glass-input';
 import { useToast } from '@/components/ui/toast';
 import { PlanWeekModal, PlanWeekFAB } from '@/components/calendar/plan-week-modal';
-import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
+import { format, addDays, startOfWeek, isSameDay, parseISO } from 'date-fns';
 import { ChevronLeft, ChevronRight, Check, Minus, X, Sparkles, Calendar as CalendarIcon, AlertTriangle, ZapOff, Plus, Trash2, Anchor, Repeat, Brain, ListChecks, Square, CheckSquare, Lock, Loader2 } from 'lucide-react';
 import type { ScheduleBlock, BlockStatus, Goal } from '@/types/database';
 import { useScheduleWatchdog } from '@/hooks/use-schedule-watchdog';
@@ -65,7 +65,8 @@ function CalendarContent() {
     const { todayLog } = useDailyLogStore();
 
     // Derived state for current day
-    const currentDayBlocks = blocks.filter(b => isSameDay(new Date(b.date), selectedDate));
+    const currentDayBlocks = blocks.filter(b => isSameDay(parseISO(b.date), selectedDate));
+    console.log('[CalendarPage] Selected:', selectedDate, 'Blocks:', blocks.length, 'Filtered:', currentDayBlocks.length);
 
     const { hasConflicts } = useScheduleWatchdog({
         blocks: currentDayBlocks,

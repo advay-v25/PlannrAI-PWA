@@ -25,7 +25,7 @@ export const GET = secureApiRoute(
             supabase.from('goals').select('*').eq('user_id', context.userId).eq('is_paused', false),
             supabase.from('habit_stacks').select('*').eq('user_id', context.userId).eq('enabled', true),
             supabase.from('schedule_blocks')
-                .select('*')
+                .select('*, goal:goals(*)')
                 .eq('user_id', context.userId)
                 .gte('date', startStr)
                 .lt('date', endStr)

@@ -52,9 +52,14 @@ export default function WorkPreferences({ preferences, onChange }: Props) {
                                     )} />
                                     <span className="capitalize text-sm font-medium">{pillar}</span>
                                 </div>
-                                <span className="text-xs text-[var(--text-tertiary)] font-mono">
-                                    {preferences.preferred_windows[pillar as keyof typeof preferences.preferred_windows]?.join(', ') || 'Anytime'}
-                                </span>
+                                <div className="text-right">
+                                    <div className="font-medium text-[var(--color-primary)]">
+                                        {Array.isArray(preferences.preferred_windows?.[pillar as keyof typeof preferences.preferred_windows])
+                                            ? preferences.preferred_windows[pillar as keyof typeof preferences.preferred_windows]?.join(', ')
+                                            : 'Not set'}
+                                    </div>
+                                    <div className="text-xs text-[var(--text-tertiary)]">Preferred Hours</div>
+                                </div>
                             </div>
                         ))}
                         <p className="text-[10px] text-[var(--text-tertiary)] text-center">
