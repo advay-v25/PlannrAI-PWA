@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/toast";
+import { Toaster } from "sonner";
 import { ApiDiagnostics } from "@/components/debug/api-diagnostics";
 
 const geistSans = Geist({
@@ -57,6 +58,7 @@ export default function RootLayout({
         <ToastProvider>
           {children}
           <ApiDiagnostics />
+          <Toaster position="top-center" />
         </ToastProvider>
       </body>
     </html>

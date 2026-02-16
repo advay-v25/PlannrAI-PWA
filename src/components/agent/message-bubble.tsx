@@ -44,7 +44,7 @@ export function MessageBubble({ role, content, options, isImpossible, undoToken,
                 isUser ? "items-end" : "items-start"
             )}>
                 <div className={cn(
-                    "px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm overflow-hidden",
+                    "px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm overflow-hidden space-y-2",
                     isUser
                         ? "bg-[var(--glass-bg-hover)] border border-[var(--glass-border)] text-[var(--text-primary)] rounded-tr-sm"
                         : "bg-[var(--color-bg-tertiary)] border border-[var(--glass-border)] text-[var(--text-secondary)] rounded-tl-sm"
@@ -53,7 +53,6 @@ export function MessageBubble({ role, content, options, isImpossible, undoToken,
                         <span className="whitespace-pre-wrap">{content}</span>
                     ) : (
                         <ReactMarkdown
-                            className="space-y-2"
                             components={{
                                 p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
                                 ul: ({ node, ...props }) => <ul className="list-disc pl-4 mb-2 space-y-1 marker:text-[var(--color-primary)]" {...props} />,

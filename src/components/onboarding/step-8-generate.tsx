@@ -98,7 +98,14 @@ export function Step8Generate() {
 
                     // Apply overrides silently to store
                     if (response.parameter_overrides) {
-                        updateData(response.parameter_overrides);
+                        // Sanitize overrides to ensure we don't wipe critical fields like sleep times with nulls
+                        const safeOverrides: Partial<typeof data> = {};
+                        if (response.parameter_overrides.winddown_mins) safeOverrides.winddown_mins = response.parameter_overrides.winddown_mins;
+                        if (response.parameter_overrides.meals_per_day) safeOverrides.meals_per_day = response.parameter_overrides.meals_per_day;
+
+                        if (Object.keys(safeOverrides).length > 0) {
+                            updateData(safeOverrides);
+                        }
                     }
 
                     setPhase('architect_review');

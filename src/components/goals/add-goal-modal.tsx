@@ -67,6 +67,7 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
             title,
             category,
             days_per_week: daysPerWeek,
+            minutes_per_day: minutes,
             importance,
             energy_demand: energy,
             status: 'active',

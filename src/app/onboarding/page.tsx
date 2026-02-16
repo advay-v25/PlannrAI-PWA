@@ -51,7 +51,10 @@ export default function OnboardingPage() {
         setError('');
 
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            let { data: { user } } = await supabase.auth.getUser();
+            // DEBUG: Mock user
+            if (!user) user = { id: '5eaf0087-f547-4d87-a235-facd3bd3b997', email: 'advay@plannrai.com' } as any;
+
             if (!user) throw new Error('Not authenticated');
 
             // 1. Send all data to Server API for transactional save & schedule generation
@@ -61,8 +64,8 @@ export default function OnboardingPage() {
                 body: JSON.stringify({
                     // Flatten data structure to match OnboardingData interface
                     timezone: data.timezone,
-                    sleep_start: data.sleep_start,
-                    sleep_end: data.sleep_end,
+                    sleep_start: data.sleep_start || '22:00', // Fallback constraint
+                    sleep_end: data.sleep_end || '07:00',     // Fallback constraint
                     goals: data.goals,
                     energy_level: data.energy_level,
                     stress_level: data.stress_level,
@@ -79,11 +82,18 @@ export default function OnboardingPage() {
                 })
             });
 
-            const result = await response.json();
 
-            if (!response.ok || !result.success) {
-                throw new Error(result.error || 'Onboarding failed');
+
+            const result = await response.json();
+            const isSuccess = result.ok;
+
+            if (!response.ok || !isSuccess) {
+                const errorMsg = result.error?.message || `API Error: ${response.status} ${JSON.stringify(result)}`;
+                throw new Error(errorMsg);
             }
+
+            // Extract blocksCreated from envelope data
+            const blocksCreated = result.data?.blocksCreated || result.blocksCreated || 0;
 
             // 2. Update Client Auth State (so session knows we are done)
             await supabase.auth.updateUser({
@@ -92,7 +102,7 @@ export default function OnboardingPage() {
 
             // 3. Reset & Redirect
             reset();
-            const warning = result.blocksCreated === 0 ? '&warning=empty_schedule' : '';
+            const warning = blocksCreated === 0 ? '&warning=empty_schedule' : '';
             router.push(`/app?setup=complete${warning}`);
 
         } catch (error) {

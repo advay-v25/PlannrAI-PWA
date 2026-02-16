@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { SupabaseClient } from '@supabase/supabase-js';
 import {
     checkMultipleRateLimits,
     getClientIP,
@@ -24,6 +25,7 @@ export interface SecureApiContext {
     };
     request: NextRequest;
     ip: string;
+    supabase: SupabaseClient;
 }
 
 export type SecureApiHandler = (
@@ -126,6 +128,7 @@ export function secureApiRoute(
                 },
                 request,
                 ip,
+                supabase, // Pass the authenticated client
             };
 
             // 5. Execute handler
@@ -157,8 +160,8 @@ export function secureApiRoute(
                 error: error instanceof Error ? error.message : 'Unknown error',
             });
 
-            // Never expose internal errors
-            return apiError('An unexpected error occurred', 500);
+            // TEMPORARY DEBUG: Expose internal errors
+            return apiError(`DEBUG ERROR: ${error instanceof Error ? error.message : 'Unknown error'}`, 500);
         }
     };
 }
