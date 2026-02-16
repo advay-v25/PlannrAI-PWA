@@ -140,6 +140,84 @@ export const DayOptimizationSchema = z.object({
     patch: PatchSchema // Reusing existing PatchSchema
 });
 
+export const WeeklyReviewOutputSchema = z.object({
+    reality: z.string().max(300).describe('Narrative summary of what actually happened this week (max 300 chars)'),
+    patterns: z.array(z.object({
+        title: z.string().max(60),
+        evidence: z.string().max(120)
+    })).length(3).describe('Exactly 3 behavioral patterns with supporting data'),
+    lever: z.object({
+        label: z.string().max(80).describe('Short action label (max 80 chars)'),
+        patch: PatchSchema
+    }).describe('One executable lever that changes the system'),
+    note: z.string().max(160).describe('Encouraging closing remark (max 160 chars)')
+});
+
+export const CoachResponseSchema = z.object({
+    channel: z.literal('coach'),
+    summary: z.string().max(120).describe('Short actionable summary of what you are doing (max 120 chars)'),
+    mode: z.enum(['execute', 'propose', 'ask', 'refuse']).describe('Interaction mode'),
+    options: z.array(z.object({
+        id: z.string(),
+        title: z.string().max(40),
+        impact: z.string().max(80),
+        patch: PatchSchema
+    })).optional().describe('Actionable options (max 3)'),
+    question: z.object({
+        prompt: z.string(),
+        type: z.enum(['text', 'confirm', 'choice']),
+        choices: z.array(z.string()).optional()
+    }).optional().describe('Clarifying question if needed'),
+    refusal: z.object({
+        reason: z.string(),
+        next_best: z.string()
+    }).optional()
+});
+
+export const BrainDumpResponseSchema = z.object({
+    channel: z.literal('brain_dump'),
+    summary: z.string().max(120).describe('Short impact summary (max 120 chars)'),
+    mode: z.enum(['execute', 'propose', 'ask']).describe('Interaction mode'),
+    options: z.array(z.object({
+        id: z.string(),
+        title: z.string().max(40),
+        impact: z.string().max(80),
+        patch: PatchSchema
+    })).min(1).max(3).describe('Actionable options (1-3)'),
+    extracted: z.object({
+        items: z.array(z.object({
+            kind: z.enum(['task', 'commitment', 'note', 'worry', 'idea', 'habit', 'constraint']),
+            title: z.string(),
+            est_min: z.number().optional(),
+            pillar: z.enum(['mind', 'body', 'craft', 'uncategorized']).optional(),
+            urgency: z.number().min(1).max(3).optional(),
+            importance: z.number().min(1).max(3).optional(),
+            due: z.string().optional(), // YYYY-MM-DD or 'today'
+            fixed_time: z.string().optional(), // HH:MM
+            tags: z.array(z.string()).optional()
+        })),
+        signals: z.object({
+            overwhelm: z.number().min(0).max(1),
+            stress: z.number().min(0).max(1),
+            motivation: z.number().min(0).max(1),
+            energy: z.number().min(1).max(5),
+            health_flag: z.boolean()
+        }),
+        constraints: z.array(z.object({
+            type: z.enum(['busy', 'cannot_do', 'reduce_intensity']),
+            date: z.string().optional(),
+            start: z.string().optional(),
+            end: z.string().optional(),
+            reason: z.string().optional()
+        })).optional()
+    }),
+    question: z.object({
+        prompt: z.string(),
+        type: z.enum(['text', 'confirm', 'choice']),
+        choices: z.array(z.string()).optional()
+    }).optional()
+});
+
 export const CalendarPlanWeekSchema = z.object({
     options: z.array(z.object({
         label: z.string(),

@@ -39,6 +39,101 @@ export type Database = {
   }
   public: {
     Tables: {
+      profile_preferences: {
+        Row: {
+          allow_weekend_work: boolean | null
+          ask_before_changes: boolean | null
+          buffer_min: number | null
+          calendar_integration_enabled: boolean | null
+          diet_type: string | null
+          is_workout_protected: boolean | null
+          low_energy_mode: boolean | null
+          max_ai_options: number | null
+          max_daily_load_min: number | null
+          meal_windows: Json | null
+          meals_per_day: number | null
+          notification_times: Json | null
+          notifications_enabled: boolean | null
+          overwhelm_mode: boolean | null
+          pillar_spacing_preference: string | null
+          preferred_windows: Json | null
+          proactive_level: string | null
+          sleep_start: string | null
+          updated_at: string | null
+          user_id: string
+          wake_time: string | null
+          weekend_intensity: string | null
+          wind_down_min: number | null
+          workout_min_per_day: number | null
+          workout_preference: string | null
+          allergies: Json | null
+        }
+        Insert: {
+          allow_weekend_work?: boolean | null
+          ask_before_changes?: boolean | null
+          buffer_min?: number | null
+          calendar_integration_enabled?: boolean | null
+          diet_type?: string | null
+          is_workout_protected?: boolean | null
+          low_energy_mode?: boolean | null
+          max_ai_options?: number | null
+          max_daily_load_min?: number | null
+          meal_windows?: Json | null
+          meals_per_day?: number | null
+          notification_times?: Json | null
+          notifications_enabled?: boolean | null
+          overwhelm_mode?: boolean | null
+          pillar_spacing_preference?: string | null
+          preferred_windows?: Json | null
+          proactive_level?: string | null
+          sleep_start?: string | null
+          updated_at?: string | null
+          user_id: string
+          wake_time?: string | null
+          weekend_intensity?: string | null
+          wind_down_min?: number | null
+          workout_min_per_day?: number | null
+          workout_preference?: string | null
+          allergies?: Json | null
+        }
+        Update: {
+          allow_weekend_work?: boolean | null
+          ask_before_changes?: boolean | null
+          buffer_min?: number | null
+          calendar_integration_enabled?: boolean | null
+          diet_type?: string | null
+          is_workout_protected?: boolean | null
+          low_energy_mode?: boolean | null
+          max_ai_options?: number | null
+          max_daily_load_min?: number | null
+          meal_windows?: Json | null
+          meals_per_day?: number | null
+          notification_times?: Json | null
+          notifications_enabled?: boolean | null
+          overwhelm_mode?: boolean | null
+          pillar_spacing_preference?: string | null
+          preferred_windows?: Json | null
+          proactive_level?: string | null
+          sleep_start?: string | null
+          updated_at?: string | null
+          user_id?: string
+          wake_time?: string | null
+          weekend_intensity?: string | null
+          wind_down_min?: number | null
+          workout_min_per_day?: number | null
+          workout_preference?: string | null
+          allergies?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_options: {
         Row: {
           context_snapshot: Json | null

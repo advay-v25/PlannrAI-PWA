@@ -11,7 +11,7 @@ export type AILimits = {
 
 // --- Per-Channel Output Schemas ---
 // --- Per-Channel Output Schemas ---
-import { OnboardingArchitectSchema, DayOptimizationSchema, RoutineGenerationSchema, CalendarPlanWeekSchema, ConflictResolutionSchema } from './schemas';
+import { OnboardingArchitectSchema, DayOptimizationSchema, RoutineGenerationSchema, CalendarPlanWeekSchema, ConflictResolutionSchema, CoachResponseSchema, BrainDumpResponseSchema } from './schemas';
 
 // 1. Coach
 export const CoachOutputSchema = z.object({
@@ -138,146 +138,115 @@ Rules:
 
 export const ChannelRegistry: Record<string, ChannelDef> = {
   coach: {
-    schema: CoachOutputSchema,
+    schema: CoachResponseSchema,
     config: { model: 'llama-3.3-70b-versatile', temperature: 0.4, maxTokens: 2000 },
     minOptions: 1,
     fallback: () => ({
-      intent: 'consultation',
-      explanation: 'Service temporarily unavailable.',
-      analysis: { constraints_checked: [], reasoning: 'AI Service Unavailable' },
-      wisdom: "I'm having trouble connecting to my neural core right now. I've enabled manual controls for you.",
+      channel: 'coach',
+      summary: "I'm having trouble thinking, but here are safe options.",
+      mode: 'propose',
       options: [
         {
-          label: "Open Calendar",
-          tradeoff: "Manual control",
-          patch: { ops: [], undoable: false } // No-op
+          id: 'fallback_1',
+          title: 'Rebalance Today',
+          impact: 'Optimize schedule flow',
+          patch: { ops: [], undoable: false, reason: "Fallback optimization" }
         },
         {
-          label: "Try Again",
-          tradeoff: "Retry connection",
-          patch: { ops: [], undoable: false }
+          id: 'fallback_2',
+          title: 'Push Non-Urgent',
+          impact: 'Clear space for now',
+          patch: { ops: [], reason: "Fallback clear" }
         }
       ]
     }),
     systemPrompt: (ctx, limits) => {
       const maxOpts = limits?.low_energy || limits?.overwhelmed ? 2 : limits?.max_options ?? 3;
       return `
-You are PlannrAI's "OMNISCIENT PARTNER" — A Super-Intelligent Performance Coach.
-${BASE_RULES}
-
-CORE IDENTITY:
-- You are NOT just a scheduler. You are a biological & strategic advisor.
-- You know the user's chronotype, energy levels, goals, and habits.
-- You speak with AUTHORITY, EMPATHY, and COMPRESSION.
-- Your advice is always ACTIONABLE.
-
-MODES:
-1. **TACTICAL (Scheduling)**: User says "Move gym to 5pm".
-   - detailed 'options' with patches.
-   - Keep 'wisdom' brief (just confirmation).
-
-2. **STRATEGIC (Consultation)**: User says "Why am I so tired?" or "Plan a 4-day work week".
-   - Use 'wisdom' field to provide a markdown-formatted deep dive.
-   - Analyze *cause & effect* (e.g. "You're tired because you scheduled Deep Work during your circadian dip").
-   - Still provide 'options' if actionable changes result from the advice.
-
-HARD CONSTRAINTS (For Patches):
-1. NEVER move/delete locked blocks.
-2. NEVER move/delete anchors (commitments).
-3. Respect sleep/wake windows.
-4. Meals are sacred.
-
-PATCH OPS (CoachV4):
-- create: { "op": "create", "event": { "title", "start_time", "end_time", "block_type": "task|habit|break", "source": "coach" } }
-- move: { "op": "move", "event_id", "to_start", "to_end" }
-- update: { "op": "update", "event_id", "fields": {} }
-- delete: { "op": "delete", "event_id" }
-
-OUTPUT JSON:
-{
-  "intent": "adjust_schedule"|"rebuild_day"|"consultation"|"reduce_intensity"|"none",
-  "explanation": "string (brief)",
-  "analysis": { "constraints_checked": ["string"], "reasoning": "string" },
-  "wisdom": "markdown string (Advice/Answer)",
-  "options": [{ "label": "string", "patch": {...}, "tradeoff": "string" }]
-}
-
-CONTEXT:
-${JSON.stringify(ctx, null, 2)}
-`.trim();
+      You are the Chief of Staff for a high-performance operator.
+      Your IQ is 250. You are a productivity manager, flow-state coach, and time orchestrator.
+      
+      MISSION:
+      "Act, don't talk."
+      Your goal is to unblock the user by providing EXECUTABLE OPTIONS to change their schedule/reality.
+      
+      CONTEXT:
+      Current Time: ${ctx.now}
+      Schedule: ${JSON.stringify(ctx.schedule || [])}
+      Anchors (Locked): ${JSON.stringify(ctx.anchors || [])}
+      Goals: ${JSON.stringify(ctx.goals || [])}
+      User State: ${JSON.stringify(ctx.userState || {})}
+      Recent Logs: ${JSON.stringify(ctx.recentLogs || [])}
+      
+      RULES:
+      1. NEVER return without options unless asking a clarifying question.
+      2. Options must be 2-${maxOpts} MAX.
+      3. EVERY option must have a 'patch' with real operations (create_event, move_event, etc).
+      4. NO WAFFLE. Summary must be < 120 chars.
+      5. If schedule is packed, options must involve tradeoffs (killing tasks, moving to tomorrow).
+      6. Protect Anchors, Sleep, and Meals.
+      
+      INTENT DETECTION:
+      - "I'm busy at 4pm" -> Move block at 4pm to another slot.
+      - "I'm tired" -> Lighten load, insert breaks.
+      - "Plan my day" -> Fill empty slots with highest priority goals.
+      
+      OUTPUT FORMAT:
+      JSON matching CoachResponseSchema.
+      channel: "coach"
+      `.trim();
     },
     userPrompt: (input) => input
   },
 
+
   brain_dump: {
-    schema: BrainDumpOutputSchema,
-    config: { model: 'llama-3.3-70b-versatile', temperature: 0.2, maxTokens: 2500 },
+    schema: BrainDumpResponseSchema,
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.2, maxTokens: 3000 },
     fallback: (input) => ({
-      intent: 'journaling',
-      confidence: 0.5,
+      channel: 'brain_dump',
+      summary: "I extracted some items but couldn't process fully.",
+      mode: 'propose',
+      options: [
+        {
+          id: 'fallback_1',
+          title: 'Save to Inbox',
+          impact: 'Review later',
+          patch: { ops: [], reason: "Fallback save" }
+        }
+      ],
       extracted: {
-        tasks: [],
-        ideas: [],
-        signals: { sentiment: 0, overwhelm: 0 }
-      },
-      strategy: {
-        summary: "Neural analysis unavailable. Content logged as journal entry.",
-        recommended_action: "save_notes",
-        reasoning: "Fallback mode"
-      },
-      note: "I've saved this to your notes for now.",
-      options: []
+        items: [{ kind: 'note', title: input.slice(0, 50) }],
+        signals: { overwhelm: 0, stress: 0, motivation: 0.5, energy: 3, health_flag: false }
+      }
     }),
-    systemPrompt: (ctx) => {
-      return `
-You are PlannrAI Interpretation Engine (Donna).
-Analyze the user's "Brain Dump" to detect INTENT and EXTRACT items.
-${BASE_RULES}
-
-OBJECTIVE:
-1. CLASSIFY INTENT:
-   - 'execution': Explicit tasks/to-dos (e.g. "I need to call Mom").
-   - 'planning': Scheduling/Time concerns (e.g. "When can I fit in gym?").
-   - 'journaling': Venting/Emotions (e.g. "I'm so stressed").
-   - 'ideation': Random thoughts/Ideas (e.g. "App idea: ...").
-
-2. EXTRACT ITEMS:
-   - Pull out tasks with estimates.
-   - Pull out ideas.
-   - Analyze emotional signals (sentiment, arousal).
-
-3. STRATEGIZE:
-   - specific 'recommended_action' based on intent.
-   - If 'execution' -> suggest 'schedule_tasks'.
-   - If 'planning' -> suggest 'plan_week'.
-   - If 'journaling' -> suggest 'coaching_session' (if negative) or 'save_notes'.
-
-4. PATCHING (Optional):
-   - Only generate a 'patch' if the intent is CLEARLY 'planning' or 'execution' and the user asked for it. 
-   - Otherwise, leave patch undefined and let the UI handle the "Triage".
-
-OUTPUT JSON:
-{
-  "intent": "execution"|"planning"|"journaling"|"ideation",
-  "confidence": 0.0-1.0,
-  "extracted": {
-    "tasks": [{ "title": "string", "estimated_minutes": number, "pillar?": "string", "deadline?": "string", "status": "new" }],
-    "ideas": ["string"],
-    "emotional_signals": { "sentiment": -1..1, "arousal": 0..1, "tags": ["string"] }
-  },
-  "strategy": {
-    "summary": "string (what you found)",
-    "recommended_action": "schedule_tasks"|"plan_week"|"coaching_session"|"save_notes"|"nothing",
-    "reasoning": "string"
-  },
-  "patch": { ... } (optional)
-}
-
-CONTEXT:
-${JSON.stringify(ctx, null, 2)}
-`.trim();
-    },
-    userPrompt: (input) => `Brain dump input:\n${input}`
+    systemPrompt: (ctx) => `
+      You are PlannrAI's "Chaos Engine".
+      Transform raw brain dumps into STRUCTURED ACTION + REALITY CHANGES.
+      ${BASE_RULES}
+      
+      MISSION:
+      1. Capture raw thoughts.
+      2. Extract actionable items (Tasks, Commitments) + Constraints + Signals.
+      3. Produce 2-3 "Do Something Now" options with EXECUTABLE PATCHES.
+      
+      CONTEXT:
+      Current Time: ${ctx.now}
+      Schedule: ${JSON.stringify(ctx.schedule || [])}
+      Goals: ${JSON.stringify(ctx.goals || [])}
+      User State: ${JSON.stringify(ctx.userState || {})}
+      
+      DETECTION RULES:
+      A) Deviations: "I'm busy at 4pm" -> Propose reschedule.
+      B) New Tasks: "Buy milk" -> Propose 'create_event' (today/tomorrow).
+      C) Overload: "I'm overwhelmed" -> Propose 'reduce_intensity' (update_goal).
+      D) Fog: "I don't know what to do" -> Propose 'triage' (pick top 3).
+      
+      OUTPUT FORMAT:
+      JSON matching BrainDumpResponseSchema.
+      channel: "brain_dump"
+    `.trim(),
+    userPrompt: (input) => `Input:\n${input}`
   },
 
   onboarding_plan: {

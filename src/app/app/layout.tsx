@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutDashboard, Calendar, Brain, Activity, User, Sparkles, Menu, Target } from 'lucide-react';
-import { ChatInterface } from '@/components/agent/chat-interface';
+import { CoachChat } from '@/components/coach/coach-chat';
 import { cn } from '@/lib/utils';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -146,7 +146,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 "fixed inset-y-0 right-0 w-[400px] glass-panel border-l border-[var(--glass-border)] shadow-2xl z-40 transform transition-transform duration-300 ease-in-out",
                 isCoachOpen ? "translate-x-0" : "translate-x-full"
             )}>
-                <ChatInterface onClose={() => setIsCoachOpen(false)} />
+                <CoachChat onClose={() => setIsCoachOpen(false)} />
             </aside>
         </div>
     );

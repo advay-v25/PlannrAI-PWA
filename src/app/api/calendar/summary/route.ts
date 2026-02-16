@@ -1,3 +1,4 @@
+
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { createClient } from '@/lib/supabase/server';
 import { startOfDay, addDays, format, parseISO } from 'date-fns';
@@ -17,11 +18,11 @@ export const GET = secureApiRoute(
 
         const supabase = await createClient();
 
-        // Parallel Fetch: Profile, Commitments, Goals, Habits, Blocks
-        const [profileRes, commitmentsRes, goalsRes, habitsRes, blocksRes] = await Promise.all([
-            supabase.from('profiles').select('sleep_start, sleep_end, meal_preferences, pillar_preferences, preferred_workdays, weekend_intensity, buffer_minutes').eq('id', context.userId).single(),
+        // Parallel Fetch: Preferences, Commitments, Goals, Habits, Blocks
+        const [prefsRes, commitmentsRes, goalsRes, habitsRes, blocksRes] = await Promise.all([
+            supabase.from('profile_preferences').select('*').eq('user_id', context.userId).single(),
             supabase.from('commitments').select('*').eq('user_id', context.userId).eq('is_active', true),
-            supabase.from('goals').select('*').eq('user_id', context.userId).eq('is_paused', false), // Or implement explicit paused filter
+            supabase.from('goals').select('*').eq('user_id', context.userId).eq('is_paused', false),
             supabase.from('habit_stacks').select('*').eq('user_id', context.userId).eq('enabled', true),
             supabase.from('schedule_blocks')
                 .select('*')
@@ -30,10 +31,8 @@ export const GET = secureApiRoute(
                 .lt('date', endStr)
         ]);
 
-        if (profileRes.error) return apiError('Failed to fetch profile', 500);
-        // commitments, goals, habits might return empty arrays if no data, check for errors specifically
-
-        const profile = profileRes.data;
+        // If preferences missing (first load), UI/middleware should handle bootstrap, or return empty object
+        const preferences = prefsRes.data || {};
         const commitments = commitmentsRes.data || [];
         const goals = goalsRes.data || [];
         const habits = habitsRes.data || [];
@@ -46,10 +45,8 @@ export const GET = secureApiRoute(
             missed: blocks.filter((b: any) => b.status === 'missed').length
         };
 
-        // --- Conflict Detection (Simple Overlap) ---
-        // Only active blocks within the requested window
+        // --- Conflict Detection ---
         const conflicts: any[] = [];
-        // Group by day to simplify check
         const blocksByDay = blocks.reduce((acc: any, b: any) => {
             acc[b.date] = acc[b.date] || [];
             acc[b.date].push(b);
@@ -63,7 +60,6 @@ export const GET = secureApiRoute(
                     const b1 = dayBlocks[i];
                     const b2 = dayBlocks[j];
 
-                    // Parse times 'HH:MM'
                     const [h1, m1] = b1.start_time.split(':').map(Number);
                     const [h2, m2] = b1.end_time.split(':').map(Number);
                     const [h3, m3] = b2.start_time.split(':').map(Number);
@@ -74,7 +70,6 @@ export const GET = secureApiRoute(
                     const start2 = h3 * 60 + m3;
                     const end2 = h4 * 60 + m4;
 
-                    // Overlap logic: (StartA < EndB) and (EndA > StartB)
                     if (start1 < end2 && end1 > start2) {
                         conflicts.push({
                             date,
@@ -87,10 +82,9 @@ export const GET = secureApiRoute(
             }
         });
 
-
         return apiSuccess({
             range: { start: startStr, end: endStr },
-            preferences: profile,
+            preferences, // Now returns the full ProfilePreferences object
             commitments,
             goals,
             habit_stacks: habits,
@@ -98,5 +92,6 @@ export const GET = secureApiRoute(
             metrics,
             conflicts
         });
-    }
+    },
+    { requireAuth: true }
 );

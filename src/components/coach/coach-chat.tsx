@@ -1,27 +1,27 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Sparkles, X, Brain, ChevronRight } from 'lucide-react';
-import { useAgentStore } from '@/stores/agent-store';
-import { MessageBubble } from './message-bubble';
-import { cn } from '@/lib/utils';
 
-interface ChatInterfaceProps {
+import { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Send, Sparkles, X, Brain } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useCoach } from '@/hooks/use-coach';
+import { OptionCard } from './option-card';
+
+interface CoachChatProps {
     className?: string;
     onClose?: () => void;
 }
 
-export const ChatInterface = ({ className, onClose }: ChatInterfaceProps) => {
-    const { messages, sendMessage, isLoading, clearMessages, loadHistory, applyOption, undoAction } = useAgentStore();
+export const CoachChat = ({ className, onClose }: CoachChatProps) => {
+    const { messages, sendMessage, isLoading, applyOption, loadHistory } = useCoach();
     const [input, setInput] = useState('');
     const endRef = useRef<HTMLDivElement>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
 
-    // Load history on mount
+    // Initial Load
     useEffect(() => {
         loadHistory();
     }, []);
 
-    // Auto-scroll to bottom
+    // Auto-scroll
     useEffect(() => {
         endRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isLoading]);
@@ -29,7 +29,6 @@ export const ChatInterface = ({ className, onClose }: ChatInterfaceProps) => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!input.trim() || isLoading) return;
-
         const text = input;
         setInput('');
         await sendMessage(text);
@@ -44,8 +43,8 @@ export const ChatInterface = ({ className, onClose }: ChatInterfaceProps) => {
                         <Sparkles className="h-4 w-4" />
                     </div>
                     <div>
-                        <h3 className="text-sm font-bold text-[var(--text-primary)]">Neural Coach</h3>
-                        <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-widest font-mono">Cortex V2 • Active</p>
+                        <h3 className="text-sm font-bold text-[var(--text-primary)]">Chief of Staff</h3>
+                        <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-widest font-mono">Run by Cosmos</p>
                     </div>
                 </div>
                 {onClose && (
@@ -62,45 +61,66 @@ export const ChatInterface = ({ className, onClose }: ChatInterfaceProps) => {
                         <div className="w-16 h-16 rounded-full bg-[var(--color-primary)]/5 border border-[var(--color-primary)]/10 flex items-center justify-center mb-4 animate-pulse-slow">
                             <Brain className="w-8 h-8 text-[var(--color-primary)]" />
                         </div>
-                        <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">Systems Online</h3>
+                        <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">Ready to Orchestrate</h3>
                         <p className="text-sm text-[var(--text-secondary)]">
-                            I'm ready to analyze your schedule, optimize your energy, and clear your mind.
+                            "I'm busy", "I'm tired", or "Plan my day."
                         </p>
                     </div>
                 )}
 
-                {messages.map((msg) => (
-                    <MessageBubble
-                        key={msg.id}
-                        id={msg.id}
-                        role={msg.role === 'agent' ? 'assistant' : msg.role}
-                        content={msg.content}
-                        options={msg.options}
-                        undoToken={msg.undoToken}
-                        onApplyOption={applyOption}
-                        onUndo={undoAction}
-                        timestamp={msg.timestamp instanceof Date ? msg.timestamp.getTime() : msg.timestamp}
-                        isImpossible={msg.isImpossible}
-                    />
-                ))}
+                <AnimatePresence>
+                    {messages.map((msg) => (
+                        <motion.div
+                            key={msg.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className={cn(
+                                "max-w-[85%] space-y-2",
+                                msg.role === 'user' ? "ml-auto" : "mr-auto"
+                            )}
+                        >
+                            {/* Bubble */}
+                            <div className={cn(
+                                "rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm",
+                                msg.role === 'user'
+                                    ? "bg-[var(--color-primary)] text-white rounded-br-none"
+                                    : "bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--text-primary)] rounded-bl-none"
+                            )}>
+                                {msg.content}
+                            </div>
 
-                {/* Thinking Visualization (Neural Activity) */}
+                            {/* Options Grid */}
+                            {msg.role === 'assistant' && msg.options && msg.options.length > 0 && (
+                                <div className="grid grid-cols-1 gap-2 mt-2">
+                                    {msg.options.map((opt) => (
+                                        <OptionCard
+                                            key={opt.id}
+                                            option={opt}
+                                            onApply={(id) => applyOption(msg.id, id)}
+                                            isApplying={msg.isApplying}
+                                            isApplied={msg.appliedOptionId === opt.id}
+                                            disabled={!!msg.appliedOptionId} // Disable others if one applied
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </motion.div>
+                    ))}
+                </AnimatePresence>
+
+                {/* Thinking Indicator */}
                 {isLoading && (
                     <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="flex flex-col gap-2 px-4 py-3 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] max-w-[80%]"
+                        className="flex items-center gap-2 px-4 py-3 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] w-fit"
                     >
-                        <div className="flex items-center gap-2 text-xs font-mono text-[var(--color-primary)] uppercase tracking-widest">
-                            <Brain className="w-3 h-3 animate-pulse" />
-                            <span>Neural Processing</span>
+                        <div className="flex space-x-1">
+                            <div className="w-1.5 h-1.5 bg-[var(--color-primary)] rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                            <div className="w-1.5 h-1.5 bg-[var(--color-primary)] rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                            <div className="w-1.5 h-1.5 bg-[var(--color-primary)] rounded-full animate-bounce"></div>
                         </div>
-                        <div className="space-y-1">
-                            {/* Simulated "Two-Pass" steps */}
-                            <ThinkingStep text="Analyzing Context..." delay={0} />
-                            <ThinkingStep text="Checking Constraints..." delay={1.5} />
-                            <ThinkingStep text="Formulating Plan..." delay={3} />
-                        </div>
+                        <span className="text-xs font-mono text-[var(--text-tertiary)] uppercase tracking-wider">Thinking</span>
                     </motion.div>
                 )}
                 <div ref={endRef} />
@@ -110,11 +130,10 @@ export const ChatInterface = ({ className, onClose }: ChatInterfaceProps) => {
             <div className="p-4 border-t border-[var(--glass-border)] bg-[var(--color-bg-tertiary)]/30">
                 <form onSubmit={handleSubmit} className="relative">
                     <input
-                        ref={inputRef}
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        placeholder="Ask me to adjust your plan..."
+                        placeholder="Command the Chief of Staff..."
                         disabled={isLoading}
                         className="w-full rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] py-3 pl-4 pr-12 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--color-primary)]/50 focus:bg-[var(--glass-bg-hover)] focus:outline-none transition-all disabled:opacity-50"
                     />
@@ -134,16 +153,3 @@ export const ChatInterface = ({ className, onClose }: ChatInterfaceProps) => {
         </div>
     );
 };
-
-// Helper for the "Thinking" list
-const ThinkingStep = ({ text, delay }: { text: string; delay: number }) => (
-    <motion.div
-        initial={{ opacity: 0, x: -10 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ delay }}
-        className="flex items-center gap-2 text-xs text-[var(--text-secondary)]"
-    >
-        <div className="w-1 h-1 rounded-full bg-[var(--text-tertiary)]" />
-        {text}
-    </motion.div>
-);
