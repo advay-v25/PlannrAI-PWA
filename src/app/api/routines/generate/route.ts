@@ -95,7 +95,8 @@ export const POST = secureApiRoute(
             const data = await JSONReliability.validateOrRepair(
                 rawText,
                 channelDef.schema,
-                channelDef.config.model
+                channelDef.config.model,
+                "JSON matching routine schema"
             );
 
             routine = {

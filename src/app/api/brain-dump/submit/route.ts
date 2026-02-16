@@ -1,8 +1,6 @@
-
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { createClient } from '@/lib/supabase/server';
-import { apiClient } from '@/lib/api-client';
-import { BrainDumpResponseSchema } from '@/lib/ai/schemas';
+import { executeAI } from '@/lib/ai/ai-service';
 
 export const POST = secureApiRoute(
     async (context, body) => {
@@ -11,13 +9,8 @@ export const POST = secureApiRoute(
 
         if (!text) return apiError("Text required", 400);
 
-        // 1. Call AI Gateway (Channel="brain_dump")
-        // The Gateway handles context building via `buildBrainDumpContext` which we just made (assuming gateway imports it dynamically)
-        // Wait, I need to check `src/app/api/ai/execute/route.ts` to ensure it actually imports the context.
-        // It does: `if (channel === 'brain_dump') { const { buildBrainDumpContext } = await import('@/lib/brain-dump/brain-dump-context'); ... }`
-        // So this should work out of the box.
-
-        const aiRes = await apiClient.post<any>('/api/ai/execute', {
+        // 1. Call AI Service Directly (Bypasses internal API 401 issues)
+        const aiRes = await executeAI(userId, {
             channel: 'brain_dump',
             input: text,
             context: {
@@ -33,7 +26,8 @@ export const POST = secureApiRoute(
             // A. Save Raw Dump
             const { data: dump, error: dumpError } = await supabase.from('brain_dumps').insert({
                 user_id: userId,
-                text: text
+                text: text,
+                content: text // Legacy support & NOT NULL constraint
             }).select('id').single();
 
             if (dumpError) console.error("Dump Save Error", dumpError);

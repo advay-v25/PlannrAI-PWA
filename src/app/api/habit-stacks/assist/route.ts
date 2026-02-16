@@ -1,6 +1,7 @@
 
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { createClient } from '@/lib/supabase/server';
+import { executeAI } from '@/lib/ai/ai-service';
 
 export const POST = secureApiRoute(
     async (context, body) => {
@@ -20,29 +21,16 @@ export const POST = secureApiRoute(
             constraints
         };
 
-        // 2. Call AI
-        const apiUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/ai/execute`;
-
+        // 2. Call AI Service Directly
         try {
-            const aiResponse = await fetch(apiUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': context.request.headers.get('cookie') || ''
-                },
-                body: JSON.stringify({
-                    channel: 'habit_stack',
-                    context: aiContext,
-                    model: 'smart' // Use intelligent model for design
-                })
+            const aiResult = await executeAI(userId, {
+                channel: 'habit_stack',
+                input: mode === 'build' ? "Build new stack" : "Improve existing stack",
+                context: aiContext,
+                // model: 'smart' // executeAI handles model selection based on channel, can't override easily unless valid in schema
             });
 
-            if (!aiResponse.ok) {
-                return apiError("AI Service Unavailable", 503);
-            }
-
-            const aiResult = await aiResponse.json();
-            return apiSuccess(aiResult.data);
+            return apiSuccess(aiResult);
 
         } catch (e) {
             console.error("AI Error", e);

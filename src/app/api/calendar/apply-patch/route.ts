@@ -20,7 +20,7 @@ export const POST = secureApiRoute(
         // 1. Validate Basic Structure
         const parsed = ApplyBodySchema.safeParse(body);
         if (!parsed.success) {
-            return apiError('Invalid request format', 400, parsed.error.format());
+            return apiError('Invalid request format', 400, 'VALIDATION_ERROR', { issues: parsed.error.issues });
         }
 
         const { patch, range } = parsed.data;

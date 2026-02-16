@@ -1,0 +1,13 @@
+
+> plannrai-web@0.1.0 start
+> next start
+
+▲ Next.js 16.1.6
+- Local:         http://localhost:3001
+- Network:       http://192.168.29.216:3001
+
+✓ Starting...
+✓ Ready in 79ms
+[API HIT] POST /api/brain-dump/submit ip=::1
+[AI Service] [c435ae6b-0118-47b6-9522-66b0b07f7060] START channel=brain_dump input_len=15
+[AI Service] [c435ae6b-0118-47b6-9522-66b0b07f7060] Schema validation failed: Schema validation failed after repair

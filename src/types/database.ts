@@ -419,6 +419,7 @@ export type Database = {
           ai_sentiment: string | null
           ai_themes: string[] | null
           content: string
+          text: string | null
           created_at: string | null
           detected_constraints: Json | null
           extracted_signals: Json | null
@@ -430,6 +431,7 @@ export type Database = {
           ai_sentiment?: string | null
           ai_themes?: string[] | null
           content: string
+          text?: string | null
           created_at?: string | null
           detected_constraints?: Json | null
           extracted_signals?: Json | null
@@ -441,6 +443,7 @@ export type Database = {
           ai_sentiment?: string | null
           ai_themes?: string[] | null
           content?: string
+          text?: string | null
           created_at?: string | null
           detected_constraints?: Json | null
           extracted_signals?: Json | null
@@ -1755,6 +1758,7 @@ export type Profile = Tables<'profiles'> & {
 export interface GoalCapacity {
   available_min_per_day: number;
   committed_min_per_day: number;
+  totalGoalMinutes: number;
   over_by_min_per_day: number;
   percentage: number;
 }

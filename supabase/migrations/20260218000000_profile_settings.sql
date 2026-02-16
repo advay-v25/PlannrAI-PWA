@@ -1,4 +1,7 @@
 
+-- Enable the moddatetime extension
+create extension if not exists moddatetime schema extensions;
+
 -- 1. Create profile_preferences table
 create table if not exists public.profile_preferences (
     user_id uuid not null primary key references auth.users(id) on delete cascade,
@@ -78,4 +81,4 @@ create policy "Users can insert own preferences"
 
 -- 4. Trigger for updated_at
 create trigger handle_updated_at before update on public.profile_preferences
-    for each row execute procedure moddatetime (updated_at);
+    for each row execute procedure extensions.moddatetime (updated_at);

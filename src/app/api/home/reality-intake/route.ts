@@ -2,6 +2,7 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { createClient } from '@/lib/supabase/server';
 import { BrainDumpOutputSchema } from '@/lib/ai/registry';
+import { executeAI } from '@/lib/ai/ai-service';
 
 export const POST = secureApiRoute(
     async (context, body) => {
@@ -74,49 +75,29 @@ export const POST = secureApiRoute(
         };
 
         try {
-            // Internal fetch to AI
-            // We need to pass the cookie for auth if the AI route requires it, 
-            // OR use a service-role call if we trust this server-side call.
-            // But `/api/ai/execute` checks auth.
-            // EASIER: Extract AI logic to a lib function that both this route and `api/ai/execute` use.
-            // For now, to save time/risk, I will use `fetch` with the request headers.
-
-            const aiResponse = await fetch(apiUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': context.request.headers.get('cookie') || ''
-                },
-                body: JSON.stringify({
-                    channel: 'brain_dump', // "home" channel? Plan says 'brain_dump' for reality intake.
-                    context: aiContext,
-                    model: 'fast' // or 'smart'
-                })
+            // Call AI Service Directly
+            const aiResult = await executeAI(userId, {
+                channel: 'brain_dump', // Reality intake uses brain dump channel
+                input: text,
+                context: aiContext
+                // model: 'fast' // executeAI defaults
             });
 
-            if (!aiResponse.ok) {
-                console.error("AI Call failed", await aiResponse.text());
-                // Fallback
-                return apiSuccess({
-                    entry: savedEntry,
-                    ai: null,
-                    fallback: true
-                });
-            }
-
-            const aiResult = await aiResponse.json();
-
             // 3. Save extraction to the dump entry (async update)
-            if (aiResult.data && aiResult.data.extracted) {
-                await supabase.from('brain_dumps').update({
-                    extracted_signals: aiResult.data.extracted,
-                    // detected_constraints: ...
+            // aiResult is the data directly (no .data wrapper if returned from executeAI, wait executeAI returns object with data)
+            // executeAI returns { summary: ..., extracted: ..., ... }
+            if (aiResult && aiResult.extracted) {
+                // Update brain_dumps with extracted signals
+                const { error: updateError } = await supabase.from('brain_dumps').update({
+                    extracted_signals: aiResult.extracted,
                 }).eq('id', savedEntry.id);
+
+                if (updateError) console.warn("Failed to update dump with extraction", updateError);
             }
 
             return apiSuccess({
                 entry: savedEntry,
-                analysis: aiResult.data // This conforms to BrainDumpOutputSchema
+                analysis: aiResult
             });
 
         } catch (e) {

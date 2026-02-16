@@ -72,4 +72,44 @@ export class AnchorService {
             throw error;
         }
     }
+
+    /**
+     * Expand anchors for a given range without inserting them into DB.
+     * Useful for looking ahead or planning without side effects.
+     */
+    static async expandAnchors(
+        userId: string,
+        startDate: Date,
+        days: number,
+        commitments: any[]
+    ) {
+        const expanded: any[] = [];
+        const start = startOfDay(startDate);
+        const end = addDays(start, days);
+
+        for (const comm of commitments) {
+            let curr = new Date(start);
+            while (curr < end) {
+                const day = getDay(curr);
+                if (comm.days_of_week && comm.days_of_week.includes(day)) {
+                    expanded.push({
+                        user_id: userId,
+                        date: format(curr, 'yyyy-MM-dd'),
+                        start_time: comm.start_time,
+                        end_time: comm.end_time,
+                        title: comm.title,
+                        block_type: 'anchor',
+                        status: 'planned',
+                        is_fixed: true,
+                        is_locked: true,
+                        commitment_id: comm.id,
+                        source: 'anchor',
+                        meta: { original_anchor_title: comm.title }
+                    });
+                }
+                curr = addDays(curr, 1);
+            }
+        }
+        return expanded;
+    }
 }

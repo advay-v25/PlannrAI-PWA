@@ -1,24 +1,46 @@
-
 import { createClient } from '@/lib/supabase/server';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { Database } from '@/types/database';
+import { Database, Profile } from '@/types/database';
+import { startOfDay, parseISO } from 'date-fns';
+
+import { PlanWeekService, SchedulerContext } from '@/lib/calendar/plan-week-service';
 
 export class SchedulerService {
-    constructor(private supabase: SupabaseClient<Database>) { }
+    private context: SchedulerContext;
 
-    async getContext(userId: string, date: string) {
-        // 1. Fetch Preferences (Source of Truth for Constraints)
-        const { data: prefs } = await this.supabase
-            .from('profile_preferences')
-            .select('*')
-            .eq('user_id', userId)
-            .single();
+    constructor(context: SchedulerContext) {
+        this.context = context;
+    }
 
-        // Fallback if migration hasn't run or user is new (though /profile/me bootstraps)
-        // We should probably rely on the preferences being there.
+    /**
+     * Generates a baseline schedule using deterministic logic.
+     * Delegates to PlanWeekService for the heavy lifting.
+     */
+    async generateBaseline() {
+        const result = await PlanWeekService.generateScheduleFromContext(this.context, this.context.weekStart);
+
+        // Extract blocks from the patch changes
+        // The result.patch.changes contains 'create_event' ops with payload being the block
+        const blocks = result.patch.changes
+            .filter((c: any) => c.op === 'create_event')
+            .map((c: any) => c.payload);
+
+        return blocks;
+    }
+
+    static async getContext(userId: string, date: string, supabase: SupabaseClient<Database>) {
+        // 1. Fetch Profile & Preferences (Source of Truth for Constraints)
+        // We need both because SchedulerContext expects a rich Profile object
+        const [prefsRes, profileRes] = await Promise.all([
+            supabase.from('profile_preferences').select('*').eq('user_id', userId).single(),
+            supabase.from('profiles').select('*').eq('id', userId).single()
+        ]);
+
+        const prefs = prefsRes.data;
+        const profileData = profileRes.data;
 
         // 2. Fetch Existing Blocks
-        const { data: blocks } = await this.supabase
+        const { data: blocks } = await supabase
             .from('schedule_blocks')
             .select('*')
             .eq('user_id', userId)
@@ -26,18 +48,32 @@ export class SchedulerService {
             .order('start_time');
 
         // 3. Fetch Goals
-        const { data: goals } = await this.supabase
+        const { data: goals } = await supabase
             .from('goals')
             .select('*')
             .eq('user_id', userId)
             .eq('status', 'active');
 
-        return {
-            preferences: prefs,
-            blocks: blocks || [],
-            goals: goals || []
-        };
-    }
+        // 4. Fetch Commitments
+        const { data: commitments } = await supabase
+            .from('commitments')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('is_active', true);
 
-    // ... rest of service
+        // Merge profile data to satisfy valid Profile type
+        const fullProfile = {
+            ...profileData,
+            ...prefs
+        } as unknown as Profile;
+
+        return {
+            userId,
+            weekStart: startOfDay(parseISO(date)),
+            profile: fullProfile,
+            existingBlocks: blocks || [],
+            goals: goals || [],
+            commitments: commitments || []
+        } as SchedulerContext;
+    }
 }
