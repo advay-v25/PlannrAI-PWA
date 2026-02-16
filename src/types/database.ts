@@ -797,7 +797,8 @@ export type Database = {
           id: string
           is_active: boolean | null
           last_completed: string | null
-          longest_streak: number | null
+
+
           max_grace_days: number | null
           total_completions: number | null
           trigger_habit: string
@@ -1651,3 +1652,11 @@ export type Profile = Tables<'profiles'> & {
   preferred_workdays?: number[];
   weekend_intensity?: 'normal' | 'light' | 'off';
 };
+
+export interface GoalCapacity {
+  available_min_per_day: number;
+  committed_min_per_day: number;
+  over_by_min_per_day: number;
+  percentage: number;
+}
+

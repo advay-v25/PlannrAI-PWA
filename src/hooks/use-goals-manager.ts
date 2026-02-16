@@ -2,20 +2,15 @@ import { useState, useMemo } from 'react';
 import { useGoalsStore, useUserStore } from '@/stores'; // Assuming these exist
 import { apiClient } from '@/lib/api-client';
 import { useToast } from '@/components/ui/toast';
-import type { Goal } from '@/types/database';
-import { calculateGoalCapacity } from '@/lib/capacity'; // Assuming this exists
+import type { Goal, GoalCapacity } from '@/types/database';
+// import { calculateGoalCapacity } from '@/lib/capacity'; // Removed - Server side now
 
 export function useGoalsManager() {
     const { goals, setGoals, addGoal, updateGoal: updateStoreGoal, removeGoal, setLoading } = useGoalsStore();
     const { profile } = useUserStore();
     const { showToast } = useToast();
     const [isSyncing, setIsSyncing] = useState(false);
-
-    // Capacity Calculation
-    const capacity = useMemo(() => {
-        if (!profile) return null;
-        return calculateGoalCapacity(profile, goals, []); // Pass commitments if available, or fetch them here
-    }, [profile, goals]);
+    const [capacity, setCapacity] = useState<GoalCapacity | null>(null);
 
     // CRUD Operations
     const handleUpdateGoal = async (id: string, updates: Partial<Goal>) => {
@@ -29,11 +24,12 @@ export function useGoalsManager() {
         // 2. API Call
         setIsSyncing(true);
         try {
-            await apiClient.put('/api/goals', { id, ...updates });
+            const res = await apiClient.put<{ goal: Goal, scheduleChanged: boolean }>('/api/goals', { id, ...updates });
+            // Refresh to get updated capacity if schedule changed or goal updated
+            fetchGoals();
         } catch (error) {
             console.error('Failed to update goal:', error);
             showToast('Failed to save changes. Please try again.', 'error');
-            // Revert optimistic update? For now, we rely on next fetch or user retry.
         } finally {
             setIsSyncing(false);
         }
@@ -47,6 +43,7 @@ export function useGoalsManager() {
         try {
             await apiClient.delete('/api/goals', { id });
             showToast('🗑️ Goal deleted', 'info');
+            fetchGoals(); // Refresh capacity
         } catch (error) {
             console.error('Failed to delete goal:', error);
             showToast('Failed to delete goal on server.', 'error');
@@ -57,8 +54,9 @@ export function useGoalsManager() {
         try {
             const response = await apiClient.post<{ goal: Goal }>('/api/goals', goalData);
             if (response?.goal) {
-                addGoal(response.goal); // Cast if response type mismatch
+                addGoal(response.goal);
                 showToast('✅ Goal created successfully!', 'success');
+                fetchGoals(); // Refresh capacity
                 return response.goal;
             }
         } catch (error) {
@@ -71,9 +69,12 @@ export function useGoalsManager() {
     const fetchGoals = async () => {
         setLoading(true);
         try {
-            const { goals } = await apiClient.get<{ goals: Goal[] }>('/api/goals');
-            if (goals) {
-                setGoals(goals);
+            const data = await apiClient.get<{ goals: Goal[], capacity: GoalCapacity }>('/api/goals');
+            if (data?.goals) {
+                setGoals(data.goals);
+            }
+            if (data?.capacity) {
+                setCapacity(data.capacity);
             }
         } catch (error) {
             console.error('Failed to fetch goals:', error);

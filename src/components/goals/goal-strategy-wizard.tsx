@@ -10,13 +10,14 @@ import {
     ChevronLeft,
     AlertCircle,
     Brain,
-    Play
+    Play,
+    Check
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
 import { apiClient } from '@/lib/api-client';
 import { useToast } from '@/components/ui/toast';
-import type { Goal } from '@/types/database';
+import type { Goal, GoalCapacity } from '@/types/database';
 import type { Patch } from '@/lib/ai/schemas';
 import { StrategyOptionCard } from './strategy-option-card';
 
@@ -24,9 +25,9 @@ interface GoalStrategyWizardProps {
     goal: Goal;
     isOpen: boolean;
     onClose: () => void;
-    onStrategyApplied: (strategy: any) => void;
+    onStrategyApplied: (strategy: Record<string, any>) => void;
     context?: {
-        capacity?: any;
+        capacity?: GoalCapacity;
         profile?: any;
     };
 }
@@ -38,7 +39,7 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied, c
     const [step, setStep] = useState<WizardStep>('intro');
 
     // AI Data State
-    const [aiOptions, setAiOptions] = useState<any[]>([]);
+    const [aiOptions, setAiOptions] = useState<{ label: string; patch: Patch; explanation?: string }[]>([]);
     const [aiExplanation, setAiExplanation] = useState<string>('');
     const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
 
@@ -58,29 +59,15 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied, c
         setAiOptions([]); // Reset
 
         try {
-            const aiData = await apiClient.ai.execute({
-                channel: 'goal_strategy',
-                input: `Create a strategy for my goal: "${goal.title}"`,
-                context: {
-                    goal_id: goal.id,
-                    goal_title: goal.title,
-                    goal_category: goal.category,
-                    minutes_per_day: goal.minutes_per_day,
-                    current_capacity: context?.capacity || {},
-                    skill_level: 'Adaptive' // Could come from profile
-                }
+            // Call BFF Endpoint
+            const response = await apiClient.post<any>('/api/goals/strategy', {
+                goal_id: goal.id,
+                mode: 'expert'
             });
 
-            if (aiData.intent === 'none') {
-                setAiExplanation(aiData.explanation || "I couldn't generate a strategy for this goal. It might be too vague.");
-                setAiOptions([]);
-                setStep('selection'); // We will show the "None" state here
-                return;
-            }
-
-            if (aiData.options && aiData.options.length > 0) {
-                setAiOptions(aiData.options);
-                setAiExplanation(aiData.explanation || "Select a strategy to execute.");
+            if (response.options && response.options.length > 0) {
+                setAiOptions(response.options);
+                setAiExplanation(response.explanation || "Select a strategy to execute.");
                 setStep('selection');
             } else {
                 throw new Error("AI returned no options.");

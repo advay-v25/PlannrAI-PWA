@@ -5,38 +5,87 @@ import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
-// GET - List all goals with subtasks
+// GET - List all goals with capacity metrics
 export const GET = secureApiRoute(
     async (context) => {
         const supabase = await createClient();
         const { searchParams } = new URL(context.request.url);
         const parentId = searchParams.get('parent_id');
 
-        // Build query
-        let query = supabase
-            .from('goals')
-            .select('*')
-            .eq('user_id', context.userId);
+        // Parallel Fetch: Goals, Commitments (Anchors), User Preferences (if stored)
+        const [goalsRes, anchorsRes] = await Promise.all([
+            // 1. Goals
+            (async () => {
+                let query = supabase
+                    .from('goals')
+                    .select('*')
+                    .eq('user_id', context.userId);
 
-        if (parentId === 'null' || parentId === '') {
-            // Get top-level goals only
-            query = query.is('parent_id', null);
-        } else if (parentId) {
-            // Get subtasks of a specific goal
-            query = query.eq('parent_id', parentId);
-        }
+                if (parentId === 'null' || parentId === '') {
+                    query = query.is('parent_id', null);
+                } else if (parentId) {
+                    query = query.eq('parent_id', parentId);
+                }
+                return query.order('sort_order', { ascending: true }).order('created_at', { ascending: false });
+            })(),
+            // 2. Anchors (Commitments)
+            supabase.from('commitments').select('days_of_week, start_time, end_time').eq('user_id', context.userId)
+        ]);
 
-        const { data: goals, error } = await query
-            .order('sort_order', { ascending: true })
-            .order('created_at', { ascending: false });
+        if (goalsRes.error) return apiError('Failed to fetch goals', 500);
 
-        console.log(`[Goals GET] userId: ${context.userId}, found: ${goals?.length}, error: ${error?.message}`);
+        const goals = goalsRes.data || [];
+        const anchors = anchorsRes.data || [];
 
-        if (error) {
-            return apiError('Failed to fetch goals', 500);
-        }
+        // --- Capacity Logic ---
+        // 1. Available Minutes Calculation
+        // Assumptions: Awake 16h (960m), Meals 3x30m (90m), Buffer 60m = Total deductions ~150m
+        // Base Available = 960 - 150 = 810m
+        // Anchors deduction = Average daily minutes of fixed commitments
 
-        return apiSuccess({ goals });
+        let weeklyAnchorMinutes = 0;
+        anchors.forEach((a: any) => {
+            const start = new Date(`1970-01-01T${a.start_time}`);
+            const end = new Date(`1970-01-01T${a.end_time}`);
+            const duration = (end.getTime() - start.getTime()) / 60000;
+            const daysCount = Array.isArray(a.days_of_week) ? a.days_of_week.length : 0;
+            weeklyAnchorMinutes += (duration * daysCount);
+        });
+
+        const avgDailyAnchorMinutes = Math.round(weeklyAnchorMinutes / 7);
+        const baseAvailable = 810; // 13.5 hours active time logic
+        const available_min_per_day = Math.max(0, baseAvailable - avgDailyAnchorMinutes);
+
+        // 2. Committed Minutes Calculation
+        // Sum of active goals
+        let committed_min_per_day = 0;
+        goals.forEach((g: any) => {
+            if (g.status === 'paused' || g.is_paused) return; // Skip paused
+
+            let dailyMins = 0;
+            if (g.minutes_per_day) {
+                // If specific days aren't set, assume 7? Or use days_per_week
+                const days = g.days_per_week || 7;
+                // Average out: (mins * days) / 7
+                dailyMins = (g.minutes_per_day * days) / 7;
+            }
+            committed_min_per_day += dailyMins;
+        });
+
+        committed_min_per_day = Math.round(committed_min_per_day);
+        const over_by_min_per_day = Math.max(0, committed_min_per_day - available_min_per_day);
+        const percentage = available_min_per_day > 0 ? Math.round((committed_min_per_day / available_min_per_day) * 100) : 0;
+
+        return apiSuccess({
+            goals,
+            capacity: {
+                available_min_per_day,
+                committed_min_per_day,
+                over_by_min_per_day,
+                totalGoalMinutes: committed_min_per_day, // Legacy compat
+                percentage // Legacy compat
+            }
+        });
     },
     { requireAuth: true }
 );
