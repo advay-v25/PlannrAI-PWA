@@ -47,17 +47,34 @@ export const POST = secureApiRoute(
             all_blocks_today: existingBlocks
         };
 
-        const systemPrompt = `You are the Conflict Resolver.
-        Proposed block '${block.title}' (${block.start_time}-${block.end_time}) overlaps with existing blocks.
-        Propose 2-3 options to resolve this.
+        const systemPrompt = `You are a Master Scheduler and Conflict Resolver.
+        Input: A proposed block that conflicts with the user's existing schedule.
+        Goal: Provide 3 distinct, high-quality resolution strategies.
+
+        STRATEGIES (Use these labels):
+        1. "Shift": Move the NEW block to the nearest open slot (min change).
+        2. "Squeeze": Shorten the conflicting block or the new block to fit (if it makes sense).
+        3. "Shuffle": Move the CONFLICTING block to a later time to accommodate the new one.
         
-        OPTIONS:
-        1. Move conflicting block.
-        2. Move new block.
-        3. Shrink blocks.
+        RULES:
+        - Output STRICT JSON.
+        - "description" must explicitly state the trade-off (e.g. "-15m duration" or "Moved to 5pm").
+        - "label" should be action-oriented (e.g. "Shift Workout", "Squeeze Lunch").
+        - Ensure "patch" contains all necessary 'update_event' or 'create_event' ops.
+        - If a block is an ANCHOR, do not move it. Only the new block can move.
         
-        OUTPUT JSON:
-        { "options": [{ "label": "string", "description": "string", "patch": { "ops": [ ... ], "undoable": true } }] }`;
+        OUTPUT SCHEMA:
+        {
+          "options": [
+            { 
+              "id": "shift",
+              "label": "Shift [Block Name]", 
+              "description": "Move to [Time]",
+              "tags": ["⏱️ +30m shift"],
+              "patch": { "ops": [], "undoable": true } 
+            }
+          ]
+        }`;
 
         let aiResponse;
         try {
@@ -71,7 +88,7 @@ export const POST = secureApiRoute(
                 temperature: 0.3
             });
 
-            aiResponse = await JSONReliability.validateOrRepair(text, ConflictResolutionSchema, 'llama-3.3-70b-versatile', "conflict resolution");
+            aiResponse = await JSONReliability.validateOrRepair(text, ConflictResolutionSchema, 'llama-3.3-70b-versatile', "conflict_resolution_v2");
         } catch (e) {
             console.error("Conflict Resolution failed", e);
             aiResponse = {

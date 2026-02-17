@@ -11,6 +11,7 @@ export type ResolutionOption = {
     };
     tradeoff?: string;
     score: number;
+    tags?: string[];
 };
 
 export class ConflictResolver {

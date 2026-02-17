@@ -5,6 +5,8 @@ import { Play, CheckSquare, SkipForward, RefreshCw, Clock, ArrowRight } from 'lu
 import { format, differenceInMinutes } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useCoach } from '@/hooks/use-coach';
+import { apiClient } from '@/lib/api-client';
+import { toast } from 'sonner';
 
 interface NowCardProps {
     block: any;
@@ -37,8 +39,6 @@ export function NowCard({ block, onAction }: NowCardProps) {
     const timeLeft = differenceInMinutes(new Date(`${new Date().toISOString().split('T')[0]}T${block.end_time}`), new Date());
 
     const handleAction = async (action: 'done' | 'skip' | 'rework') => {
-        // Implement action logic (API calls) here or pass up
-        // For MVP, we'll just log and trigger refresh
         console.log('Action:', action, block.id);
 
         if (action === 'rework') {
@@ -46,12 +46,18 @@ export function NowCard({ block, onAction }: NowCardProps) {
             return;
         }
 
-        // Optimistic UI update could happen here
         try {
-            // await api call
-            onAction();
+            if (action === 'done') {
+                await apiClient.schedule.updateStatus(block.id, 'done');
+                toast.success('Block completed!');
+            } else if (action === 'skip') {
+                await apiClient.schedule.updateStatus(block.id, 'missed'); // or 'skipped' if enum allows, but 'missed' tracks deviation
+                toast.info('Block skipped.');
+            }
+            onAction(); // Refund/Refresh home data
         } catch (e) {
             console.error(e);
+            toast.error('Failed to update block.');
         }
     };
 

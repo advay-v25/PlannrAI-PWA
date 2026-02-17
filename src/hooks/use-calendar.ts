@@ -172,13 +172,13 @@ export function useCalendar() {
         }
     };
 
-    const planWeek = async (mode: 'balanced' | 'intense' | 'recovery') => {
+    const planWeek = async (options: { mode: 'balanced' | 'intense' | 'recovery', allow_weekend?: boolean }) => {
         try {
             const startStr = format(startOfWeek(selectedDate, { weekStartsOn: 1 }), 'yyyy-MM-dd');
             const res: any = await apiClient.schedule.planWeek({
                 start_date: startStr,
-                mode,
-                allow_weekend: false
+                mode: options.mode,
+                allow_weekend: options.allow_weekend ?? false
             });
             // The API returns options. The UI should display them. 
             // We can return them to the caller

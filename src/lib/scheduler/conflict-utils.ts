@@ -1,21 +1,28 @@
 
-export const toMins = (t: string) => {
-    const [h, m] = t.split(':').map(Number);
-    return h * 60 + m;
-};
+import { areIntervalsOverlapping, parseISO } from 'date-fns';
 
-export const getConflicts = (newBlock: any, existingBlocks: any[]) => {
-    const newStart = toMins(newBlock.start_time);
-    const newEnd = toMins(newBlock.end_time);
+export function getConflicts(newBlock: any, existingBlocks: any[]) {
+    // Basic overlap check
+    // Ensure dates match first if strictly intra-day
+    const dayBlocks = existingBlocks.filter(b => b.date === newBlock.date);
 
-    return existingBlocks.filter((b: any) => {
-        // Exclude self if updating
-        if (b.id === newBlock.id) return false;
+    return dayBlocks.filter(existing => {
+        // Skip self
+        if (existing.id === newBlock.id) return false;
 
-        const start = toMins(b.start_time);
-        const end = toMins(b.end_time);
+        // Parse times. Assuming HH:MM format strings for start/end
+        // We need a reference date to use date-fns interval check easily, or just compare minutes
 
-        // Basic Overlap: (StartA < EndB) and (EndA > StartB)
-        return (newStart < end && newEnd > start);
+        const startA = parseTime(newBlock.start_time);
+        const endA = parseTime(newBlock.end_time);
+        const startB = parseTime(existing.start_time);
+        const endB = parseTime(existing.end_time);
+
+        return startA < endB && startB < endA;
     });
-};
+}
+
+function parseTime(timeStr: string): number {
+    const [h, m] = timeStr.split(':').map(Number);
+    return h * 60 + m;
+}

@@ -44,6 +44,15 @@ export function ConflictResolutionModal({ options, onSelect, onCancel }: Conflic
                                     <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
                                 </div>
                                 <p className="text-xs text-[var(--text-tertiary)]">{opt.description}</p>
+                                {opt.tags && opt.tags.length > 0 && (
+                                    <div className="flex gap-2 mt-2">
+                                        {opt.tags.map((tag, i) => (
+                                            <span key={i} className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-[var(--text-tertiary)] border border-white/5">
+                                                {tag}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
                             </button>
                         ))}
                     </div>
