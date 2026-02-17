@@ -739,8 +739,111 @@ export type Database = {
         }
         Relationships: []
       }
+      milestones: {
+        Row: {
+          created_at: string | null
+          deadline: string | null
+          description: string | null
+          goal_id: string
+          id: string
+          sort_order: number | null
+          status: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          deadline?: string | null
+          description?: string | null
+          goal_id: string
+          id?: string
+          sort_order?: number | null
+          status?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          deadline?: string | null
+          description?: string | null
+          goal_id?: string
+          id?: string
+          sort_order?: number | null
+          status?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "milestones_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      goal_tasks: {
+        Row: {
+          created_at: string | null
+          estimated_minutes: number | null
+          goal_id: string
+          id: string
+          milestone_id: string | null
+          schedule_block_id: string | null
+          status: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          estimated_minutes?: number | null
+          goal_id: string
+          id?: string
+          milestone_id?: string | null
+          schedule_block_id?: string | null
+          status?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          estimated_minutes?: number | null
+          goal_id?: string
+          id?: string
+          milestone_id?: string | null
+          schedule_block_id?: string | null
+          status?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goal_tasks_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goal_tasks_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "milestones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goal_tasks_schedule_block_id_fkey"
+            columns: ["schedule_block_id"]
+            isOneToOne: false
+            referencedRelation: "schedule_blocks"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       goals: {
         Row: {
+          ai_plan: Json | null
           ai_routine: Json | null
           ai_strategy: Json | null
           category: string
@@ -769,6 +872,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ai_plan?: Json | null
           ai_routine?: Json | null
           ai_strategy?: Json | null
           category: string
@@ -796,6 +900,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ai_plan?: Json | null
           ai_routine?: Json | null
           ai_strategy?: Json | null
           category?: string

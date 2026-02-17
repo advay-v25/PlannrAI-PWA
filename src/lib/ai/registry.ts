@@ -11,7 +11,7 @@ export type AILimits = {
 
 // --- Per-Channel Output Schemas ---
 // --- Per-Channel Output Schemas ---
-import { OnboardingArchitectSchema, DayOptimizationSchema, RoutineGenerationSchema, CalendarPlanWeekSchema, ConflictResolutionSchema, CoachResponseSchema, BrainDumpResponseSchema } from './schemas';
+import { OnboardingArchitectSchema, DayOptimizationSchema, RoutineGenerationSchema, CalendarPlanWeekSchema, ConflictResolutionSchema, CoachResponseSchema, BrainDumpResponseSchema, GoalDecompositionSchema } from './schemas';
 
 // 1. Coach
 export const CoachOutputSchema = z.object({
@@ -672,6 +672,56 @@ OUTPUT JSON:
     ${JSON.stringify(ctx, null, 2)}
     `.trim(),
     userPrompt: (input) => `Resolve conflict: ${input}`
+  },
+
+  'goal_decomposition': {
+    schema: z.object({
+      channel: z.literal('goal_decomposition'),
+      mode: z.literal('propose'),
+      plan: GoalDecompositionSchema,
+      summary: z.string()
+    }),
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.4, maxTokens: 4000 },
+    fallback: () => ({
+      channel: 'goal_decomposition',
+      mode: 'propose',
+      summary: "Decomposition failed.",
+      plan: {
+        analysis: { complexity: 'low', time_horizon: 'unknown', resources: [], obstacles: [] },
+        milestones: []
+      }
+    }),
+    systemPrompt: (ctx) => `
+    You are "The Architect", an expert goal planning agent.
+    Break down the user's goal into a concrete, actionable plan.
+    ${BASE_RULES}
+
+    CONTEXT:
+    User Context: ${JSON.stringify(ctx, null, 2)}
+    
+    REQUIREMENTS:
+    1. Analyze the goal complexity and constraints.
+    2. Break it into logical MILESTONES (Phases).
+    3. For each milestone, list specific TASKS with time estimates.
+    4. Be realistic based on user's energy and existing goals.
+
+    OUTPUT JSON:
+    {
+      "channel": "goal_decomposition",
+      "mode": "propose",
+      "summary": "Brief strategy summary",
+      "plan": {
+        "analysis": { "complexity": "low|medium|high", "time_horizon": "string", "resources": ["string"], "obstacles": ["string"] },
+        "milestones": [{
+            "title": "string",
+            "description": "string",
+            "deadline_offset_days": number,
+            "tasks": [{ "title": "string", "estimated_minutes": number, "is_recurring": boolean, "recurrence": "string" }]
+        }]
+      }
+    }
+    `.trim(),
+    userPrompt: (input) => `Goal: ${input}`
   }
 };
 

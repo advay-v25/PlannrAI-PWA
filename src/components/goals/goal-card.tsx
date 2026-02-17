@@ -9,7 +9,8 @@ import {
     Calendar,
     MoreHorizontal,
     Maximize2,
-    Minimize2
+    Minimize2,
+    Target
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
@@ -64,7 +65,7 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                                 <span className="capitalize">{goal.days_per_week || 7} days/wk</span>
                                 <span className="w-1 h-1 rounded-full bg-[var(--text-tertiary)]/30" />
                                 <span className={`uppercase font-bold text-[10px] ${goal.energy_demand === 'heavy' ? 'text-orange-400' :
-                                        goal.energy_demand === 'light' ? 'text-green-400' : 'text-blue-400'
+                                    goal.energy_demand === 'light' ? 'text-green-400' : 'text-blue-400'
                                     }`}>
                                     {goal.energy_demand}
                                 </span>
@@ -77,8 +78,8 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                     <button
                         onClick={(e) => { e.stopPropagation(); onOpenStrategy(goal); }}
                         className={`p-2 rounded-full transition-all group ${goal.ai_strategy
-                                ? 'bg-[var(--color-primary)]/10 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/20'
-                                : 'hover:bg-[var(--glass-bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--color-primary)]'
+                            ? 'bg-[var(--color-primary)]/10 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/20'
+                            : 'hover:bg-[var(--glass-bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--color-primary)]'
                             }`}
                         title="AI Strategy"
                     >
@@ -160,8 +161,8 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                                                 key={e}
                                                 onClick={() => onUpdate(goal.id, { energy_demand: e })}
                                                 className={`flex-1 text-[10px] font-medium py-1.5 rounded-md transition-all ${goal.energy_demand === e
-                                                        ? 'bg-[var(--glass-border)] text-[var(--text-primary)] shadow-sm'
-                                                        : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+                                                    ? 'bg-[var(--glass-border)] text-[var(--text-primary)] shadow-sm'
+                                                    : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
                                                     }`}
                                             >
                                                 {e}
@@ -178,8 +179,8 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                                                 key={p}
                                                 onClick={() => onUpdate(goal.id, { importance: p })}
                                                 className={`flex-1 text-[10px] font-medium py-1.5 rounded-md transition-all ${goal.importance === p
-                                                        ? 'bg-[var(--glass-border)] text-[var(--text-primary)] shadow-sm'
-                                                        : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+                                                    ? 'bg-[var(--glass-border)] text-[var(--text-primary)] shadow-sm'
+                                                    : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
                                                     }`}
                                             >
                                                 {p}
@@ -198,6 +199,15 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                                 >
                                     <Sparkles className="w-4 h-4 mr-2" />
                                     {goal.ai_strategy ? 'View Expert Strategy' : 'Generate Expert Strategy'}
+                                </GlassButton>
+
+                                <GlassButton
+                                    variant="ghost"
+                                    className="flex-[0.3] justify-center border border-dashed border-[var(--text-tertiary)]/30 text-[var(--text-secondary)] hover:bg-[var(--text-secondary)]/5"
+                                    onClick={() => window.location.href = `/app/goals/${goal.id}`}
+                                >
+                                    <Target className="w-4 h-4 mr-2" />
+                                    Plan
                                 </GlassButton>
                             </div>
 

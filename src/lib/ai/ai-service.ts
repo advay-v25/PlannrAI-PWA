@@ -107,6 +107,37 @@ function safeFallback(channel: string, requestId: string) {
         };
     }
 
+    if (channel === 'goal_decomposition') {
+        fallback.plan = {
+            analysis: {
+                complexity: 'low',
+                time_horizon: 'unknown',
+                resources: [],
+                obstacles: ['AI unavailable']
+            },
+            milestones: [
+                {
+                    title: "Phase 1: Foundation",
+                    description: "Setting up the initial environment and resources.",
+                    deadline_offset_days: 7,
+                    tasks: [
+                        { title: "Research requirements", estimated_minutes: 60, is_recurring: false },
+                        { title: "Setup workspace", estimated_minutes: 30, is_recurring: false }
+                    ]
+                },
+                {
+                    title: "Phase 2: Execution",
+                    description: "Core implementation tasks.",
+                    deadline_offset_days: 14,
+                    tasks: [
+                        { title: "Daily Practice", estimated_minutes: 45, is_recurring: true, recurrence: "daily" }
+                    ]
+                }
+            ]
+        };
+        fallback.summary = "Decomposition service unavailable. Using emergency backup plan.";
+    }
+
     return fallback;
 }
 
@@ -129,7 +160,7 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
 
         let { channel, input, context: aiContext, limits } = result.data;
 
-        if (channel === 'goal_decomposition') channel = 'goal_strategy';
+
 
         console.log(`[AI Service] [${requestId}] START channel=${channel} input_len=${input.length}`);
 
@@ -142,6 +173,12 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
 
         // 3. Context Enrichment
         try {
+            // GLOBAL CONTEXT INJECTION (Phase 15)
+            // Every AI call gets the "Liquid Context" (User, State, Schedule, Goals)
+            const { ContextService } = await import('@/lib/ai/context-service');
+            const liquidContext = await ContextService.getLiquidContext(userId);
+            richContext = { ...richContext, ...liquidContext };
+
             if (channel === 'coach' || channel === 'goal_strategy' || channel === 'habit_stack') {
                 const { buildCoachContext, saveCoachMessage } = await import('@/lib/coach/coach-context');
                 const coachSupabase = await createClient();

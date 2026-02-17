@@ -247,6 +247,26 @@ export const QuestionSchema = z.object({
     choices: z.array(z.string()).max(5).optional(), // Reduced choices for decisiveness
 });
 
+export const GoalDecompositionSchema = z.object({
+    analysis: z.object({
+        complexity: z.enum(['low', 'medium', 'high']),
+        time_horizon: z.string(),
+        resources: z.array(z.string()),
+        obstacles: z.array(z.string())
+    }),
+    milestones: z.array(z.object({
+        title: z.string(),
+        description: z.string(),
+        deadline_offset_days: z.number(),
+        tasks: z.array(z.object({
+            title: z.string(),
+            estimated_minutes: z.number(),
+            is_recurring: z.boolean().optional(),
+            recurrence: z.string().optional()
+        }))
+    }))
+});
+
 export const RefusalSchema = z.object({
     reason: z.string().max(160),
     next_best: z.string().max(160).nullable().optional(),
@@ -273,6 +293,7 @@ export const AIResponseSchema = z.object({
     mode: ModeEnum,
     options: z.array(OptionSchema).max(10).optional(),
     stacks: z.array(StackSchema).optional(),
+    plan: GoalDecompositionSchema.optional(),
     question: QuestionSchema.optional(),
     refusal: RefusalSchema.optional(),
 }).superRefine((val, ctx) => {
