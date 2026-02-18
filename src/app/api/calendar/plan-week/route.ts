@@ -43,7 +43,7 @@ export const POST = secureApiRoute(
 
         // 2. Run Deterministic Scheduler (Baseline)
         const scheduler = new SchedulerService(schedulerContext);
-        const baselineBlocks = scheduler.generateBaseline();
+        const baselineBlocks = await scheduler.generateBaseline();
 
         // 3. AI Optimization
         const { executeAI } = await import('@/lib/ai/ai-service');
