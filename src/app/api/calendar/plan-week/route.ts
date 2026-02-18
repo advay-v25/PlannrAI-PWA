@@ -1,12 +1,6 @@
-
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
-import { createClient } from '@/lib/supabase/server';
 import { SchedulerService } from '@/lib/scheduler/scheduler-service';
 import { startOfDay, addDays, format, parseISO } from 'date-fns';
-import { ChannelRegistry } from '@/lib/ai/registry';
-import { CalendarPlanWeekSchema } from '@/lib/ai/schemas';
-import { groqChat } from '@/lib/ai/groq-client';
-import { JSONReliability } from '@/lib/ai/json-reliability';
 
 export const POST = secureApiRoute(
     async (context, body) => {
@@ -47,89 +41,24 @@ export const POST = secureApiRoute(
             existingBlocks: existingBlocksRes.data || []
         };
 
-        // 2. Run Deterministic Scheduler (Baseline)
-        const scheduler = new SchedulerService(schedulerContext);
-        const baselineBlocks = scheduler.generateBaseline();
-
         // 3. AI Optimization
-        // We want to ask the AI to generate *variants* or *improvements* on the baseline, 
-        // or just generate the whole plan. The Prompt says "returns 2-3 plan variants".
+        // Use executeAI with the 'calendar_plan_week' channel
+        const { executeAI } = await import('@/lib/ai/ai-service');
 
-        // Let's ask AI to "Plan the week" given the context and the 'baseline' as a starting point.
-        const channelDef = (ChannelRegistry as any)['calendar_plan_week'] || (ChannelRegistry as any)['calendar.optimize']; // Fallback if plan_week not defined yet
-
-        // Wait, I haven't defined 'calendar_plan_week' in registry.ts yet. 
-        // I should probably define it or use 'calendar.optimize' iteratively? 
-        // The prompt asked me to "Configure calendar_plan_week channel & prompt".
-        // For now, I'll use a local prompt construction or assume I'll update registry next.
-        // Actually, to make this work NOW, I'll update registry.ts first? 
-        // No, I can construct the prompt here for MVP if needed, but registry is cleaner.
-        // Let's stick to the plan: I will assume the channel exists or I'll add it in the next step. 
-        // Actually, I can add it to registry.ts NOW.
-        // But I cannot edit registry.ts easily while writing this file.
-        // I'll write this file assuming `calendar.optimize` can handle it or I'll implement a custom flow here.
-
-        // Let's use `groqChat` directly with a custom prompt for now to bypass registry strictness if needed, 
-        // OR better: Update Registry.ts in next step and use 'calendar_plan_week'. 
-        // I'll write the code to use 'calendar_plan_week' and then immediately update registry.
-
-        const aiInput = `Plan week starting ${startStr}. Mode: ${mode}. Weekend allowed: ${allow_weekend}`;
         const aiContext = {
             ...schedulerContext,
             baseline_blocks_count: baselineBlocks.length,
-            // Don't send all baseline blocks if too large, maybe just summary
-            baseline_sample: baselineBlocks.slice(0, 10)
+            // To prevent context explosion, we only send a summary of blocks or just relying on goals/commitments
+            // But let's send a simplified baseline if needed
+            baseline_sample: baselineBlocks.slice(0, 50).map(b => `${b.title} (${b.start_time}-${b.end_time})`)
         };
 
-        // Reuse the logic from execute/route.ts partially? 
-        // Or just one-off call.
-        // Im using the direct call pattern to ensure custom logic.
-
-        const systemPrompt = `You are the Week Architect. 
-        Generate 2-3 schedule options (Balanced, Intense, Recovery).
-        Each option must include a 'patch' with 'create_block' ops for the entire week.
-        Respect constraints: Sleep ${profileRes.data.sleep_start}-${profileRes.data.sleep_end}, Meals.
-        
-        Output JSON:
-        {
-            "options": [{
-                "label": "Balanced Flow",
-                "description": "Steady progress",
-                "patch": { "ops": [ ... ], "reason": "..." }
-            }]
-        }`;
-
-        let aiResponse;
-        try {
-            const text = await groqChat({
-                model: 'llama-3.3-70b-versatile',
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: JSON.stringify(aiContext) }
-                ],
-                userId,
-                temperature: 0.4
-            });
-
-            // Parse response
-            aiResponse = await JSONReliability.validateOrRepair(text, CalendarPlanWeekSchema, 'llama-3.3-70b-versatile', "options array");
-        } catch (e) {
-            console.error("AI Planning failed", e);
-            // Fallback: Wrap baseline in an option
-            aiResponse = {
-                options: [{
-                    label: "Deterministic Baseline",
-                    description: "Generated based on strict rules.",
-                    patch: {
-                        ops: baselineBlocks.map((b: any) => ({
-                            op: 'create_block',
-                            payload: b
-                        })),
-                        reason: "Fallback"
-                    }
-                }]
-            };
-        }
+        const aiResponse = await executeAI(
+            'calendar_plan_week',
+            `Plan week starting ${startStr}. Mode: ${mode}. Weekend allowed: ${allow_weekend}`,
+            aiContext,
+            userId
+        );
 
         return apiSuccess(aiResponse);
     },

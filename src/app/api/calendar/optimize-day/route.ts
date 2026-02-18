@@ -1,12 +1,5 @@
-
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
-import { createClient } from '@/lib/supabase/server';
-import { SchedulerService } from '@/lib/scheduler/scheduler-service';
-import { startOfDay, endOfDay, format, parseISO } from 'date-fns';
-import { ChannelRegistry } from '@/lib/ai/registry';
-import { DayOptimizationSchema } from '@/lib/ai/schemas';
-import { groqChat } from '@/lib/ai/groq-client';
-import { JSONReliability } from '@/lib/ai/json-reliability';
+import { startOfDay, format, parseISO } from 'date-fns';
 
 export const POST = secureApiRoute(
     async (context, body) => {

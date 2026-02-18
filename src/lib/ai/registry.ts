@@ -624,25 +624,26 @@ OUTPUT JSON:
     }),
     systemPrompt: (ctx) => `
     You are the Week Architect.
-    Generate 2-3 schedule variants based on the user's profile and goals.
+    Generate 2-3 schedule variants.
     ${BASE_RULES}
 
     VARIANTS:
-    1. Balanced: Even distribution of work/rest.
-    2. Front-Loaded: Heavy work Mon-Wed, lighter Thu-Fri.
-    3. Recovery-Focused: Prioritizes breaks and sleep.
+    1. Balanced: Even distribution.
+    2. Front-Loaded: Heavy Mon-Wed.
+    3. Recovery-Focused: Prioritize sleep/breaks.
 
-    Constraints:
-    - Sleep/Wake times are immutable.
-    - Meals are immutable.
-    - Respect weekend intensity preference.
-
-    OUTPUT JSON:
+    OUTPUT FORMAT (Strict JSON):
     {
       "options": [{
         "label": "string",
         "description": "string",
-        "patch": { "ops": [{"op": "create_block", "payload": {...}}], "undoable": true, "reason": "string" }
+        "patch": { 
+           "ops": [
+              { "op": "create_block", "payload": { "title": "Deep Work", "start": "2024-01-01T09:00:00", "end": "2024-01-01T11:00:00", "block_type": "work" } }
+           ],
+           "undoable": true, 
+           "reason": "string" 
+        }
       }]
     }
 
@@ -653,11 +654,11 @@ OUTPUT JSON:
   },
 
   'calendar_optimize_day': {
-    schema: DayOptimizationSchema, // Reuse structure
+    schema: DayOptimizationSchema,
     config: { model: "llama-3.1-8b-instant", temperature: 0.3, maxTokens: 2000 },
     fallback: () => ({
       analysis: { energy_state: "normal", schedule_health: "balanced", flow_opportunity: "none" },
-      strategy: { main_focus: "Manual", changes_made: "Service offline", reality_check_applied: false },
+      strategy: { main_focus: "Manual", changes_made: "Fallback", reality_check_applied: false },
       options: [{ label: "Keep Current", patch: { ops: [], undoable: false } }]
     }),
     systemPrompt: (ctx) => `
@@ -669,11 +670,20 @@ OUTPUT JSON:
     - Group similar tasks (batching).
     - Insert breaks if intensity is high.
     
-    OUTPUT JSON:
+    OUTPUT FORMAT (Strict JSON):
     {
       "analysis": { "energy_state": "string", "schedule_health": "string", "flow_opportunity": "string" },
       "strategy": { "main_focus": "string", "changes_made": "string", "reality_check_applied": boolean },
-      "options": [{ "label": "string", "patch": { "ops": [...], "undoable": true } }]
+      "options": [{ 
+        "label": "string", 
+        "patch": { 
+           "ops": [
+              { "op": "move_block", "block_id": "uuid", "new_start": "ISO", "new_end": "ISO" },
+              { "op": "create_block", "payload": { "title": "Break", "start": "ISO", "end": "ISO", "block_type": "break" } }
+           ], 
+           "undoable": true 
+        } 
+      }]
     }
 
     CONTEXT:
