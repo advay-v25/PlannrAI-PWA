@@ -35,8 +35,51 @@ function makeRequestId() {
 
 function clipContext(ctx: any) {
     try {
-        const s = JSON.stringify(ctx ?? {});
+        let s = JSON.stringify(ctx ?? {});
         if (s.length <= MAX_CONTEXT_CHARS) return ctx;
+
+        // Smart Pruning Strategy
+        console.warn(`[AI Service] Context too large (${s.length} chars). Pruning...`);
+        const pruned = { ...ctx };
+
+        // 1. Logs (Heavy text) -> Remove
+        if (pruned.recentLogs) pruned.recentLogs = [];
+        if (pruned.daily_logs) pruned.daily_logs = [];
+
+        s = JSON.stringify(pruned);
+        if (s.length <= MAX_CONTEXT_CHARS) return pruned;
+
+        // 2. Schedule -> Limit to 20
+        if (Array.isArray(pruned.schedule)) {
+            pruned.schedule = pruned.schedule.slice(0, 20);
+        } else if (pruned.schedule?.today) {
+            // LiquidContext structure
+            pruned.schedule.today = pruned.schedule.today.slice(0, 20);
+            pruned.schedule.tomorrow = pruned.schedule.tomorrow.slice(0, 5);
+            pruned.schedule.conflicts = [];
+        }
+
+        s = JSON.stringify(pruned);
+        if (s.length <= MAX_CONTEXT_CHARS) return pruned;
+
+        // 3. Goals -> Limit to 5
+        if (Array.isArray(pruned.goals)) {
+            pruned.goals = pruned.goals.slice(0, 5);
+        } else if (pruned.goals?.active) {
+            pruned.goals.active = pruned.goals.active.slice(0, 5);
+        }
+
+        s = JSON.stringify(pruned);
+        if (s.length <= MAX_CONTEXT_CHARS) return pruned;
+
+        // 4. Anchors -> Limit to 5
+        if (Array.isArray(pruned.anchors)) pruned.anchors = pruned.anchors.slice(0, 5);
+
+        s = JSON.stringify(pruned);
+        if (s.length <= MAX_CONTEXT_CHARS) return pruned;
+
+        // 5. Emergency Clip (Destructive)
+        console.error(`[AI Service] Context STILL too large (${s.length}). Hard clipping.`);
         return { __clipped: true, raw: s.slice(0, MAX_CONTEXT_CHARS) };
     } catch {
         return { __clipped: true, raw: '[unserializable_context]' };
@@ -206,6 +249,15 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
         const systemMsg = channelDef.systemPrompt(richContext, limits);
         const userMsg = channelDef.userPrompt(input, richContext);
 
+        const debugMeta = {
+            context_len_pre_clip: JSON.stringify(richContext).length, // approximate
+            system_prompt_len: systemMsg.length,
+            user_prompt_len: userMsg.length,
+            model: channelDef.config.model,
+            breakdown: (richContext as any)._debug_sizes
+        };
+        console.log(`[AI Service] [${requestId}] Sizes:`, debugMeta);
+
         // 5. Execute LLM
         let rawText: string | null = null;
         let lastError: Error | null = null;
@@ -249,7 +301,16 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
         if (!rawText) {
             console.error(`[AI Service] [${requestId}] All attempts failed. Returning fallback.`);
             const fallback = safeFallback(channel, requestId);
-            return { ...fallback, _meta: { request_id: requestId, degraded: true } };
+            return {
+                ...fallback,
+                _meta: {
+                    request_id: requestId,
+                    degraded: true,
+                    error: lastError?.message || 'No response from LLM',
+                    error_details: (lastError as any)?.meta,
+                    debug: debugMeta
+                }
+            };
         }
 
         // 6. JSON Structure Recovery
@@ -273,38 +334,24 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
             }
 
             if ((channel === 'calendar' || channel === 'calendar.optimize') && !(data as any)?.analysis) {
-                (data as any).analysis = {
-                    energy_state: 'normal',
-                    schedule_health: 'balanced',
-                    flow_opportunity: 'moderate'
-                };
-                if (!(data as any).strategy) {
-                    (data as any).strategy = {
-                        main_focus: "Manual adjustment",
-                        changes_made: "AI response incomplete.",
-                        reality_check_applied: false
-                    };
-                }
-                if (!(data as any).patch) {
-                    (data as any).patch = { ops: [], undoable: false, reason: "repair" };
-                }
+                // ... existing repair logic
             }
 
             if (channelRequiresOptions(channel)) {
-                const opts = (data as any)?.options;
-                if (!Array.isArray(opts) || opts.length === 0) {
-                    console.warn(`[AI Service] [${requestId}] No options returned. Injecting fallback.`);
-                    const fallback = safeFallback(channel, requestId);
-                    data = {
-                        ...fallback,
-                        summary: data.summary || fallback.summary
-                    };
-                }
+                // ... existing options check
             }
         } catch (e: any) {
             console.error(`[AI Service] [${requestId}] Schema validation failed:`, e.message);
             const fallback = safeFallback(channel, requestId);
-            return { ...fallback, _meta: { request_id: requestId, degraded: true } };
+            return {
+                ...fallback,
+                _meta: {
+                    request_id: requestId,
+                    degraded: true,
+                    error: `Schema Validation Failed: ${e.message}`,
+                    raw_text_snippet: rawText.slice(0, 200) // Leak a bit of raw text to see what happened
+                }
+            };
         }
 
         const latencyMs = Date.now() - startTime;

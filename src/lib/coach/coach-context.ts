@@ -18,24 +18,26 @@ export async function buildCoachContext(userId: string, supabase: SupabaseClient
     ] = await Promise.all([
         // 1. Schedule (Next 3 days)
         supabase.from('schedule_blocks')
-            .select('*, goal:goals(title, pillar)')
+            .select('id, title, start_time, end_time, is_focus, pillar, date')
             .eq('user_id', userId)
             .gte('date', startStr)
             .lte('date', endStr)
-            .neq('status', 'cancelled'), // Don't show cancelled
+            .neq('status', 'cancelled')
+            .limit(50),
 
         // 2. Goals (Active)
         supabase.from('goals')
-            .select('*')
+            .select('id, title, category, importance')
             .eq('user_id', userId)
-            .eq('is_paused', false),
+            .eq('status', 'active') // Ensure we only get active goals
+            .limit(10),
 
-        // 3. Anchors (Commitments) - Technically in schedule_blocks too if materialized, 
-        // but fetching raw commitments helps distinguish "hard" constraints.
+        // 3. Anchors (Commitments)
         supabase.from('commitments')
-            .select('*')
+            .select('id, title, start_time, end_time, days_of_week')
             .eq('user_id', userId)
-            .eq('is_active', true),
+            .eq('is_active', true)
+            .limit(20),
 
         // 4. Recent Logs (Last 3 days for context)
         supabase.from('daily_logs')
@@ -46,9 +48,9 @@ export async function buildCoachContext(userId: string, supabase: SupabaseClient
             .limit(3),
 
         // 5. User Profile (Preferences)
-        supabase.from('profile_preferences') // OR 'profiles' depending on schema
+        supabase.from('profile_preferences')
             .select('*')
-            .eq('user_id', userId) // or id? usually user_id is the link
+            .eq('user_id', userId)
             .single()
     ]);
 

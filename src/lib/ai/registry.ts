@@ -139,7 +139,7 @@ Rules:
 export const ChannelRegistry: Record<string, ChannelDef> = {
   coach: {
     schema: CoachResponseSchema,
-    config: { model: 'llama-3.3-70b-versatile', temperature: 0.4, maxTokens: 2000 },
+    config: { model: 'llama-3.1-8b-instant', temperature: 0.4, maxTokens: 2000 },
     minOptions: 1,
     fallback: () => ({
       channel: 'coach',
@@ -191,9 +191,23 @@ export const ChannelRegistry: Record<string, ChannelDef> = {
       - "I'm tired" -> Lighten load, insert breaks.
       - "Plan my day" -> Fill empty slots with highest priority goals.
       
-      OUTPUT FORMAT:
-      JSON matching CoachResponseSchema.
-      channel: "coach"
+      OUTPUT FORMAT (Strict JSON, No Markdown):
+      {
+        "channel": "coach",
+        "mode": "execute|propose|ask|refuse",
+        "summary": "string",
+        "options": [{
+          "id": "string",
+          "title": "string",
+          "impact": "string",
+          "patch": { 
+             "ops": [ { "op": "create_event", "payload": { "title": "Break", "start": "HH:MM", "end": "HH:MM", "date": "YYYY-MM-DD", "block_type": "break" } }, { "op": "move_event", "event_id": "uuid", "to_start": "ISO", "to_end": "ISO" } ],
+             "undoable": true,
+             "reason": "string"
+          }
+        }],
+        "question": { "prompt": "string", "type": "choice", "choices": ["..."] } (optional)
+      }
       `.trim();
     },
     userPrompt: (input) => input
@@ -202,7 +216,7 @@ export const ChannelRegistry: Record<string, ChannelDef> = {
 
   brain_dump: {
     schema: BrainDumpResponseSchema,
-    config: { model: 'llama-3.3-70b-versatile', temperature: 0.2, maxTokens: 3000 },
+    config: { model: 'llama-3.1-8b-instant', temperature: 0.2, maxTokens: 3000 },
     fallback: (input) => ({
       channel: 'brain_dump',
       summary: "I extracted some items but couldn't process fully.",
@@ -242,16 +256,41 @@ export const ChannelRegistry: Record<string, ChannelDef> = {
       C) Overload: "I'm overwhelmed" -> Propose 'reduce_intensity' (update_goal).
       D) Fog: "I don't know what to do" -> Propose 'triage' (pick top 3).
       
-      OUTPUT FORMAT:
-      JSON matching BrainDumpResponseSchema.
-      channel: "brain_dump"
+      OUTPUT FORMAT (Strict JSON, No Markdown):
+      {
+        "channel": "brain_dump",
+        "summary": "string",
+        "mode": "propose",
+        "extracted": {
+            "items": [
+                { 
+                  "kind": "task|commitment|note|worry|idea|habit|constraint", 
+                  "title": "string", 
+                  "est_min": number, 
+                  "pillar": "mind|body|craft|uncategorized", 
+                  "urgency": 1-3, 
+                  "due": "today|tomorrow|YYYY-MM-DD" 
+                }
+            ],
+            "signals": { "energy": 1-5, "stress": 0-1, "overwhelm": 0-1, "motivation": 0-1, "health_flag": boolean },
+            "constraints": [
+                { "type": "time_block|appointment|fatigue|other", "details": "string", "start": "HH:MM" }
+            ]
+        },
+        "options": [{
+            "id": "string",
+            "title": "string",
+            "impact": "string",
+            "patch": { "ops": [{"op": "create_event", "payload": {...}}], "undoable": true }
+        }]
+      }
     `.trim(),
     userPrompt: (input) => `Input:\n${input}`
   },
 
   onboarding_plan: {
     schema: OnboardingPlanOutputSchema,
-    config: { model: 'llama-3.3-70b-versatile', temperature: 0.2, maxTokens: 4000 },
+    config: { model: "llama-3.1-8b-instant", temperature: 0.2, maxTokens: 4000 },
     fallback: () => ({
       patch: { ops: [], undoable: false, reason: "Fallback" },
       summary: { bullets: ["Plan generation unavailable."] },
@@ -279,7 +318,7 @@ ${JSON.stringify(ctx, null, 2)}
 
   habit_stack: {
     schema: HabitStackOutputSchema,
-    config: { model: 'llama-3.3-70b-versatile', temperature: 0.4, maxTokens: 1500 },
+    config: { model: "llama-3.1-8b-instant", temperature: 0.4, maxTokens: 1500 },
     minOptions: 1,
     fallback: () => ({
       stacks: [],
@@ -341,7 +380,7 @@ ${JSON.stringify(ctx, null, 2)}
 
   goal_strategy: {
     schema: GoalStrategyOutputSchema,
-    config: { model: 'llama-3.3-70b-versatile', temperature: 0.4, maxTokens: 2000 },
+    config: { model: "llama-3.1-8b-instant", temperature: 0.4, maxTokens: 2000 },
     minOptions: 1,
     fallback: () => ({
       options: [{
@@ -365,7 +404,7 @@ JSON schema:
         "fields": { 
           "ai_strategy": {
             "strategy_one_liner": "string",
-            "routine": { "frequency": "string", "duration_mins": number, "steps": ["string"], "notes?": "string" },
+            "routine": { "frequency": "string", "duration_mins": number, "steps": ["string"], "notes": "string" },
             "milestones": ["string"],
             "checklist": [{"text": "string"}]
           } 
@@ -385,7 +424,7 @@ ${JSON.stringify(ctx, null, 2)}
 
   weekly_review: {
     schema: WeeklyReviewOutputSchema,
-    config: { model: 'llama-3.3-70b-versatile', temperature: 0.3, maxTokens: 1500 },
+    config: { model: "llama-3.1-8b-instant", temperature: 0.3, maxTokens: 1500 },
     fallback: () => ({
       reality: "AI Review temporarily unavailable.",
       patterns: [
@@ -431,7 +470,7 @@ ${JSON.stringify(ctx, null, 2)}
 
   onboarding_architect: {
     schema: OnboardingArchitectSchema,
-    config: { model: 'llama-3.3-70b-versatile', temperature: 0.4, maxTokens: 2000 },
+    config: { model: "llama-3.1-8b-instant", temperature: 0.4, maxTokens: 2000 },
     fallback: () => ({
       analysis: {
         chronotype_insight: "Analysis pending.",
@@ -486,7 +525,7 @@ OUTPUT JSON:
 
   'calendar.optimize': {
     schema: DayOptimizationSchema,
-    config: { model: 'llama-3.3-70b-versatile', temperature: 0.3, maxTokens: 1500 },
+    config: { model: "llama-3.1-8b-instant", temperature: 0.3, maxTokens: 1500 },
     fallback: () => ({
       analysis: {
         energy_state: "Unknown",
@@ -535,7 +574,7 @@ OUTPUT JSON:
 
   'routines.generate': {
     schema: RoutineGenerationSchema,
-    config: { model: 'llama-3.3-70b-versatile', temperature: 0.5, maxTokens: 1000 },
+    config: { model: "llama-3.1-8b-instant", temperature: 0.5, maxTokens: 1000 },
     fallback: () => ({
       routine_type: "break",
       name: "Quick Reset",
@@ -575,7 +614,7 @@ OUTPUT JSON:
   },
   'calendar_plan_week': {
     schema: CalendarPlanWeekSchema,
-    config: { model: 'llama-3.3-70b-versatile', temperature: 0.4, maxTokens: 3000 },
+    config: { model: "llama-3.1-8b-instant", temperature: 0.4, maxTokens: 3000 },
     fallback: () => ({
       options: [{
         label: "Standard Balance",
@@ -615,7 +654,7 @@ OUTPUT JSON:
 
   'calendar_optimize_day': {
     schema: DayOptimizationSchema, // Reuse structure
-    config: { model: 'llama-3.3-70b-versatile', temperature: 0.3, maxTokens: 2000 },
+    config: { model: "llama-3.1-8b-instant", temperature: 0.3, maxTokens: 2000 },
     fallback: () => ({
       analysis: { energy_state: "normal", schedule_health: "balanced", flow_opportunity: "none" },
       strategy: { main_focus: "Manual", changes_made: "Service offline", reality_check_applied: false },
@@ -645,7 +684,7 @@ OUTPUT JSON:
 
   'conflict_resolution': {
     schema: ConflictResolutionSchema,
-    config: { model: 'llama-3.3-70b-versatile', temperature: 0.3, maxTokens: 1000 },
+    config: { model: "llama-3.1-8b-instant", temperature: 0.3, maxTokens: 1000 },
     fallback: () => ({
       options: [{
         label: "Manual Fix",
@@ -681,7 +720,7 @@ OUTPUT JSON:
       plan: GoalDecompositionSchema,
       summary: z.string()
     }),
-    config: { model: 'llama-3.3-70b-versatile', temperature: 0.4, maxTokens: 4000 },
+    config: { model: "llama-3.1-8b-instant", temperature: 0.4, maxTokens: 4000 },
     fallback: () => ({
       channel: 'goal_decomposition',
       mode: 'propose',

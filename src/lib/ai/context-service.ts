@@ -31,6 +31,7 @@ export interface LiquidContext {
         pending_action: number;
     };
     anchors: any[];
+    _debug_sizes?: any;
 }
 
 export class ContextService {
@@ -56,13 +57,13 @@ export class ContextService {
             commitmentsRes,
             dailyLogRes
         ] = await Promise.all([
-            supabase.from('profiles').select('*').eq('id', userId).single(),
+            supabase.from('profiles').select('full_name, timezone').eq('id', userId).single(),
             supabase.from('profile_preferences').select('*').eq('user_id', userId).single(),
-            supabase.from('schedule_blocks').select('*').eq('user_id', userId).eq('date', todayStr).order('start_time'),
-            supabase.from('schedule_blocks').select('*').eq('user_id', userId).eq('date', tomorrowStr).order('start_time'),
-            supabase.from('goals').select('*').eq('user_id', userId).eq('status', 'active'),
-            supabase.from('commitments').select('*').eq('user_id', userId).eq('is_active', true),
-            supabase.from('daily_logs').select('*').eq('user_id', userId).eq('log_date', todayStr).single()
+            supabase.from('schedule_blocks').select('id, title, start_time, end_time, is_focus, pillar, block_type').eq('user_id', userId).eq('date', todayStr).order('start_time'),
+            supabase.from('schedule_blocks').select('id, title, start_time, end_time, is_focus').eq('user_id', userId).eq('date', tomorrowStr).order('start_time'),
+            supabase.from('goals').select('id, title, category, importance').eq('user_id', userId).eq('status', 'active').limit(10),
+            supabase.from('commitments').select('id, title, start_time, end_time, days_of_week').eq('user_id', userId).eq('is_active', true).limit(20),
+            supabase.from('daily_logs').select('energy_level, mood, created_at').eq('user_id', userId).eq('log_date', todayStr).single()
         ]);
 
         // 2. Process User & Preferences
@@ -80,10 +81,10 @@ export class ContextService {
 
         // 4. Process Bio-State (from Daily Log or defaults)
         const dailyLog = dailyLogRes.data;
-        const energyLevel = dailyLog?.energy_level ?? 7; // Default to decent energy
+        const energyLevel = dailyLog?.energy_level ?? 7;
         const mood = dailyLog?.mood ?? 'neutral';
 
-        return {
+        const validContext: LiquidContext = {
             user: {
                 id: userId,
                 name: profile.full_name || 'User',
@@ -107,10 +108,21 @@ export class ContextService {
             },
             goals: {
                 active: goalsRes.data || [],
-                pending_action: (goalsRes.data || []).length // Placeholder logic
+                pending_action: (goalsRes.data || []).length
             },
             anchors: commitmentsRes.data || []
         };
+
+        const sizes = {
+            user: JSON.stringify(validContext.user).length,
+            state: JSON.stringify(validContext.state).length,
+            schedule: JSON.stringify(validContext.schedule).length,
+            goals: JSON.stringify(validContext.goals).length,
+            anchors: JSON.stringify(validContext.anchors).length
+        };
+        console.log('[ContextService] Sizes:', sizes);
+
+        return { ...validContext, _debug_sizes: sizes };
     }
 
     /**

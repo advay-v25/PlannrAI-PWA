@@ -19,27 +19,30 @@ export async function buildBrainDumpContext(userId: string, supabase: SupabaseCl
     ] = await Promise.all([
         // 1. Schedule (Next 3 days)
         supabase.from('schedule_blocks')
-            .select('*, goal:goals(title, pillar)')
+            .select('id, title, start_time, end_time, is_focus, pillar, date')
             .eq('user_id', userId)
             .gte('date', startStr)
             .lte('date', endStr)
-            .neq('status', 'cancelled'),
+            .neq('status', 'cancelled')
+            .limit(50),
 
         // 2. Goals (Active)
         supabase.from('goals')
-            .select('*')
+            .select('id, title, category, importance')
             .eq('user_id', userId)
-            .eq('is_paused', false),
+            .eq('status', 'active')
+            .limit(10),
 
         // 3. Anchors (Commitments)
         supabase.from('commitments')
-            .select('*')
+            .select('id, title, start_time, end_time, days_of_week')
             .eq('user_id', userId)
-            .eq('is_active', true),
+            .eq('is_active', true)
+            .limit(20),
 
         // 4. User State (Energy/Emotion)
         supabase.from('user_state')
-            .select('*')
+            .select('energy_level, current_mood')
             .eq('user_id', userId)
             .single(),
 

@@ -104,26 +104,31 @@ export async function groqChat(params: {
         const apiKey = params.apiKey || process.env.GROQ_API_KEY;
         if (!apiKey) throw new Error("GROQ_API_KEY is missing");
 
+        const requestBody = {
+            model,
+            messages,
+            temperature: params.temperature ?? 0.1,
+            top_p: params.top_p ?? 0.9,
+            max_tokens: params.max_tokens ?? 1000,
+            response_format: { type: 'json_object' }
+        };
+
         const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                model,
-                messages,
-                temperature: params.temperature ?? 0.1,
-                top_p: params.top_p ?? 0.9,
-                max_tokens: params.max_tokens ?? 1000,
-                response_format: { type: 'json_object' } // Always force JSON object for Neural OS
-            }),
+            body: JSON.stringify(requestBody),
             signal
         });
 
         if (!response.ok) {
             const errorText = await response.text();
-            throw new GroqError(`Groq API Error: ${response.status}`, { body: errorText });
+            throw new GroqError(`Groq API Error: ${response.status}`, {
+                body: errorText,
+                request: JSON.stringify(requestBody).slice(0, 1000) // Log first 1000 chars of request to avoid huge logs
+            });
         }
 
         const data = await response.json();
@@ -137,8 +142,17 @@ export async function groqChat(params: {
         if (error.name === 'AbortError') {
             throw new Error('Groq request timed out');
         }
+        // If it's already a GroqError (e.g. 401, 500), rethrow it specifically or preserve message
+        if (error instanceof GroqError) {
+            throw error;
+        }
+
         console.error("Groq Chat Error:", error);
-        throw new GroqError("Groq chat completion failed", { originalError: error.message });
+        // Include original error in the main message for visibility
+        throw new GroqError(`Groq chat completion failed: ${error.message}`, {
+            originalError: error.message,
+            request: (error as any).meta?.request
+        });
     }
 }
 

@@ -64,7 +64,7 @@ export default function WeeklyReviewPage() {
                 .select('*')
                 .eq('user_id', user.id)
                 .eq('week_start', weekStartStr)
-                .single();
+                .maybeSingle();
 
             if (data) {
                 setReview(data);

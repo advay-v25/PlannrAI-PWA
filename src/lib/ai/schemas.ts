@@ -155,12 +155,12 @@ export const WeeklyReviewOutputSchema = z.object({
 
 export const CoachResponseSchema = z.object({
     channel: z.literal('coach'),
-    summary: z.string().max(120).describe('Short actionable summary of what you are doing (max 120 chars)'),
+    summary: z.string().max(300).describe('Short actionable summary of what you are doing (max 300 chars)'),
     mode: z.enum(['execute', 'propose', 'ask', 'refuse']).describe('Interaction mode'),
     options: z.array(z.object({
         id: z.string(),
-        title: z.string().max(40),
-        impact: z.string().max(80),
+        title: z.string().max(100),
+        impact: z.string().max(200),
         patch: PatchSchema
     })).optional().describe('Actionable options (max 3)'),
     question: z.object({
