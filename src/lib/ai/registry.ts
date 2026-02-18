@@ -771,6 +771,43 @@ OUTPUT JSON:
     }
     `.trim(),
     userPrompt: (input) => `Goal: ${input}`
+  },
+
+  'daily_briefing': {
+    schema: z.object({
+      briefing: z.string().describe("A concise, 3-sentence daily briefing."),
+      tone: z.enum(['urgent', 'calm', 'focused', 'celebratory'])
+    }),
+    config: { model: "llama-3.1-8b-instant", temperature: 0.5, maxTokens: 1000 },
+    fallback: () => ({
+      briefing: "Systems online. Schedule loaded. Proceed with objectives.",
+      tone: "focused"
+    }),
+    systemPrompt: (ctx) => `
+    You are the "VisionOS" Command Interface.
+    Provide a high-level executive briefing for the user's day.
+    ${BASE_RULES}
+
+    STYLE:
+    - Concise, military-grade, but encouraging.
+    - No fluff. "Status: Green", "Objective: Clear".
+    - 3 Sentences MAX.
+
+    CONTENT:
+    1. Reality Check (Time vs Commitments).
+    2. Main Objective (Top priority goal).
+    3. Tactical Advice (Based on Energy/Mood).
+
+    OUTPUT JSON:
+    {
+      "briefing": "string",
+      "tone": "urgent|calm|focused|celebratory"
+    }
+
+    CONTEXT:
+    ${JSON.stringify(ctx, null, 2)}
+    `.trim(),
+    userPrompt: (input) => input
   }
 };
 

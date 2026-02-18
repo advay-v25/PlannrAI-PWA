@@ -1,0 +1,91 @@
+
+'use client';
+
+import { motion } from 'framer-motion';
+import { Sparkles, Play } from 'lucide-react';
+import { useState, useEffect } from 'react';
+
+interface BriefingModuleProps {
+    briefing?: string; // Markdown or plain text
+    isLoading?: boolean;
+    onGenerate?: () => void;
+}
+
+export function BriefingModule({ briefing, isLoading, onGenerate }: BriefingModuleProps) {
+    const [displayedText, setDisplayedText] = useState('');
+
+    // Typing effect
+    useEffect(() => {
+        if (!briefing) return;
+        setDisplayedText('');
+        let i = 0;
+        const interval = setInterval(() => {
+            setDisplayedText(briefing.slice(0, i));
+            i++;
+            if (i > briefing.length) clearInterval(interval);
+        }, 15); // Adjust speed
+        return () => clearInterval(interval);
+    }, [briefing]);
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card p-6 relative overflow-hidden group min-h-[160px] flex flex-col justify-between"
+        >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-[var(--color-primary-muted)]">
+                        <Sparkles className="w-4 h-4 text-[var(--color-primary)]" />
+                    </div>
+                    <h3 className="text-sm font-semibold tracking-wide text-white/90">
+                        DAILY BRIEFING
+                    </h3>
+                </div>
+                {!briefing && !isLoading && (
+                    <button
+                        onClick={onGenerate}
+                        className="btn-ghost text-xs px-3 py-1.5 rounded-full hover:bg-white/10 transition-colors"
+                    >
+                        Generate
+                    </button>
+                )}
+            </div>
+
+            {/* Content Area */}
+            <div className="relative z-10">
+                {isLoading ? (
+                    <div className="space-y-3 animate-pulse">
+                        <div className="h-4 bg-white/5 rounded w-3/4"></div>
+                        <div className="h-4 bg-white/5 rounded w-full"></div>
+                        <div className="h-4 bg-white/5 rounded w-5/6"></div>
+                    </div>
+                ) : briefing ? (
+                    <p className="text-[15px] leading-relaxed text-white/80 font-medium">
+                        {displayedText}
+                        <span className="inline-block w-1.5 h-4 ml-1 align-middle bg-[var(--color-primary)] animate-pulse" />
+                    </p>
+                ) : (
+                    <div className="flex flex-col items-center justify-center py-4 text-center">
+                        <p className="text-sm text-white/40 mb-3">
+                            Ready to synthesize your day?
+                        </p>
+                        <button
+                            onClick={onGenerate}
+                            className="btn-primary rounded-full pl-4 pr-5 py-2 flex items-center gap-2 text-xs"
+                        >
+                            <Play className="w-3 h-3 fill-current" />
+                            Initialize Briefing
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Background Decor */}
+            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--color-primary)] blur-[80px] rounded-full" />
+            </div>
+        </motion.div>
+    );
+}

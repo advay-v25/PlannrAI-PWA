@@ -6,29 +6,46 @@ import { Sparkles, Play, MoreHorizontal, Check, RefreshCw, Layers } from 'lucide
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
+import { apiClient } from '@/lib/api-client';
+
 interface StacksModuleProps {
     stacks: any[]; // HabitStack type
     onUpdate: () => void;
 }
 
 export function StacksModule({ stacks, onUpdate }: StacksModuleProps) {
-    const [activeStackId, setActiveStackId] = useState<string | null>(null);
     const [generating, setGenerating] = useState(false);
 
-    // AI Logic (Placeholder for now, but wired)
     const handleOptimize = async () => {
         setGenerating(true);
-        const promise = fetch('/api/habit-stacks/assist', { method: 'POST', body: JSON.stringify({ mode: 'optimize' }) })
-            .then(r => r.json());
+        const promise = (async () => {
+            // 1. Get AI Proposal
+            const res = await fetch('/api/habit-stacks/assist', {
+                method: 'POST',
+                body: JSON.stringify({ mode: 'build' })
+            }).then(r => r.json());
+
+            if (res.error) throw new Error(res.error);
+
+            // 2. Check for Patch
+            const options = res.data?.options;
+            if (options && options.length > 0 && options[0].patch) {
+                // Auto-apply the first option for "Build Mode"
+                await apiClient.patch.apply(options[0].patch, 'habit_build_ai');
+            }
+
+            // 3. Refresh
+            onUpdate();
+            return "New routine constructed.";
+        })();
 
         toast.promise(promise, {
-            loading: 'Optimizing routines...',
+            loading: 'Architecting routine...',
             success: (data) => {
                 setGenerating(false);
-                onUpdate();
-                return "Routines optimized based on your energy.";
+                return data;
             },
-            error: "Failed to optimize."
+            error: "Failed to build routine."
         });
     };
 
@@ -41,9 +58,10 @@ export function StacksModule({ stacks, onUpdate }: StacksModuleProps) {
                 <h3 className="text-sm font-medium text-white">No active routines</h3>
                 <button
                     onClick={handleOptimize}
-                    className="mt-4 text-xs font-bold uppercase tracking-widest text-[var(--color-primary)] hover:underline"
+                    disabled={generating}
+                    className="mt-4 text-xs font-bold uppercase tracking-widest text-[var(--color-primary)] hover:underline disabled:opacity-50"
                 >
-                    Create one with AI
+                    {generating ? 'Building...' : 'Create one with AI'}
                 </button>
             </div>
         );
@@ -59,7 +77,7 @@ export function StacksModule({ stacks, onUpdate }: StacksModuleProps) {
                     className="flex items-center gap-1.5 rounded-full bg-white/5 px-3 py-1 text-[10px] font-bold text-white/60 transition-colors hover:bg-white/10 hover:text-white"
                 >
                     <Sparkles className="h-3 w-3" />
-                    {generating ? 'Optimizing...' : 'Optimize'}
+                    {generating ? 'Thinking...' : 'Add Stack'}
                 </button>
             </div>
 
@@ -75,11 +93,21 @@ export function StacksModule({ stacks, onUpdate }: StacksModuleProps) {
 function StackCard({ stack }: { stack: any }) {
     const [expanded, setExpanded] = useState(false);
 
+    // Normalize Steps (Fallback for DB Schema mismatch)
+    const steps = stack.steps || [];
+    if (steps.length === 0) {
+        if (stack.trigger_habit) steps.push({ title: stack.trigger_habit, minutes: 0 });
+        if (stack.action_habit) steps.push({ title: stack.action_habit, minutes: stack.action_duration_mins || 2 });
+    }
+
     // Determine gradient based on time_of_day or type (inferred)
-    const isMorning = (stack.name?.toLowerCase() || '').includes('morning') || stack.preferred_window === 'morning';
+    const isMorning = (stack.name?.toLowerCase() || '').includes('morning') || stack.preferred_window === 'morning' || stack.time_of_day === 'morning';
     const gradient = isMorning
         ? "from-orange-500/10 to-amber-500/5"
         : "from-indigo-500/10 to-purple-500/5";
+
+    // Name fallback
+    const displayName = stack.name || (stack.trigger_habit ? `After ${stack.trigger_habit}...` : 'New Routine');
 
     return (
         <motion.div
@@ -93,12 +121,12 @@ function StackCard({ stack }: { stack: any }) {
             <div className="relative z-10 flex flex-col p-5">
                 <div className="flex items-start justify-between">
                     <div>
-                        <h4 className="text-lg font-medium text-white">{stack.name}</h4>
+                        <h4 className="text-lg font-medium text-white">{displayName}</h4>
                         <div className="mt-1 flex items-center gap-2 text-xs text-white/50">
                             <ClockIcon />
-                            <span>{stack.total_duration || 30} mins</span>
+                            <span>{stack.total_duration || stack.action_duration_mins || 5} mins</span>
                             <span>•</span>
-                            <span>{stack.steps?.length || 0} steps</span>
+                            <span>{steps.length} steps</span>
                         </div>
                     </div>
                     <button
@@ -117,7 +145,7 @@ function StackCard({ stack }: { stack: any }) {
                             exit={{ opacity: 0, height: 0 }}
                             className="mt-4 space-y-2 border-t border-white/10 pt-4"
                         >
-                            {(stack.steps || []).map((step: any, i: number) => (
+                            {steps.map((step: any, i: number) => (
                                 <div key={i} className="flex items-center gap-3 rounded-xl bg-black/20 p-3">
                                     <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/20">
                                         <div className="h-3 w-3 rounded-full bg-white/0 transition-colors hover:bg-white/50" />

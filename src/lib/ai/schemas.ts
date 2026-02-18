@@ -89,9 +89,10 @@ export const PatchOpSchema = z.union([
     }),
     z.object({
         op: z.literal("create_habit_stack"),
-        trigger: z.string().min(1),
-        action: z.string().min(1),
-        duration: z.number().min(1).max(60),
+        payload: z.record(z.string(), z.any()).optional(),
+        trigger: z.string().optional(),
+        action: z.string().optional(),
+        duration: z.number().optional(),
         time_of_day: z.enum(["morning", "afternoon", "evening", "anytime"]).optional(),
     }),
     z.object({

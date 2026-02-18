@@ -135,13 +135,33 @@ export class PatchService {
                     results.updated.push(goal_id);
 
                 } else if (op.op === 'create_habit_stack') {
-                    const { trigger, action, duration, time_of_day } = op;
+                    const { name, steps, preferred_window, schedule_now, trigger, action, duration } = (op as any).payload || op; // Support both payload and flat op
+
+                    // Map steps to Trigger/Action (Tiny Habits Model)
+                    let triggerText = trigger || '';
+                    let actionText = action || '';
+                    let actionDuration = duration || 2;
+
+                    if (steps && Array.isArray(steps) && steps.length > 0) {
+                        triggerText = steps[0]?.title || triggerText;
+                        // Combine remaining steps into action
+                        if (steps.length > 1) {
+                            actionText = steps.slice(1).map((s: any) => s.title).join(' + ');
+                            actionDuration = steps.slice(1).reduce((acc: number, s: any) => acc + (s.minutes || 0), 0) || 2;
+                        }
+                    }
+
                     const { data: stack, error } = await supabase.from('habit_stacks').insert({
                         user_id: userId,
-                        trigger,
-                        action,
-                        duration_mins: duration,
-                        time_of_day: time_of_day || 'anytime'
+                        trigger_habit: triggerText, // Map to DB column
+                        action_habit: actionText,   // Map to DB column
+                        action_duration_mins: actionDuration,
+                        time_of_day: preferred_window || 'anytime',
+                        // Store the name perhaps in trigger or action if needed? 
+                        // The DB has no 'name' column? Let me check types again.
+                        // It does NOT have 'name'. 
+                        // I will prepend Name to Trigger if it's distinct?
+                        // Or just rely on trigger/action.
                     }).select('id').single();
 
                     if (error) throw error;

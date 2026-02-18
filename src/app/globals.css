@@ -13,13 +13,13 @@
   --color-bg-tertiary: #121218;
 
   /* Glass System - Luxury Quartz Glass */
-  --glass-bg: rgba(10, 10, 12, 0.4);
-  --glass-bg-hover: rgba(20, 20, 25, 0.5);
-  --glass-bg-active: rgba(30, 30, 35, 0.6);
-  --glass-bg-elevated: rgba(15, 15, 20, 0.4);
-  --glass-border: rgba(255, 255, 255, 0.05);
-  --glass-border-subtle: rgba(255, 255, 255, 0.02);
-  --glass-border-hover: rgba(255, 255, 255, 0.15);
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-bg-hover: rgba(255, 255, 255, 0.06);
+  --glass-bg-active: rgba(255, 255, 255, 0.09);
+  --glass-bg-elevated: rgba(255, 255, 255, 0.04);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-subtle: rgba(255, 255, 255, 0.04);
+  --glass-border-hover: rgba(255, 255, 255, 0.2);
   --glass-blur: 24px;
   --glass-blur-intense: 40px;
 

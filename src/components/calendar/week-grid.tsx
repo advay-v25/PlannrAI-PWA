@@ -1,11 +1,12 @@
-'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { format, addDays, startOfWeek, isSameDay, differenceInMinutes, startOfDay } from 'date-fns';
 import { DndContext, useDraggable, useDroppable, DragEndEvent } from '@dnd-kit/core';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { cn } from '@/lib/utils';
 import { Lock, AlignJustify } from 'lucide-react';
+import { calculateLayout, LayoutBlock } from '@/lib/calendar-layout';
+import { motion } from 'framer-motion';
 
 interface WeekGridProps {
     date: Date;
@@ -38,8 +39,6 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect }: WeekGridP
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
         if (over && active.id !== over.id) {
-            // active.id = blockId
-            // over.id = `cell-${dayIndex}-${hour}`
             const [_, dayIndexStr, hourStr] = (over.id as string).split('-');
             const dayIndex = parseInt(dayIndexStr);
             const hour = parseInt(hourStr);
@@ -47,7 +46,6 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect }: WeekGridP
             const targetDate = format(days[dayIndex], 'yyyy-MM-dd');
             const targetStart = `${hour.toString().padStart(2, '0')}:00`;
 
-            // Calculate duration to determine end time
             const block = blocks.find(b => b.id === active.id);
             if (block) {
                 const duration = differenceInMinutes(
@@ -100,6 +98,10 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect }: WeekGridP
                     {/* Day Columns */}
                     {days.map((day, dayIndex) => {
                         const dayBlocks = blocks.filter(b => isSameDay(new Date(b.date), day));
+
+                        // Calculate Smart Layout for this day
+                        const layoutMap = useMemo(() => calculateLayout(dayBlocks, CELL_HEIGHT), [dayBlocks]);
+
                         return (
                             <div key={dayIndex} className="flex-1 min-w-[120px] border-r border-white/5 last:border-r-0 relative group">
                                 {/* Hour Droppables */}
@@ -108,13 +110,18 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect }: WeekGridP
                                 ))}
 
                                 {/* Blocks Overlay */}
-                                {dayBlocks.map(block => (
-                                    <BlockCard
-                                        key={block.id}
-                                        block={block}
-                                        onClick={() => onBlockSelect(block)}
-                                    />
-                                ))}
+                                {dayBlocks.map(block => {
+                                    const layout = layoutMap.get(block.id);
+                                    if (!layout) return null;
+                                    return (
+                                        <BlockCard
+                                            key={block.id}
+                                            block={block}
+                                            layout={layout}
+                                            onClick={() => onBlockSelect(block)}
+                                        />
+                                    );
+                                })}
 
                                 {/* Current Time Line (Today Only) */}
                                 {isSameDay(day, new Date()) && (
@@ -152,65 +159,65 @@ function DroppableHour({ dayIndex, hour }: { dayIndex: number, hour: number }) {
     );
 }
 
-function BlockCard({ block, onClick }: { block: any, onClick: () => void }) {
+function BlockCard({ block, layout, onClick }: { block: any, layout: LayoutBlock, onClick: () => void }) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: block.id,
-        disabled: block.block_type === 'anchor' // Anchors are not draggable
+        disabled: block.block_type === 'anchor'
     });
 
-    // Calculate position and height
-    const start = new Date(`2000-01-01T${block.start_time}`);
-    const end = new Date(`2000-01-01T${block.end_time}`);
-    let startMinutes = start.getHours() * 60 + start.getMinutes();
-    let duration = differenceInMinutes(end, start);
+    // Calculate layout styles based on Smart Packing
+    const widthPercent = 100 / layout.totalCols;
+    const leftPercent = widthPercent * layout.colIndex;
 
-    // Safety check for layout
-    if (duration < 15) duration = 15;
+    // Slight gap between columns
+    const gap = 2;
 
-    const top = (startMinutes / 60) * CELL_HEIGHT;
-    const height = (duration / 60) * CELL_HEIGHT;
-
-    const style = transform ? {
+    const style: React.CSSProperties = transform ? {
         transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-        zIndex: 50
+        zIndex: 50,
+        width: '200px', // Fixed width while dragging for visibility
+        height: `${layout.height}px`
     } : {
-        top: `${top}px`,
-        height: `${height}px`,
+        top: `${layout.top}px`,
+        height: `${layout.height}px`,
+        left: `calc(${leftPercent}% + ${gap}px)`,
+        width: `calc(${widthPercent}% - ${gap * 2}px)`
     };
 
     const isAnchor = block.block_type === 'anchor';
 
     return (
-        <div
+        <motion.div
             ref={setNodeRef}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            layout // Framer Motion magic for "Liquid" transitions
             style={style}
             {...listeners}
             {...attributes}
             onClick={(e) => {
-                // Prevent click if dragging logic triggers? 
-                // dnd-kit usually handles this, simpler to pass onclick
                 if (!isDragging) onClick();
             }}
             className={cn(
-                "absolute inset-x-1 rounded-lg border p-2 text-xs overflow-hidden cursor-pointer transition-all hover:brightness-110",
-                isDragging ? "opacity-50 z-50 shadow-xl" : "z-10",
+                "absolute rounded-lg border p-2 text-xs overflow-hidden cursor-pointer transition-colors shadow-sm hover:shadow-lg backdrop-blur-sm",
+                isDragging ? "opacity-50 z-50 shadow-2xl ring-2 ring-white" : "z-10",
                 isAnchor
-                    ? "bg-amber-500/10 border-amber-500/20 text-amber-500 cursor-not-allowed"
-                    : "bg-blue-500/20 border-blue-500/30 text-blue-200 cursor-grab active:cursor-grabbing",
+                    ? "bg-amber-500/10 border-amber-500/20 text-amber-500"
+                    : "bg-blue-500/10 border-blue-500/20 text-blue-200 hover:bg-blue-500/20 hover:border-blue-500/40",
                 block.status === 'done' && "opacity-50 grayscale"
             )}
         >
             <div className="flex items-start justify-between gap-1">
-                <span className="font-bold truncate leading-tight">
+                <span className="font-medium truncate leading-tight">
                     {block.context || block.title}
                 </span>
                 {isAnchor && <Lock className="w-3 h-3 shrink-0 opacity-50" />}
             </div>
-            {height > 40 && (
-                <div className="text-[10px] opacity-60 mt-1">
+            {layout.height > 40 && (
+                <div className="text-[10px] opacity-60 mt-1 font-mono">
                     {block.start_time.slice(0, 5)} - {block.end_time.slice(0, 5)}
                 </div>
             )}
-        </div>
+        </motion.div>
     );
 }

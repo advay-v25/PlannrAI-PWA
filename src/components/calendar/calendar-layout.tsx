@@ -27,7 +27,7 @@ export function CalendarLayout({ controlStack, weekGrid, inspector, showInspecto
             {/* CENTER: Timeline Grid (Mission Control) */}
             <motion.main
                 layout
-                className="flex-1 rounded-[2.5rem] bg-white/5 border border-white/5 backdrop-blur-md overflow-hidden relative shadow-2xl"
+                className="flex-1 glass-card overflow-hidden relative shadow-2xl"
             >
                 {weekGrid}
             </motion.main>
@@ -42,7 +42,7 @@ export function CalendarLayout({ controlStack, weekGrid, inspector, showInspecto
                         transition={{ type: "spring", stiffness: 300, damping: 30 }}
                         className="shrink-0 whitespace-nowrap overflow-hidden"
                     >
-                        <div className="w-80 h-full rounded-3xl bg-white/5 border border-white/5 backdrop-blur-xl overflow-y-auto no-scrollbar">
+                        <div className="w-80 h-full glass border-l border-white/5 overflow-y-auto no-scrollbar">
                             {inspector}
                         </div>
                     </motion.aside>

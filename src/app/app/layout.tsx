@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutDashboard, Calendar, Brain, Activity, User, Sparkles, Menu, Target } from 'lucide-react';
 import { CoachChat } from '@/components/coach/coach-chat';
+import { CommandMenu } from '@/components/ui/command-menu';
 import { cn } from '@/lib/utils';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -23,6 +24,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     return (
         <div className="flex h-dvh w-full overflow-hidden bg-[var(--color-bg-primary)] text-[var(--text-primary)]">
+            <CommandMenu />
 
             {/* Desktop Sidebar */}
             <aside className="hidden md:flex flex-col w-64 border-r border-[var(--glass-border)] bg-[var(--color-bg-secondary)]/30 backdrop-blur-xl z-30">

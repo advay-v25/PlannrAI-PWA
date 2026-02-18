@@ -6,8 +6,8 @@ import { HomeLayout } from '@/components/home/home-layout';
 import { NowCard } from '@/components/home/now-card';
 import { TimelineStrip } from '@/components/home/timeline-strip';
 import { StacksModule } from '@/components/home/stacks-module';
+import { BriefingModule } from '@/components/home/briefing-module';
 import { InsightsCard } from '@/components/home/insights-card';
-import { RealityIntake } from '@/components/home/reality-intake';
 import { format } from 'date-fns';
 import { Settings } from 'lucide-react';
 import Link from 'next/link';
@@ -15,6 +15,8 @@ import Link from 'next/link';
 export default function HomePage() {
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [briefing, setBriefing] = useState<string | undefined>(undefined);
+    const [briefingLoading, setBriefingLoading] = useState(false);
 
     const fetchHomeData = async () => {
         try {
@@ -23,6 +25,7 @@ export default function HomePage() {
             if (res.ok) {
                 const json = await res.json();
                 setData(json.data);
+                if (json.data.briefing) setBriefing(json.data.briefing);
             }
         } catch (e) {
             console.error(e);
@@ -37,6 +40,24 @@ export default function HomePage() {
 
     const handleRefresh = () => {
         fetchHomeData();
+    };
+
+    const handleGenerateBriefing = async () => {
+        setBriefingLoading(true);
+        try {
+            const res = await fetch('/api/narrative/briefing', {
+                method: 'POST',
+                body: JSON.stringify({ date: new Date().toISOString().split('T')[0] })
+            });
+            if (res.ok) {
+                const json = await res.json();
+                setBriefing(json.data.briefing);
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setBriefingLoading(false);
+        }
     };
 
     if (loading) {
@@ -98,15 +119,11 @@ export default function HomePage() {
                     onUpdate={handleRefresh}
                 />
             }
-            insights={
-                <InsightsCard
-                    userState={data.user_state}
-                    insight={data.insight}
-                />
-            }
-            intake={
-                <RealityIntake
-                    onUpdate={handleRefresh}
+            briefing={
+                <BriefingModule
+                    briefing={briefing}
+                    isLoading={briefingLoading}
+                    onGenerate={handleGenerateBriefing}
                 />
             }
         />

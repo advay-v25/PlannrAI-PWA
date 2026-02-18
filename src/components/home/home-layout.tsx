@@ -2,16 +2,15 @@
 
 import { motion } from 'framer-motion';
 
-interface HomeLayoutProps {
+export interface HomeLayoutProps {
     header: React.ReactNode;
     nowCard: React.ReactNode;
     timeline: React.ReactNode;
     stacks: React.ReactNode;
-    insights: React.ReactNode;
-    intake: React.ReactNode;
+    briefing: React.ReactNode;
 }
 
-export function HomeLayout({ header, nowCard, timeline, stacks, insights, intake }: HomeLayoutProps) {
+export function HomeLayout({ header, nowCard, timeline, stacks, briefing }: HomeLayoutProps) {
     return (
         <div className="mx-auto max-w-6xl px-4 md:px-6 py-6 md:py-10 space-y-8 md:space-y-12 pb-32">
             {/* Header */}
@@ -37,22 +36,15 @@ export function HomeLayout({ header, nowCard, timeline, stacks, insights, intake
 
                 {/* Right Column (Secondary / Context) - 5 cols */}
                 <div className="md:col-span-5 space-y-6">
-                    {/* Insights / State */}
+                    {/* Briefing / State */}
                     <section>
-                        {insights}
+                        {briefing}
                     </section>
 
                     {/* Stacks */}
                     <section>
                         {stacks}
                     </section>
-                </div>
-            </div>
-
-            {/* Bottom Floating Intake */}
-            <div className="fixed bottom-6 left-0 right-0 px-4 md:px-0 flex justify-center pointer-events-none">
-                <div className="w-full max-w-xl pointer-events-auto">
-                    {intake}
                 </div>
             </div>
         </div>

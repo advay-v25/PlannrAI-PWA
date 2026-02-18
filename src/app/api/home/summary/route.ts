@@ -39,13 +39,18 @@ export const GET = secureApiRoute(
         let plannedMin = 0;
         let completedMin = 0;
 
-        // Filter blocks for valid calculation
-        const workBlocks = blocks?.filter(b => ['focus', 'deep_work', 'admin'].includes(b.block_type)) || [];
+        // Filter blocks for valid calculation (exclude buffers if desired, but "planned" usually implies all active blocks)
+        // Valid types: anchor, body, craft, mind, meal
+        const validTypes = ['anchor', 'body', 'craft', 'mind', 'meal'];
+        const validBlocks = blocks?.filter(b => validTypes.includes(b.block_type)) || [];
 
-        workBlocks.forEach(b => {
+        validBlocks.forEach(b => {
+            // Parse time carefully
             const start = new Date(`${date}T${b.start_time}`);
             const end = new Date(`${date}T${b.end_time}`);
-            const duration = (end.getTime() - start.getTime()) / 60000;
+            let duration = (end.getTime() - start.getTime()) / 60000;
+
+            if (duration < 0) duration += 1440; // Handle crossing midnight if needed
 
             plannedMin += duration;
             if (b.status === 'done') completedMin += duration;
