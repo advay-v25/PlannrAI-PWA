@@ -278,6 +278,8 @@ export const PUT = secureApiRoute(
         if (time_commitment_mins !== undefined) updates.time_commitment_mins = time_commitment_mins;
         if (milestone_progress !== undefined) updates.milestone_progress = milestone_progress;
         if (sort_order !== undefined) updates.sort_order = sort_order;
+        // @ts-ignore - Dynamic field
+        if (body.ai_strategy !== undefined) updates.ai_strategy = body.ai_strategy;
 
         if (Object.keys(updates).length === 0) {
             return apiError('No valid updates provided');
