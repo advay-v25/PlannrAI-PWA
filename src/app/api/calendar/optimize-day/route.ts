@@ -19,17 +19,12 @@ export const POST = secureApiRoute(
             supabase.from('schedule_blocks')
                 .select('*')
                 .eq('user_id', userId)
-                .gte('date', dateStr) // Just for this day?
-                .lte('date', dateStr), // We can also verify overlapping times if needed
+                .gte('date', dateStr)
+                .lte('date', dateStr),
             supabase.from('goals').select('title, priority, pillar, status').eq('user_id', userId).eq('is_paused', false)
         ]);
 
         if (profileRes.error) return apiError('Failed to load profile', 500);
-
-        // 2. Scheduler Baseline (Optional, to fill gaps or enforce constraints first)
-        // For Optimize Day, we really just want to *reorder* or *adjust* existing blocks, 
-        // but maybe we should ensure anchors are locked first.
-        // Let's trust currentBlocks to contain everything, assuming prior steps created them.
 
         const aiContext = {
             date: dateStr,
@@ -40,47 +35,13 @@ export const POST = secureApiRoute(
             goals: goalsRes.data || []
         };
 
-        const systemPrompt = `You are the Day Optimizer. Re-organize today's blocks for better flow.
-        Focus: ${focus || 'balance'}.
-        
-        OBJECTIVE:
-        - Fix overlaps.
-        - Group similar tasks (batching).
-        - Insert breaks if intensity is high.
-        
-        OUTPUT JSON:
-        {
-          "analysis": { "energy_state": "string", "schedule_health": "string", "flow_opportunity": "string" },
-          "strategy": { "main_focus": "string", "changes_made": "string", "reality_check_applied": boolean },
-          "options": [{ "label": "string", "patch": { "ops": [...], "undoable": true } }]
-        }`;
+        const { executeAI } = await import('@/lib/ai/ai-service');
 
-        let aiResponse;
-        try {
-            const text = await groqChat({
-                model: 'llama-3.3-70b-versatile',
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: JSON.stringify(aiContext) }
-                ],
-                userId,
-                temperature: 0.3
-            });
-
-            aiResponse = await JSONReliability.validateOrRepair(
-                text,
-                DayOptimizationSchema,
-                'llama-3.3-70b-versatile',
-                "day optimization"
-            );
-        } catch (e) {
-            console.error("Optimize Day failed", e);
-            aiResponse = {
-                analysis: { energy_state: "Unknown", schedule_health: "balanced", flow_opportunity: "none" },
-                strategy: { main_focus: "Manual", changes_made: "Service unavailable", reality_check_applied: false },
-                options: [{ label: "Keep Current", patch: { ops: [], undoable: false } }]
-            };
-        }
+        const aiResponse = await executeAI(userId, {
+            channel: 'calendar_optimize_day',
+            input: `Optimize schedule for ${dateStr}. Focus: ${focus || 'balance'}`,
+            context: aiContext
+        });
 
         return apiSuccess(aiResponse);
     },

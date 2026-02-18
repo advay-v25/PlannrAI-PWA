@@ -41,24 +41,24 @@ export const POST = secureApiRoute(
             existingBlocks: existingBlocksRes.data || []
         };
 
+        // 2. Run Deterministic Scheduler (Baseline)
+        const scheduler = new SchedulerService(schedulerContext);
+        const baselineBlocks = scheduler.generateBaseline();
+
         // 3. AI Optimization
-        // Use executeAI with the 'calendar_plan_week' channel
         const { executeAI } = await import('@/lib/ai/ai-service');
 
         const aiContext = {
             ...schedulerContext,
             baseline_blocks_count: baselineBlocks.length,
-            // To prevent context explosion, we only send a summary of blocks or just relying on goals/commitments
-            // But let's send a simplified baseline if needed
-            baseline_sample: baselineBlocks.slice(0, 50).map(b => `${b.title} (${b.start_time}-${b.end_time})`)
+            baseline_sample: baselineBlocks.slice(0, 50).map((b: any) => `${b.title} (${b.start_time}-${b.end_time})`)
         };
 
-        const aiResponse = await executeAI(
-            'calendar_plan_week',
-            `Plan week starting ${startStr}. Mode: ${mode}. Weekend allowed: ${allow_weekend}`,
-            aiContext,
-            userId
-        );
+        const aiResponse = await executeAI(userId, {
+            channel: 'calendar_plan_week',
+            input: `Plan week starting ${startStr}. Mode: ${mode}. Weekend allowed: ${allow_weekend}`,
+            context: aiContext
+        });
 
         return apiSuccess(aiResponse);
     },
