@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Database, Profile } from '@/types/database';
-import { startOfDay, parseISO } from 'date-fns';
+import { startOfDay, parseISO, isValid } from 'date-fns';
 
 import { PlanWeekService, SchedulerContext } from '@/lib/calendar/plan-week-service';
 
@@ -9,7 +9,32 @@ export class SchedulerService {
     private context: SchedulerContext;
 
     constructor(context: SchedulerContext) {
-        this.context = context;
+        this.context = this.sanitizeContext(context);
+    }
+
+    private sanitizeContext(ctx: SchedulerContext): SchedulerContext {
+        const safeCtx = { ...ctx };
+
+        // 1. Validate Week Start
+        if (!isValid(safeCtx.weekStart)) {
+            console.warn("[Scheduler] Invalid weekStart, defaulting to today");
+            safeCtx.weekStart = startOfDay(new Date());
+        }
+
+        // 2. Filter Existing Blocks
+        if (safeCtx.existingBlocks) {
+            safeCtx.existingBlocks = safeCtx.existingBlocks.filter(b => {
+                // Check strictly required fields
+                if (!b.date || !b.start_time || !b.end_time) return false;
+
+                // Validate Date Format (YYYY-MM-DD)
+                if (!parseISO(b.date).valueOf()) return false;
+
+                return true;
+            });
+        }
+
+        return safeCtx;
     }
 
     /**
