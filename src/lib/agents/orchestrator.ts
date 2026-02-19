@@ -81,7 +81,17 @@ export class AgentOrchestrator {
         Output: Pure String.
         `;
 
-        const summary = await import('@/lib/ai/groq-client').then(m => m.generateAIResponse(summaryPrompt, 'COACH', userId));
+        const { groqChat } = await import('@/lib/ai/groq-client');
+        const summary = await groqChat({
+            model: 'llama-3.1-8b-instant',
+            messages: [
+                { role: 'system', content: 'Write a confirmation summary in MAX 2 sentences. BE DIRECT. No waffle.' },
+                { role: 'user', content: summaryPrompt }
+            ],
+            temperature: 0.3,
+            max_tokens: 200,
+            userId
+        });
 
         return {
             planner: plannerOutput,

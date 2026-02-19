@@ -1,7 +1,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { ContextEngine } from './context-engine';
-import { getGeminiClient, SYSTEM_PROMPTS } from '@/lib/gemini';
+import { groqChat, SYSTEM_PROMPTS } from '@/lib/ai/groq-client';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 export class ThinkingService {
@@ -25,8 +25,8 @@ export class ThinkingService {
             },
             weeklyProgress: context.goals.map(g => ({
                 title: g.title,
-                progress: `${context.weeklyGoalCounts[g.id] || 0}/${g.days_per_week}`,
-                status: (context.weeklyGoalCounts[g.id] || 0) >= g.days_per_week ? 'completed' : 'pending'
+                progress: `${context.weeklyGoalCounts[g.id] || 0}/${g.days_per_week || 0}`,
+                status: (context.weeklyGoalCounts[g.id] || 0) >= (g.days_per_week || 0) ? 'completed' : 'pending'
             })),
             dailyStats: context.stats ? {
                 cognitiveLoad: context.stats.cognitive_load_score,
@@ -38,12 +38,17 @@ export class ThinkingService {
             signals: context.recentSignals.map(s => ({ action: s.action_type, details: s.meta }))
         };
 
-        // 3. Request Proactive Synthesis from Gemini
-        const gemini = getGeminiClient();
-        const response = await gemini.generate(
-            JSON.stringify(contextBrief, null, 2),
-            SYSTEM_PROMPTS.THINKING_ENGINE
-        );
+        // 3. Request Proactive Synthesis
+        const response = await groqChat({
+            model: 'llama-3.3-70b-versatile',
+            messages: [
+                { role: 'system', content: SYSTEM_PROMPTS.THINKING_ENGINE },
+                { role: 'user', content: JSON.stringify(contextBrief, null, 2) }
+            ],
+            temperature: 0.4,
+            max_tokens: 2000,
+            userId
+        });
 
         try {
             // Cleanup response if AI adds markdown

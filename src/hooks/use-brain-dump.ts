@@ -1,10 +1,10 @@
 
 import { create } from 'zustand';
 import { apiClient } from '@/lib/api-client';
-import { BrainDumpResponseSchema } from '@/lib/ai/schemas';
+import { BrainDumpOutputSchema } from '@/lib/ai/registry';
 import { z } from 'zod';
 
-export type BrainDumpResponse = z.infer<typeof BrainDumpResponseSchema>;
+export type BrainDumpResponse = z.infer<typeof BrainDumpOutputSchema>;
 export type ExtractedItem = NonNullable<BrainDumpResponse['extracted']['items']>[number];
 export type DumpOption = NonNullable<BrainDumpResponse['options']>[number];
 

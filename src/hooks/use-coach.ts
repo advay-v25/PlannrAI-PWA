@@ -1,11 +1,11 @@
 
 import { create } from 'zustand';
 import { apiClient } from '@/lib/api-client';
-import { CoachResponseSchema } from '@/lib/ai/schemas';
+import { CoachOutputSchema } from '@/lib/ai/registry';
 import { z } from 'zod';
 
-// Infer types from Schema
-export type CoachResponse = z.infer<typeof CoachResponseSchema>;
+// Infer types from canonical registry schema
+export type CoachResponse = z.infer<typeof CoachOutputSchema>;
 export type CoachOption = NonNullable<CoachResponse['options']>[number];
 
 export interface CoachMessage {
@@ -43,7 +43,7 @@ export const useCoach = create<CoachState>((set, get) => ({
             id: crypto.randomUUID(),
             role: 'user',
             content: text,
-            mode: 'ask' // default
+            mode: 'chat' // default
         };
 
         set(state => ({
@@ -60,7 +60,7 @@ export const useCoach = create<CoachState>((set, get) => ({
             const assistantMsg: CoachMessage = {
                 id: crypto.randomUUID(),
                 role: 'assistant',
-                content: res.summary,
+                content: res.summary || res.message || '',
                 mode: res.mode,
                 options: res.options,
             };
@@ -78,7 +78,7 @@ export const useCoach = create<CoachState>((set, get) => ({
                     id: crypto.randomUUID(),
                     role: 'assistant',
                     content: "I'm having trouble connecting. Please try again.",
-                    mode: 'refuse'
+                    mode: 'chat'
                 }],
                 isLoading: false
             }));

@@ -1,6 +1,6 @@
 import { BaseAgent } from '../core/base-agent';
 import { AgentContext, RegulatorOutput, RegulatorOutputSchema, PlannerOutput } from '../core/types';
-import { generateAIResponse } from '@/lib/ai/groq-client';
+import { groqChat, SYSTEM_PROMPTS } from '@/lib/ai/groq-client';
 
 export class RegulatorAgent extends BaseAgent<{ userMessage: string, plannerOutput: PlannerOutput }, RegulatorOutput> {
     name = "Emotional Regulator";
@@ -27,7 +27,16 @@ export class RegulatorAgent extends BaseAgent<{ userMessage: string, plannerOutp
         `;
 
         try {
-            const response = await generateAIResponse(prompt, 'AGENT_REGULATOR', context.userId, true);
+            const response = await groqChat({
+                model: 'llama-3.3-70b-versatile',
+                messages: [
+                    { role: 'system', content: SYSTEM_PROMPTS.AGENT_REGULATOR },
+                    { role: 'user', content: prompt }
+                ],
+                temperature: 0.1,
+                max_tokens: 1000,
+                userId: context.userId
+            });
             const json = JSON.parse(response);
 
             // Validate

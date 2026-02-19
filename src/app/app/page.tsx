@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { HomeLayout } from '@/components/home/home-layout';
 import { NowCard } from '@/components/home/now-card';
@@ -17,6 +17,8 @@ export default function HomePage() {
     const [loading, setLoading] = useState(true);
     const [briefing, setBriefing] = useState<string | undefined>(undefined);
     const [briefingLoading, setBriefingLoading] = useState(false);
+
+    const briefingAttempted = useRef(false);
 
     const fetchHomeData = async () => {
         try {
@@ -37,6 +39,13 @@ export default function HomePage() {
     useEffect(() => {
         fetchHomeData();
     }, []);
+
+    // Auto-fire briefing if missing and data loaded
+    useEffect(() => {
+        if (!loading && data && !briefing && !briefingLoading && !briefingAttempted.current) {
+            handleGenerateBriefing();
+        }
+    }, [loading, data, briefing, briefingLoading]);
 
     const handleRefresh = () => {
         fetchHomeData();

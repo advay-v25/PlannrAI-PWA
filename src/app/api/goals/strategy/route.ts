@@ -63,7 +63,7 @@ export const POST = secureApiRoute(
                 options: [
                     {
                         label: "Manual Block",
-                        impact: "Self-managed",
+                        impact: "Self-managed schedule block",
                         patch: {
                             undoable: true,
                             ops: [{

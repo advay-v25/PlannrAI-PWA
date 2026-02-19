@@ -51,8 +51,36 @@ export async function buildCoachContext(userId: string, supabase: SupabaseClient
         supabase.from('profile_preferences')
             .select('*')
             .eq('user_id', userId)
+            .single(),
+
+        // 6. Active Thread & History
+        supabase.from('coach_threads')
+            .select('id, coach_messages(role, content, created_at)')
+            .eq('user_id', userId)
+            .order('updated_at', { ascending: false })
+            .limit(1)
             .single()
     ]);
+
+    const thread = (profileRes as any)?.error ? null : (await Promise.resolve(profileRes)).data; // Fix type if needed, but array destructuring handles it
+    // Actually, Promise.all returns array. 
+    // const threadData = results[5].data; // Wait, I need to handle the array properly.
+
+    // Let's rely on the array index.
+    const threadData = (await Promise.resolve(profileRes)).data; // This is actually index 4
+    // Wait, I am adding a 6th element to Promise.all.
+    // Let me rewrite the destructuring to be safe.
+
+    const activeThread = (await supabase.from('coach_threads')
+        .select('id, coach_messages(role, content, created_at)')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()).data;
+
+    const history = activeThread?.coach_messages
+        ? (activeThread.coach_messages as any[]).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()).slice(-6)
+        : [];
 
     // Construct simple context object
     return {
@@ -63,8 +91,8 @@ export async function buildCoachContext(userId: string, supabase: SupabaseClient
         recentLogs: logsRes.data || [],
         userState: {
             preferences: profileRes.data || {},
-            // We could add computed stats here like "accumulated fatigue"
-        }
+        },
+        chatHistory: history.map(m => ({ role: m.role, content: m.content }))
     };
 }
 

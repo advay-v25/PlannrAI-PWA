@@ -1,5 +1,5 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
-import { runAI } from '@/lib/ai/run-ai';
+import { executeAI } from '@/lib/ai/ai-service';
 import { createClient } from '@/lib/supabase/server';
 import { logAIRequest } from '@/lib/security/audit-logger';
 import { startOfDay, subDays, format } from 'date-fns';
@@ -92,21 +92,23 @@ export const GET = secureApiRoute(
                 active_goals: goalsResult.data?.map(g => `${g.title} (${g.category})`) || []
             };
 
-            // Call Neural OS Runner
-            const response = await runAI({
-                channel: 'home',
-                input: "Generate daily insight", // Trigger
-                context: homeContext,
-                userId: userId,
-                twoPass: false // Simple summary
+            // Call AI via unified pipeline
+            const response = await executeAI(userId, {
+                channel: 'daily_briefing',
+                input: "Generate daily insight",
+                context: {
+                    user: { name: profile.display_name || 'Friend', energy: homeContext.energy },
+                    schedule: { count: homeContext.schedule_stats.total },
+                    goals: homeContext.active_goals.join(', ')
+                }
             });
 
-            // Map Constitution response to DailyInsight-compatible structure for the UI
+            // Map AI response to DailyInsight-compatible structure for the UI
             const insight: DailyInsight = {
                 greeting: `Good ${getTimeOfDay()}, ${profile.display_name || 'Friend'}!`,
-                insight: response.summary,
-                focusSuggestion: response.options?.[0]?.impact || 'Focus on your top priority today.',
-                encouragement: response.mode === 'propose' ? "I've suggested some adjustments to prevent burnout." : "The path is clear. Execute.",
+                insight: response?.briefing || 'Today is a fresh start.',
+                focusSuggestion: response?.priorities?.[0] || 'Focus on your top priority today.',
+                encouragement: response?.tone === 'gentle' ? "Take it easy today." : "The path is clear. Execute.",
             };
 
             await logAIRequest(userId, '/api/ai/daily-insight', context.request, true);

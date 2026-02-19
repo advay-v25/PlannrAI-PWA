@@ -67,10 +67,9 @@ export const POST = secureApiRoute(
                 // D. Update User State (Signals)
                 if (aiRes.extracted.signals) {
                     const signals = aiRes.extracted.signals;
-                    // Upsert user_state
-                    await supabase.from('user_state').upsert({
+                    await supabase.from('user_states').upsert({
                         user_id: userId,
-                        energy_level: signals.energy, // Ensure clean integer
+                        energy_level: signals.energy ?? 3,
                         emotional_state: signals,
                         last_dump_at: new Date().toISOString()
                     }, { onConflict: 'user_id' });

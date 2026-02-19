@@ -5,7 +5,7 @@ import { JSONReliability } from '@/lib/ai/json-reliability';
 import { groqChat } from '@/lib/ai/groq-client';
 
 // --- Configuration ---
-const AI_TIMEOUT_MS = 20_000;
+const AI_TIMEOUT_MS = 30_000;
 const MAX_RETRIES = 1;
 const MAX_CONTEXT_CHARS = 30_000;
 
@@ -300,7 +300,10 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
 
         if (!rawText) {
             console.error(`[AI Service] [${requestId}] All attempts failed. Returning fallback.`);
-            const fallback = safeFallback(channel, requestId);
+
+            let fallback;
+            fallback = ChannelRegistry[channel].fallback(input);
+
             return {
                 ...fallback,
                 _meta: {
@@ -342,7 +345,10 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
             }
         } catch (e: any) {
             console.error(`[AI Service] [${requestId}] Schema validation failed:`, e.message);
-            const fallback = safeFallback(channel, requestId);
+
+            let fallback;
+            fallback = ChannelRegistry[channel].fallback(input);
+
             return {
                 ...fallback,
                 _meta: {
@@ -361,8 +367,17 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
 
     } catch (error: any) {
         console.error(`[AI Service] [${requestId}] CRITICAL FAILURE:`, error);
+
         const channelName = body.channel || 'unknown';
-        const fallback = safeFallback(channelName, requestId);
+        let fallback;
+        if (channelName && channelName in ChannelRegistry) {
+            // In critical failure, input might not be available if validaton failed, but executeAI body should have it if basic parsing worked
+            // We can use body.input if available, else empty string
+            fallback = ChannelRegistry[channelName].fallback(body.input || '');
+        } else {
+            fallback = safeFallback(channelName, requestId);
+        }
+
         return {
             ...fallback,
             summary: "System error. We've loaded a backup plan.",

@@ -1,5 +1,5 @@
 
-import { generateAIResponse } from '@/lib/ai/groq-client';
+import { groqChat } from '@/lib/ai/groq-client';
 import { differenceInDays, subDays } from 'date-fns';
 import { InterventionLog } from '@/types/database';
 import { SupabaseClient } from '@supabase/supabase-js';
@@ -10,7 +10,6 @@ export const InterventionManager = {
      * Enforces rate limiting (max 1 intervention per 24 hours).
      */
     async checkInterventions(userId: string, supabase: SupabaseClient): Promise<InterventionLog | null> {
-        // 1. Rate Limit Check (Don't annoy users)
         const { data: recentLogs } = await supabase
             .from('intervention_logs')
             .select('created_at')
@@ -22,27 +21,20 @@ export const InterventionManager = {
             const lastLog = new Date(recentLogs[0].created_at);
             const now = new Date();
             if (differenceInDays(now, lastLog) < 1) {
-                return null; // Too soon
+                return null;
             }
         }
 
-        // 2. Check for Stagnation (Stuck Goals)
         const stagnationNudge = await this.checkStagnation(userId, supabase);
         if (stagnationNudge) return stagnationNudge;
 
-        // 3. Check for Burnout (High Stress)
         const burnoutNudge = await this.checkBurnout(userId, supabase);
         if (burnoutNudge) return burnoutNudge;
 
-        return null; // All good
+        return null;
     },
 
-    /**
-     * LOGIC: Stagnation Detection
-     * Trigger: Goal not updated in 7 days
-     */
     async checkStagnation(userId: string, supabase: SupabaseClient): Promise<InterventionLog | null> {
-        // Find active goals not updated recently
         const { data: goals } = await supabase
             .from('goals')
             .select('id, title, updated_at, category')
@@ -59,7 +51,6 @@ export const InterventionManager = {
                 userId
             );
 
-            // Log it
             const { data: log } = await supabase
                 .from('intervention_logs')
                 .insert({
@@ -76,17 +67,7 @@ export const InterventionManager = {
         return null;
     },
 
-    /**
-     * LOGIC: Burnout Detection
-     * Trigger: Recent brain dump detected high stress
-     */
     async checkBurnout(userId: string, supabase: SupabaseClient): Promise<InterventionLog | null> {
-        // Need to query extracted signals from recent dumps
-        // This assumes we are storing extracted signals in the extracted_json of brain_dump_entries table
-        // For MVP, we'll check if the last dump had "stress" > 4 if we store that...
-        // Actually, let's rely on the 'energy_level' in the profile if updated recently?
-        // Or simpler: Check if user logged "stress_level" 4 or 5 in profile recently
-
         const { data: profile } = await supabase
             .from('profiles')
             .select('stress_level, updated_at')
@@ -116,21 +97,18 @@ export const InterventionManager = {
         return null;
     },
 
-    /**
-     * AI GENERATION: Write the "Donna" text
-     */
     async generateNudge(type: string, context: string, userId: string): Promise<string> {
-        const prompt = `
-YOU ARE "DONNA": A proactive, high-EQ executive assistant.
-Context: ${context}
-Task: Write a highly personal, short "Tap on the shoulder" message to the user.
-Tone: Warm, discerning, proactive. NOT robotic.
-Length: Under 20 words.
-Example: "I noticed the Spanish goal is stalling. Should we pivot or push?"
-`;
         try {
-            // We use 'GOAL_SUGGESTION' as a proxy type or just generic if we didn't add INTERVENTION type
-            const text = await generateAIResponse(prompt, 'COACH' as any, userId, false);
+            const text = await groqChat({
+                model: 'llama-3.1-8b-instant',
+                messages: [
+                    { role: 'system', content: 'You are "Donna": a proactive, high-EQ executive assistant. Write short, warm nudges under 20 words. No quotes.' },
+                    { role: 'user', content: `Type: ${type}. Context: ${context}. Write a short nudge message.` }
+                ],
+                temperature: 0.6,
+                max_tokens: 60,
+                userId
+            });
             return text.replace(/"/g, '');
         } catch (e) {
             return "I noticed something we should discuss.";

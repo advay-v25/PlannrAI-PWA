@@ -1,6 +1,6 @@
 import { BaseAgent } from '../core/base-agent';
 import { AgentContext, PlannerOutput, PlannerOutputSchema } from '../core/types';
-import { generateAIResponse } from '@/lib/ai/groq-client';
+import { groqChat, SYSTEM_PROMPTS } from '@/lib/ai/groq-client';
 
 export class PlannerAgent extends BaseAgent<string, PlannerOutput> {
     name = "Planner Agent";
@@ -23,7 +23,16 @@ export class PlannerAgent extends BaseAgent<string, PlannerOutput> {
         `;
 
         try {
-            const response = await generateAIResponse(prompt, 'AGENT_PLANNER', context.userId, true);
+            const response = await groqChat({
+                model: 'llama-3.3-70b-versatile',
+                messages: [
+                    { role: 'system', content: SYSTEM_PROMPTS.AGENT_PLANNER },
+                    { role: 'user', content: prompt }
+                ],
+                temperature: 0.1,
+                max_tokens: 1000,
+                userId: context.userId
+            });
             const json = JSON.parse(response);
 
             // Validate with Zod

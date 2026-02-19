@@ -1,59 +1,50 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { apiError, apiSuccess } from '@/lib/security/api-protection';
-import { decomposeGoal } from '@/lib/ai/groq-client';
+import { NextRequest } from 'next/server';
+import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
+import { executeAI } from '@/lib/ai/ai-service';
 import { z } from 'zod';
 
 const requestSchema = z.object({
     goal: z.string().min(3),
     minutes: z.number().min(5).max(180),
     level: z.string().optional(),
-    goalId: z.string().optional(), // If provided, we save the plan to this goal
+    goalId: z.string().optional(),
 });
 
-export async function POST(req: NextRequest) {
-    try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
+export const POST = secureApiRoute(
+    async (context, body) => {
+        const { userId, supabase } = context;
 
-        if (!user) {
-            return apiError('Unauthorized', 401);
-        }
-
-        const body = await req.json();
         const validated = requestSchema.safeParse(body);
-
         if (!validated.success) {
             return apiError('Invalid request data', 400);
         }
 
         const { goal, minutes, level, goalId } = validated.data;
 
-        // Call the AI
-        const plan = await decomposeGoal(goal, { timeMin: minutes, level }, user.id);
-
-        if (!plan) {
-            return apiError('Failed to generate plan', 500);
-        }
+        // Use unified AI pipeline
+        const aiRes = await executeAI(userId, {
+            channel: 'goal_decomposition',
+            input: goal,
+            context: {
+                time_budget_minutes: minutes,
+                level: level || 'beginner',
+            }
+        });
 
         // If goalId provided, save to DB
-        if (goalId) {
+        if (goalId && aiRes?.plan) {
             const { error } = await supabase
                 .from('goals')
-                .update({ ai_plan: plan })
+                .update({ ai_plan: aiRes.plan })
                 .eq('id', goalId)
-                .eq('user_id', user.id);
+                .eq('user_id', userId);
 
             if (error) {
                 console.error('Failed to save AI plan:', error);
-                // We typically still return the plan to the user even if save failed
             }
         }
 
-        return apiSuccess({ plan });
-
-    } catch (error) {
-        console.error('Goal decomposition error:', error);
-        return apiError('Internal server error', 500);
-    }
-}
+        return apiSuccess({ plan: aiRes?.plan || aiRes });
+    },
+    { requireAuth: true, auditAction: 'goal_decomposition' }
+);

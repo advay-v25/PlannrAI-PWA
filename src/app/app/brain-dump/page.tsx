@@ -120,7 +120,7 @@ export default function BrainDumpPage() {
                                         {[1, 2, 3, 4, 5].map(l => (
                                             <div key={l} className={cn(
                                                 "w-1.5 h-6 rounded-full transition-all",
-                                                l <= response.extracted.signals.energy
+                                                l <= (response.extracted.signals?.energy ?? 0)
                                                     ? "bg-[var(--color-mind)]"
                                                     : "bg-[var(--glass-border)]"
                                             )} />
@@ -130,7 +130,7 @@ export default function BrainDumpPage() {
                                 <div className="p-3 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] flex flex-col items-center justify-center">
                                     <span className="text-xs text-[var(--text-tertiary)] uppercase tracking-wider">Overwhelm</span>
                                     <div className="mt-1 text-lg font-bold text-[var(--text-primary)]">
-                                        {Math.round(response.extracted.signals.overwhelm * 100)}%
+                                        {Math.round((response.extracted.signals?.overwhelm ?? 0) * 100)}%
                                     </div>
                                 </div>
                             </div>
@@ -144,7 +144,7 @@ export default function BrainDumpPage() {
                             </h3>
 
                             <div className="space-y-3">
-                                {response.options.map((opt) => (
+                                {(response.options ?? []).map((opt) => (
                                     <div key={opt.id}> {/* Wrapper because OptionCard handles apply internally but we need parent state too */}
                                         <OptionCard
                                             option={{ ...opt, patch: opt.patch }}

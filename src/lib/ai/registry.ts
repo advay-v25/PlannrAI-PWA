@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PatchSchema } from './schemas';
+import { PatchSchema, OnboardingArchitectSchema, DayOptimizationSchema, RoutineGenerationSchema, CalendarPlanWeekSchema, ConflictResolutionSchema } from './schemas';
 
 // --- Shared Types ---
 export type AIContext = Record<string, any>;
@@ -9,58 +9,45 @@ export type AILimits = {
   overwhelmed?: boolean;
 };
 
-// --- Per-Channel Output Schemas ---
-// --- Per-Channel Output Schemas ---
-import { OnboardingArchitectSchema, DayOptimizationSchema, RoutineGenerationSchema, CalendarPlanWeekSchema, ConflictResolutionSchema, CoachResponseSchema, BrainDumpResponseSchema, GoalDecompositionSchema } from './schemas';
+// --- Per-Channel Output Schemas (Locally Defined) ---
 
 // 1. Coach
 export const CoachOutputSchema = z.object({
-  intent: z.enum(['adjust_schedule', 'rebuild_day', 'rebuild_week', 'reduce_intensity', 'consultation', 'none']),
-  explanation: z.string().max(200),
-  wisdom: z.string().optional(),
+  mode: z.enum(['chat', 'propose']),
+  summary: z.string().max(300).optional(),
+  message: z.string().optional(),
   options: z.array(z.object({
-    label: z.string().max(60),
-    patch: z.object({
-      ops: z.array(z.any()).max(50),
-      scope: z.enum(['day', 'week']).default('day'),
-      reason: z.string().max(140).optional(),
-    }),
-    tradeoff: z.string().max(120).optional()
-  })).max(3)
+    id: z.string(),
+    title: z.string().max(60),
+    impact: z.string().max(100),
+    patch: PatchSchema
+  })).optional()
 });
 
 // 2. Brain Dump
 export const BrainDumpOutputSchema = z.object({
   extracted: z.object({
-    tasks: z.array(z.object({
+    summary: z.string().optional(),
+    items: z.array(z.object({
       title: z.string(),
-      estimated_minutes: z.number(),
-      pillar: z.string().optional(),
-      deadline: z.string().optional()
-    })).optional(),
-    constraints: z.array(z.object({
-      type: z.enum(['time_block', 'appointment', 'fatigue', 'travel', 'other']),
-      details: z.string(),
-      start: z.string().optional(),
-      end: z.string().optional(),
-      date: z.string().optional(),
-    })).optional(),
+      kind: z.enum(['task', 'commitment', 'note', 'worry', 'idea', 'habit', 'constraint']),
+      est_min: z.number().optional(),
+      due_date: z.string().optional()
+    })).optional().default([]),
     signals: z.object({
-      energy_delta: z.number().min(-2).max(2).optional(),
+      energy: z.number().min(1).max(5).optional(),
       sentiment: z.number().min(-1).max(1).optional(),
       overwhelm: z.number().min(0).max(1).optional()
     })
   }),
+  mode: z.enum(['chat', 'propose']),
+  summary: z.string().optional(),
   options: z.array(z.object({
-    label: z.string().max(60),
-    patch: z.object({
-      ops: z.array(z.any()).max(50),
-      scope: z.enum(['day', 'week']).default('day'),
-      reason: z.string().max(140).optional(),
-    }),
-    tradeoff: z.string().max(120).optional()
-  })).max(3),
-  note: z.string().max(200)
+    id: z.string(),
+    title: z.string(),
+    impact: z.string(),
+    patch: PatchSchema
+  })).optional()
 });
 
 // 3. Onboarding Plan
@@ -114,6 +101,38 @@ export const WeeklyReviewOutputSchema = z.object({
   note: z.string().max(160).describe('Encouraging closing remark (max 160 chars)')
 });
 
+// 7. Goal Decomposition
+export const GoalDecompositionSchema = z.object({
+  channel: z.literal('goal_decomposition').optional(),
+  mode: z.literal('propose').optional(),
+  plan: z.object({
+    analysis: z.object({
+      complexity: z.enum(['low', 'medium', 'high']),
+      time_horizon: z.string(),
+      resources: z.array(z.string()),
+      obstacles: z.array(z.string())
+    }),
+    milestones: z.array(z.object({
+      title: z.string(),
+      description: z.string(),
+      deadline_offset_days: z.number(),
+      tasks: z.array(z.object({
+        title: z.string(),
+        estimated_minutes: z.number(),
+        is_recurring: z.boolean().optional(),
+        recurrence: z.string().optional()
+      }))
+    }))
+  }),
+  summary: z.string().optional()
+});
+
+// 8. Daily Briefing
+export const DailyBriefingOutputSchema = z.object({
+  briefing: z.string().max(500).describe('Morning briefing message for the user'),
+  tone: z.enum(['focused', 'energized', 'gentle', 'urgent']).describe('Tone of the briefing'),
+  priorities: z.array(z.string().max(80)).max(3).optional().describe('Top 3 priorities for the day')
+});
 
 // --- Registry Definition ---
 
@@ -138,13 +157,13 @@ Rules:
 
 export const ChannelRegistry: Record<string, ChannelDef> = {
   coach: {
-    schema: CoachResponseSchema,
-    config: { model: 'llama-3.1-8b-instant', temperature: 0.4, maxTokens: 2000 },
+    schema: CoachOutputSchema,
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.4, maxTokens: 2000 },
     minOptions: 1,
     fallback: () => ({
-      channel: 'coach',
-      summary: "I'm having trouble thinking, but here are safe options.",
       mode: 'propose',
+      summary: "I'm having trouble thinking, but here are safe options.",
+      message: "I'm having trouble thinking, but here are safe options.",
       options: [
         {
           id: 'fallback_1',
@@ -177,6 +196,7 @@ export const ChannelRegistry: Record<string, ChannelDef> = {
       Goals: ${JSON.stringify(ctx.goals || [])}
       User State: ${JSON.stringify(ctx.userState || {})}
       Recent Logs: ${JSON.stringify(ctx.recentLogs || [])}
+      Chat History: ${JSON.stringify(ctx.chatHistory || [])}
       
       RULES:
       1. NEVER return without options unless asking a clarifying question.
@@ -190,12 +210,13 @@ export const ChannelRegistry: Record<string, ChannelDef> = {
       - "I'm busy at 4pm" -> Move block at 4pm to another slot.
       - "I'm tired" -> Lighten load, insert breaks.
       - "Plan my day" -> Fill empty slots with highest priority goals.
+      - "Change X to Y" -> Use history to understand X.
       
       OUTPUT FORMAT (Strict JSON, No Markdown):
       {
-        "channel": "coach",
-        "mode": "execute|propose|ask|refuse",
+        "mode": "chat|propose",
         "summary": "string",
+        "message": "string",
         "options": [{
           "id": "string",
           "title": "string",
@@ -205,22 +226,24 @@ export const ChannelRegistry: Record<string, ChannelDef> = {
              "undoable": true,
              "reason": "string"
           }
-        }],
-        "question": { "prompt": "string", "type": "choice", "choices": ["..."] } (optional)
+        }]
       }
       `.trim();
     },
     userPrompt: (input) => input
   },
 
-
   brain_dump: {
-    schema: BrainDumpResponseSchema,
-    config: { model: 'llama-3.1-8b-instant', temperature: 0.2, maxTokens: 3000 },
+    schema: BrainDumpOutputSchema,
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.2, maxTokens: 3000 },
     fallback: (input) => ({
-      channel: 'brain_dump',
-      summary: "I extracted some items but couldn't process fully.",
       mode: 'propose',
+      summary: "I extracted some items but couldn't process fully.",
+      extracted: {
+        summary: "I extracted some items but couldn't process fully.",
+        items: [{ kind: 'note', title: input.slice(0, 50) }],
+        signals: { overwhelm: 0, sentiment: 0, energy: 3 }
+      },
       options: [
         {
           id: 'fallback_1',
@@ -228,11 +251,7 @@ export const ChannelRegistry: Record<string, ChannelDef> = {
           impact: 'Review later',
           patch: { ops: [], reason: "Fallback save" }
         }
-      ],
-      extracted: {
-        items: [{ kind: 'note', title: input.slice(0, 50) }],
-        signals: { overwhelm: 0, stress: 0, motivation: 0.5, energy: 3, health_flag: false }
-      }
+      ]
     }),
     systemPrompt: (ctx) => `
       You are PlannrAI's "Chaos Engine".
@@ -251,31 +270,26 @@ export const ChannelRegistry: Record<string, ChannelDef> = {
       User State: ${JSON.stringify(ctx.userState || {})}
       
       DETECTION RULES:
-      A) Deviations: "I'm busy at 4pm" -> Propose reschedule.
-      B) New Tasks: "Buy milk" -> Propose 'create_event' (today/tomorrow).
-      C) Overload: "I'm overwhelmed" -> Propose 'reduce_intensity' (update_goal).
-      D) Fog: "I don't know what to do" -> Propose 'triage' (pick top 3).
+      A) Actionable: "Buy milk" -> Extract as Task.
+      B) Constraint: "I have a meeting at 2pm" -> Extract as Constraint (time_block).
+      C) Signal: "I'm exhausted" -> Extract Signal (energy=1).
+      D) Noise: "I hate Mondays" -> Extract as Note.
       
       OUTPUT FORMAT (Strict JSON, No Markdown):
       {
-        "channel": "brain_dump",
-        "summary": "string",
         "mode": "propose",
+        "summary": "string",
         "extracted": {
+            "summary": "string",
             "items": [
                 { 
                   "kind": "task|commitment|note|worry|idea|habit|constraint", 
                   "title": "string", 
                   "est_min": number, 
-                  "pillar": "mind|body|craft|uncategorized", 
-                  "urgency": 1-3, 
-                  "due": "today|tomorrow|YYYY-MM-DD" 
+                  "due_date": "today|tomorrow|YYYY-MM-DD" 
                 }
             ],
-            "signals": { "energy": 1-5, "stress": 0-1, "overwhelm": 0-1, "motivation": 0-1, "health_flag": boolean },
-            "constraints": [
-                { "type": "time_block|appointment|fatigue|other", "details": "string", "start": "HH:MM" }
-            ]
+            "signals": { "energy": 1-5, "sentiment": -1 to 1, "overwhelm": 0-1 }
         },
         "options": [{
             "id": "string",
@@ -297,22 +311,22 @@ export const ChannelRegistry: Record<string, ChannelDef> = {
       warnings: ["Please try again later."]
     }),
     systemPrompt: (ctx) => `
-You are PlannrAI Onboarding Planner.
-Generate a complete 7-day schedule from user constraints.
-${BASE_RULES}
-
-Use 'create_event' ops with payload: { day_offset: 0-6, start: "HH:MM", end: "HH:MM", title: string, block_type: string }.
-
-JSON schema:
-{
-  "patch": { "ops": [{ "op": "create_event", "payload": {...} }], "undoable": true, "reason": "string" },
-  "summary": { "bullets": ["string"] },
-  "warnings": ["string"]
-}
-
-Constraints:
-${JSON.stringify(ctx, null, 2)}
-`.trim(),
+      You are PlannrAI Onboarding Planner.
+      Generate a complete 7-day schedule from user constraints.
+      ${BASE_RULES}
+      
+      Use 'create_event' ops with payload: { day_offset: 0-6, start: "HH:MM", end: "HH:MM", title: string, block_type: string }.
+      
+      JSON schema:
+      {
+        "patch": { "ops": [{ "op": "create_event", "payload": {...} }], "undoable": true, "reason": "string" },
+        "summary": { "bullets": ["string"] },
+        "warnings": ["string"]
+      }
+      
+      Constraints:
+      ${JSON.stringify(ctx, null, 2)}
+    `.trim(),
     userPrompt: (input) => input
   },
 
@@ -328,59 +342,59 @@ ${JSON.stringify(ctx, null, 2)}
       }]
     }),
     systemPrompt: (ctx) => `
-You are PlannrAI Habit Architect.
-Design high-adherence habit stacks using BJ Fogg's "Tiny Habits" method and Andrew Huberman's protocols.
-${BASE_RULES}
-
-THE METHOD:
-1. ANCHOR: Connect the new habit to an existing routine (e.g., "After I pour my coffee...").
-2. MICRO-BEHAVIOR: Make it minimal (< 2 mins). (e.g., "...I will do 2 pushups", not "I will workout").
-3. DO IT: The steps must include the anchor and the behavior.
-
-GOAL ALIGNMENT:
-- Review the User's GOALS in the context.
-- If User has a goal "Run Marathon", the habit is "Put on running shoes" (1 min).
-- If User has a goal "Deep Work", the habit is "Clear desk & Phone away" (2 mins).
-
-PATCH OPS:
-- Use "create_habit_stack" op to save to DB.
-- Payload: { name, steps, preferred_window, schedule_now: true }.
-- Steps structure: [{ "title": "After I [Anchor]...", "minutes": 1 }, { "title": "I will [Micro-Habit]", "minutes": 2 }, { "title": "Celebrate (Instant dopemine)", "minutes": 0 }]
-
-OUTPUT JSON:
-{
-  "stacks": [{
-    "name": "string (e.g. 'Morning Momentum')",
-    "steps": [{ "title": "string", "minutes": number }],
-    "schedule_hint": { "time_of_day": "morning"|"afternoon"|"evening" }
-  }],
-  "options": [{ 
-    "label": "Save & Schedule (Morning)", 
-    "patch": { 
-      "ops": [{
-         "op": "create_habit_stack",
-         "payload": {
-            "name": "string",
-            "steps": [...],
-            "preferred_window": "morning",
-            "schedule_now": true
-         }
-      }], 
-      "undoable": true, 
-      "reason": "Aligned with goal: [Goal Title]" 
-    } 
-  }]
-}
-
-Context (Profile, Schedule, Goals):
-${JSON.stringify(ctx, null, 2)}
-`.trim(),
+      You are PlannrAI Habit Architect.
+      Design high-adherence habit stacks using BJ Fogg's "Tiny Habits" method and Andrew Huberman's protocols.
+      ${BASE_RULES}
+      
+      THE METHOD:
+      1. ANCHOR: Connect the new habit to an existing routine (e.g., "After I pour my coffee...").
+      2. MICRO-BEHAVIOR: Make it minimal (< 2 mins). (e.g., "...I will do 2 pushups", not "I will workout").
+      3. DO IT: The steps must include the anchor and the behavior.
+      
+      GOAL ALIGNMENT:
+      - Review the User's GOALS in the context.
+      - If User has a goal "Run Marathon", the habit is "Put on running shoes" (1 min).
+      - If User has a goal "Deep Work", the habit is "Clear desk & Phone away" (2 mins).
+      
+      PATCH OPS:
+      - Use "create_habit_stack" op to save to DB.
+      - Payload: { name, steps, preferred_window, schedule_now: true }.
+      - Steps structure: [{ "title": "After I [Anchor]...", "minutes": 1 }, { "title": "I will [Micro-Habit]", "minutes": 2 }, { "title": "Celebrate (Instant dopemine)", "minutes": 0 }]
+      
+      OUTPUT JSON:
+      {
+        "stacks": [{
+          "name": "string (e.g. 'Morning Momentum')",
+          "steps": [{ "title": "string", "minutes": number }],
+          "schedule_hint": { "time_of_day": "morning"|"afternoon"|"evening" }
+        }],
+        "options": [{ 
+          "label": "Save & Schedule (Morning)", 
+          "patch": { 
+            "ops": [{
+               "op": "create_habit_stack",
+               "payload": {
+                  "name": "string",
+                  "steps": [...],
+                  "preferred_window": "morning",
+                  "schedule_now": true
+               }
+            }], 
+            "undoable": true, 
+            "reason": "Aligned with goal: [Goal Title]" 
+          } 
+        }]
+      }
+      
+      Context (Profile, Schedule, Goals):
+      ${JSON.stringify(ctx, null, 2)}
+    `.trim(),
     userPrompt: (input) => input
   },
 
   goal_strategy: {
     schema: GoalStrategyOutputSchema,
-    config: { model: "llama-3.1-8b-instant", temperature: 0.4, maxTokens: 2000 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.4, maxTokens: 2000 },
     minOptions: 1,
     fallback: () => ({
       options: [{
@@ -389,42 +403,47 @@ ${JSON.stringify(ctx, null, 2)}
       }]
     }),
     systemPrompt: (ctx) => `
-You are PlannrAI Goal Strategist.
-Decompose a goal into a high-precision execution plan.
-${BASE_RULES}
-
-JSON schema:
-{
-  "options": [{
-    "label": "string",
-    "patch": { 
-      "ops": [{ 
-        "op": "update_goal", 
-        "goal_id": "...", 
-        "fields": { 
-          "ai_strategy": {
-            "strategy_one_liner": "string",
-            "routine": { "frequency": "string", "duration_mins": number, "steps": ["string"], "notes": "string" },
-            "milestones": ["string"],
-            "checklist": [{"text": "string"}]
-          } 
-        } 
-      }], 
-      "undoable": true, 
-      "reason": "string" 
-    }
-  }]
-}
-
-Context:
-${JSON.stringify(ctx, null, 2)}
-`.trim(),
+      You are PlannrAI Goal Strategist.
+      Decompose a goal into a high-precision execution plan.
+      ${BASE_RULES}
+      
+      CONTEXT:
+      ${JSON.stringify(ctx, null, 2)}
+      
+      MISSION:
+      1. BREAK IT DOWN: Convert vague goal into actionable steps.
+      2. ROUTINE: Define the "Micro-Habit" or "Weekly Ritual" needed.
+      3. MILESTONES: Define 3 clear checkpoints.
+      
+      OUTPUT JSON:
+      {
+        "options": [{
+          "label": "Execute Strategy",
+          "patch": { 
+            "ops": [{ 
+              "op": "update_goal", 
+              "goal_id": "...", 
+              "fields": { 
+                "ai_strategy": {
+                  "strategy_one_liner": "string",
+                  "routine": { "frequency": "daily|weekly", "duration_mins": number, "steps": ["string"], "notes": "string" },
+                  "milestones": ["string"],
+                  "checklist": [{"text": "string"}]
+                } 
+              } 
+            }], 
+            "undoable": true, 
+            "reason": "Strategy generated." 
+          }
+        }]
+      }
+    `.trim(),
     userPrompt: (input) => `Goal: ${input}`
   },
 
   weekly_review: {
     schema: WeeklyReviewOutputSchema,
-    config: { model: "llama-3.1-8b-instant", temperature: 0.3, maxTokens: 1500 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.3, maxTokens: 1500 },
     fallback: () => ({
       reality: "AI Review temporarily unavailable.",
       patterns: [
@@ -439,38 +458,33 @@ ${JSON.stringify(ctx, null, 2)}
       note: "We're tuning the neural engine. Please try again shortly."
     }),
     systemPrompt: (ctx) => `
-You are PlannrAI Weekly Analyst. Analyze the user's week and produce a structured review.
-${BASE_RULES}
-
-BEHAVIOR:
-- reality: 1-2 sentence narrative of facts. e.g. "You completed 65% of your planned Focus blocks, but struggled with morning consistency."
-- patterns: Identify EXACTLY 3 recurring behaviors with evidence. e.g. "Late Night Drift: 4/7 nights you pushed sleep_start past midnight."
-- lever: Exactly ONE high-impact change for NEXT week. It must be an executable patch.
-  - Types: reduce goal minutes, shift preferred window, add buffer, set weekend_intensity, insert recovery block.
-- note: Warm, encouraging, max 160 chars. No gamification or 'points'.
-
-PATCH OPS (for lever):
-- use "update_settings" for window/buffer/weekend_intensity.
-- use "update_goal" for reducing minutes.
-- use "create_event" for recovery blocks (day_offset 0-6).
-
-OUTPUT JSON:
-{
-  "reality": "string",
-  "patterns": [{"title": "string", "evidence": "string"}],
-  "lever": { "label": "string", "patch": { "ops": [...], "undoable": true, "reason": "string" } },
-  "note": "string"
-}
-
-Context (Profile, Goals, Last 7 Days Schedule):
-${JSON.stringify(ctx, null, 2)}
-`.trim(),
+      You are PlannrAI Weekly Analyst. Analyze the user's week and produce a structured review.
+      ${BASE_RULES}
+      
+      CONTEXT (Profile, Goals, Last 7 Days Schedule):
+      ${JSON.stringify(ctx, null, 2)}
+      
+      OUTPUT JSON:
+      {
+        "reality": "Narrative summary...",
+        "patterns": [
+          {"title": "Pattern 1", "evidence": "Evidence 1"},
+          {"title": "Pattern 2", "evidence": "Evidence 2"},
+          {"title": "Pattern 3", "evidence": "Evidence 3"}
+        ],
+        "lever": { 
+           "label": "Actionable Lever", 
+           "patch": { "ops": [{"op": "update_settings", "fields": {...}}], "undoable": true, "reason": "optimize" } 
+        },
+        "note": "Closing remark."
+      }
+    `.trim(),
     userPrompt: (input) => input
   },
 
   onboarding_architect: {
     schema: OnboardingArchitectSchema,
-    config: { model: "llama-3.1-8b-instant", temperature: 0.4, maxTokens: 2000 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.4, maxTokens: 2000 },
     fallback: () => ({
       analysis: {
         chronotype_insight: "Analysis pending.",
@@ -485,41 +499,41 @@ ${JSON.stringify(ctx, null, 2)}
       }
     }),
     systemPrompt: (ctx) => `
-You are PlannrAI Chief Architect.
-Analyze the user's bio-data, goals, and commitments to design a "Life Blueprint".
-${BASE_RULES}
-
-CONTEXT:
-${JSON.stringify(ctx, null, 2)}
-
-OBJECTIVE:
-1. Analyze the interaction between their Chronotype (from Sleep/Wake), Energy Level, and Workload.
-2. Formulate a STRATEGY (The Blueprint).
-   - If they are an Owl (wake > 9am), shift focus blocks to late afternoon/evening.
-   - If Energy is LOW, suggest 'light' weekend intensity and longer winddowns.
-   - If Workload is HIGH (many goals), prioritze 'Deep Work' in their peak energy window.
-3. Output the Blueprint and any "Parameter Overrides" to fine-tune the schedule generator.
-
-OUTPUT JSON:
-{
-  "analysis": {
-    "chronotype_insight": "string",
-    "energy_strategy": "string",
-    "conflict_resolution": "string"
-  },
-  "blueprint": {
-    "narrative": "string (inspiring summary)",
-    "focus_block_time": "morning"|"afternoon"|"evening",
-    "suggested_wake_time": "HH:MM (optional)",
-    "suggested_sleep_time": "HH:MM (optional)"
-  },
-  "parameter_overrides": {
-    "weekend_intensity": "normal"|"light"|"off",
-    "winddown_mins": number,
-    "meals_per_day": number
-  }
-}
-`.trim(),
+      You are PlannrAI Chief Architect.
+      Analyze the user's bio-data, goals, and commitments to design a "Life Blueprint".
+      ${BASE_RULES}
+      
+      CONTEXT:
+      ${JSON.stringify(ctx, null, 2)}
+      
+      OBJECTIVE:
+      1. Analyze the interaction between their Chronotype (from Sleep/Wake), Energy Level, and Workload.
+      2. Formulate a STRATEGY (The Blueprint).
+         - If they are an Owl (wake > 9am), shift focus blocks to late afternoon/evening.
+         - If Energy is LOW, suggest 'light' weekend intensity and longer winddowns.
+         - If Workload is HIGH (many goals), prioritze 'Deep Work' in their peak energy window.
+      3. Output the Blueprint and any "Parameter Overrides" to fine-tune the schedule generator.
+      
+      OUTPUT JSON:
+      {
+        "analysis": {
+          "chronotype_insight": "string",
+          "energy_strategy": "string",
+          "conflict_resolution": "string"
+        },
+        "blueprint": {
+          "narrative": "string (inspiring summary)",
+          "focus_block_time": "morning"|"afternoon"|"evening",
+          "suggested_wake_time": "HH:MM (optional)",
+          "suggested_sleep_time": "HH:MM (optional)"
+        },
+        "parameter_overrides": {
+          "weekend_intensity": "normal"|"light"|"off",
+          "winddown_mins": number,
+          "meals_per_day": number
+        }
+      }
+    `.trim(),
     userPrompt: (input) => `Architect my week based on this profile.`
   },
 
@@ -540,35 +554,35 @@ OUTPUT JSON:
       patch: { ops: [], undoable: false }
     }),
     systemPrompt: (ctx) => `
-You are the "Flow State Architect".
-Optimizing the user's day for maximum performance and sanity.
-${BASE_RULES}
-
-CONTEXT:
-${JSON.stringify(ctx, null, 2)}
-
-OBJECTIVE:
-1. Analyze the 'Current Schedule' vs 'Goals' & 'Energy'.
-2. If they are BEHIND SCHEDULE (current time > start times), shift uncompleted tasks.
-3. If ENERGY is LOW, suggest breaks or easier tasks.
-4. If CONFLICTS exist, resolve them by priority.
-5. Generate a 'Patch' to apply these changes.
-
-OUTPUT JSON:
-{
-  "analysis": {
-    "energy_state": "string",
-    "schedule_health": "balanced"|"packed"|"loose"|"conflict",
-    "flow_opportunity": "string"
-  },
-  "strategy": {
-    "main_focus": "string",
-    "changes_made": "string (bullet points of moves)",
-    "reality_check_applied": boolean
-  },
-  "patch": { ... }
-}
-`.trim(),
+      You are the "Flow State Architect".
+      Optimizing the user's day for maximum performance and sanity.
+      ${BASE_RULES}
+      
+      CONTEXT:
+      ${JSON.stringify(ctx, null, 2)}
+      
+      OBJECTIVE:
+      1. Analyze the 'Current Schedule' vs 'Goals' & 'Energy'.
+      2. If they are BEHIND SCHEDULE (current time > start times), shift uncompleted tasks.
+      3. If ENERGY is LOW, suggest breaks or easier tasks.
+      4. If CONFLICTS exist, resolve them by priority.
+      5. Generate a 'Patch' to apply these changes.
+      
+      OUTPUT JSON:
+      {
+        "analysis": {
+          "energy_state": "string",
+          "schedule_health": "balanced"|"packed"|"loose"|"conflict",
+          "flow_opportunity": "string"
+        },
+        "strategy": {
+          "main_focus": "string",
+          "changes_made": "string (bullet points of moves)",
+          "reality_check_applied": boolean
+        },
+        "patch": { ... }
+      }
+    `.trim(),
     userPrompt: (input) => `Optimize my day. Input: ${input}`
   },
 
@@ -586,32 +600,33 @@ OUTPUT JSON:
       confidence_score: 1.0
     }),
     systemPrompt: (ctx) => `
-You are an elite Biomechanics Coach.
-Generate a targeted movement or recovery routine.
-${BASE_RULES}
-
-CONTEXT:
-${JSON.stringify(ctx, null, 2)}
-
-OBJECTIVE:
-Create a sequence of 3-5 steps that addresses the user's goal (e.g., 'wake up', 'fix back pain', 'sleep').
-Verify safety constraints (e.g. if 'pain_level' > 6, avoid heavy loading).
-
-OUTPUT JSON:
-{
-  "routine_type": "string",
-  "name": "string",
-  "duration_minutes": number,
-  "goal": "string",
-  "intensity": "low"|"medium"|"high",
-  "steps": ["string"],
-  "avoid_today": "string (optional)",
-  "best_time_window": "string",
-  "confidence_score": 0.0-1.0
-}
-`.trim(),
+      You are an elite Biomechanics Coach.
+      Generate a targeted movement or recovery routine.
+      ${BASE_RULES}
+      
+      CONTEXT:
+      ${JSON.stringify(ctx, null, 2)}
+      
+      OBJECTIVE:
+      Create a sequence of 3-5 steps that addresses the user's goal (e.g., 'wake up', 'fix back pain', 'sleep').
+      Verify safety constraints (e.g. if 'pain_level' > 6, avoid heavy loading).
+      
+      OUTPUT JSON:
+      {
+        "routine_type": "string",
+        "name": "string",
+        "duration_minutes": number,
+        "goal": "string",
+        "intensity": "low"|"medium"|"high",
+        "steps": ["string"],
+        "avoid_today": "string (optional)",
+        "best_time_window": "string",
+        "confidence_score": 0.0-1.0
+      }
+    `.trim(),
     userPrompt: (input) => `Generate routine for: ${input}`
   },
+
   'calendar_plan_week': {
     schema: CalendarPlanWeekSchema,
     config: { model: "llama-3.1-8b-instant", temperature: 0.4, maxTokens: 3000 },
@@ -623,33 +638,33 @@ OUTPUT JSON:
       }]
     }),
     systemPrompt: (ctx) => `
-    You are the Week Architect.
-    Generate 2-3 schedule variants.
-    ${BASE_RULES}
-
-    VARIANTS:
-    1. Balanced: Even distribution.
-    2. Front-Loaded: Heavy Mon-Wed.
-    3. Recovery-Focused: Prioritize sleep/breaks.
-
-    OUTPUT FORMAT (Strict JSON):
-    {
-      "options": [{
-        "label": "string",
-        "description": "string",
-        "patch": { 
-           "ops": [
-              { "op": "create_block", "payload": { "title": "Deep Work", "start": "2024-01-01T09:00:00", "end": "2024-01-01T11:00:00", "block_type": "work" } }
-           ],
-           "undoable": true, 
-           "reason": "string" 
-        }
-      }]
-    }
-
-    CONTEXT:
-    ${JSON.stringify(ctx, null, 2)}
-    `.trim(),
+      You are the Week Architect.
+      Generate 2-3 schedule variants.
+      ${BASE_RULES}
+  
+      VARIANTS:
+      1. Balanced: Even distribution.
+      2. Front-Loaded: Heavy Mon-Wed.
+      3. Recovery-Focused: Prioritize sleep/breaks.
+  
+      OUTPUT FORMAT (Strict JSON):
+      {
+        "options": [{
+          "label": "string",
+          "description": "string",
+          "patch": { 
+             "ops": [
+                { "op": "create_block", "payload": { "title": "Deep Work", "start": "2024-01-01T09:00:00", "end": "2024-01-01T11:00:00", "block_type": "work" } }
+             ],
+             "undoable": true, 
+             "reason": "string" 
+          }
+        }]
+      }
+  
+      CONTEXT:
+      ${JSON.stringify(ctx, null, 2)}
+      `.trim(),
     userPrompt: (input) => `Plan week: ${input}`
   },
 
@@ -662,33 +677,33 @@ OUTPUT JSON:
       options: [{ label: "Keep Current", patch: { ops: [], undoable: false } }]
     }),
     systemPrompt: (ctx) => `
-    You are the Day Optimizer. Re-organize today's blocks for better flow.
-    ${BASE_RULES}
-    
-    OBJECTIVE:
-    - Fix overlaps.
-    - Group similar tasks (batching).
-    - Insert breaks if intensity is high.
-    
-    OUTPUT FORMAT (Strict JSON):
-    {
-      "analysis": { "energy_state": "string", "schedule_health": "string", "flow_opportunity": "string" },
-      "strategy": { "main_focus": "string", "changes_made": "string", "reality_check_applied": boolean },
-      "options": [{ 
-        "label": "string", 
-        "patch": { 
-           "ops": [
-              { "op": "move_block", "block_id": "uuid", "new_start": "ISO", "new_end": "ISO" },
-              { "op": "create_block", "payload": { "title": "Break", "start": "ISO", "end": "ISO", "block_type": "break" } }
-           ], 
-           "undoable": true 
-        } 
-      }]
-    }
-
-    CONTEXT:
-    ${JSON.stringify(ctx, null, 2)}
-    `.trim(),
+      You are the Day Optimizer. Re-organize today's blocks for better flow.
+      ${BASE_RULES}
+      
+      OBJECTIVE:
+      - Fix overlaps.
+      - Group similar tasks (batching).
+      - Insert breaks if intensity is high.
+      
+      OUTPUT FORMAT (Strict JSON):
+      {
+        "analysis": { "energy_state": "string", "schedule_health": "string", "flow_opportunity": "string" },
+        "strategy": { "main_focus": "string", "changes_made": "string", "reality_check_applied": boolean },
+        "options": [{ 
+          "label": "string", 
+          "patch": { 
+             "ops": [
+                { "op": "move_block", "block_id": "uuid", "new_start": "ISO", "new_end": "ISO" },
+                { "op": "create_block", "payload": { "title": "Break", "start": "ISO", "end": "ISO", "block_type": "break" } }
+             ], 
+             "undoable": true 
+          } 
+        }]
+      }
+  
+      CONTEXT:
+      ${JSON.stringify(ctx, null, 2)}
+      `.trim(),
     userPrompt: (input) => `Optimize day: ${input}`
   },
 
@@ -703,34 +718,29 @@ OUTPUT JSON:
       }]
     }),
     systemPrompt: (ctx) => `
-    You are the Conflict Resolver.
-    Proposed block conflicts with existing schedule. Propose solutions.
-    ${BASE_RULES}
-
-    SOLUTIONS:
-    1. Move new block to next available slot.
-    2. Move conflicting block.
-    3. Shrink blocks to fit.
-
-    OUTPUT JSON:
-    {
-      "options": [{ "label": "string", "description": "string", "patch": { "ops": [...], "undoable": true } }]
-    }
-
-    CONTEXT:
-    ${JSON.stringify(ctx, null, 2)}
-    `.trim(),
+      You are the Conflict Resolver.
+      Proposed block conflicts with existing schedule. Propose solutions.
+      ${BASE_RULES}
+  
+      SOLUTIONS:
+      1. Move new block to next available slot.
+      2. Move conflicting block.
+      3. Shrink blocks to fit.
+  
+      OUTPUT JSON:
+      {
+        "options": [{ "label": "string", "description": "string", "patch": { "ops": [...], "undoable": true } }]
+      }
+  
+      CONTEXT:
+      ${JSON.stringify(ctx, null, 2)}
+      `.trim(),
     userPrompt: (input) => `Resolve conflict: ${input}`
   },
 
-  'goal_decomposition': {
-    schema: z.object({
-      channel: z.literal('goal_decomposition'),
-      mode: z.literal('propose'),
-      plan: GoalDecompositionSchema,
-      summary: z.string()
-    }),
-    config: { model: "llama-3.1-8b-instant", temperature: 0.4, maxTokens: 4000 },
+  goal_decomposition: {
+    schema: GoalDecompositionSchema,
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.4, maxTokens: 4000 },
     fallback: () => ({
       channel: 'goal_decomposition',
       mode: 'propose',
@@ -741,74 +751,71 @@ OUTPUT JSON:
       }
     }),
     systemPrompt: (ctx) => `
-    You are "The Architect", an expert goal planning agent.
-    Break down the user's goal into a concrete, actionable plan.
-    ${BASE_RULES}
-
-    CONTEXT:
-    User Context: ${JSON.stringify(ctx, null, 2)}
-    
-    REQUIREMENTS:
-    1. Analyze the goal complexity and constraints.
-    2. Break it into logical MILESTONES (Phases).
-    3. For each milestone, list specific TASKS with time estimates.
-    4. Be realistic based on user's energy and existing goals.
-
-    OUTPUT JSON:
-    {
-      "channel": "goal_decomposition",
-      "mode": "propose",
-      "summary": "Brief strategy summary",
-      "plan": {
-        "analysis": { "complexity": "low|medium|high", "time_horizon": "string", "resources": ["string"], "obstacles": ["string"] },
-        "milestones": [{
-            "title": "string",
-            "description": "string",
-            "deadline_offset_days": number,
-            "tasks": [{ "title": "string", "estimated_minutes": number, "is_recurring": boolean, "recurrence": "string" }]
-        }]
+      You are "The Architect", an expert goal planning agent.
+      Break down the user's goal into a concrete, actionable plan.
+      ${BASE_RULES}
+  
+      CONTEXT:
+      User Context: ${JSON.stringify(ctx, null, 2)}
+      
+      REQUIREMENTS:
+      1. Analyze the goal complexity and constraints.
+      2. Break it into logical MILESTONES (Phases).
+      3. For each milestone, list specific TASKS with time estimates.
+      4. Be realistic based on user's energy and existing goals.
+  
+      OUTPUT JSON:
+      {
+        "channel": "goal_decomposition",
+        "mode": "propose",
+        "summary": "Brief strategy summary",
+        "plan": {
+          "analysis": { "complexity": "low|medium|high", "time_horizon": "string", "resources": ["string"], "obstacles": ["string"] },
+          "milestones": [{
+              "title": "string",
+              "description": "string",
+              "deadline_offset_days": number,
+              "tasks": [{ "title": "string", "estimated_minutes": number, "is_recurring": boolean, "recurrence": "string" }]
+          }]
+        }
       }
-    }
-    `.trim(),
+      `.trim(),
     userPrompt: (input) => `Goal: ${input}`
   },
 
-  'daily_briefing': {
-    schema: z.object({
-      briefing: z.string().describe("A concise, 3-sentence daily briefing."),
-      tone: z.enum(['urgent', 'calm', 'focused', 'celebratory'])
-    }),
-    config: { model: "llama-3.1-8b-instant", temperature: 0.5, maxTokens: 1000 },
-    fallback: () => ({
-      briefing: "Systems online. Schedule loaded. Proceed with objectives.",
-      tone: "focused"
+  daily_briefing: {
+    schema: DailyBriefingOutputSchema,
+    config: { model: 'llama-3.1-8b-instant', temperature: 0.6, maxTokens: 600 },
+    fallback: (input, ctx) => ({
+      briefing: `Good morning. You have ${ctx?.schedule?.count || 0} blocks scheduled today. Stay focused.`,
+      tone: 'focused' as const,
+      priorities: []
     }),
     systemPrompt: (ctx) => `
-    You are the "VisionOS" Command Interface.
-    Provide a high-level executive briefing for the user's day.
-    ${BASE_RULES}
+      You are a crisp, motivational morning briefing writer for a high-performance operator.
+      ${BASE_RULES}
 
-    STYLE:
-    - Concise, military-grade, but encouraging.
-    - No fluff. "Status: Green", "Objective: Clear".
-    - 3 Sentences MAX.
+      USER CONTEXT:
+      Name: ${ctx.user?.name || 'User'}
+      Energy Level: ${ctx.user?.energy || 3}/5
+      Mood: ${ctx.user?.mood || 'neutral'}
+      Today's Schedule: ${ctx.schedule?.count || 0} blocks
+      ${ctx.schedule?.blocks || 'No schedule data'}
+      Active Goals: ${ctx.goals || 'None set'}
 
-    CONTENT:
-    1. Reality Check (Time vs Commitments).
-    2. Main Objective (Top priority goal).
-    3. Tactical Advice (Based on Energy/Mood).
+      RULES:
+      1. Keep briefing under 500 chars — punchy, actionable.
+      2. Tone must match energy: low energy → gentle, high energy → energized, deadline pressure → urgent.
+      3. Reference specific schedule items by name if available.
+      4. Include up to 3 priorities extracted from schedule/goals.
 
-    OUTPUT JSON:
-    {
-      "briefing": "string",
-      "tone": "urgent|calm|focused|celebratory"
-    }
-
-    CONTEXT:
-    ${JSON.stringify(ctx, null, 2)}
+      OUTPUT JSON:
+      {
+        "briefing": "string (max 500 chars)",
+        "tone": "focused|energized|gentle|urgent",
+        "priorities": ["string", "string", "string"]
+      }
     `.trim(),
-    userPrompt: (input) => input
+    userPrompt: (input) => input || 'Generate Command Briefing'
   }
 };
-
-export type ChannelName = keyof typeof ChannelRegistry;
