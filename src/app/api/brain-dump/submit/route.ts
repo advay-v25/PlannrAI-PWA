@@ -4,15 +4,16 @@ import { executeAI } from '@/lib/ai/ai-service';
 
 export const POST = secureApiRoute(
     async (context, body) => {
-        const { text, date, timezone } = body as { text: string, date?: string, timezone?: string };
+        const { text, content, date, timezone } = body as { text?: string, content?: string, date?: string, timezone?: string };
+        const dumpText = text || content;
         const { userId } = context;
 
-        if (!text) return apiError("Text required", 400);
+        if (!dumpText) return apiError("Text required", 400);
 
         // 1. Call AI Service Directly (Bypasses internal API 401 issues)
         const aiRes = await executeAI(userId, {
             channel: 'brain_dump',
-            input: text,
+            input: dumpText!,
             context: {
                 focus_date: date,
                 timezone: timezone
@@ -26,8 +27,8 @@ export const POST = secureApiRoute(
             // A. Save Raw Dump
             const { data: dump, error: dumpError } = await supabase.from('brain_dumps').insert({
                 user_id: userId,
-                text: text,
-                content: text // Legacy support & NOT NULL constraint
+                text: dumpText!,
+                content: dumpText! // Legacy support & NOT NULL constraint
             }).select('id').single();
 
             if (dumpError) console.error("Dump Save Error", dumpError);

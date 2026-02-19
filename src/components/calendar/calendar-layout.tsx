@@ -1,54 +1,53 @@
 'use client';
 
-import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 interface CalendarLayoutProps {
-    controlStack: React.ReactNode;
+    header: React.ReactNode;
     weekGrid: React.ReactNode;
     inspector: React.ReactNode;
     showInspector: boolean;
 }
 
-export function CalendarLayout({ controlStack, weekGrid, inspector, showInspector }: CalendarLayoutProps) {
+export function CalendarLayout({ header, weekGrid, inspector, showInspector }: CalendarLayoutProps) {
     return (
-        <div className="flex h-[calc(100vh-6rem)] gap-4 p-4 overflow-hidden relative">
+        <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
+            {/* Header / Action Bar */}
+            <div className="shrink-0 px-4 md:px-6 py-3 border-b border-white/5 bg-black/60 backdrop-blur-xl">
+                {header}
+            </div>
 
-            {/* LEFT: Control Stack */}
-            <motion.aside
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="w-64 max-w-xs shrink-0 flex flex-col gap-4 overflow-y-auto no-scrollbar rounded-3xl"
-            >
-                {controlStack}
-            </motion.aside>
+            {/* Main Content */}
+            <div className="flex flex-1 overflow-hidden relative">
+                {/* Grid */}
+                <motion.main
+                    layout
+                    className={cn(
+                        "flex-1 overflow-hidden relative",
+                        showInspector ? "mr-0" : ""
+                    )}
+                >
+                    {weekGrid}
+                </motion.main>
 
-            {/* CENTER: Timeline Grid (Mission Control) */}
-            <motion.main
-                layout
-                className="flex-1 glass-card overflow-hidden relative shadow-2xl"
-            >
-                {weekGrid}
-            </motion.main>
-
-            {/* RIGHT: Inspector (Context) */}
-            <AnimatePresence mode="popLayout">
-                {showInspector && (
-                    <motion.aside
-                        initial={{ opacity: 0, x: 20, width: 0 }}
-                        animate={{ opacity: 1, x: 0, width: 320 }}
-                        exit={{ opacity: 0, x: 20, width: 0 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                        className="shrink-0 whitespace-nowrap overflow-hidden"
-                    >
-                        <div className="w-80 h-full glass border-l border-white/5 overflow-y-auto no-scrollbar">
-                            {inspector}
-                        </div>
-                    </motion.aside>
-                )}
-            </AnimatePresence>
-
+                {/* Inspector Slide-in */}
+                <AnimatePresence mode="popLayout">
+                    {showInspector && (
+                        <motion.aside
+                            initial={{ opacity: 0, x: 20, width: 0 }}
+                            animate={{ opacity: 1, x: 0, width: 340 }}
+                            exit={{ opacity: 0, x: 20, width: 0 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                            className="shrink-0 overflow-hidden border-l border-white/5"
+                        >
+                            <div className="w-[340px] h-full bg-black/40 backdrop-blur-xl overflow-y-auto no-scrollbar">
+                                {inspector}
+                            </div>
+                        </motion.aside>
+                    )}
+                </AnimatePresence>
+            </div>
         </div>
     );
 }

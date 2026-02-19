@@ -10,7 +10,6 @@ import { InsightsCard } from '@/components/home/insights-card';
 import { PrioritiesCard } from '@/components/home/priorities-card';
 import { EnergyCheckin } from '@/components/home/energy-checkin';
 import { AIProfileBadge } from '@/components/home/ai-profile-badge';
-import { RealityIntake } from '@/components/home/reality-intake';
 import { format } from 'date-fns';
 import { Settings } from 'lucide-react';
 import Link from 'next/link';
@@ -141,11 +140,6 @@ export default function HomePage() {
     return (
         <HomeLayout
             header={header}
-            realityIntake={
-                <RealityIntake
-                    onUpdate={handleRefresh}
-                />
-            }
             nowCard={
                 <NowCard
                     block={data.next_up}
