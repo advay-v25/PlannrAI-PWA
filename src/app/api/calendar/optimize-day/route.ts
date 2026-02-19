@@ -14,7 +14,7 @@ export const POST = secureApiRoute(
         const dateStr = format(targetDate, 'yyyy-MM-dd');
 
         // 1. Fetch Context with REAL IDs
-        const [currentBlocksRes, goalsRes, anchorsRes] = await Promise.all([
+        const [currentBlocksRes, goalsRes, anchorsRes, prefsRes] = await Promise.all([
             supabase.from('schedule_blocks')
                 .select('id, title, context, start_time, end_time, block_type, status, pillar, goal_id, is_focus, date')
                 .eq('user_id', userId)
@@ -28,55 +28,92 @@ export const POST = secureApiRoute(
             supabase.from('commitments')
                 .select('id, title, start_time, end_time, days_of_week')
                 .eq('user_id', userId)
-                .eq('is_active', true)
+                .eq('is_active', true),
+            supabase.from('profile_preferences')
+                .select('sleep_start, wake_time, buffer_min')
+                .eq('user_id', userId)
+                .maybeSingle()
         ]);
 
         const blocks = currentBlocksRes.data || [];
         const goals = goalsRes.data || [];
         const anchors = anchorsRes.data || [];
+        const prefs = prefsRes.data || {};
 
         // 2. Call AI with real block IDs in context
-        const { executeAI } = await import('@/lib/ai/ai-service');
+        let aiResponse: any;
+        try {
+            const { executeAI } = await import('@/lib/ai/ai-service');
 
-        const aiResponse = await executeAI(userId, {
-            channel: 'calendar_optimize_day',
-            input: `Optimize schedule for ${dateStr}. Focus: ${focus || 'balance'}`,
-            context: {
-                date: dateStr,
-                focus,
-                blocks: blocks.map((b: any) => ({
-                    id: b.id,  // REAL ID for move/delete ops
-                    title: b.title || b.context || 'Untitled',
-                    start_time: b.start_time,
-                    end_time: b.end_time,
-                    block_type: b.block_type || 'task',
-                    status: b.status,
-                    pillar: b.pillar,
-                    goal_id: b.goal_id,
-                    is_focus: b.is_focus
-                })),
-                goals: goals.map((g: any) => ({
-                    id: g.id,
-                    title: g.title,
-                    importance: g.importance,
-                    category: g.category,
-                    pillar: g.pillar
-                })),
-                anchors: anchors.map((a: any) => ({
-                    title: a.title,
-                    start_time: a.start_time,
-                    end_time: a.end_time,
-                    days_of_week: a.days_of_week
-                }))
-            }
-        });
+            aiResponse = await executeAI(userId, {
+                channel: 'calendar_optimize_day',
+                input: `Optimize schedule for ${dateStr}. Focus: ${focus || 'balance'}`,
+                context: {
+                    date: dateStr,
+                    focus,
+                    profile: prefs,
+                    blocks: blocks.map((b: any) => ({
+                        id: b.id,
+                        title: b.title || b.context || 'Untitled',
+                        start_time: b.start_time,
+                        end_time: b.end_time,
+                        block_type: b.block_type || 'task',
+                        status: b.status,
+                        pillar: b.pillar,
+                        goal_id: b.goal_id,
+                        is_focus: b.is_focus
+                    })),
+                    goals: goals.map((g: any) => ({
+                        id: g.id,
+                        title: g.title,
+                        importance: g.importance,
+                        category: g.category,
+                        pillar: g.pillar
+                    })),
+                    anchors: anchors.map((a: any) => ({
+                        title: a.title,
+                        start_time: a.start_time,
+                        end_time: a.end_time,
+                        days_of_week: a.days_of_week
+                    }))
+                }
+            });
+        } catch (aiErr: any) {
+            console.error('[OptimizeDay] AI call failed:', aiErr);
+            return apiSuccess({
+                analysis: { energy_state: 'normal', schedule_health: 'balanced', flow_opportunity: 'AI unavailable — try again.' },
+                strategy: { main_focus: 'No changes', changes_made: 'AI call failed', reality_check_applied: false },
+                changes: 0,
+                undo_token: null,
+                donna_note: `Optimization failed: ${aiErr.message || 'AI service error'}. Try again in a moment.`
+            });
+        }
 
-        // 3. Convert AI changes to PatchService ops
+        // 3. Convert AI changes to PatchService ops with overlap validation
         const changes = aiResponse?.changes || [];
         const patchOps: any[] = [];
 
+        // Build current time occupation map for create validation
+        const occupiedSlots = blocks.map((b: any) => ({
+            id: b.id,
+            start: timeToMinutes(b.start_time),
+            end: timeToMinutes(b.end_time)
+        }));
+
         for (const change of changes) {
             if (change.action === 'create') {
+                const newStart = timeToMinutes(change.new_start_time);
+                const newEnd = timeToMinutes(change.new_end_time);
+
+                // Skip invalid
+                if (newEnd <= newStart) continue;
+
+                // Check overlap with existing blocks
+                const hasOverlap = occupiedSlots.some(slot =>
+                    newStart < slot.end && newEnd > slot.start
+                );
+                if (hasOverlap) continue;
+
                 patchOps.push({
                     op: 'create_event',
                     event: {
@@ -88,8 +125,11 @@ export const POST = secureApiRoute(
                         status: 'planned'
                     }
                 });
+
+                // Track new slot
+                occupiedSlots.push({ id: 'new', start: newStart, end: newEnd });
+
             } else if (change.action === 'move') {
-                // Use real block ID from AI response or match by title
                 let blockId = change.block_id;
                 if (!blockId) {
                     const match = blocks.find((b: any) =>
@@ -97,7 +137,24 @@ export const POST = secureApiRoute(
                     );
                     blockId = match?.id;
                 }
-                if (blockId) {
+                if (blockId && change.new_start_time && change.new_end_time) {
+                    const newStart = timeToMinutes(change.new_start_time);
+                    const newEnd = timeToMinutes(change.new_end_time);
+                    if (newEnd <= newStart) continue;
+
+                    // Check overlap with OTHER blocks (not the one being moved)
+                    const hasOverlap = occupiedSlots.some(slot =>
+                        slot.id !== blockId && newStart < slot.end && newEnd > slot.start
+                    );
+                    if (hasOverlap) continue;
+
+                    // Update tracked position
+                    const existing = occupiedSlots.find(s => s.id === blockId);
+                    if (existing) {
+                        existing.start = newStart;
+                        existing.end = newEnd;
+                    }
+
                     patchOps.push({
                         op: 'move_event',
                         event_id: blockId,
@@ -119,6 +176,10 @@ export const POST = secureApiRoute(
                         op: 'delete_event',
                         event_id: blockId
                     });
+
+                    // Remove from occupied slots
+                    const idx = occupiedSlots.findIndex(s => s.id === blockId);
+                    if (idx !== -1) occupiedSlots.splice(idx, 1);
                 }
             }
         }
@@ -143,8 +204,13 @@ export const POST = secureApiRoute(
             strategy: aiResponse?.strategy,
             changes: patchChanges,
             undo_token: undoToken,
-            donna_note: aiResponse?.donna_note || 'Schedule optimized.'
+            donna_note: aiResponse?.donna_note || `Day optimized — ${patchChanges} changes applied.`
         });
     },
     { requireAuth: true }
 );
+
+function timeToMinutes(time: string): number {
+    const [h, m] = time.split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+}
