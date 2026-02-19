@@ -63,35 +63,65 @@ export const GET = secureApiRoute(
 export const DELETE = secureApiRoute(
     async (context) => {
         const supabase = await createClient();
+        const uid = context.userId;
 
-        // Delete in order (respecting foreign keys)
-        await Promise.all([
-            supabase.from('weekly_reviews').delete().eq('user_id', context.userId),
-            supabase.from('coach_messages').delete().eq('user_id', context.userId),
-            supabase.from('coach_threads').delete().eq('user_id', context.userId),
-            supabase.from('memory_facts').delete().eq('user_id', context.userId),
-            supabase.from('brain_dump_entries').delete().eq('user_id', context.userId),
-            supabase.from('schedule_blocks').delete().eq('user_id', context.userId),
-            supabase.from('goals').delete().eq('user_id', context.userId),
-            supabase.from('session_bindings').delete().eq('user_id', context.userId),
-        ]);
+        // Delete in SEQUENTIAL order respecting foreign keys (children first)
+        // Phase 1: Leaf tables (no dependencies)
+        const leafTables = [
+            'weekly_reviews',
+            'coach_messages',     // must come before coach_threads (FK)
+            'memory_facts',
+            'behavior_signals',
+            'ai_proposals',
+            'daily_logs',
+            'habit_logs',         // must come before habit_stacks (FK)
+            'brain_dump_entries',
+            'session_bindings',
+        ];
 
-        // Delete profile (this may cascade)
+        for (const table of leafTables) {
+            try {
+                await supabase.from(table).delete().eq('user_id', uid);
+            } catch (e) {
+                console.warn(`[Delete] Failed to clear ${table}:`, e);
+            }
+        }
+
+        // Phase 2: Parent tables (after their children are gone)
+        const parentTables = [
+            'coach_threads',
+            'schedule_blocks',
+            'habit_stacks',
+            'commitments',
+            'goals',
+            'profile_preferences',
+        ];
+
+        for (const table of parentTables) {
+            try {
+                await supabase.from(table).delete().eq('user_id', uid);
+            } catch (e) {
+                console.warn(`[Delete] Failed to clear ${table}:`, e);
+            }
+        }
+
+        // Phase 3: Profile (root — must be last)
         const { error } = await supabase
             .from('profiles')
             .delete()
-            .eq('id', context.userId);
+            .eq('id', uid);
 
         if (error) {
-            return apiError('Failed to delete data', 500);
+            console.error('[Delete] Failed to delete profile:', error);
+            return apiError('Failed to delete profile. Some dependent data may still exist.', 500);
         }
 
         // Sign out user
         await supabase.auth.signOut();
 
-        // Log the deletion (will be cleaned up later)
+        // Log the deletion
         await logAuditEvent({
-            userId: context.userId,
+            userId: uid,
             action: 'data_delete',
             ipAddress: context.ip,
             metadata: { complete: true },
