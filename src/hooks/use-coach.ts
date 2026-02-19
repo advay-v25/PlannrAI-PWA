@@ -9,9 +9,12 @@ export interface CoachMessage {
     role: 'user' | 'assistant';
     content: string;
     mode?: string;
+    thinking?: string[];
+    contextUsed?: string[];
     options?: CoachOption[];
     question?: CoachQuestion;
     refusal?: CoachRefusal;
+    suggestedActions?: string[];
     isApplying?: boolean;
     appliedOptionId?: string;
     undoToken?: string | null;
@@ -21,17 +24,21 @@ interface CoachState {
     messages: CoachMessage[];
     isLoading: boolean;
     lastUndoToken: string | null;
+    suggestedActions: string[];
+    hasLoadedProactive: boolean;
     sendMessage: (text: string) => Promise<void>;
     applyOption: (messageId: string, optionId: string) => Promise<void>;
     undoLastAction: () => Promise<void>;
     undoByToken: (token: string) => Promise<void>;
-    loadHistory: () => Promise<void>;
+    loadProactiveInsight: () => Promise<void>;
 }
 
 export const useCoach = create<CoachState>((set, get) => ({
     messages: [],
     isLoading: false,
     lastUndoToken: null,
+    suggestedActions: [],
+    hasLoadedProactive: false,
 
     sendMessage: async (text: string) => {
         const userMsg: CoachMessage = {
@@ -52,14 +59,18 @@ export const useCoach = create<CoachState>((set, get) => ({
                 role: 'assistant',
                 content: res.summary || '',
                 mode: res.mode,
+                thinking: res.thinking,
+                contextUsed: res.context_used,
                 options: res.options,
                 question: res.question,
-                refusal: res.refusal
+                refusal: res.refusal,
+                suggestedActions: res.suggested_actions
             };
 
             set(state => ({
                 messages: [...state.messages, assistantMsg],
-                isLoading: false
+                isLoading: false,
+                suggestedActions: res.suggested_actions || state.suggestedActions
             }));
         } catch (error) {
             console.error("Coach Error", error);
@@ -67,7 +78,7 @@ export const useCoach = create<CoachState>((set, get) => ({
                 messages: [...state.messages, {
                     id: crypto.randomUUID(),
                     role: 'assistant',
-                    content: "Having trouble connecting. Please try again.",
+                    content: "Connection issue. Give me a second and try again.",
                     mode: 'refuse',
                     refusal: { reason: "Connection issue. Try again in a moment." }
                 }],
@@ -82,7 +93,6 @@ export const useCoach = create<CoachState>((set, get) => ({
         const option = msg?.options?.find(o => o.id === optionId);
         if (!option) return;
 
-        // Mark as applying
         set(state => ({
             messages: state.messages.map(m =>
                 m.id === messageId ? { ...m, isApplying: true } : m
@@ -104,7 +114,6 @@ export const useCoach = create<CoachState>((set, get) => ({
                 lastUndoToken: res.undo_token
             }));
 
-            // Refresh calendar
             if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('calendar-refresh'));
             }
@@ -128,7 +137,6 @@ export const useCoach = create<CoachState>((set, get) => ({
         try {
             await apiClient.post('/api/coach/undo', { undo_token: token });
 
-            // Clear undo token from messages that used it
             set(state => ({
                 messages: state.messages.map(m =>
                     m.undoToken === token
@@ -138,7 +146,6 @@ export const useCoach = create<CoachState>((set, get) => ({
                 lastUndoToken: state.lastUndoToken === token ? null : state.lastUndoToken
             }));
 
-            // Refresh calendar
             if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('calendar-refresh'));
             }
@@ -147,8 +154,37 @@ export const useCoach = create<CoachState>((set, get) => ({
         }
     },
 
-    loadHistory: async () => {
-        // Future: load from /api/coach/history
-        // For now, maintain in-memory session state
+    loadProactiveInsight: async () => {
+        if (get().hasLoadedProactive) return;
+        set({ hasLoadedProactive: true, isLoading: true });
+
+        try {
+            const res = await apiClient.post<CoachResponse>('/api/coach/message', {
+                message: "What should I focus on right now?",
+                date: new Date().toISOString(),
+                proactive: true
+            });
+
+            const insightMsg: CoachMessage = {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: res.summary || '',
+                mode: res.mode,
+                thinking: res.thinking,
+                contextUsed: res.context_used,
+                options: res.options,
+                question: res.question,
+                suggestedActions: res.suggested_actions
+            };
+
+            set(state => ({
+                messages: [insightMsg],
+                isLoading: false,
+                suggestedActions: res.suggested_actions || []
+            }));
+        } catch (error) {
+            console.error("Proactive insight failed", error);
+            set({ isLoading: false });
+        }
     }
 }));

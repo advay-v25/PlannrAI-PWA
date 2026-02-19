@@ -1,5 +1,5 @@
 
-// AI Coach V4 - Chief of Staff Types
+// AI Coach V4 — Donna: Super Intelligence Performance Coach
 
 export type CoachMode = 'execute' | 'propose' | 'ask' | 'refuse';
 
@@ -34,6 +34,8 @@ export interface CoachOption {
     id: string;
     title: string;
     impact: string;
+    effort?: 'low' | 'medium' | 'high';
+    time_impact_mins?: number;
     patch: CalendarPatch;
 }
 
@@ -50,9 +52,12 @@ export interface CoachRefusal {
 
 export interface CoachResponse {
     mode: CoachMode;
+    thinking?: string[];
     summary: string;
+    context_used?: string[];
     options?: CoachOption[];
     question?: CoachQuestion;
     refusal?: CoachRefusal;
+    suggested_actions?: string[];
     undo_token?: string | null;
 }
