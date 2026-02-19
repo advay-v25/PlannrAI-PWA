@@ -1,75 +1,73 @@
+'use client';
 
 import { motion } from 'framer-motion';
-import { Check, ArrowRight, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
-
-export interface ActionOption {
-    id: string;
-    title: string;
-    impact: string;
-    patch?: any;
-}
+import { Check, Loader2, ArrowRight } from 'lucide-react';
 
 interface OptionCardProps {
-    option: ActionOption;
-    onApply: (id: string) => void;
+    option: {
+        id: string;
+        title: string;
+        impact: string;
+        patch?: { ops?: any[]; reason?: string };
+    };
     isApplying?: boolean;
     isApplied?: boolean;
-    disabled?: boolean;
+    onApply: () => void;
 }
 
-export const OptionCard = ({ option, onApply, isApplying, isApplied, disabled }: OptionCardProps) => {
+export function OptionCard({ option, isApplying, isApplied, onApply }: OptionCardProps) {
+    const opCount = option.patch?.ops?.length || 0;
+    const opTypes = option.patch?.ops?.map(o => o.op).filter(Boolean) || [];
+    const uniqueOps = [...new Set(opTypes)];
+
+    // Generate a short summary of what the patch does
+    const patchSummary = opCount > 0
+        ? uniqueOps.map(op => {
+            const count = opTypes.filter(t => t === op).length;
+            const label = op.replace(/_/g, ' ').replace('event', '').trim();
+            return count > 1 ? `${count} ${label}s` : `1 ${label}`;
+        }).join(', ')
+        : 'No changes';
+
     return (
         <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={cn(
-                "relative overflow-hidden rounded-xl border p-4 transition-all",
-                isApplied
-                    ? "bg-green-500/10 border-green-500/30"
-                    : "bg-[var(--glass-bg)] border-[var(--glass-border)] hover:border-[var(--color-primary)]/30"
-            )}
+            layout
+            className={`group relative rounded-xl border p-3 transition-all cursor-pointer ${isApplied
+                    ? 'bg-[var(--color-success)]/5 border-[var(--color-success)]/20'
+                    : 'bg-[var(--glass-bg)] border-[var(--glass-border)] hover:bg-[var(--glass-bg-hover)] hover:border-[var(--glass-border-hover)]'
+                }`}
+            onClick={() => !isApplying && !isApplied && onApply()}
         >
-            <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 space-y-1">
-                    <h4 className={cn("font-medium text-sm", isApplied ? "text-green-400" : "text-[var(--text-primary)]")}>
+            <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium leading-snug ${isApplied ? 'text-[var(--color-success)]' : 'text-[var(--text-primary)]'
+                        }`}>
                         {option.title}
-                    </h4>
-                    <p className="text-xs text-[var(--text-secondary)]">
+                    </p>
+                    <p className="text-xs text-[var(--text-secondary)] mt-0.5 leading-normal">
                         {option.impact}
                     </p>
+                    {/* Patch Summary Badge */}
+                    {opCount > 0 && !isApplied && (
+                        <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--color-primary)]/5 text-[var(--color-primary)]/70 border border-[var(--color-primary)]/10">
+                            {patchSummary}
+                        </span>
+                    )}
                 </div>
-
-                <button
-                    onClick={() => onApply(option.id)}
-                    disabled={disabled || isApplying || isApplied}
-                    className={cn(
-                        "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                        isApplied
-                            ? "bg-green-500/20 text-green-400 cursor-default"
-                            : "bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
-                    )}
-                >
-                    {isApplied ? (
-                        <>
-                            <Check className="w-3 h-3" />
-                            Applied
-                        </>
-                    ) : isApplying ? (
-                        <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className="flex-shrink-0 mt-0.5">
+                    {isApplying ? (
+                        <Loader2 className="w-4 h-4 text-[var(--color-primary)] animate-spin" />
+                    ) : isApplied ? (
+                        <div className="w-5 h-5 rounded-full bg-[var(--color-success)]/10 flex items-center justify-center">
+                            <Check className="w-3 h-3 text-[var(--color-success)]" />
+                        </div>
                     ) : (
-                        <>
-                            Apply
-                            <ArrowRight className="w-3 h-3" />
-                        </>
+                        <div className="w-5 h-5 rounded-full bg-[var(--glass-bg)] border border-[var(--glass-border)] flex items-center justify-center group-hover:border-[var(--color-primary)]/30 group-hover:bg-[var(--color-primary)]/5 transition-all">
+                            <ArrowRight className="w-3 h-3 text-[var(--text-tertiary)] group-hover:text-[var(--color-primary)] transition-colors" />
+                        </div>
                     )}
-                </button>
+                </div>
             </div>
-
-            {/* Background decoration */}
-            {isApplied && (
-                <div className="absolute inset-0 bg-green-500/5 pointer-events-none" />
-            )}
         </motion.div>
     );
-};
+}

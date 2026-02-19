@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     Plus,
@@ -23,9 +23,10 @@ export default function GoalsPage() {
     const { goals, capacity, updateGoal, deleteGoal, fetchGoals } = useGoalsManager();
 
     // Fetch goals on mount
-    useState(() => {
+    useEffect(() => {
         fetchGoals();
-    });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Feature Flags / UI State
     const [isAdding, setIsAdding] = useState(false);
@@ -154,9 +155,6 @@ export default function GoalsPage() {
                         onClose={() => setSelectedGoalForStrategy(null)}
                         onStrategyApplied={(strategy) => {
                             updateGoal(selectedGoalForStrategy.id, { ai_strategy: strategy });
-                        }}
-                        context={{
-                            capacity: capacity
                         }}
                     />
                 )}

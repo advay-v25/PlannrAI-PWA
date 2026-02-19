@@ -75,6 +75,14 @@ const defaultOnboardingData: OnboardingData = {
     },
     scan_skipped: false,
     bio_scan_url: undefined,
+    ai_profile: {
+        chronotype: null,
+        productivity_archetype: null,
+        energy_pattern: null,
+        risk_factors: [],
+        donna_notes: [],
+        step_insights: {},
+    },
 };
 
 export const useOnboardingStore = create<OnboardingState>()(

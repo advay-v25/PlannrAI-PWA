@@ -18,7 +18,7 @@ export const GET = secureApiRoute(
             { data: habitStacks },
             { data: tasks }
         ] = await Promise.all([
-            supabase.from('profiles').select('*').eq('id', userId).single(),
+            supabase.from('profiles').select('*, bio_data').eq('id', userId).single(),
             supabase.from('user_states').select('*').eq('user_id', userId).single(),
             supabase.from('schedule_blocks')
                 .select('*')
@@ -115,6 +115,7 @@ export const GET = secureApiRoute(
                 completed_min: Math.round(completedMin),
                 free_min: Math.round(freeMin)
             },
+            ai_profile: (profile as any)?.bio_data?.ai_profile || null,
             insight
         });
     },

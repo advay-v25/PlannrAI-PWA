@@ -1,353 +1,415 @@
-import { createClient } from '@/lib/supabase/server';
-import { Patch, PatchOpSchema } from '@/lib/ai/schemas';
-import { z } from 'zod';
 
-type PatchOp = z.infer<typeof PatchOpSchema>;
+import { SupabaseClient } from '@supabase/supabase-js';
+
+// --- Patch Op Types ---
+
+export type PatchOpType =
+    | 'create' | 'create_event'
+    | 'update' | 'update_event'
+    | 'delete' | 'delete_event'
+    | 'move' | 'move_event'
+    | 'update_goal'
+    | 'update_settings'
+    | 'create_anchor'
+    | 'delete_anchor';
+
+export interface PatchOp {
+    op: PatchOpType;
+    event_id?: string;
+    goal_id?: string;
+    anchor_id?: string;
+    event?: any;
+    payload?: any;
+    fields?: Record<string, any>;
+    to_start?: string;
+    to_end?: string;
+    // create_anchor fields
+    title?: string;
+    start_time?: string;
+    end_time?: string;
+    days_of_week?: number[];
+    date?: string;
+}
+
+export interface Patch {
+    ops: PatchOp[];
+    undoable?: boolean;
+    reason?: string;
+    scope?: 'day' | 'week';
+}
+
+export interface PatchResult {
+    success: boolean;
+    undo_token: string | null;
+    changes: number;
+    errors: string[];
+}
+
+// --- Unified Patch Service ---
 
 export class PatchService {
+
     /**
-     * Apply a patch transactionally (as much as possible)
-     * Snapshots schedule if calendar is touched.
-     * Computes inverse patch for non-calendar entities.
+     * Apply a patch to the calendar/goals/settings.
+     * Returns undo_token for reversal.
      */
-    static async applyPatch(userId: string, patch: Patch, source: string = 'ai_assist', requestId?: string) {
-        if (requestId) console.log(`[PatchService] [${requestId}] Applying patch from ${source}`);
-        const supabase = await createClient();
-        const results = {
-            created: [] as string[],
-            updated: [] as string[],
-            deleted: [] as string[],
-            errors: [] as string[],
-        };
+    static async applyPatch(
+        userId: string,
+        patch: Patch,
+        supabase: SupabaseClient,
+        source: string = 'ai'
+    ): Promise<PatchResult> {
+        const errors: string[] = [];
+        let changes = 0;
 
-        const inverseOps: PatchOp[] = [];
-        let scheduleVersionId: string | null = null;
-        const today = new Date().toISOString().split('T')[0];
+        // 1. Calculate Inverse Patch (BEFORE applying)
+        const inversePatch = await this.calculateInversePatch(userId, patch, supabase);
 
-        // 1. Check if calendar is touched -> Snapshot Schedule
-        const touchesCalendar = patch.ops.some(op =>
-            ['create_event', 'move_event', 'update_event', 'delete_event'].includes(op.op)
-        );
-
-        if (touchesCalendar) {
-            try {
-                const { data: currentBlocks } = await supabase
-                    .from('schedule_blocks')
-                    .select('*')
-                    .eq('user_id', userId)
-                    .eq('date', today);
-
-                if (currentBlocks && currentBlocks.length > 0) {
-                    const { data: version } = await supabase
-                        .from('schedule_versions')
-                        .insert({
-                            user_id: userId,
-                            week_start: today, // Using today as key for daily snapshots
-                            source: source,
-                            snapshot: currentBlocks,
-                            active: true
-                        })
-                        .select('id')
-                        .single();
-                    scheduleVersionId = version?.id || null;
-                }
-            } catch (e) {
-                console.warn('[PatchService] Snapshot failed:', e);
-            }
-        }
-
-        // 2. Apply Ops
+        // 2. Execute Operations
         for (const op of patch.ops) {
             try {
-                if (op.op === 'create_event') {
-                    // Normalize payload
-                    const payload = op.payload || {};
-                    const evt = {
-                        user_id: userId,
-                        date: payload.date || today,
-                        start_time: payload.start_time,
-                        end_time: payload.end_time,
-                        title: payload.title || 'New Task',
-                        block_type: payload.block_type || 'task',
-                        goal_id: payload.goal_id || null,
-                        status: 'planned',
-                        is_fixed: false
-                    };
-                    const { data, error } = await supabase.from('schedule_blocks').insert(evt).select('id').single();
-                    if (error) throw error;
-                    if (data) {
-                        results.created.push(data.id);
-
-                        // Link habit instance if specified
-                        if (payload.habit_stack_id) {
-                            try {
-                                await supabase.from('habit_instances').upsert({
-                                    habit_stack_id: payload.habit_stack_id,
-                                    user_id: userId,
-                                    schedule_block_id: data.id,
-                                    date: evt.date || today,
-                                    status: 'pending'
-                                }, { onConflict: 'habit_stack_id,date' });
-                            } catch (e) {
-                                console.warn('[PatchService] Failed to link habit instance:', e);
-                            }
-                        }
-                    }
-
-                } else if (op.op === 'move_event') {
-                    const { event_id, to_start, to_end } = op;
-                    const { error } = await supabase.from('schedule_blocks').update({
-                        start_time: to_start,
-                        end_time: to_end,
-                    }).eq('id', event_id).eq('user_id', userId);
-
-                    if (error) throw error;
-                    results.updated.push(event_id);
-
-                } else if (op.op === 'update_event') {
-                    const { event_id, fields } = op;
-                    const { error } = await supabase.from('schedule_blocks').update(fields)
-                        .eq('id', event_id).eq('user_id', userId);
-
-                    if (error) throw error;
-                    results.updated.push(event_id);
-
-                } else if (op.op === 'delete_event') {
-                    const { event_id } = op;
-                    const { error } = await supabase.from('schedule_blocks').delete()
-                        .eq('id', event_id).eq('user_id', userId);
-
-                    if (error) throw error;
-                    results.deleted.push(event_id);
-
-                } else if (op.op === 'update_goal') {
-                    const { goal_id, fields } = op;
-                    // Read for inverse
-                    const { data: oldGoal } = await supabase.from('goals').select('*').eq('id', goal_id).single();
-                    if (oldGoal) {
-                        const undoFields: any = {};
-                        Object.keys(fields).forEach(k => undoFields[k] = oldGoal[k]);
-                        inverseOps.push({ op: 'update_goal', goal_id, fields: undoFields });
-                    }
-
-                    const { error } = await supabase.from('goals').update(fields).eq('id', goal_id).eq('user_id', userId);
-                    if (error) throw error;
-                    results.updated.push(goal_id);
-
-                } else if (op.op === 'create_habit_stack') {
-                    const { name, steps, preferred_window, schedule_now, trigger, action, duration } = (op as any).payload || op; // Support both payload and flat op
-
-                    // Map steps to Trigger/Action (Tiny Habits Model)
-                    let triggerText = trigger || '';
-                    let actionText = action || '';
-                    let actionDuration = duration || 2;
-
-                    if (steps && Array.isArray(steps) && steps.length > 0) {
-                        triggerText = steps[0]?.title || triggerText;
-                        // Combine remaining steps into action
-                        if (steps.length > 1) {
-                            actionText = steps.slice(1).map((s: any) => s.title).join(' + ');
-                            actionDuration = steps.slice(1).reduce((acc: number, s: any) => acc + (s.minutes || 0), 0) || 2;
-                        }
-                    }
-
-                    const { data: stack, error } = await supabase.from('habit_stacks').insert({
-                        user_id: userId,
-                        trigger_habit: triggerText, // Map to DB column
-                        action_habit: actionText,   // Map to DB column
-                        action_duration_mins: actionDuration,
-                        time_of_day: preferred_window || 'anytime',
-                        // Store the name perhaps in trigger or action if needed? 
-                        // The DB has no 'name' column? Let me check types again.
-                        // It does NOT have 'name'. 
-                        // I will prepend Name to Trigger if it's distinct?
-                        // Or just rely on trigger/action.
-                    }).select('id').single();
-
-                    if (error) throw error;
-                    if (stack) {
-                        results.created.push(stack.id);
-                        inverseOps.push({ op: 'delete_habit_stack', stack_id: stack.id });
-                    }
-
-                } else if (op.op === 'update_habit_stack') {
-                    const { stack_id, fields } = op;
-                    const { data: oldStack } = await supabase.from('habit_stacks').select('*').eq('id', stack_id).single();
-                    if (oldStack) {
-                        const undoFields: any = {};
-                        Object.keys(fields).forEach(k => undoFields[k] = oldStack[k]);
-                        inverseOps.push({ op: 'update_habit_stack', stack_id, fields: undoFields });
-                    }
-
-                    const { error } = await supabase.from('habit_stacks').update(fields).eq('id', stack_id).eq('user_id', userId);
-                    if (error) throw error;
-                    results.updated.push(stack_id);
-
-                } else if (op.op === 'delete_habit_stack') {
-                    const { stack_id } = op;
-                    // Read for inverse (restore)
-                    const { data: oldStack } = await supabase.from('habit_stacks').select('*').eq('id', stack_id).single();
-                    if (oldStack) {
-                        // Inverse isn't perfect but allows restore. We'd map fields back to create.
-                        // Simplified: just store ID if we had soft delete, but for hard delete we lose data unless we store full object.
-                        // For MVP: hard delete, no undo for habit deletion unless specific inverse logic added.
-                    }
-
-                    const { error } = await supabase.from('habit_stacks').delete().eq('id', stack_id).eq('user_id', userId);
-                    if (error) throw error;
-                    results.deleted.push(stack_id);
-
-                } else if (op.op === 'create_anchor') {
-                    const { title, start_time, end_time, days_of_week } = op;
-                    const { data: anchor, error } = await supabase.from('anchors').insert({
-                        user_id: userId,
-                        title,
-                        start_time,
-                        end_time,
-                        days_of_week,
-                        is_fixed: true
-                    }).select('id').single();
-
-                    if (error) throw error;
-                    if (anchor) {
-                        results.created.push(anchor.id);
-                        inverseOps.push({ op: 'delete_anchor', anchor_id: anchor.id });
-                    }
-
-                } else if (op.op === 'delete_anchor') {
-                    const { anchor_id } = op;
-                    const { error } = await supabase.from('anchors').delete().eq('id', anchor_id).eq('user_id', userId);
-                    if (error) throw error;
-                    results.deleted.push(anchor_id);
-                }
-
-            } catch (err: any) {
-                console.error(`[PatchService] Op failed: ${op.op}`, err);
-                results.errors.push(`${op.op}: ${err.message}`);
+                await this.executeOp(userId, op, supabase);
+                changes++;
+            } catch (e: any) {
+                errors.push(`${op.op}: ${e.message}`);
+                console.error(`[PatchService] Op failed:`, op.op, e.message);
             }
         }
 
-        // 3. Log Run
-        // We only log if there's something to undo
-        if (scheduleVersionId || inverseOps.length > 0) {
+        if (changes === 0) {
+            return { success: false, undo_token: null, changes: 0, errors };
+        }
+
+        // 3. Store Undo Token
+        let undoToken: string | null = null;
+        if (patch.undoable !== false) {
             try {
-                await supabase.from('patch_runs').insert({
-                    user_id: userId,
-                    source,
-                    patch: patch,
-                    inverse_patch: { ops: inverseOps, undoable: true },
-                    schedule_version_id: scheduleVersionId
-                });
-            } catch (e) {
-                console.error('[PatchService] Failed to log run:', e);
+                const { data: run, error } = await supabase
+                    .from('patch_runs')
+                    .insert({
+                        user_id: userId,
+                        patch: patch as any,
+                        inverse_patch: inversePatch as any,
+                        applied: true,
+                        source,
+                        created_at: new Date().toISOString()
+                    })
+                    .select('id')
+                    .single();
+
+                if (error) {
+                    console.error('[PatchService] Failed to store patch run:', error);
+                } else {
+                    undoToken = run.id;
+                }
+            } catch (e: any) {
+                console.error('[PatchService] Undo storage failed:', e.message);
             }
         }
 
-        // 4. Return updated block view
-        // Only fetch if touched calendar
-        let updatedBlocks = [];
-        if (touchesCalendar) {
-            const { data } = await supabase
-                .from('schedule_blocks')
-                .select('*, goal:goals(*)')
-                .eq('user_id', userId)
-                .eq('date', today)
-                .order('start_time', { ascending: true });
-            updatedBlocks = data || [];
-        }
-
-        return { success: true, results, updatedBlocks, versionId: scheduleVersionId };
+        return { success: true, undo_token: undoToken, changes, errors };
     }
 
     /**
-     * Undo the last patch run
+     * Revert a specific patch by undo_token.
      */
-    static async undoLast(userId: string) {
-        const supabase = await createClient();
-
-        // 1. Get last run
-        const { data: lastRun } = await supabase
+    static async undoPatch(
+        userId: string,
+        undoToken: string,
+        supabase: SupabaseClient
+    ): Promise<{ success: boolean; changes: number }> {
+        // 1. Fetch the run
+        const { data: run, error } = await supabase
             .from('patch_runs')
             .select('*')
+            .eq('id', undoToken)
             .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(1)
             .single();
 
-        if (!lastRun) return { success: false, message: 'Nothing to undo' };
+        if (error || !run) {
+            console.error('[PatchService] Undo failed: Patch not found');
+            return { success: false, changes: 0 };
+        }
 
-        // 2. Restore Schedule if versioned
-        if (lastRun.schedule_version_id) {
-            const { data: version } = await supabase
-                .from('schedule_versions')
-                .select('*')
-                .eq('id', lastRun.schedule_version_id)
-                .single();
+        if (!run.applied) {
+            console.warn('[PatchService] Patch already undone');
+            return { success: false, changes: 0 };
+        }
 
-            if (version && version.snapshot) {
-                // Wipe today
-                const today = version.week_start;
-                await supabase.from('schedule_blocks').delete().eq('user_id', userId).eq('date', today).neq('is_fixed', true);
+        const inverse = run.inverse_patch as Patch;
+        let changes = 0;
 
-                // Restore
-                const blocksToRestore = (version.snapshot as any[]).map(b => ({
+        // 2. Apply Inverse
+        for (const op of inverse.ops) {
+            try {
+                await this.executeOp(userId, op, supabase);
+                changes++;
+            } catch (e: any) {
+                console.error('[PatchService] Undo op failed:', op.op, e.message);
+            }
+        }
+
+        // 3. Mark as reverted
+        await supabase
+            .from('patch_runs')
+            .update({ applied: false })
+            .eq('id', undoToken);
+
+        return { success: true, changes };
+    }
+
+    // --- Internal Op Execution ---
+
+    private static async executeOp(userId: string, op: PatchOp, supabase: SupabaseClient) {
+        const operation = op.op;
+
+        switch (operation) {
+            case 'create':
+            case 'create_event': {
+                const event = op.event || op.payload || {};
+                const insertData: any = {
                     user_id: userId,
-                    date: b.date,
-                    start_time: b.start_time,
-                    end_time: b.end_time,
-                    title: b.title,
-                    block_type: b.block_type,
-                    status: b.status,
-                    goal_id: b.goal_id,
-                    context: b.context,
-                    is_fixed: b.is_fixed
-                }));
+                    title: event.title || 'New Block',
+                    start_time: event.start_time || event.start || event.to_start,
+                    end_time: event.end_time || event.end || event.to_end,
+                    date: event.date || op.date || new Date().toISOString().split('T')[0],
+                    status: event.status || 'planned',
+                    block_type: event.block_type || 'task',
+                    is_focus: event.is_focus || false,
+                    pillar: event.pillar || null,
+                    goal_id: event.goal_id || null,
+                };
 
-                if (blocksToRestore.length > 0) {
-                    await supabase.from('schedule_blocks').insert(blocksToRestore);
+                // Generate ID if provided (for reliable undo)
+                if (event.id) insertData.id = event.id;
+
+                const { data, error } = await supabase
+                    .from('schedule_blocks')
+                    .insert(insertData)
+                    .select('id')
+                    .single();
+                if (error) throw new Error(`Create failed: ${error.message}`);
+                // Store the generated ID back on the op for inverse calculation
+                if (data?.id && !event.id) {
+                    op.event_id = data.id;
                 }
+                break;
+            }
+
+            case 'update':
+            case 'update_event': {
+                const id = op.event_id;
+                const fields = op.fields || op.payload;
+                if (!id) throw new Error('Update requires event_id');
+                const { error } = await supabase
+                    .from('schedule_blocks')
+                    .update(fields)
+                    .eq('id', id)
+                    .eq('user_id', userId);
+                if (error) throw new Error(`Update failed: ${error.message}`);
+                break;
+            }
+
+            case 'delete':
+            case 'delete_event': {
+                if (!op.event_id) throw new Error('Delete requires event_id');
+                const { error } = await supabase
+                    .from('schedule_blocks')
+                    .delete()
+                    .eq('id', op.event_id)
+                    .eq('user_id', userId);
+                if (error) throw new Error(`Delete failed: ${error.message}`);
+                break;
+            }
+
+            case 'move':
+            case 'move_event': {
+                const id = op.event_id;
+                const start = op.to_start || op.start_time;
+                const end = op.to_end || op.end_time;
+                if (!id || !start || !end) throw new Error('Move requires event_id, to_start, to_end');
+                const updateData: any = { start_time: start, end_time: end };
+                if (op.date) updateData.date = op.date;
+                const { error } = await supabase
+                    .from('schedule_blocks')
+                    .update(updateData)
+                    .eq('id', id)
+                    .eq('user_id', userId);
+                if (error) throw new Error(`Move failed: ${error.message}`);
+                break;
+            }
+
+            case 'update_goal': {
+                const id = op.goal_id;
+                const fields = op.fields || op.payload;
+                if (!id) throw new Error('Update goal requires goal_id');
+                const { error } = await supabase
+                    .from('goals')
+                    .update(fields)
+                    .eq('id', id)
+                    .eq('user_id', userId);
+                if (error) throw new Error(`Update goal failed: ${error.message}`);
+                break;
+            }
+
+            case 'update_settings': {
+                const fields = op.fields || op.payload;
+                const { error } = await supabase
+                    .from('profile_preferences')
+                    .update(fields)
+                    .eq('user_id', userId);
+                if (error) throw new Error(`Update settings failed: ${error.message}`);
+                break;
+            }
+
+            case 'create_anchor': {
+                const title = op.title || op.payload?.title;
+                const startTime = op.start_time || op.payload?.start_time;
+                const endTime = op.end_time || op.payload?.end_time;
+                const daysOfWeek = op.days_of_week || op.payload?.days_of_week || [1, 2, 3, 4, 5];
+                if (!title || !startTime || !endTime) throw new Error('Create anchor requires title, start_time, end_time');
+
+                const { data, error } = await supabase
+                    .from('commitments')
+                    .insert({
+                        user_id: userId,
+                        title,
+                        start_time: startTime,
+                        end_time: endTime,
+                        days_of_week: daysOfWeek,
+                        is_active: true
+                    })
+                    .select('id')
+                    .single();
+                if (error) throw new Error(`Create anchor failed: ${error.message}`);
+                if (data?.id) op.anchor_id = data.id;
+                break;
+            }
+
+            case 'delete_anchor': {
+                const anchorId = op.anchor_id;
+                if (!anchorId) throw new Error('Delete anchor requires anchor_id');
+                const { error } = await supabase
+                    .from('commitments')
+                    .delete()
+                    .eq('id', anchorId)
+                    .eq('user_id', userId);
+                if (error) throw new Error(`Delete anchor failed: ${error.message}`);
+                break;
+            }
+
+            default:
+                console.warn(`[PatchService] Unknown op: ${operation}`);
+        }
+    }
+
+    // --- Inverse Calculation ---
+
+    private static async calculateInversePatch(
+        userId: string,
+        patch: Patch,
+        supabase: SupabaseClient
+    ): Promise<Patch> {
+        const inverseOps: PatchOp[] = [];
+
+        // Fetch current state of touched rows
+        const touchedEventIds = patch.ops
+            .filter(op => op.event_id)
+            .map(op => op.event_id as string);
+
+        const touchedAnchorIds = patch.ops
+            .filter(op => op.anchor_id)
+            .map(op => op.anchor_id as string);
+
+        let currentBlocks: Record<string, any> = {};
+        let currentAnchors: Record<string, any> = {};
+
+        if (touchedEventIds.length > 0) {
+            const { data } = await supabase
+                .from('schedule_blocks')
+                .select('*')
+                .in('id', touchedEventIds)
+                .eq('user_id', userId);
+            if (data) {
+                currentBlocks = data.reduce((acc, block) => ({ ...acc, [block.id]: block }), {});
             }
         }
 
-        // 3. Apply Inverse Patch (for non-schedule stuff)
-        if (lastRun.inverse_patch) {
-            const inverse = lastRun.inverse_patch as Patch;
-            if (inverse.ops && inverse.ops.length > 0) {
-                // Apply operations manually to avoid recursion or creating new undo logs for undo actions
-                for (const op of inverse.ops) {
-                    try {
-                        if (op.op === 'update_goal') {
-                            await supabase.from('goals').update(op.fields).eq('id', op.goal_id).eq('user_id', userId);
-                        } else if (op.op === 'delete_habit_stack') {
-                            await supabase.from('habit_stacks').delete().eq('id', op.stack_id).eq('user_id', userId);
-                        } else if (op.op === 'update_habit_stack') {
-                            await supabase.from('habit_stacks').update(op.fields).eq('id', op.stack_id).eq('user_id', userId);
-                        } else if (op.op === 'delete_anchor') {
-                            await supabase.from('anchors').delete().eq('id', op.anchor_id).eq('user_id', userId);
-                        }
-                    } catch (e) {
-                        console.error('[PatchService] Undo op failed:', e);
+        if (touchedAnchorIds.length > 0) {
+            const { data } = await supabase
+                .from('commitments')
+                .select('*')
+                .in('id', touchedAnchorIds)
+                .eq('user_id', userId);
+            if (data) {
+                currentAnchors = data.reduce((acc, a) => ({ ...acc, [a.id]: a }), {});
+            }
+        }
+
+        // Build Inverse Ops (in REVERSE order)
+        for (const op of [...patch.ops].reverse()) {
+            const opType = op.op;
+
+            if (opType === 'create' || opType === 'create_event') {
+                // Inverse of Create is Delete
+                const id = op.event_id || op.event?.id || op.payload?.id;
+                if (id) {
+                    inverseOps.push({ op: 'delete_event', event_id: id });
+                }
+            } else if (opType === 'delete' || opType === 'delete_event') {
+                // Inverse of Delete is Create (Restore)
+                const original = currentBlocks[op.event_id!];
+                if (original) {
+                    inverseOps.push({ op: 'create_event', event: original });
+                }
+            } else if (opType === 'update' || opType === 'update_event') {
+                // Inverse of Update is Update (Revert fields)
+                const original = currentBlocks[op.event_id!];
+                if (original && op.fields) {
+                    const revertFields: any = {};
+                    for (const key of Object.keys(op.fields)) {
+                        revertFields[key] = original[key];
                     }
+                    inverseOps.push({ op: 'update_event', event_id: op.event_id, fields: revertFields });
+                }
+            } else if (opType === 'move' || opType === 'move_event') {
+                // Inverse of Move is Move (Back)
+                const original = currentBlocks[op.event_id!];
+                if (original) {
+                    inverseOps.push({
+                        op: 'move_event',
+                        event_id: op.event_id,
+                        to_start: original.start_time,
+                        to_end: original.end_time,
+                        date: original.date
+                    });
+                }
+            } else if (opType === 'update_goal') {
+                // For goals, we'd need to fetch original state — simplify for now
+                inverseOps.push({ op: 'update_goal', goal_id: op.goal_id, fields: {} });
+            } else if (opType === 'create_anchor') {
+                const id = op.anchor_id;
+                if (id) {
+                    inverseOps.push({ op: 'delete_anchor', anchor_id: id });
+                }
+            } else if (opType === 'delete_anchor') {
+                const original = currentAnchors[op.anchor_id!];
+                if (original) {
+                    inverseOps.push({
+                        op: 'create_anchor',
+                        title: original.title,
+                        start_time: original.start_time,
+                        end_time: original.end_time,
+                        days_of_week: original.days_of_week,
+                    });
                 }
             }
         }
 
-        // 4. Delete the run (pop from stack)
-        await supabase.from('patch_runs').delete().eq('id', lastRun.id);
-
-        // Terminate any version if we restored it? 
-        // We just restored the snapshot blocks. The version record itself can stay or strictly speaking we should mark it used.
-        // But deleting patch_run is good enough to prevent double-undo of the same action.
-
-        // Return updated blocks
-        const today = new Date().toISOString().split('T')[0];
-        const { data: updatedBlocks } = await supabase
-            .from('schedule_blocks')
-            .select('*, goal:goals(*)')
-            .eq('user_id', userId)
-            .eq('date', today)
-            .order('start_time', { ascending: true });
-
-        return { success: true, updatedBlocks };
+        return {
+            ops: inverseOps,
+            scope: patch.scope,
+            reason: `Undo: ${patch.reason || 'applied patch'}`
+        };
     }
 }

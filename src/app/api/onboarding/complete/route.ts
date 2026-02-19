@@ -9,7 +9,8 @@ export const POST = secureApiRoute(
             meals_per_day, meal_windows,
             body_preferences, buffer_config,
             wind_down_mins, full_name,
-            commitments // Destructure commitments from body (Fallback Flow)
+            commitments,
+            ai_profile  // AI personality profile built during onboarding
         } = body as any;
 
         // Basic validation
@@ -50,6 +51,7 @@ export const POST = secureApiRoute(
                 body_preferences,
                 buffer_config,
                 wind_down_mins,
+                bio_data: ai_profile ? { ai_profile, uploaded_at: new Date().toISOString() } : undefined,
                 onboarding_complete: true,
                 updated_at: new Date().toISOString()
             })

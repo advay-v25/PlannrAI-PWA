@@ -1,7 +1,6 @@
-
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { createClient } from '@/lib/supabase/server';
-import { apiClient } from '@/lib/api-client';
+import { PatchService } from '@/lib/services/patch-service';
 
 export const POST = secureApiRoute(
     async (context, body) => {
@@ -10,49 +9,32 @@ export const POST = secureApiRoute(
 
         if (!patch || !patch.ops) return apiError("Invalid patch", 400);
 
-        // 1. Apply Patch via Schedule Engine
-        // We reuse the existing patch endpoint logic via API call for consistency.
-        // Or better yet, we can't easily call our own API from here with auth token easily.
-        // But for "Apply", we might need to.
-        // Actually, the client could call `apply-patch` directly, but we want to log the "Decision".
-
         try {
-            // Log decision to coach_audit or message update?
-            // Let's mark the message option as selected? 
-            // For now, just logging.
-
-            // EXECUTE PATCH
-            // We need to use the `schedule/apply-patch` logic.
-            // Since we are server-side, we should extract the logic or call DB directly?
-            // The `apply-patch` logic is complex (undo versions).
-            // Let's use the DB directly for MVP speed, mirroring `weekly-review/apply`.
-
             const supabase = await createClient();
-            const ops = patch.ops;
 
-            for (const op of ops) {
-                if (op.op === 'create_event' || op.op === 'create_block') {
-                    const payload = op.payload || op.event; // handle both schemas
-                    await supabase.from('schedule_blocks').insert({
-                        user_id: userId,
-                        ...payload,
-                        status: payload.status || 'planned',
-                        title: payload.title || "New Block"
-                    });
-                } else if (op.op === 'move_event' || op.op === 'move') {
-                    await supabase.from('schedule_blocks').update({
-                        start_time: op.to_start || op.start_time,
-                        end_time: op.to_end || op.end_time,
-                        date: op.date
-                    }).eq('id', op.event_id);
-                } else if (op.op === 'update_event' || op.op === 'update') {
-                    await supabase.from('schedule_blocks').update(op.fields).eq('id', op.event_id);
-                } else if (op.op === 'delete_event' || op.op === 'delete') {
-                    await supabase.from('schedule_blocks').delete().eq('id', op.event_id);
-                }
+            // 1. Apply Patch via Unified PatchService
+            const result = await PatchService.applyPatch(userId, patch, supabase, 'coach');
+
+            // 2. Log the applied option
+            if (optionId) {
+                await supabase.from('coach_interactions').insert({
+                    user_id: userId,
+                    option_id: optionId,
+                    action: 'apply',
+                    patch_data: patch,
+                    undo_token: result.undo_token,
+                    created_at: new Date().toISOString()
+                }).then(r => {
+                    if (r.error) console.warn('[Coach Apply] Log failed:', r.error.message);
+                });
             }
 
-            return apiSuccess({ success: true, applied_ops: ops.length });
+            return apiSuccess({
+                success: result.success,
+                undo_token: result.undo_token,
+                changes: result.changes,
+                errors: result.errors.length > 0 ? result.errors : undefined
+            });
 
         } catch (e: any) {
             console.error("Coach Apply failed", e);

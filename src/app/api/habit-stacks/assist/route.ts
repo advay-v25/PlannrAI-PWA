@@ -9,32 +9,72 @@ export const POST = secureApiRoute(
         const { mode, constraints } = body as { mode: 'build' | 'improve', constraints?: any };
 
         // 1. Gather Context
-        const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single();
-        const { data: goals } = await supabase.from('goals').select('*').eq('user_id', userId);
-        const { data: existingStacks } = await supabase.from('habit_stacks').select('*').eq('user_id', userId);
+        const { data: profile } = await supabase.from('profiles').select('full_name, sleep_start, sleep_end, bio_data').eq('id', userId).single();
+        const { data: goals } = await supabase.from('goals').select('id, title, category, importance').eq('user_id', userId).eq('status', 'active');
+        const { data: existingStacks } = await supabase.from('habit_stacks').select('id, trigger_habit, action_habit, name').eq('user_id', userId);
 
         const aiContext = {
             mode,
-            profile,
-            goals,
-            existing_stacks: existingStacks,
+            profile: {
+                name: profile?.full_name || 'User',
+                sleep_start: profile?.sleep_start,
+                sleep_end: profile?.sleep_end,
+                ai_profile: (profile as any)?.bio_data?.ai_profile || null
+            },
+            goals: goals?.map(g => ({ title: g.title, category: g.category, importance: g.importance })) || [],
+            existing_stacks: existingStacks?.map(s => s.name || s.trigger_habit) || [],
             constraints
         };
 
-        // 2. Call AI Service Directly
+        // 2. Call AI Service
         try {
             const aiResult = await executeAI(userId, {
                 channel: 'habit_stack',
-                input: mode === 'build' ? "Build new stack" : "Improve existing stack",
-                context: aiContext,
-                // model: 'smart' // executeAI handles model selection based on channel, can't override easily unless valid in schema
+                input: mode === 'build' ? "Build new habit stack based on my goals" : "Improve my existing stacks",
+                context: aiContext
+            }) as any;
+
+            // 3. Persist stacks directly to DB (no more fragile patch-ops)
+            const createdStacks: any[] = [];
+            const stacks = aiResult?.stacks || [];
+
+            for (const stack of stacks) {
+                const totalDuration = (stack.steps || []).reduce((sum: number, s: any) => sum + (s.minutes || 0), 0);
+                const triggerStep = stack.steps?.[0]?.title || 'Start';
+                const actionStep = stack.steps?.[1]?.title || 'Action';
+
+                const { data: created, error } = await supabase
+                    .from('habit_stacks')
+                    .insert({
+                        user_id: userId,
+                        name: stack.name,
+                        trigger_habit: triggerStep,
+                        action_habit: actionStep,
+                        action_duration_mins: totalDuration,
+                        steps: stack.steps || [],
+                        preferred_window: stack.schedule_hint?.time_of_day || 'morning',
+                        time_of_day: stack.schedule_hint?.time_of_day || 'morning',
+                        enabled: true,
+                        current_streak: 0,
+                        longest_streak: 0
+                    })
+                    .select()
+                    .single();
+
+                if (created) createdStacks.push(created);
+                if (error) console.warn('[Habit Assist] Insert error:', error.message);
+            }
+
+            return apiSuccess({
+                stacks: createdStacks,
+                donna_note: aiResult?.donna_note || null,
+                ai_generated: stacks.length > 0,
+                _meta: aiResult?._meta
             });
 
-            return apiSuccess(aiResult);
-
-        } catch (e) {
+        } catch (e: any) {
             console.error("AI Error", e);
-            return apiError("Internal AI Error", 500);
+            return apiError("Failed to generate habit stacks. Please try again.", 500);
         }
     },
     { requireAuth: true, auditAction: 'habit_assist' }

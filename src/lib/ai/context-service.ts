@@ -31,6 +31,7 @@ export interface LiquidContext {
         pending_action: number;
     };
     anchors: any[];
+    ai_profile?: any;
     _debug_sizes?: any;
 }
 
@@ -57,7 +58,7 @@ export class ContextService {
             commitmentsRes,
             dailyLogRes
         ] = await Promise.all([
-            supabase.from('profiles').select('full_name, timezone').eq('id', userId).single(),
+            supabase.from('profiles').select('full_name, timezone, bio_data').eq('id', userId).single(),
             supabase.from('profile_preferences').select('*').eq('user_id', userId).single(),
             supabase.from('schedule_blocks').select('id, title, start_time, end_time, is_focus, pillar, block_type').eq('user_id', userId).eq('date', todayStr).order('start_time'),
             supabase.from('schedule_blocks').select('id, title, start_time, end_time, is_focus').eq('user_id', userId).eq('date', tomorrowStr).order('start_time'),
@@ -67,8 +68,9 @@ export class ContextService {
         ]);
 
         // 2. Process User & Preferences
-        const profile = profileRes.data || { full_name: 'User', timezone: 'UTC' };
+        const profile = profileRes.data || { full_name: 'User', timezone: 'UTC', bio_data: null };
         const prefs = prefsRes.data || {};
+        const aiProfile = (profile as any).bio_data?.ai_profile || null;
 
         // 3. Process Schedule Stats
         const todayBlocks = todayBlocksRes.data || [];
@@ -110,7 +112,8 @@ export class ContextService {
                 active: goalsRes.data || [],
                 pending_action: (goalsRes.data || []).length
             },
-            anchors: commitmentsRes.data || []
+            anchors: commitmentsRes.data || [],
+            ai_profile: aiProfile
         };
 
         const sizes = {

@@ -216,28 +216,34 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
 
         // 3. Context Enrichment
         try {
-            // GLOBAL CONTEXT INJECTION (Phase 15)
-            // Every AI call gets the "Liquid Context" (User, State, Schedule, Goals)
+            // GLOBAL CONTEXT INJECTION
             const { ContextService } = await import('@/lib/ai/context-service');
             const liquidContext = await ContextService.getLiquidContext(userId);
             richContext = { ...richContext, ...liquidContext };
 
-            if (channel === 'coach' || channel === 'goal_strategy' || channel === 'habit_stack') {
-                const { buildCoachContext, saveCoachMessage } = await import('@/lib/coach/coach-context');
-                const coachSupabase = await createClient();
-                const coachCtx = await buildCoachContext(userId, coachSupabase);
-                richContext = { ...richContext, ...coachCtx };
+            // FEATURE-SPECIFIC CONTEXT — all AI channels get schedule/goal/capacity enrichment
+            const ENRICHED_CHANNELS = [
+                'coach', 'goal_strategy', 'habit_stack', 'brain_dump',
+                'weekly_review', 'calendar_plan_week', 'calendar_optimize_day'
+            ];
 
+            if (ENRICHED_CHANNELS.includes(channel)) {
+                const { buildFeatureContext } = await import('@/lib/services/feature-context');
+                const featureSupabase = await createClient();
+                const featureCtx = await buildFeatureContext(userId, featureSupabase, {
+                    includeChatHistory: channel === 'coach',
+                    includeRecentDumps: channel === 'coach' || channel === 'brain_dump',
+                    weekDays: channel === 'weekly_review' ? 7 : channel.startsWith('calendar_') ? 7 : 3
+                });
+                richContext = { ...richContext, ...featureCtx };
+
+                // Coach-specific: save user message to thread
                 if (channel === 'coach') {
-                    saveCoachMessage(userId, 'user', input, coachSupabase).catch(e =>
+                    const { saveCoachMessage } = await import('@/lib/coach/coach-context');
+                    saveCoachMessage(userId, 'user', input, featureSupabase).catch(e =>
                         console.warn(`[AI Service] [${requestId}] Failed to save user msg:`, e)
                     );
                 }
-            } else if (channel === 'brain_dump') {
-                const { buildBrainDumpContext } = await import('@/lib/brain-dump/brain-dump-context');
-                const coachSupabase = await createClient();
-                const bdCtx = await buildBrainDumpContext(userId, coachSupabase);
-                richContext = { ...richContext, ...bdCtx };
             }
         } catch (e: any) {
             console.warn(`[AI Service] [${requestId}] Context enrichment warning:`, e.message);

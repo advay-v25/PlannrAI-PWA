@@ -10,7 +10,13 @@ export const POST = secureApiRoute(
 
         if (!message) return apiError("Message required", 400);
 
-        // 1. Call AI Service Directly (Bypasses internal API 401 issues)
+        // 1. Save User Message
+        const supabase = await createClient();
+        await saveCoachMessage(userId, 'user', message, supabase).catch(e =>
+            console.warn('[Coach] Failed to save user message:', e)
+        );
+
+        // 2. Call AI Service
         const aiRes = await executeAI(userId, {
             channel: 'coach',
             input: message,
@@ -22,18 +28,18 @@ export const POST = secureApiRoute(
             limits: { max_options: 3 }
         });
 
-        // 2. Persist the AI Response
+        // 3. Save Assistant Response
         if (aiRes) {
-            const supabase = await createClient();
             await saveCoachMessage(
                 userId,
                 'assistant',
-                aiRes.summary || "I've analyzed your request.",
+                aiRes.summary || "Analyzing your request.",
                 supabase,
-                aiRes // Store full JSON
-            );
+                aiRes
+            ).catch(e => console.warn('[Coach] Failed to save assistant message:', e));
         }
 
+        // 4. Return structured response
         return apiSuccess(aiRes);
     },
     { requireAuth: true }

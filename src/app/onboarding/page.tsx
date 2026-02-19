@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOnboardingStore } from '@/stores';
 import { createClient } from '@/lib/supabase/client';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
+import { AIInsightTransition } from '@/components/onboarding/ai-insight-transition';
 
 // Step Components
 import { Step1Framing } from '@/components/onboarding/step-1-framing';
@@ -14,37 +15,73 @@ import { Step2Time } from '@/components/onboarding/step-2-time';
 import { Step3Meals } from '@/components/onboarding/step-3-meals';
 import { Step4Commitments } from '@/components/onboarding/step-4-commitments';
 import { Step5Body } from '@/components/onboarding/step-5-body';
-import { Step3Goals } from '@/components/onboarding/step-3-goals'; // Now Step 6
+import { Step3Goals } from '@/components/onboarding/step-3-goals';
 import { Step7Scan } from '@/components/onboarding/step-7-scan';
 import { Step8Generate } from '@/components/onboarding/step-8-generate';
 
-import { ArrowLeft, ArrowRight, Loader2, Check } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 
 const STEPS = [
-    { id: 'framing', title: 'Initialization', component: Step1Framing },
-    { id: 'time', title: 'Circadian Rhythm', component: Step2Time },
-    { id: 'meals', title: 'Fuel & Space', component: Step3Meals },
-    { id: 'commitments', title: 'Anchors', component: Step4Commitments },
-    { id: 'body', title: 'Body Baseline', component: Step5Body },
-    { id: 'goals', title: 'Time Investment', component: Step3Goals }, // Reusing Step3Goals component logic
-    { id: 'scan', title: 'Bio-Calibration', component: Step7Scan },
-    { id: 'generate', title: 'Day Synthesis', component: Step8Generate },
+    { id: 'framing', title: 'Initialization', component: Step1Framing, aiInsight: false },
+    { id: 'time', title: 'Circadian Rhythm', component: Step2Time, aiInsight: true },
+    { id: 'meals', title: 'Fuel & Space', component: Step3Meals, aiInsight: true },
+    { id: 'commitments', title: 'Anchors', component: Step4Commitments, aiInsight: true },
+    { id: 'body', title: 'Body Baseline', component: Step5Body, aiInsight: true },
+    { id: 'goals', title: 'Time Investment', component: Step3Goals, aiInsight: true },
+    { id: 'scan', title: 'Bio-Calibration', component: Step7Scan, aiInsight: false },
+    { id: 'generate', title: 'Day Synthesis', component: Step8Generate, aiInsight: false },
 ];
+
+// Extract step-specific data for the AI insight context
+function getStepData(stepId: string, data: any): Record<string, any> {
+    switch (stepId) {
+        case 'time':
+            return {
+                sleep_start: data.sleep_start,
+                sleep_end: data.sleep_end,
+                wind_down_mins: data.wind_down_mins,
+                wake_hour: parseInt(data.sleep_end?.split(':')[0] || '7'),
+            };
+        case 'meals':
+            return {
+                meals_per_day: data.meals_per_day,
+                meal_windows: data.meal_windows,
+                buffer_config: data.buffer_config,
+            };
+        case 'commitments':
+            return {
+                commitments: data.commitments?.map((c: any) => ({ title: c.title, days: c.days_of_week?.length })),
+                total_commitments: data.commitments?.length || 0,
+            };
+        case 'body':
+            return {
+                activity_types: data.body_preferences?.activity_types,
+                preferred_time: data.body_preferences?.preferred_time,
+                duration_mins: data.body_preferences?.duration_mins,
+            };
+        case 'goals':
+            return {
+                goals: data.goals?.map((g: any) => ({ title: g.title, category: g.category, minutes: g.minutes_per_day })),
+                total_goal_minutes: data.goals?.reduce((s: number, g: any) => s + (g.minutes_per_day || 0), 0),
+                goal_count: data.goals?.length || 0,
+            };
+        default:
+            return {};
+    }
+}
 
 export default function OnboardingPage() {
     const router = useRouter();
     const supabase = createClient();
-    const { currentStep, data, setStep, nextStep, prevStep, reset } = useOnboardingStore();
+    const { currentStep, data, nextStep, prevStep, reset, updateData } = useOnboardingStore();
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState('');
+    const [showInsight, setShowInsight] = useState(false);
 
     const CurrentStepComponent = STEPS[currentStep]?.component;
     const isFirstStep = currentStep === 0;
     const isLastStep = currentStep === STEPS.length - 1;
-    const isGoalsStep = currentStep === 2;
-
-    const totalMinutes = data.goals.reduce((sum: number, g: any) => sum + (g.minutes_per_day || 0), 0);
-    // Simple check, real capacity logic is clearer in Step 2/3 themselves
+    const currentStepDef = STEPS[currentStep];
 
     const handleComplete = async () => {
         setIsSaving(true);
@@ -52,20 +89,16 @@ export default function OnboardingPage() {
 
         try {
             let { data: { user } } = await supabase.auth.getUser();
-            // DEBUG: Mock user
             if (!user) user = { id: '5eaf0087-f547-4d87-a235-facd3bd3b997', email: 'advay@plannrai.com' } as any;
-
             if (!user) throw new Error('Not authenticated');
 
-            // 1. Send all data to Server API for transactional save & schedule generation
             const response = await fetch('/api/onboarding/complete', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    // Flatten data structure to match OnboardingData interface
                     timezone: data.timezone,
-                    sleep_start: data.sleep_start || '22:00', // Fallback constraint
-                    sleep_end: data.sleep_end || '07:00',     // Fallback constraint
+                    sleep_start: data.sleep_start || '22:00',
+                    sleep_end: data.sleep_end || '07:00',
                     goals: data.goals,
                     energy_level: data.energy_level,
                     stress_level: data.stress_level,
@@ -75,32 +108,22 @@ export default function OnboardingPage() {
                     buffer_config: data.buffer_config,
                     wind_down_mins: data.wind_down_mins,
                     full_name: data.full_name,
-                    commitments: data.commitments, // Pass commitments too! (Logic Audit)
+                    commitments: data.commitments,
                     ai_can_suggest: data.ai_can_suggest,
                     ai_can_analyze: data.ai_can_analyze,
-                    ai_can_draft: data.ai_can_draft
+                    ai_can_draft: data.ai_can_draft,
+                    ai_profile: data.ai_profile
                 })
             });
 
-
-
             const result = await response.json();
-            const isSuccess = result.ok;
-
-            if (!response.ok || !isSuccess) {
-                const errorMsg = result.error?.message || `API Error: ${response.status} ${JSON.stringify(result)}`;
-                throw new Error(errorMsg);
+            if (!response.ok || !result.ok) {
+                throw new Error(result.error?.message || `API Error: ${response.status}`);
             }
 
-            // Extract blocksCreated from envelope data
-            const blocksCreated = result.data?.blocksCreated || result.blocksCreated || 0;
+            const blocksCreated = result.data?.blocksCreated || 0;
+            await supabase.auth.updateUser({ data: { onboarding_complete: true } });
 
-            // 2. Update Client Auth State (so session knows we are done)
-            await supabase.auth.updateUser({
-                data: { onboarding_complete: true }
-            });
-
-            // 3. Reset & Redirect
             reset();
             const warning = blocksCreated === 0 ? '&warning=empty_schedule' : '';
             router.push(`/app?setup=complete${warning}`);
@@ -113,9 +136,47 @@ export default function OnboardingPage() {
         }
     };
 
+    // Handle AI insight completion — merge into profile and advance
+    const handleInsightComplete = useCallback((insight: any) => {
+        setShowInsight(false);
+
+        const currentProfile = data.ai_profile || {
+            chronotype: null,
+            productivity_archetype: null,
+            energy_pattern: null,
+            risk_factors: [],
+            donna_notes: [],
+            step_insights: {},
+        };
+
+        const updatedProfile = {
+            ...currentProfile,
+            ...(insight.profile_update?.chronotype && { chronotype: insight.profile_update.chronotype }),
+            ...(insight.profile_update?.productivity_archetype && { productivity_archetype: insight.profile_update.productivity_archetype }),
+            ...(insight.profile_update?.energy_pattern && { energy_pattern: insight.profile_update.energy_pattern }),
+            risk_factors: [
+                ...currentProfile.risk_factors,
+                ...(insight.profile_update?.risk_flag ? [insight.profile_update.risk_flag] : [])
+            ],
+            donna_notes: [
+                ...currentProfile.donna_notes,
+                insight.donna_note
+            ],
+            step_insights: {
+                ...currentProfile.step_insights,
+                [STEPS[currentStep].id]: insight.insight
+            }
+        };
+
+        updateData({ ai_profile: updatedProfile });
+        nextStep();
+    }, [data.ai_profile, currentStep, updateData, nextStep]);
+
     const handleNext = () => {
         if (isLastStep) {
             handleComplete();
+        } else if (currentStepDef.aiInsight) {
+            setShowInsight(true);
         } else {
             nextStep();
         }
@@ -124,9 +185,30 @@ export default function OnboardingPage() {
     return (
         <div className="min-h-screen relative flex flex-col items-center justify-center p-4 overflow-hidden bg-black text-white selection:bg-[var(--color-primary)] selection:text-white">
 
+            {/* AI Insight Transition Overlay */}
+            <AnimatePresence>
+                {showInsight && (
+                    <AIInsightTransition
+                        stepId={currentStepDef.id}
+                        stepData={getStepData(currentStepDef.id, data)}
+                        accumulatedData={{
+                            name: data.full_name,
+                            sleep: { start: data.sleep_start, end: data.sleep_end },
+                            energy_level: data.energy_level,
+                            stress_level: data.stress_level,
+                            goals_count: data.goals?.length || 0,
+                            total_goal_minutes: data.goals?.reduce((s: number, g: any) => s + (g.minutes_per_day || 0), 0),
+                            commitments_count: data.commitments?.length || 0,
+                            existing_profile: data.ai_profile,
+                        }}
+                        onComplete={handleInsightComplete}
+                        userName={data.full_name}
+                    />
+                )}
+            </AnimatePresence>
+
             {/* Immersive Background */}
             <div className="absolute inset-0 z-0">
-                {/* Animated Mesh Gradient */}
                 <div className="absolute top-[-20%] left-[-10%] w-[70vw] h-[70vw] rounded-full bg-purple-900/20 blur-[120px] animate-pulse" />
                 <div className="absolute bottom-[-20%] right-[-10%] w-[60vw] h-[60vw] rounded-full bg-orange-900/20 blur-[100px] animate-pulse" style={{ animationDelay: '2s' }} />
                 <div className="absolute top-[40%] left-[50%] transform -translate-x-1/2 w-[50vw] h-[50vw] rounded-full bg-teal-900/10 blur-[150px]" />
@@ -154,7 +236,6 @@ export default function OnboardingPage() {
                         <GlassCard variant="glow" padding="lg" className="w-full min-h-[500px] flex flex-col justify-center border-[var(--glass-border)]/50 shadow-2xl backdrop-blur-xl">
                             {CurrentStepComponent && <CurrentStepComponent />}
 
-                            {/* In-content Error */}
                             {error && (
                                 <motion.p
                                     initial={{ opacity: 0 }}

@@ -1,43 +1,58 @@
 
 // AI Coach V4 - Chief of Staff Types
 
-export type CoachMode = 'executed' | 'choice' | 'refusal';
+export type CoachMode = 'execute' | 'propose' | 'ask' | 'refuse';
 
 export interface CalendarPatchOp {
-    op: 'create' | 'update' | 'delete' | 'move' | 'create_event' | 'update_event' | 'delete_event' | 'move_event' | 'update_goal' | 'update_settings';
-    event_id?: string; // Required for update/delete/move
-    goal_id?: string;  // Required for update_goal
-    event?: any; // Required for create
-    payload?: any; // Alias for event/fields
-    fields?: Record<string, any>; // Required for update
-    to_start?: string; // Required for move (ISO)
-    to_end?: string; // Required for move (ISO)
+    op: 'create' | 'update' | 'delete' | 'move'
+    | 'create_event' | 'update_event' | 'delete_event' | 'move_event'
+    | 'update_goal' | 'update_settings'
+    | 'create_anchor' | 'delete_anchor';
+    event_id?: string;
+    goal_id?: string;
+    anchor_id?: string;
+    event?: any;
+    payload?: any;
+    fields?: Record<string, any>;
+    to_start?: string;
+    to_end?: string;
+    title?: string;
+    start_time?: string;
+    end_time?: string;
+    days_of_week?: number[];
+    date?: string;
 }
 
 export interface CalendarPatch {
     ops: CalendarPatchOp[];
-    scope: 'day' | 'week';
-    reason: string;
+    undoable?: boolean;
+    scope?: 'day' | 'week';
+    reason?: string;
 }
 
 export interface CoachOption {
-    id: string; // "opt_1"
-    title: string; // Max 40 chars
-    impact: string; // Max 60 chars ("Moves Gym to 6pm")
+    id: string;
+    title: string;
+    impact: string;
     patch: CalendarPatch;
+}
+
+export interface CoachQuestion {
+    prompt: string;
+    type: 'text' | 'confirm' | 'choice';
+    choices?: string[];
 }
 
 export interface CoachRefusal {
     reason: string;
-    question?: string | null;
+    next_best?: string;
 }
 
 export interface CoachResponse {
     mode: CoachMode;
-    summary: string; // Max 140 chars
-    options?: CoachOption[]; // Present if mode='choice'
-    refusal?: CoachRefusal; // Present if mode='refusal'
-    undo_token?: string | null; // Present if mode='executed'
-    // Legacy support for UI transition
-    formatted?: string;
+    summary: string;
+    options?: CoachOption[];
+    question?: CoachQuestion;
+    refusal?: CoachRefusal;
+    undo_token?: string | null;
 }

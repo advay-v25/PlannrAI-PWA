@@ -1,21 +1,27 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { HomeLayout } from '@/components/home/home-layout';
 import { NowCard } from '@/components/home/now-card';
 import { TimelineStrip } from '@/components/home/timeline-strip';
 import { StacksModule } from '@/components/home/stacks-module';
 import { BriefingModule } from '@/components/home/briefing-module';
 import { InsightsCard } from '@/components/home/insights-card';
+import { PrioritiesCard } from '@/components/home/priorities-card';
+import { EnergyCheckin } from '@/components/home/energy-checkin';
+import { AIProfileBadge } from '@/components/home/ai-profile-badge';
+import { RealityIntake } from '@/components/home/reality-intake';
 import { format } from 'date-fns';
 import { Settings } from 'lucide-react';
 import Link from 'next/link';
+import { toast } from 'sonner';
 
 export default function HomePage() {
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [briefing, setBriefing] = useState<string | undefined>(undefined);
+    const [briefingTone, setBriefingTone] = useState<string | undefined>(undefined);
+    const [priorities, setPriorities] = useState<string[]>([]);
     const [briefingLoading, setBriefingLoading] = useState(false);
 
     const briefingAttempted = useRef(false);
@@ -53,19 +59,44 @@ export default function HomePage() {
 
     const handleGenerateBriefing = async () => {
         setBriefingLoading(true);
+        briefingAttempted.current = true;
         try {
             const res = await fetch('/api/narrative/briefing', {
                 method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ date: new Date().toISOString().split('T')[0] })
             });
             if (res.ok) {
                 const json = await res.json();
-                setBriefing(json.data.briefing);
+                setBriefing(json.data?.briefing);
+                setBriefingTone(json.data?.tone);
+                setPriorities(json.data?.priorities || []);
             }
         } catch (e) {
             console.error(e);
         } finally {
             setBriefingLoading(false);
+        }
+    };
+
+    const handleEnergyCheckin = async (energy: number, mood: string) => {
+        try {
+            await fetch('/api/home/energy-checkin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    energy_level: energy,
+                    emotional_state: mood
+                })
+            });
+            // Update local data immediately
+            setData((prev: any) => prev ? {
+                ...prev,
+                user_state: { ...prev.user_state, energy_level: energy, emotional_state: mood }
+            } : prev);
+        } catch (e) {
+            console.error('Energy checkin failed:', e);
+            toast.error('Failed to save check-in');
         }
     };
 
@@ -110,6 +141,11 @@ export default function HomePage() {
     return (
         <HomeLayout
             header={header}
+            realityIntake={
+                <RealityIntake
+                    onUpdate={handleRefresh}
+                />
+            }
             nowCard={
                 <NowCard
                     block={data.next_up}
@@ -122,10 +158,11 @@ export default function HomePage() {
                     anchors={data.anchors}
                 />
             }
-            stacks={
-                <StacksModule
-                    stacks={data.habit_stacks}
-                    onUpdate={handleRefresh}
+            energyCheckin={
+                <EnergyCheckin
+                    currentEnergy={data.user_state?.energy_level > 0 ? data.user_state.energy_level : undefined}
+                    currentMood={data.user_state?.emotional_state !== 'neutral' ? data.user_state.emotional_state : undefined}
+                    onCheckin={handleEnergyCheckin}
                 />
             }
             briefing={
@@ -133,6 +170,31 @@ export default function HomePage() {
                     briefing={briefing}
                     isLoading={briefingLoading}
                     onGenerate={handleGenerateBriefing}
+                />
+            }
+            priorities={
+                priorities.length > 0 ? (
+                    <PrioritiesCard
+                        priorities={priorities}
+                        tone={briefingTone}
+                    />
+                ) : undefined
+            }
+            aiProfile={
+                data.ai_profile ? (
+                    <AIProfileBadge aiProfile={data.ai_profile} />
+                ) : undefined
+            }
+            insights={
+                <InsightsCard
+                    userState={data.user_state}
+                    insight={data.insight}
+                />
+            }
+            stacks={
+                <StacksModule
+                    stacks={data.habit_stacks}
+                    onUpdate={handleRefresh}
                 />
             }
         />

@@ -195,12 +195,12 @@ export default function GoalMissionControl() {
                         <h3 className="text-sm font-semibold mb-2">Goal Details</h3>
                         <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
-                                <span className="text-[var(--text-tertiary)]">Pillar</span>
-                                <span>{goal.pillar}</span>
+                                <span className="text-[var(--text-tertiary)]">Category</span>
+                                <span>{goal.category}</span>
                             </div>
                             <div className="flex justify-between">
-                                <span className="text-[var(--text-tertiary)]">Priority</span>
-                                <span className="capitalize">{goal.priority}</span>
+                                <span className="text-[var(--text-tertiary)]">Importance</span>
+                                <span className="capitalize">{goal.importance}</span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-[var(--text-tertiary)]">Deadline</span>

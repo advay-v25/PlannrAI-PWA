@@ -87,7 +87,8 @@ export function Step8Generate() {
                         goals: data.goals.map((g: any) => ({ title: g.title, minutes: g.minutes_per_day, priority: g.importance })),
                         constraints: data.commitments.map((c: any) => ({ title: c.title, days: c.days_of_week })),
                         meals: { count: data.meals_per_day, windows: data.meal_windows },
-                        preferences: { ...data.body_preferences, buffer: data.buffer_config }
+                        preferences: { ...data.body_preferences, buffer: data.buffer_config },
+                        ai_profile: data.ai_profile || null
                     }
                 }) as unknown as ArchitectBlueprint;
 
@@ -99,8 +100,8 @@ export function Step8Generate() {
                     // Apply overrides silently to store
                     if (response.parameter_overrides) {
                         // Sanitize overrides to ensure we don't wipe critical fields like sleep times with nulls
-                        const safeOverrides: Partial<typeof data> = {};
-                        if (response.parameter_overrides.winddown_mins) safeOverrides.winddown_mins = response.parameter_overrides.winddown_mins;
+                        const safeOverrides: any = {};
+                        if (response.parameter_overrides.winddown_mins) safeOverrides.wind_down_mins = response.parameter_overrides.winddown_mins;
                         if (response.parameter_overrides.meals_per_day) safeOverrides.meals_per_day = response.parameter_overrides.meals_per_day;
 
                         if (Object.keys(safeOverrides).length > 0) {

@@ -11,15 +11,14 @@ import {
     AlertCircle,
     Brain,
     Play,
-    Check
+    Check,
+    Clock
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
 import { apiClient } from '@/lib/api-client';
 import { useToast } from '@/components/ui/toast';
-import type { Goal, GoalCapacity } from '@/types/database';
-import type { Patch } from '@/lib/ai/schemas';
-import { StrategyOptionCard } from './strategy-option-card';
+import type { Goal } from '@/types/database';
 
 interface GoalStrategyWizardProps {
     goal: Goal;
@@ -27,24 +26,34 @@ interface GoalStrategyWizardProps {
     onClose: () => void;
     onStrategyApplied: (strategy: Record<string, any>) => void;
     context?: {
-        capacity?: GoalCapacity;
         profile?: any;
     };
 }
 
-type WizardStep = 'intro' | 'analyzing' | 'selection' | 'review' | 'schedule';
+type WizardStep = 'intro' | 'analyzing' | 'review' | 'schedule';
 
-export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied, context }: GoalStrategyWizardProps) {
+interface GoalStrategy {
+    strategy_one_liner: string;
+    routine: {
+        frequency: string;
+        duration_mins: number;
+        steps: string[];
+        best_time?: string;
+        notes?: string;
+    };
+    milestones: string[];
+    checklist: { text: string }[];
+    donna_note?: string;
+}
+
+export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied }: GoalStrategyWizardProps) {
     const { showToast } = useToast();
     const [step, setStep] = useState<WizardStep>('intro');
 
-    // AI Data State
-    const [aiOptions, setAiOptions] = useState<{ label: string; patch: Patch; explanation?: string }[]>([]);
-    const [aiExplanation, setAiExplanation] = useState<string>('');
-    const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
-
-    // Persisted Strategy State
-    const [strategy, setStrategy] = useState<any>(goal.ai_strategy || null);
+    // Strategy State
+    const [strategy, setStrategy] = useState<GoalStrategy | null>(
+        goal.ai_strategy ? goal.ai_strategy as unknown as GoalStrategy : null
+    );
 
     // UI State
     const [isGenerating, setIsGenerating] = useState(false);
@@ -52,94 +61,53 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied, c
     const [scheduleTime, setScheduleTime] = useState('09:00');
     const [isScheduling, setIsScheduling] = useState(false);
 
-    // 1. Generate Strategy
+    // 1. Generate Strategy — API saves directly to DB
     const handleGenerate = async () => {
         setStep('analyzing');
         setIsGenerating(true);
-        setAiOptions([]); // Reset
 
         try {
-            // Call BFF Endpoint
-            const response = await apiClient.post<any>('/api/goals/strategy', {
-                goal_id: goal.id,
-                mode: 'expert'
+            const response = await apiClient.post<{ strategy: GoalStrategy }>('/api/goals/strategy', {
+                goal_id: goal.id
             });
 
-            if (response.options && response.options.length > 0) {
-                setAiOptions(response.options);
-                setAiExplanation(response.explanation || "Select a strategy to execute.");
-                setStep('selection');
+            if (response.strategy) {
+                setStrategy(response.strategy);
+                onStrategyApplied(response.strategy);
+                setStep('review');
             } else {
-                throw new Error("AI returned no options.");
+                throw new Error('No strategy returned');
             }
         } catch (error: any) {
-            console.error("Strategy Generation Failed:", error);
-            showToast(error.message || "Failed to generate strategies", 'error');
+            console.error('Strategy Generation Failed:', error);
+            showToast(error.message || 'Failed to generate strategy', 'error');
             setStep('intro');
         } finally {
             setIsGenerating(false);
         }
     };
 
-    // 2. Apply Selected Option
-    const handleApplyOption = async (option: any, index: number) => {
-        try {
-            const patch: Patch = option.patch;
-
-            // 1. Search for value in the patch ops
-            const updateOp = patch.ops.find((op: any) => op.op === 'update_goal');
-
-            if (updateOp && 'fields' in updateOp && updateOp.fields.ai_strategy) {
-                const newStrategy = updateOp.fields.ai_strategy;
-                setStrategy(newStrategy);
-                setSelectedOptionIndex(index);
-
-                // 2. Apply Patch to DB
-                await apiClient.patch.apply(patch, 'goal_strategy');
-
-                // 3. Update Parent
-                onStrategyApplied(newStrategy);
-
-                // 4. Move to Review/Schedule
-                // Slight delay for UX "Success" feel
-                setTimeout(() => {
-                    setStep('review');
-                }, 800);
-            } else {
-                // Fallback if patch is generic (just notes)
-                showToast("Strategy applied, but no structured data found.", "info");
-                setStep('intro');
-            }
-        } catch (e: any) {
-            showToast("Failed to apply strategy: " + e.message, "error");
-            throw e; // Bubble to Card for error state
-        }
-    };
-
-    // 3. Schedule Initial Block
+    // 2. Schedule First Session — direct POST, no patch-ops
     const handleSchedule = async () => {
         setIsScheduling(true);
         try {
             const startD = new Date(`${scheduleDate}T${scheduleTime}:00`);
-            const endD = new Date(startD.getTime() + (goal.minutes_per_day || 60) * 60000);
+            const duration = strategy?.routine?.duration_mins || goal.minutes_per_day || 60;
+            const endD = new Date(startD.getTime() + duration * 60000);
 
-            const patch: Patch = {
-                undoable: true,
-                ops: [{
-                    op: 'create_event',
-                    payload: {
-                        title: goal.title,
-                        start_time: startD.toISOString(),
-                        end_time: endD.toISOString(),
-                        block_type: 'goal',
-                        goal_id: goal.id
-                    }
-                }],
-                reason: "Initial Goal Strategy Block"
-            };
+            await fetch('/api/schedule', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    date: scheduleDate,
+                    start_time: scheduleTime,
+                    end_time: `${String(endD.getHours()).padStart(2, '0')}:${String(endD.getMinutes()).padStart(2, '0')}`,
+                    goal_id: goal.id,
+                    context: goal.title
+                })
+            });
 
-            await apiClient.patch.apply(patch, 'goal_schedule');
-            showToast('✅ Scheduled first session!', 'success');
+            showToast('✅ First session scheduled!', 'success');
             onClose();
         } catch (error) {
             showToast('Failed to schedule session', 'error');
@@ -157,7 +125,7 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied, c
                 {/* Header */}
                 <div className="flex justify-between items-center mb-6">
                     <div className="flex items-center gap-2">
-                        {(step === 'selection' || step === 'review' || step === 'schedule') && (
+                        {(step === 'review' || step === 'schedule') && (
                             <button onClick={() => setStep('intro')} className="p-1 hover:bg-white/10 rounded-full mr-1">
                                 <ChevronLeft className="w-4 h-4" />
                             </button>
@@ -189,7 +157,7 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied, c
                                     <div className="w-24 h-24 mx-auto rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center animate-pulse-slow">
                                         <Brain className="w-12 h-12 text-[var(--color-primary)]" />
                                     </div>
-                                    <h3 className="text-2xl font-bold">Unlocking "{goal.title}"</h3>
+                                    <h3 className="text-2xl font-bold">Unlocking &quot;{goal.title}&quot;</h3>
                                     <p className="text-sm text-[var(--text-tertiary)] leading-relaxed">
                                         I will break this goal down into a concrete <span className="text-white font-bold">protocol</span>, <span className="text-white font-bold">checklist</span>, and specific <span className="text-white font-bold">milestones</span>.
                                     </p>
@@ -230,50 +198,14 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied, c
                             </motion.div>
                         )}
 
-                        {/* STEP 3: SELECTION */}
-                        {step === 'selection' && (
-                            <motion.div
-                                key="selection"
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -20 }}
-                                className="flex-1 flex flex-col h-full"
-                            >
-                                {aiOptions.length === 0 ? (
-                                    <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4">
-                                        <AlertCircle className="w-12 h-12 text-[var(--text-tertiary)]" />
-                                        <p className="text-[var(--text-secondary)]">{aiExplanation}</p>
-                                        <GlassButton variant="ghost" onClick={() => setStep('intro')}>Try Again</GlassButton>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <div className="space-y-2 mb-4">
-                                            <h3 className="text-sm font-bold uppercase text-[var(--text-tertiary)]">Available Strategies</h3>
-                                            <p className="text-xs text-[var(--text-secondary)]">{aiExplanation}</p>
-                                        </div>
-
-                                        <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-                                            {aiOptions.map((option, idx) => (
-                                                <StrategyOptionCard
-                                                    key={idx}
-                                                    option={option}
-                                                    onApply={() => handleApplyOption(option, idx)}
-                                                />
-                                            ))}
-                                        </div>
-                                    </>
-                                )}
-                            </motion.div>
-                        )}
-
-                        {/* STEP 4: REVIEW */}
+                        {/* STEP 3: REVIEW — shows directly after generation */}
                         {step === 'review' && strategy && (
                             <motion.div
                                 key="review"
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, scale: 1.05 }}
-                                className="flex-1 space-y-6 overflow-y-auto pr-2 custom-scrollbar"
+                                className="flex-1 space-y-5 overflow-y-auto pr-2 custom-scrollbar"
                             >
                                 <div className="text-center space-y-2">
                                     <div className="inline-flex p-3 rounded-full bg-emerald-500/10 text-emerald-400 mb-2">
@@ -282,24 +214,36 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied, c
                                     <h3 className="text-xl font-bold">Strategy Active</h3>
                                 </div>
 
-                                {/* Results */}
+                                {/* One-liner */}
                                 <div className="p-4 rounded-xl bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 text-center shadow-lg shadow-[var(--color-primary)]/5">
-                                    <h4 className="text-[var(--color-primary)] font-bold text-lg">"{strategy.strategy_one_liner}"</h4>
+                                    <h4 className="text-[var(--color-primary)] font-bold text-lg">&quot;{strategy.strategy_one_liner}&quot;</h4>
                                 </div>
 
+                                {/* Donna Note */}
+                                {strategy.donna_note && (
+                                    <div className="flex gap-2 text-xs text-blue-300 bg-blue-500/10 p-3 rounded-lg border border-blue-500/20">
+                                        <Brain className="w-4 h-4 shrink-0 mt-0.5" />
+                                        <span>{strategy.donna_note}</span>
+                                    </div>
+                                )}
+
+                                {/* Routine */}
                                 <div className="space-y-3">
                                     <h5 className="text-xs font-bold uppercase text-[var(--text-tertiary)] flex items-center gap-2">
-                                        <Calendar className="w-4 h-4" /> Daily Protocol
+                                        <Calendar className="w-4 h-4" /> {strategy.routine.frequency} Protocol
+                                        <span className="ml-auto text-[var(--color-primary)] flex items-center gap-1">
+                                            <Clock className="w-3 h-3" /> {strategy.routine.duration_mins}m
+                                        </span>
                                     </h5>
                                     <div className="space-y-2 text-sm bg-white/5 p-4 rounded-xl border border-white/5">
-                                        {strategy.routine?.steps?.map((s: string, i: number) => (
+                                        {strategy.routine.steps.map((s: string, i: number) => (
                                             <div key={i} className="flex gap-3">
                                                 <span className="font-mono text-[var(--color-primary)] font-bold">{i + 1}.</span>
                                                 <span className="text-white/90">{s}</span>
                                             </div>
                                         ))}
                                     </div>
-                                    {strategy.routine?.notes && (
+                                    {strategy.routine.notes && (
                                         <div className="flex gap-2 text-xs text-amber-300 bg-amber-500/10 p-3 rounded-lg border border-amber-500/20">
                                             <AlertCircle className="w-4 h-4 shrink-0" />
                                             {strategy.routine.notes}
@@ -307,12 +251,28 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied, c
                                     )}
                                 </div>
 
+                                {/* Milestones */}
+                                <div className="space-y-3">
+                                    <h5 className="text-xs font-bold uppercase text-[var(--text-tertiary)] flex items-center gap-2">
+                                        <ArrowRight className="w-4 h-4" /> Milestones
+                                    </h5>
+                                    <div className="space-y-2 text-sm">
+                                        {strategy.milestones.map((m: string, i: number) => (
+                                            <div key={i} className="flex items-center gap-3 bg-white/5 p-3 rounded-lg border border-white/5">
+                                                <div className="w-6 h-6 rounded-full bg-[var(--color-primary)]/20 text-[var(--color-primary)] flex items-center justify-center text-xs font-bold">{i + 1}</div>
+                                                <span className="text-white/80">{m}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Checklist */}
                                 <div className="space-y-3">
                                     <h5 className="text-xs font-bold uppercase text-[var(--text-tertiary)] flex items-center gap-2">
                                         <List className="w-4 h-4" /> Pre-Flight Checklist
                                     </h5>
                                     <ul className="space-y-1 bg-white/5 p-4 rounded-xl border border-white/5">
-                                        {strategy.checklist?.map((item: any, i: number) => (
+                                        {strategy.checklist.map((item: { text: string }, i: number) => (
                                             <li key={i} className="flex items-start gap-3 text-sm">
                                                 <div className="w-4 h-4 mt-0.5 rounded border border-white/20 shrink-0" />
                                                 <span className="text-white/80">{item.text}</span>
@@ -321,13 +281,18 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied, c
                                     </ul>
                                 </div>
 
-                                <GlassButton variant="primary" className="w-full h-12 text-base" onClick={() => setStep('schedule')}>
-                                    Schedule First Session <ArrowRight className="w-4 h-4 ml-2" />
-                                </GlassButton>
+                                <div className="flex gap-2 pt-2">
+                                    <GlassButton variant="ghost" onClick={handleGenerate} disabled={isGenerating} className="flex-shrink-0">
+                                        <RefreshCw className={`w-4 h-4 mr-1 ${isGenerating ? 'animate-spin' : ''}`} /> Regenerate
+                                    </GlassButton>
+                                    <GlassButton variant="primary" className="flex-1 h-12 text-base" onClick={() => setStep('schedule')}>
+                                        Schedule First Session <ArrowRight className="w-4 h-4 ml-2" />
+                                    </GlassButton>
+                                </div>
                             </motion.div>
                         )}
 
-                        {/* STEP 5: SCHEDULE */}
+                        {/* STEP 4: SCHEDULE */}
                         {step === 'schedule' && (
                             <motion.div
                                 key="schedule"
@@ -337,8 +302,8 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied, c
                                 className="flex-1 flex flex-col justify-center space-y-6"
                             >
                                 <div className="text-center space-y-2">
-                                    <h3 className="text-lg font-bold">Let's make it real.</h3>
-                                    <p className="text-sm text-[var(--text-tertiary)]">Commitment is the first step modification.</p>
+                                    <h3 className="text-lg font-bold">Let&apos;s make it real.</h3>
+                                    <p className="text-sm text-[var(--text-tertiary)]">Commitment is the first step to transformation.</p>
                                 </div>
 
                                 <div className="bg-white/5 p-6 rounded-xl space-y-4 border border-white/10">
@@ -360,6 +325,13 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied, c
                                             className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-white focus:border-[var(--color-primary)] outline-none transition-colors"
                                         />
                                     </div>
+                                    {strategy && (
+                                        <div className="text-xs text-[var(--text-tertiary)] flex items-center gap-2">
+                                            <Clock className="w-3 h-3" />
+                                            Session: {strategy.routine.duration_mins} minutes
+                                            {strategy.routine.best_time && ` • Best: ${strategy.routine.best_time}`}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <GlassButton
@@ -380,4 +352,3 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied, c
         </div>
     );
 }
-

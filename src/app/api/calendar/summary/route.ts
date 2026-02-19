@@ -18,9 +18,9 @@ export const GET = secureApiRoute(
 
         const supabase = await createClient();
 
-        // Parallel Fetch: Preferences, Commitments, Goals, Habits, Blocks
-        const [prefsRes, commitmentsRes, goalsRes, habitsRes, blocksRes] = await Promise.all([
-            supabase.from('profile_preferences').select('*').eq('user_id', context.userId).single(),
+        // Parallel Fetch: Profile (not profile_preferences), Commitments, Goals, Habits, Blocks
+        const [profileRes, commitmentsRes, goalsRes, habitsRes, blocksRes] = await Promise.all([
+            supabase.from('profiles').select('*').eq('id', context.userId).single(),
             supabase.from('commitments').select('*').eq('user_id', context.userId).eq('is_active', true),
             supabase.from('goals').select('*').eq('user_id', context.userId).eq('is_paused', false),
             supabase.from('habit_stacks').select('*').eq('user_id', context.userId).eq('enabled', true),
@@ -31,8 +31,7 @@ export const GET = secureApiRoute(
                 .lt('date', endStr)
         ]);
 
-        // If preferences missing (first load), UI/middleware should handle bootstrap, or return empty object
-        const preferences = prefsRes.data || {};
+        const profile = profileRes.data || {};
         const commitments = commitmentsRes.data || [];
         const goals = goalsRes.data || [];
         const habits = habitsRes.data || [];
@@ -84,7 +83,7 @@ export const GET = secureApiRoute(
 
         return apiSuccess({
             range: { start: startStr, end: endStr },
-            preferences, // Now returns the full ProfilePreferences object
+            profile,
             commitments,
             goals,
             habit_stacks: habits,

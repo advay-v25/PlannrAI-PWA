@@ -6,8 +6,6 @@ import { Sparkles, Play, MoreHorizontal, Check, RefreshCw, Layers } from 'lucide
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
-import { apiClient } from '@/lib/api-client';
-
 interface StacksModuleProps {
     stacks: any[]; // HabitStack type
     onUpdate: () => void;
@@ -19,33 +17,29 @@ export function StacksModule({ stacks, onUpdate }: StacksModuleProps) {
     const handleOptimize = async () => {
         setGenerating(true);
         const promise = (async () => {
-            // 1. Get AI Proposal
             const res = await fetch('/api/habit-stacks/assist', {
                 method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ mode: 'build' })
             }).then(r => r.json());
 
             if (res.error) throw new Error(res.error);
 
-            // 2. Check for Patch
-            const options = res.data?.options;
-            if (options && options.length > 0 && options[0].patch) {
-                // Auto-apply the first option for "Build Mode"
-                await apiClient.patch.apply(options[0].patch, 'habit_build_ai');
-            }
-
-            // 3. Refresh
+            // Refresh to show new stacks
             onUpdate();
-            return "New routine constructed.";
+            return res.data?.donna_note || "New routine created!";
         })();
 
         toast.promise(promise, {
-            loading: 'Architecting routine...',
+            loading: 'Donna is designing your routine...',
             success: (data) => {
                 setGenerating(false);
                 return data;
             },
-            error: "Failed to build routine."
+            error: (e) => {
+                setGenerating(false);
+                return "Failed to build routine. Try again.";
+            }
         });
     };
 

@@ -14,7 +14,7 @@ export const POST = secureApiRoute(
             { data: blocks },
             { data: goals }
         ] = await Promise.all([
-            supabase.from('profiles').select('first_name').eq('id', userId).single(),
+            supabase.from('profiles').select('full_name, bio_data').eq('id', userId).single(),
             supabase.from('user_states').select('*').eq('user_id', userId).single(),
             supabase.from('schedule_blocks')
                 .select('*')
@@ -26,12 +26,18 @@ export const POST = secureApiRoute(
 
         if (!profile) return apiError('Profile not found', 404);
 
+        // Extract first name from full_name
+        const firstName = (profile.full_name || 'User').split(' ')[0];
+        const aiProfile = (profile as any).bio_data?.ai_profile || null;
+
         // 2. Construct Prompt Payload
         const promptPayload = {
             user: {
-                name: profile.first_name || 'User',
+                name: firstName,
                 energy: userState?.energy_level || 3,
-                mood: userState?.emotional_state || 'neutral'
+                mood: userState?.emotional_state || 'neutral',
+                archetype: aiProfile?.archetype || null,
+                chronotype: aiProfile?.chronotype || null
             },
             schedule: {
                 count: blocks?.length || 0,
@@ -46,18 +52,23 @@ export const POST = secureApiRoute(
                 channel: 'daily_briefing',
                 input: "Generate Command Briefing",
                 context: promptPayload
-            });
+            }) as any;
 
-            return apiSuccess(result);
+            return apiSuccess({
+                briefing: result?.briefing || `Good morning, ${firstName}. Systems are online.`,
+                tone: result?.tone || 'focused',
+                priorities: result?.priorities || []
+            });
 
         } catch (error: any) {
             console.error("Narrative Generation Failed:", error);
             // Fallback if AI fails
             return apiSuccess({
-                briefing: `Good morning, ${profile.first_name}. Systems are online. You have ${blocks?.length || 0} blocks scheduled today. Stay focused.`,
-                tone: 'focused'
+                briefing: `Good morning, ${firstName}. Systems are online. You have ${blocks?.length || 0} blocks scheduled today. Stay focused.`,
+                tone: 'focused',
+                priorities: []
             });
         }
     },
-    { requireAuth: true, rateLimit: 'ai_generation' }
+    { requireAuth: true, rateLimit: 'ai' }
 );

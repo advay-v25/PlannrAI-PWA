@@ -127,6 +127,7 @@ export const PatchSchema = z.object({
     reason: z.string().max(160).optional(),
 });
 
+// Day Optimization (Flat — no PatchSchema)
 export const DayOptimizationSchema = z.object({
     analysis: z.object({
         energy_state: z.string().describe("User's current energy vibe"),
@@ -138,7 +139,16 @@ export const DayOptimizationSchema = z.object({
         changes_made: z.string().describe("Summary of what we moved and why"),
         reality_check_applied: z.boolean().describe("Did we have to condense tasks?")
     }),
-    patch: PatchSchema // Reusing existing PatchSchema
+    changes: z.array(z.object({
+        action: z.enum(['move', 'create', 'delete']),
+        block_title: z.string(),
+        date: z.string().optional(),
+        new_start_time: z.string().describe('HH:MM format'),
+        new_end_time: z.string().describe('HH:MM format'),
+        block_type: z.enum(['task', 'goal', 'break', 'focus', 'anchor']).optional(),
+        reason: z.string().max(100).optional()
+    })).max(15).describe('Schedule changes to apply'),
+    donna_note: z.string().max(200).optional().describe('Encouraging note about the optimized day')
 });
 
 export const WeeklyReviewOutputSchema = z.object({
@@ -219,12 +229,18 @@ export const BrainDumpResponseSchema = z.object({
     }).optional()
 });
 
+// Calendar Plan Week (Flat — no PatchSchema)
 export const CalendarPlanWeekSchema = z.object({
-    options: z.array(z.object({
-        label: z.string(),
-        description: z.string(),
-        patch: PatchSchema
-    }))
+    plan_summary: z.string().max(200).describe('Brief summary of the planned week'),
+    blocks: z.array(z.object({
+        title: z.string(),
+        date: z.string().describe('YYYY-MM-DD format'),
+        start_time: z.string().describe('HH:MM format'),
+        end_time: z.string().describe('HH:MM format'),
+        block_type: z.enum(['task', 'goal', 'break', 'focus', 'habit', 'anchor']),
+        goal_title: z.string().optional().describe('Associated goal title if applicable')
+    })).max(50).describe('Schedule blocks for the week'),
+    donna_note: z.string().max(200).optional().describe('Brief planning note')
 });
 
 export const ConflictResolutionSchema = z.object({

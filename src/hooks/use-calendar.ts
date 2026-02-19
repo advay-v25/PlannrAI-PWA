@@ -18,7 +18,7 @@ export interface CalendarState {
 
 export interface ConflictError {
     conflict: boolean;
-    options: any[]; // Resolution options
+    options: any[];
     pendingAction: { type: 'create' | 'move'; payload: any };
 }
 
@@ -37,26 +37,24 @@ export function useCalendar() {
         error: null
     });
 
-    // Conflict State (lifted up to expose to UI)
+    // Conflict State
     const [conflictError, setConflictError] = useState<ConflictError | null>(null);
+
+    // AI Undo State
+    const [lastUndoToken, setLastUndoToken] = useState<string | null>(null);
+    const [isOptimizing, setIsOptimizing] = useState(false);
+    const [isPlanning, setIsPlanning] = useState(false);
 
     const { showToast } = useToast();
 
     const loadData = useCallback(async () => {
         setState(prev => ({ ...prev, isLoading: true }));
         try {
-            const dateStr = format(selectedDate, 'yyyy-MM-dd');
-            // For now, fetching single day for blocks, but we might want week range
-            // Let's fetch the whole week to support week view navigation smoothly?
-            // The Summary API supports start/end.
             const startStr = format(startOfWeek(selectedDate, { weekStartsOn: 1 }), 'yyyy-MM-dd');
             const endStr = format(addDays(new Date(startStr), 6), 'yyyy-MM-dd');
 
             const data = await apiClient.schedule.summary(startStr, endStr);
-            console.log('[useCalendar] Loaded data:', data);
 
-            // Filter blocks for current view if needed, or keeping all in state
-            // Let's keep all and let UI filter by day
             setState({
                 blocks: data.blocks || [],
                 goals: data.goals || [],
@@ -75,6 +73,13 @@ export function useCalendar() {
     // Initial Load & Refresh on Date Change
     useEffect(() => {
         loadData();
+    }, [loadData]);
+
+    // Listen for calendar-refresh events (from coach/brain-dump undo)
+    useEffect(() => {
+        const handler = () => loadData();
+        window.addEventListener('calendar-refresh', handler);
+        return () => window.removeEventListener('calendar-refresh', handler);
     }, [loadData]);
 
     // --- Actions ---
@@ -172,7 +177,9 @@ export function useCalendar() {
         }
     };
 
+    // AI: Plan Week
     const planWeek = async (options: { mode: 'balanced' | 'intense' | 'recovery', allow_weekend?: boolean }) => {
+        setIsPlanning(true);
         try {
             const startStr = format(startOfWeek(selectedDate, { weekStartsOn: 1 }), 'yyyy-MM-dd');
             const res: any = await apiClient.schedule.planWeek({
@@ -180,55 +187,65 @@ export function useCalendar() {
                 mode: options.mode,
                 allow_weekend: options.allow_weekend ?? false
             });
-            // The API returns options. The UI should display them. 
-            // We can return them to the caller
-            return res.options;
+
+            // Store undo token
+            if (res.undo_token) setLastUndoToken(res.undo_token);
+
+            await loadData();
+            showToast(`✅ ${res.plan_summary || 'Week planned!'} (${res.blocks_created} blocks)`, 'success');
+            return res;
         } catch (e: any) {
             showToast("Failed to generate plan", "error");
             throw e;
+        } finally {
+            setIsPlanning(false);
         }
     };
 
+    // AI: Optimize Day
     const optimizeDay = async (focus?: string) => {
+        setIsOptimizing(true);
         try {
             const dateStr = format(selectedDate, 'yyyy-MM-dd');
             const res: any = await apiClient.schedule.optimizeDay({ date: dateStr, focus });
-            // API returns analysis, strategy, and options (patches)
-            // We could auto-apply if only 1 option, or return to UI
+
+            // Store undo token
+            if (res.undo_token) setLastUndoToken(res.undo_token);
+
+            await loadData();
+            showToast(`✅ ${res.donna_note || 'Day optimized!'} (${res.changes} changes)`, 'success');
             return res;
         } catch (e: any) {
             showToast("Failed to optimize day", "error");
             throw e;
+        } finally {
+            setIsOptimizing(false);
         }
     };
 
-    const resolveConflict = async (resolutionPatch: any) => {
+    // AI: Undo last calendar action
+    const undoLastCalendarAction = async () => {
+        if (!lastUndoToken) return;
         try {
-            await apiClient.patch.apply(resolutionPatch, 'conflict_resolution');
-            setConflictError(null);
-            showToast("Conflict resolved", "success");
+            await apiClient.post('/api/coach/undo', { undo_token: lastUndoToken });
+            setLastUndoToken(null);
             await loadData();
+            showToast('Undone!', 'success');
         } catch (e: any) {
-            showToast("Failed to apply resolution", "error");
+            showToast("Failed to undo", "error");
         }
     };
 
-    const applyPatch = async (patch: any) => {
-        try {
-            await apiClient.patch.apply(patch, 'manual_plan');
-            showToast("Plan applied", "success");
-            await loadData();
-        } catch (e: any) {
-            showToast("Failed to apply plan", "error");
-        }
+    const dismissConflict = () => {
+        setConflictError(null);
     };
 
-    // Derived State (for UI convenience)
+    // Derived State
     const blocksForSelectedDate = state.blocks.filter(b => isSameDay(new Date(b.date), selectedDate));
 
     return {
         ...state,
-        blocksForSelectedDate, // Helper
+        blocksForSelectedDate,
         selectedDate,
         setSelectedDate,
         viewMode,
@@ -240,9 +257,12 @@ export function useCalendar() {
         deleteBlock,
         planWeek,
         optimizeDay,
-        applyPatch,
+        isOptimizing,
+        isPlanning,
+        lastUndoToken,
+        undoLastCalendarAction,
         conflictError,
-        setConflictError, // to clear it
-        resolveConflict
+        setConflictError,
+        dismissConflict
     };
 }

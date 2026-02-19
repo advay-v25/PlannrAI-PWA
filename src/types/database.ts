@@ -1868,3 +1868,62 @@ export interface GoalCapacity {
   percentage: number;
 }
 
+// AI-generated personality profile built progressively during onboarding
+export interface AIProfile {
+  chronotype: 'early_bird' | 'night_owl' | 'balanced' | null;
+  productivity_archetype: string | null;     // e.g. "Deep Work Specialist", "Multi-Tasker", "Sprinter"
+  energy_pattern: string | null;             // e.g. "Morning Peak", "Afternoon Surge", "Steady State"
+  risk_factors: string[];                    // e.g. ["overcommitment", "insufficient_recovery"]
+  donna_notes: string[];                     // Cumulative AI observations from each step
+  step_insights: Record<string, string>;     // step_id → insight shown at that step
+}
+
+// Onboarding data shape used by the store and API
+export interface OnboardingData {
+  timezone: string;
+  sleep_start: string;
+  sleep_end: string;
+  commitments: Array<{
+    title: string;
+    start_time: string;
+    end_time: string;
+    days_of_week: number[];
+    is_active?: boolean;
+  }>;
+  goals: Array<{
+    title: string;
+    category: string;
+    pillar?: string;
+    importance: string;
+    minutes_per_day: number;
+    days_per_week?: number;
+  }>;
+  energy_level: number;
+  stress_level: number;
+  ai_can_suggest: boolean;
+  ai_can_analyze: boolean;
+  ai_can_draft: boolean;
+  full_name: string;
+  wind_down_mins: number;
+  meals_per_day: number;
+  meal_windows: {
+    breakfast: string;
+    lunch: string;
+    dinner: string;
+  };
+  buffer_config: {
+    gap_mins: number;
+    type: 'light' | 'normal' | 'spacious';
+  };
+  body_preferences: {
+    activity_types: string[];
+    preferred_time: string;
+    duration_mins: number;
+  };
+  scan_skipped: boolean;
+  bio_scan_url?: string;
+  ai_profile?: AIProfile;
+}
+
+export type GoalCategory = 'mind' | 'body' | 'craft';
+export type GoalImportance = 'low' | 'medium' | 'high' | 'critical';

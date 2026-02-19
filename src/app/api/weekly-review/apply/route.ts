@@ -1,7 +1,6 @@
-
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { createClient } from '@/lib/supabase/server';
-import { apiClient } from '@/lib/api-client';
+import { PatchService } from '@/lib/services/patch-service';
 
 export const POST = secureApiRoute(
     async (context, body) => {
@@ -13,7 +12,7 @@ export const POST = secureApiRoute(
         const supabase = await createClient();
 
         try {
-            // 1. Upsert Review (Save State)
+            // 1. Upsert Review (save state)
             const { data: savedReview, error } = await supabase.from('weekly_reviews').upsert({
                 user_id: userId,
                 week_start: review.week_start,
@@ -25,44 +24,35 @@ export const POST = secureApiRoute(
                 lever_action: review.lever_action,
                 user_response: 'accepted',
                 lever_note: review.lever_note,
-                lever_applied: true, // We are applying it now
+                lever_applied: true,
                 updated_at: new Date().toISOString()
             }).select().single();
 
             if (error) {
-                // Check for schema mismatch specifically
                 if (error.message?.includes('could not find the') || error.code === 'PGRST204') {
                     throw new Error(`DB_SCHEMA_MISMATCH: ${error.message}`);
                 }
                 throw error;
             }
 
-            // 2. Apply Patch (Lever)
-            const patch = review.lever_action.payload || review.lever_action.patch;
-            if (patch) {
-                // Use the internal patch API or service to ensure consistency
-                // We'll manually execute strict ops here as a fallback or if PatchService isn't importable
-                // Ideally: await PatchService.applyPatch(userId, patch, 'weekly_review');
+            // 2. Apply Lever Patch via PatchService (unified undo support)
+            const patch = review.lever_action.patch || review.lever_action.payload;
+            let undoToken: string | null = null;
 
-                // For now, implementing the documented "apply" logic directly for robustness
-                const ops = patch.ops || [];
-                for (const op of ops) {
-                    if (op.op === 'update_goal') {
-                        await supabase.from('goals').update(op.fields).eq('id', op.goal_id).eq('user_id', userId);
-                    } else if (op.op === 'update_settings') {
-                        await supabase.from('profiles').update(op.fields).eq('id', userId);
-                    } else if (op.op === 'create_block' || op.op === 'create_event') {
-                        const payload = op.payload || op.event;
-                        await supabase.from('schedule_blocks').insert({
-                            user_id: userId,
-                            ...payload,
-                            status: 'planned'
-                        });
-                    }
+            if (patch && patch.ops && patch.ops.length > 0) {
+                const result = await PatchService.applyPatch(userId, patch, supabase, 'weekly_review');
+                undoToken = result.undo_token;
+
+                if (!result.success && result.errors.length > 0) {
+                    console.warn('[WeeklyReview] Patch errors:', result.errors);
                 }
             }
 
-            return apiSuccess({ success: true, review: savedReview });
+            return apiSuccess({
+                success: true,
+                review: savedReview,
+                undo_token: undoToken
+            });
 
         } catch (e: any) {
             console.error("[WeeklyReview] Apply failed", e);
