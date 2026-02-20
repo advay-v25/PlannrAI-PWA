@@ -81,11 +81,11 @@ export const POST = secureApiRoute(
         } catch (aiErr: any) {
             console.error('[OptimizeDay] AI call failed:', aiErr);
             return apiSuccess({
-                analysis: { energy_state: 'normal', schedule_health: 'balanced', flow_opportunity: 'AI unavailable — try again.' },
+                analysis: { energy_state: 'error', schedule_health: 'balanced', flow_opportunity: `DEBUG: ${aiErr.message}` },
                 strategy: { main_focus: 'No changes', changes_made: 'AI call failed', reality_check_applied: false },
                 changes: 0,
                 undo_token: null,
-                donna_note: `Optimization failed: ${aiErr.message || 'AI service error'}. Try again in a moment.`
+                donna_note: `DEBUG OPTIMIZE ERROR: ${aiErr.message || 'Unknown AI service error'}. Please take a screenshot.`
             });
         }
 

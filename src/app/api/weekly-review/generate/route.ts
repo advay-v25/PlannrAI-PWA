@@ -183,9 +183,21 @@ export const POST = secureApiRoute(
                 dayBreakdown: summaryData.dayBreakdown
             });
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("AI Generation failed", error);
-            return apiError("Weekly review generation failed", 500);
+            // DEBUG: Return 200 with error details so UI displays it instead of crashing
+            return apiSuccess({
+                reality: `DEBUG ERROR: ${error.message || 'Unknown LLM fail'}`,
+                patterns: [
+                    { title: "Debug Data", evidence: "Review generation failed." },
+                    { title: "System Info", evidence: `Error name: ${error.name}` },
+                    { title: "Error Trace", evidence: `${String(error)}` }
+                ],
+                lever: { label: "Fix Error", patch: { ops: [], undoable: false, reason: "Fallback" } },
+                note: `DEBUG: ${error.message}`,
+                metrics: summaryData.metrics,
+                dayBreakdown: summaryData.dayBreakdown
+            });
         }
     },
     { requireAuth: true }
