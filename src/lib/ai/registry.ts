@@ -206,7 +206,7 @@ export const ChannelRegistry: Record<string, ChannelDef> = {
   coach: {
     schema: CoachOutputSchema,
     config: {
-      model: 'llama-3.1-8b-instant',
+      model: 'llama-3.3-70b-versatile',
       temperature: 0.1,
       maxTokens: 1500
     },
@@ -331,7 +331,7 @@ If mode="refuse", refusal is REQUIRED, options should be omitted.`.trim();
   brain_dump: {
     schema: BrainDumpOutputSchema,
     config: {
-      model: 'llama-3.1-8b-instant', // Lower latency is better here
+      model: 'llama-3.3-70b-versatile', // Lower latency is better here
       temperature: 0.2, // Need structured precision
       maxTokens: 1000
     },
@@ -425,7 +425,7 @@ If mode="ask", question is REQUIRED, options can be omitted.`.trim();
 
   onboarding_plan: {
     schema: OnboardingPlanOutputSchema,
-    config: { model: "llama-3.1-8b-instant", temperature: 0.2, maxTokens: 4000 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.2, maxTokens: 4000 },
     fallback: () => ({
       patch: { ops: [], undoable: false, reason: "Fallback" },
       summary: { bullets: ["Plan generation unavailable."] },
@@ -454,7 +454,7 @@ If mode="ask", question is REQUIRED, options can be omitted.`.trim();
   habit_stack: {
     schema: HabitStackOutputSchema,
     config: {
-      model: 'llama-3.1-8b-instant',
+      model: 'llama-3.3-70b-versatile',
       temperature: 0.3,
       maxTokens: 1000
     },
@@ -529,7 +529,7 @@ RULES:
 
   goal_strategy: {
     schema: GoalStrategyOutputSchema,
-    config: { model: "llama-3.1-8b-instant", temperature: 0.4, maxTokens: 2000 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.4, maxTokens: 2000 },
     fallback: () => ({
       strategy_one_liner: "Strategy generation temporarily unavailable.",
       routine: { frequency: 'daily' as const, duration_mins: 30, steps: ["Review goal", "Take one action"], best_time: 'morning' as const },
@@ -598,7 +598,7 @@ RULES:
 
   weekly_review: {
     schema: WeeklyReviewOutputSchema,
-    config: { model: "llama-3.1-8b-instant", temperature: 0.3, maxTokens: 2500 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.3, maxTokens: 2500 },
     fallback: () => ({
       reality: "AI Review temporarily unavailable.",
       patterns: [
@@ -681,7 +681,7 @@ OUTPUT FORMAT (Strict JSON, No Markdown):
 
   onboarding_architect: {
     schema: OnboardingArchitectSchema,
-    config: { model: "llama-3.1-8b-instant", temperature: 0.4, maxTokens: 2000 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.4, maxTokens: 2000 },
     fallback: () => ({
       analysis: {
         chronotype_insight: "Analysis pending.",
@@ -736,7 +736,7 @@ OUTPUT FORMAT (Strict JSON, No Markdown):
 
   onboarding_insight: {
     schema: OnboardingInsightOutputSchema,
-    config: { model: 'llama-3.1-8b-instant', temperature: 0.5, maxTokens: 250 },
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.5, maxTokens: 250 },
     fallback: () => ({
       insight: 'Calibration data received.',
       archetype_signal: 'Processing',
@@ -778,7 +778,7 @@ OUTPUT FORMAT (Strict JSON, No Markdown):
 
   'calendar.optimize': {
     schema: DayOptimizationSchema,
-    config: { model: "llama-3.1-8b-instant", temperature: 0.3, maxTokens: 1500 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.3, maxTokens: 1500 },
     fallback: () => ({
       analysis: {
         energy_state: "Unknown",
@@ -827,7 +827,7 @@ OUTPUT FORMAT (Strict JSON, No Markdown):
 
   'routines.generate': {
     schema: RoutineGenerationSchema,
-    config: { model: "llama-3.1-8b-instant", temperature: 0.5, maxTokens: 1000 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.5, maxTokens: 1000 },
     fallback: () => ({
       routine_type: "break",
       name: "Quick Reset",
@@ -868,7 +868,7 @@ OUTPUT FORMAT (Strict JSON, No Markdown):
 
   'calendar_plan_week': {
     schema: CalendarPlanWeekSchema,
-    config: { model: "llama-3.1-8b-instant", temperature: 0.4, maxTokens: 4000 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.4, maxTokens: 4000 },
     fallback: () => ({
       plan_summary: "Week planning temporarily unavailable.",
       blocks: [],
@@ -927,7 +927,7 @@ Generate 15-30 blocks max. Every block must have a valid date within the week ra
 
   'calendar_optimize_day': {
     schema: DayOptimizationSchema,
-    config: { model: "llama-3.1-8b-instant", temperature: 0.3, maxTokens: 2500 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.3, maxTokens: 2500 },
     fallback: () => ({
       analysis: { energy_state: "normal", schedule_health: 'balanced' as const, flow_opportunity: "No optimization available" },
       strategy: { main_focus: "Keep current schedule", changes_made: "None — fallback active", reality_check_applied: false },
@@ -995,7 +995,7 @@ RULES:
 
   'conflict_resolution': {
     schema: ConflictResolutionSchema,
-    config: { model: "llama-3.1-8b-instant", temperature: 0.3, maxTokens: 1000 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.3, maxTokens: 1000 },
     fallback: () => ({
       options: [{
         label: "Manual Fix",
@@ -1026,7 +1026,7 @@ RULES:
 
   goal_decomposition: {
     schema: GoalDecompositionSchema,
-    config: { model: "llama-3.1-8b-instant", temperature: 0.4, maxTokens: 4000 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.4, maxTokens: 4000 },
     fallback: () => ({
       channel: 'goal_decomposition',
       mode: 'propose',
@@ -1071,7 +1071,7 @@ RULES:
 
   daily_briefing: {
     schema: DailyBriefingOutputSchema,
-    config: { model: 'llama-3.1-8b-instant', temperature: 0.6, maxTokens: 600 },
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.6, maxTokens: 600 },
     fallback: (input, ctx) => ({
       briefing: `Good morning. You have ${ctx?.schedule?.count || 0} blocks scheduled today. Stay focused.`,
       tone: 'focused' as const,
