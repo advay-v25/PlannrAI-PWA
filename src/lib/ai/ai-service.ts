@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { z } from 'zod';
 import { ChannelRegistry } from '@/lib/ai/registry';
 import { JSONReliability } from '@/lib/ai/json-reliability';
-import { groqChat } from '@/lib/ai/groq-client';
+import { openRouterChat } from '@/lib/ai/openrouter-client';
 
 // --- Configuration ---
 const AI_TIMEOUT_MS = 30_000;
@@ -275,17 +275,18 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
                 const timeoutId = setTimeout(() => abortController?.abort(), AI_TIMEOUT_MS);
 
                 try {
-                    rawText = await groqChat({
-                        model: channelDef.config.model,
-                        messages: [
+                    const result = await openRouterChat(
+                        [
                             { role: 'system', content: systemMsg },
                             { role: 'user', content: userMsg }
                         ],
-                        temperature: channelDef.config.temperature,
-                        max_tokens: channelDef.config.maxTokens,
-                        userId: userId,
-                        signal: abortController.signal,
-                    });
+                        {
+                            model: channelDef.config.model,
+                            temperature: channelDef.config.temperature,
+                            maxTokens: channelDef.config.maxTokens
+                        }
+                    );
+                    rawText = result.content;
                 } finally {
                     clearTimeout(timeoutId);
                 }
