@@ -13,34 +13,21 @@ export const POST = secureApiRoute(
         const targetDate = date ? parseISO(date) : startOfDay(new Date());
         const dateStr = format(targetDate, 'yyyy-MM-dd');
 
-        // 1. Fetch Context with REAL IDs
-        const [currentBlocksRes, goalsRes, anchorsRes, prefsRes] = await Promise.all([
-            supabase.from('schedule_blocks')
-                .select('id, title, context, start_time, end_time, block_type, status, pillar, goal_id, is_focus, date')
-                .eq('user_id', userId)
-                .eq('date', dateStr)
-                .neq('status', 'cancelled')
-                .order('start_time'),
-            supabase.from('goals')
-                .select('id, title, importance, category, status, pillar')
-                .eq('user_id', userId)
-                .eq('is_paused', false),
-            supabase.from('commitments')
-                .select('id, title, start_time, end_time, days_of_week')
-                .eq('user_id', userId)
-                .eq('is_active', true),
-            supabase.from('profile_preferences')
-                .select('sleep_start, wake_time, buffer_min')
-                .eq('user_id', userId)
-                .maybeSingle()
-        ]);
+        // 1. Fetch Deep Context
+        const { buildFeatureContext } = await import('@/lib/services/feature-context');
+        const featureCtx = await buildFeatureContext(userId, supabase, {
+            includeChatHistory: true,
+            includeRecentDumps: true,
+            includeHabitStacks: true,
+            weekDays: 1 // optimize day only needs immediate schedule
+        });
 
-        const blocks = currentBlocksRes.data || [];
-        const goals = goalsRes.data || [];
-        const anchors = anchorsRes.data || [];
-        const prefs = prefsRes.data || {};
+        const blocks = featureCtx.schedule.filter((b: any) => b.date === dateStr);
+        const goals = featureCtx.goals;
+        const anchors = featureCtx.anchors;
+        const prefs = featureCtx.preferences;
 
-        // 2. Call AI with real block IDs in context
+        // 2. Call AI with full holistic context
         let aiResponse: any;
         try {
             const { executeAI } = await import('@/lib/ai/ai-service');
@@ -52,9 +39,18 @@ export const POST = secureApiRoute(
                     date: dateStr,
                     focus,
                     profile: prefs,
+                    user_state: featureCtx.userState,
+                    capacity: featureCtx.capacity,
+                    recent_brain_dumps: featureCtx.recentDumps,
+                    recent_coach_chats: featureCtx.chatHistory,
+                    habit_stacks: featureCtx.habitStacks?.map((h: any) => ({
+                        name: h.name || h.trigger_habit,
+                        preferred_window: h.preferred_window,
+                        duration_mins: h.action_duration_mins
+                    })),
                     blocks: blocks.map((b: any) => ({
                         id: b.id,
-                        title: b.title || b.context || 'Untitled',
+                        title: b.title || 'Untitled',
                         start_time: b.start_time,
                         end_time: b.end_time,
                         block_type: b.block_type || 'task',
@@ -68,7 +64,8 @@ export const POST = secureApiRoute(
                         title: g.title,
                         importance: g.importance,
                         category: g.category,
-                        pillar: g.pillar
+                        pillar: g.pillar,
+                        ai_plan: g.ai_plan // Ensure goals milestones are visible
                     })),
                     anchors: anchors.map((a: any) => ({
                         title: a.title,

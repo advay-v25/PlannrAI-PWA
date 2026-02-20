@@ -5,6 +5,7 @@ import { startOfDay, addDays, subDays, format } from 'date-fns';
 export interface FeatureContextOptions {
     includeChatHistory?: boolean;
     includeRecentDumps?: boolean;
+    includeHabitStacks?: boolean;
     includeWeekSchedule?: boolean;
     weekDays?: number; // default 3
 }
@@ -19,6 +20,7 @@ export interface FeatureContext {
     preferences: any;
     chatHistory?: { role: string; content: string }[];
     recentDumps?: string[];
+    habitStacks?: any[];
     capacity: {
         wake_time: string;
         sleep_time: string;
@@ -42,6 +44,7 @@ export async function buildFeatureContext(
     const {
         includeChatHistory = false,
         includeRecentDumps = false,
+        includeHabitStacks = false,
         weekDays = 3,
     } = options;
 
@@ -54,13 +57,13 @@ export async function buildFeatureContext(
     const queries: Promise<any>[] = [
         // 0. Schedule (next N days)
         Promise.resolve(supabase.from('schedule_blocks')
-            .select('id, title, start_time, end_time, is_focus, pillar, date, block_type, goal_id, status')
+            .select('id, title, start_time, end_time, is_focus, pillar, date, block_type, goal_id, status, is_fixed, commitment_id')
             .eq('user_id', userId)
             .gte('date', startStr)
             .lte('date', endStr)
             .neq('status', 'cancelled')
             .order('start_time')
-            .limit(60)),
+            .limit(100)),
 
         // 1. Goals (Active)
         Promise.resolve(supabase.from('goals')
@@ -92,27 +95,41 @@ export async function buildFeatureContext(
     ];
 
     // 5. Chat History (optional)
+    let chatHistoryPromise = Promise.resolve({ data: null });
     if (includeChatHistory) {
-        queries.push(
-            Promise.resolve(supabase.from('coach_threads')
-                .select('id, coach_messages(role, content, created_at)')
-                .eq('user_id', userId)
-                .order('updated_at', { ascending: false })
-                .limit(1)
-                .maybeSingle())
-        );
+        chatHistoryPromise = supabase.from('coach_threads')
+            .select('id, coach_messages(role, content, created_at)')
+            .eq('user_id', userId)
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle() as any;
     }
 
     // 6. Recent Dumps (optional)
+    let recentDumpsPromise = Promise.resolve({ data: [] });
     if (includeRecentDumps) {
-        queries.push(
-            Promise.resolve(supabase.from('brain_dumps')
-                .select('content, created_at')
-                .eq('user_id', userId)
-                .order('created_at', { ascending: false })
-                .limit(3))
-        );
+        recentDumpsPromise = supabase.from('brain_dumps')
+            .select('content, created_at')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(3) as any;
     }
+
+    // 7. Habit Stacks (optional)
+    let habitStacksPromise = Promise.resolve({ data: [] });
+    if (includeHabitStacks) {
+        habitStacksPromise = supabase.from('habit_stacks')
+            .select('name, trigger_habit, action_habit, preferred_window, action_duration_mins')
+            .eq('user_id', userId)
+            .eq('enabled', true) as any;
+    }
+
+    // Execute optional queries
+    const [chatRes, dumpRes, habitRes] = await Promise.all([
+        chatHistoryPromise,
+        recentDumpsPromise,
+        habitStacksPromise
+    ]);
 
     const results = await Promise.all(queries);
 
@@ -124,8 +141,8 @@ export async function buildFeatureContext(
 
     // Chat history processing
     let chatHistory: { role: string; content: string }[] = [];
-    if (includeChatHistory && results[5]?.data) {
-        const thread = results[5].data;
+    if (includeChatHistory && chatRes?.data) {
+        const thread = chatRes.data as any;
         const msgs = thread?.coach_messages as any[] || [];
         chatHistory = msgs
             .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
@@ -136,9 +153,14 @@ export async function buildFeatureContext(
     // Recent dumps processing
     let recentDumps: string[] = [];
     if (includeRecentDumps) {
-        const dumpIdx = includeChatHistory ? 6 : 5;
-        const dumpData = results[dumpIdx]?.data || [];
+        const dumpData = dumpRes?.data || [];
         recentDumps = dumpData.map((d: any) => d.content);
+    }
+
+    // Habit Stacks processing
+    let habitStacks: any[] = [];
+    if (includeHabitStacks) {
+        habitStacks = habitRes?.data || [];
     }
 
     // --- Capacity Calculation ---
@@ -180,6 +202,7 @@ export async function buildFeatureContext(
         preferences: prefsData,
         chatHistory: includeChatHistory ? chatHistory : undefined,
         recentDumps: includeRecentDumps ? recentDumps : undefined,
+        habitStacks: includeHabitStacks ? habitStacks : undefined,
         capacity: {
             wake_time: wakeTime,
             sleep_time: sleepTime,

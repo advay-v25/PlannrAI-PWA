@@ -39,33 +39,20 @@ export const POST = secureApiRoute(
         const endStr = format(endDate, 'yyyy-MM-dd');
 
         try {
-            // 3. Fetch Full Context
-            const [goalsRes, habitsRes, existingBlocksRes, anchorsRes, prefsRes] = await Promise.all([
-                supabase.from('goals').select('id, title, category, importance, minutes_per_day, days_per_week, energy_demand, pillar')
-                    .eq('user_id', userId).eq('is_paused', false),
-                supabase.from('habit_stacks').select('id, name, trigger_habit, action_habit, preferred_window, action_duration_mins')
-                    .eq('user_id', userId).eq('enabled', true),
-                supabase.from('schedule_blocks')
-                    .select('id, date, start_time, end_time, context, title, block_type, status, pillar')
-                    .eq('user_id', userId)
-                    .gte('date', startStr)
-                    .lt('date', endStr)
-                    .neq('status', 'cancelled'),
-                supabase.from('commitments')
-                    .select('id, title, start_time, end_time, days_of_week')
-                    .eq('user_id', userId)
-                    .eq('is_active', true),
-                supabase.from('profile_preferences')
-                    .select('sleep_start, wake_time, buffer_min, weekend_intensity, allow_weekend_work')
-                    .eq('user_id', userId)
-                    .maybeSingle()
-            ]);
+            // 3. Fetch Deep Context
+            const { buildFeatureContext } = await import('@/lib/services/feature-context');
+            const featureCtx = await buildFeatureContext(userId, supabase, {
+                includeChatHistory: true,
+                includeRecentDumps: true,
+                includeHabitStacks: true,
+                weekDays: 7
+            });
 
-            const existingBlocks = existingBlocksRes.data || [];
-            const goals = goalsRes.data || [];
-            const habits = habitsRes.data || [];
-            const anchors = anchorsRes.data || [];
-            const prefs = prefsRes.data || {};
+            const existingBlocks = featureCtx.schedule;
+            const goals = featureCtx.goals;
+            const habits = featureCtx.habitStacks || [];
+            const anchors = featureCtx.anchors;
+            const prefs = featureCtx.preferences;
 
             // ---- Safely determine kept blocks (excluding blocks to be replaced) ----
             const aiBlockIds = existingBlocks
@@ -86,6 +73,10 @@ export const POST = secureApiRoute(
                     mode,
                     allow_weekend,
                     profile: prefs,
+                    user_state: featureCtx.userState,
+                    capacity: featureCtx.capacity,
+                    recent_brain_dumps: featureCtx.recentDumps,
+                    recent_coach_chats: featureCtx.chatHistory,
                     goals: goals.map((g: any) => ({
                         id: g.id,
                         title: g.title,
