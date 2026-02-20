@@ -146,22 +146,22 @@ export const DayOptimizationSchema = z.object({
         new_start_time: z.string().describe('HH:MM format'),
         new_end_time: z.string().describe('HH:MM format'),
         block_type: z.enum(['task', 'goal', 'break', 'focus', 'anchor']).optional(),
-        reason: z.string().max(100).optional()
-    })).max(15).describe('Schedule changes to apply'),
-    donna_note: z.string().max(200).optional().describe('Encouraging note about the optimized day')
+        reason: z.string().optional()
+    })).describe('Schedule changes to apply'),
+    donna_note: z.string().optional().describe('Encouraging note about the optimized day')
 });
 
 export const WeeklyReviewOutputSchema = z.object({
-    reality: z.string().max(300).describe('Narrative summary of what actually happened this week (max 300 chars)'),
+    reality: z.string().describe('Narrative summary of what actually happened this week (max 300 chars)'),
     patterns: z.array(z.object({
-        title: z.string().max(60),
-        evidence: z.string().max(120)
-    })).length(3).describe('Exactly 3 behavioral patterns with supporting data'),
+        title: z.string(),
+        evidence: z.string()
+    })).describe('Exactly 3 behavioral patterns with supporting data'),
     lever: z.object({
-        label: z.string().max(80).describe('Short action label (max 80 chars)'),
+        label: z.string().describe('Short action label (max 80 chars)'),
         patch: PatchSchema
     }).describe('One executable lever that changes the system'),
-    note: z.string().max(160).describe('Encouraging closing remark (max 160 chars)')
+    note: z.string().describe('Encouraging closing remark (max 160 chars)')
 });
 
 export const CoachResponseSchema = z.object({
@@ -231,7 +231,7 @@ export const BrainDumpResponseSchema = z.object({
 
 // Calendar Plan Week (Flat — no PatchSchema)
 export const CalendarPlanWeekSchema = z.object({
-    plan_summary: z.string().max(200).describe('Brief summary of the planned week'),
+    plan_summary: z.string().describe('Brief summary of the planned week'),
     blocks: z.array(z.object({
         title: z.string(),
         date: z.string().describe('YYYY-MM-DD format'),
@@ -239,8 +239,8 @@ export const CalendarPlanWeekSchema = z.object({
         end_time: z.string().describe('HH:MM format'),
         block_type: z.enum(['task', 'goal', 'break', 'focus', 'habit', 'anchor']),
         goal_title: z.string().optional().describe('Associated goal title if applicable')
-    })).max(50).describe('Schedule blocks for the week'),
-    donna_note: z.string().max(200).optional().describe('Brief planning note')
+    })).describe('Schedule blocks for the week'),
+    donna_note: z.string().optional().describe('Brief planning note')
 });
 
 export const ConflictResolutionSchema = z.object({

@@ -27,6 +27,9 @@ interface WeeklyMetrics {
     topPillar: string;
     neglectedPillar: string;
     pillarMinutes?: Record<string, number>;
+    habitCompletionRate?: number;
+    brainDumpCount?: number;
+    avgStress?: number;
 }
 
 interface Pattern {
@@ -303,6 +306,28 @@ export default function WeeklyReviewPage() {
                 />
             </div>
 
+            {/* DEEP METRICS ROW */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <MetricCard
+                    icon={<Check className="w-4 h-4" />}
+                    label="Habits"
+                    value={`${metrics?.habitCompletionRate || 0}%`}
+                    color={metrics?.habitCompletionRate && metrics.habitCompletionRate >= 70 ? 'var(--color-success)' : 'var(--color-primary)'}
+                />
+                <MetricCard
+                    icon={<Brain className="w-4 h-4" />}
+                    label="Brain Dumps"
+                    value={`${metrics?.brainDumpCount || 0}`}
+                    color="var(--color-mind)"
+                />
+                <MetricCard
+                    icon={<Flame className="w-4 h-4" />}
+                    label="Avg Stress"
+                    value={`${metrics?.avgStress !== undefined ? metrics.avgStress : '—'}`}
+                    color={metrics?.avgStress && metrics.avgStress > 0.6 ? 'var(--color-error)' : 'var(--color-warning)'}
+                />
+            </div>
+
             {/* DAY-BY-DAY STRIP */}
             {Object.keys(dayBreakdown).length > 0 && (
                 <div className="flex gap-1.5 overflow-x-auto pb-1">
@@ -314,8 +339,8 @@ export default function WeeklyReviewPage() {
                                     {format(new Date(date + 'T00:00:00'), 'EEE')}
                                 </span>
                                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${rate >= 80 ? 'bg-[var(--color-success)]/10 text-[var(--color-success)]' :
-                                        rate >= 40 ? 'bg-[var(--color-warning)]/10 text-[var(--color-warning)]' :
-                                            'bg-[var(--color-error)]/10 text-[var(--color-error)]'
+                                    rate >= 40 ? 'bg-[var(--color-warning)]/10 text-[var(--color-warning)]' :
+                                        'bg-[var(--color-error)]/10 text-[var(--color-error)]'
                                     }`}>
                                     {rate}%
                                 </div>

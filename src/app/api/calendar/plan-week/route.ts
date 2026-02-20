@@ -67,37 +67,19 @@ export const POST = secureApiRoute(
             const anchors = anchorsRes.data || [];
             const prefs = prefsRes.data || {};
 
-            // ---- CRITICAL FIX: Clear old AI-generated blocks to prevent pile-up ----
-            // Only delete blocks that are still 'planned' (not done/in-progress/skipped)
-            // Keep manually-created and completed blocks
+            // ---- Safely determine kept blocks (excluding blocks to be replaced) ----
             const aiBlockIds = existingBlocks
-                .filter((b: any) => b.status === 'planned' && b.block_type !== 'anchor')
+                .filter((b: any) => b.status === 'planned' && b.block_type !== 'anchor' && !b.is_fixed && !b.commitment_id)
                 .map((b: any) => b.id);
 
-            if (aiBlockIds.length > 0) {
-                await supabase
-                    .from('schedule_blocks')
-                    .delete()
-                    .in('id', aiBlockIds);
-            }
-
-            // Re-fetch what's left (completed/in-progress blocks + anchors)
-            const { data: remainingBlocks } = await supabase
-                .from('schedule_blocks')
-                .select('id, date, start_time, end_time, title, block_type, status, pillar')
-                .eq('user_id', userId)
-                .gte('date', startStr)
-                .lt('date', endStr)
-                .neq('status', 'cancelled');
-
-            const keptBlocks = remainingBlocks || [];
+            const keptBlocks = existingBlocks.filter((b: any) => !aiBlockIds.includes(b.id));
 
             // 4. Call AI
             const { executeAI } = await import('@/lib/ai/ai-service');
 
             const aiResponse = await executeAI(userId, {
                 channel: 'calendar_plan_week',
-                input: `Plan week starting ${startStr}. Mode: ${mode}. Weekend allowed: ${allow_weekend}`,
+                input: `Plan week starting ${startStr}. Mode: ${mode}. Weekend allowed: ${allow_weekend}. Ensure 0% overlap with existing kept_blocks and anchors. NEVER modify, overlay, or delete locked/anchor blocks.`,
                 context: {
                     week_start: startStr,
                     week_end: endStr,
@@ -112,7 +94,8 @@ export const POST = secureApiRoute(
                         minutes_per_day: g.minutes_per_day,
                         days_per_week: g.days_per_week,
                         energy_demand: g.energy_demand,
-                        pillar: g.pillar
+                        pillar: g.pillar,
+                        ai_plan: g.ai_plan
                     })),
                     existing_habits: habits.map((h: any) => ({
                         name: h.name || h.trigger_habit,
@@ -135,6 +118,28 @@ export const POST = secureApiRoute(
 
             // 5. Convert AI blocks to PatchService ops — with overlap prevention
             const aiBlocks = aiResponse?.blocks || [];
+
+            // CRITICAL: Prevent wipeout on AI fallback
+            if (aiBlocks.length === 0) {
+                return apiSuccess({
+                    plan_summary: aiResponse?.plan_summary || 'Week planning temporarily unavailable.',
+                    blocks_created: 0,
+                    blocks_cleared: 0,
+                    total_blocks: 0,
+                    blocks_skipped_overlap: 0,
+                    undo_token: null,
+                    donna_note: aiResponse?.donna_note || 'AI planning is offline — add blocks manually for now.'
+                });
+            }
+
+            // Only clear old blocks now that we know we have new ones to replace them
+            if (aiBlockIds.length > 0) {
+                await supabase
+                    .from('schedule_blocks')
+                    .delete()
+                    .in('id', aiBlockIds);
+            }
+
             const patchOps: any[] = [];
 
             // Build occupied time map per day for overlap checking

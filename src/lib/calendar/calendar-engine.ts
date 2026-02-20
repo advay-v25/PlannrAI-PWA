@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { ScheduleBlock } from '@/types/database';
 import { ConflictService } from '@/lib/scheduling/conflict-service';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { addMinutes, parseISO } from 'date-fns';
+import { addMinutes, parseISO, format } from 'date-fns';
 
 export class CalendarEngine {
 
@@ -159,6 +159,159 @@ export class CalendarEngine {
             .eq('user_id', userId)
             .eq('date', date);
         return data || [];
+    }
+
+    private static parseOpTime(op: any): { start: Date, end: Date, date: string } | null {
+        if (!op) return null;
+        const payload = op.payload || op;
+        const date = payload.date || op.date;
+        const start_time = payload.start_time || payload.start || op.to_start;
+        const end_time = payload.end_time || payload.end || op.to_end;
+
+        if (!date || !start_time || !end_time) return null;
+
+        try {
+            return {
+                date,
+                start: parseISO(`${date}T${start_time}`),
+                end: parseISO(`${date}T${end_time}`)
+            };
+        } catch (e) {
+            return null;
+        }
+    }
+
+    /**
+     * Validates a patch by simulating its application in memory against the DB schedule.
+     * Throws an error if any operation results in a deterministic constraint violation (e.g. moving an anchor)
+     * or causes an overlap.
+     */
+    static async validatePatch(userId: string, patch: any, supabase: SupabaseClient): Promise<{ valid: boolean, errors: string[] }> {
+        const errors: string[] = [];
+        if (!patch?.ops || !Array.isArray(patch.ops)) return { valid: true, errors: [] };
+
+        // 1. Gather all affected dates
+        const dateSet = new Set<string>();
+        for (const op of patch.ops) {
+            const time = this.parseOpTime(op);
+            if (time) dateSet.add(time.date);
+
+            // For updates/moves/deletes, we also need to check the original block's date
+            if (op.event_id && (op.op === 'update_event' || op.op === 'move_event' || op.op === 'delete_event' || op.op === 'update' || op.op === 'move' || op.op === 'delete')) {
+                const { data: orig } = await supabase.from('schedule_blocks').select('date').eq('id', op.event_id).single();
+                if (orig?.date) dateSet.add(orig.date);
+            }
+        }
+
+        if (dateSet.size === 0) return { valid: true, errors: [] };
+
+        // 2. Fetch all relevant blocks for those dates
+        const existingBlocks: ScheduleBlock[] = [];
+        for (const date of dateSet) {
+            const blocks = await this.fetchDaySchedule(userId, date, supabase);
+            existingBlocks.push(...blocks);
+        }
+
+        // 3. Simulate Operations In-Memory
+        let simulatedSchedule = [...existingBlocks];
+
+        for (const op of patch.ops) {
+            const opType = op.op;
+
+            if (opType === 'create_event' || opType === 'create') {
+                const event = op.event || op.payload || {};
+                const time = this.parseOpTime(op);
+                if (!time) {
+                    errors.push(`Create op missing time constraints.`);
+                    continue;
+                }
+                simulatedSchedule.push({
+                    id: `sim_${Math.random()}`,
+                    ...event,
+                    date: time.date,
+                    start_time: format(time.start, 'HH:mm'),
+                    end_time: format(time.end, 'HH:mm'),
+                    user_id: userId
+                } as unknown as ScheduleBlock);
+
+            } else if (opType === 'update_event' || opType === 'move_event' || opType === 'update' || opType === 'move') {
+                const blockIndex = simulatedSchedule.findIndex(b => b.id === op.event_id);
+                if (blockIndex === -1) {
+                    errors.push(`Block ${op.event_id} not found for update.`);
+                    continue;
+                }
+                const orig = simulatedSchedule[blockIndex];
+
+                // Enforce deterministic rules: anchors cannot CHANGE their time
+                const updates = op.fields || op.payload || {};
+                let newStart = orig.start_time;
+                let newEnd = orig.end_time;
+                let newDate = orig.date;
+
+                if (op.to_start) newStart = op.to_start;
+                if (op.to_end) newEnd = op.to_end;
+                if (op.date) newDate = op.date;
+
+                if (updates.start_time) newStart = updates.start_time;
+                if (updates.end_time) newEnd = updates.end_time;
+                if (updates.date) newDate = updates.date;
+
+                const isTimeChanged = newStart !== orig.start_time || newEnd !== orig.end_time || newDate !== orig.date;
+                if ((orig.is_fixed || orig.commitment_id) && (opType.includes('move') || isTimeChanged)) {
+                    errors.push(`Cannot move locked anchor block: ${orig.title}`);
+                    continue;
+                }
+
+                simulatedSchedule[blockIndex] = {
+                    ...orig,
+                    ...updates,
+                    date: newDate,
+                    start_time: newStart,
+                    end_time: newEnd
+                };
+
+            } else if (opType === 'delete_event' || opType === 'delete') {
+                const block = simulatedSchedule.find(b => b.id === op.event_id);
+                if (block && (block.is_fixed || block.commitment_id)) {
+                    errors.push(`Cannot delete locked anchor block: ${block.title}`);
+                    continue;
+                }
+                simulatedSchedule = simulatedSchedule.filter(b => b.id !== op.event_id);
+            }
+        }
+
+        if (errors.length > 0) return { valid: false, errors };
+
+        // 4. Verify no overlaps after simulation
+        // Group by day to check efficiently
+        const groupedByDay: Record<string, ScheduleBlock[]> = {};
+        for (const b of simulatedSchedule) {
+            if (!groupedByDay[b.date]) groupedByDay[b.date] = [];
+            groupedByDay[b.date].push(b);
+        }
+
+        for (const [date, blocks] of Object.entries(groupedByDay)) {
+            // Sort by start time
+            const sorted = blocks.sort((a, b) => {
+                const sA = parseISO(`${a.date}T${a.start_time}`).getTime();
+                const sB = parseISO(`${b.date}T${b.start_time}`).getTime();
+                return sA - sB;
+            });
+
+            for (let i = 0; i < sorted.length - 1; i++) {
+                const b1 = sorted[i];
+                const b2 = sorted[i + 1];
+
+                const b1End = parseISO(`${b1.date}T${b1.end_time}`).getTime();
+                const b2Start = parseISO(`${b2.date}T${b2.start_time}`).getTime();
+
+                if (b1End > b2Start) {
+                    errors.push(`Overlap detected on ${date} between "${b1.title}" (${b1.start_time}-${b1.end_time}) and "${b2.title}" (${b2.start_time}-${b2.end_time}).`);
+                }
+            }
+        }
+
+        return { valid: errors.length === 0, errors };
     }
 
     // --- Patch Application (Shared with Coach) ---

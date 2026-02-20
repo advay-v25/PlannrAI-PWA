@@ -137,7 +137,7 @@ export const POST = secureApiRoute(
         // Calculate Weekly Resonance Summary
         const weeklyResonance = intel.goals.map(g => {
             const current = intel.weeklyGoalCounts[g.id] || 0;
-            const target = g.days_per_week;
+            const target = g.days_per_week || 0;
             return `- ${g.title}: ${current}/${target} sessions this week. ${current >= target ? 'TARGET REACHED' : 'UNFINISHED'}`;
         }).join('\n');
 
@@ -193,7 +193,8 @@ OUTPUT FORMAT (JSON):
             const result = await JSONReliability.validateOrRepair(
                 rawText,
                 OptimizeDayOutputSchema,
-                'llama-3.3-70b-versatile'
+                'llama-3.3-70b-versatile',
+                "Ensure JSON strictly matches OptimizeDayOutputSchema."
             );
 
             const optimizedBlocks = result.optimizedBlocks;
@@ -209,24 +210,36 @@ OUTPUT FORMAT (JSON):
 
             if (!optimizedBlocks || !Array.isArray(optimizedBlocks)) {
                 console.error("AI returned invalid format. Result keys:", Object.keys(result));
-                return apiError(API_ERROR_CODES.VALIDATION_ERROR, "AI failed to generate a valid schedule. Try again.", 422, { result });
+                return apiError("AI failed to generate a valid schedule. Try again.", 422, API_ERROR_CODES.VALIDATION_ERROR, { result });
             }
 
-            // DB Transaction
-            const { error: deleteError } = await supabase
+            // --- DEPRECATED DIRECT DB MUTATION ---
+            // Previously, this deleted all non-finished blocks and brute-inserted new ones.
+            // Now, we map it to Patch Ops and run it through `PatchService` (which uses `CalendarEngine`).
+            // ----------------------------------------
+            const { PatchService } = await import('@/lib/services/patch-service');
+
+            // Find existing planned blocks to delete
+            const { data: existingBlocks } = await supabase
                 .from('schedule_blocks')
-                .delete()
+                .select('id, is_fixed, commitment_id, status')
                 .eq('user_id', context.userId)
                 .eq('date', date)
                 .neq('status', 'done');
 
-            if (deleteError) {
-                console.error("Delete error:", deleteError);
-                throw deleteError;
+            const patchOps: any[] = [];
+
+            // 1. Delete all non-fixed planned blocks
+            if (existingBlocks) {
+                for (const b of existingBlocks) {
+                    if (!b.is_fixed && !b.commitment_id && b.status === 'planned') {
+                        patchOps.push({ op: 'delete_event', event_id: b.id });
+                    }
+                }
             }
 
-            const newBlocks = optimizedBlocks.map((b: any) => {
-                // Normalize time to HH:MM (strip AM/PM if present)
+            // 2. Insert new blocks
+            for (const b of optimizedBlocks) {
                 const normalizeTime = (t: string) => {
                     if (!t) return null;
                     const clean = t.replace(/\s*[AP]M/i, '').trim();
@@ -239,55 +252,61 @@ OUTPUT FORMAT (JSON):
 
                 const start = normalizeTime(b.start_time);
                 const end = normalizeTime(b.end_time);
-
-                // Strictly map to allowed DB types
                 const allowedTypes = ['anchor', 'goal', 'meal', 'buffer', 'routine', 'sleep', 'wind_down', 'flex'];
                 const safeType = allowedTypes.includes(b.type) ? b.type : 'goal';
 
-                return {
-                    user_id: context.userId,
-                    date: date,
-                    start_time: start,
-                    end_time: end,
-                    title: b.title,
-                    context: b.title,
-                    block_type: safeType,
-                    status: 'planned',
-                    goal_id: b.id
-                };
-            }).map((b: any) => {
-                // Ensure goal_id is a valid UUID if present
-                if (!b.goal_id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(b.goal_id)) {
-                    return { ...b, goal_id: null };
+                if (start && end) {
+                    let safeGoalId = null;
+                    if (b.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(b.id)) {
+                        safeGoalId = b.id;
+                    }
+
+                    patchOps.push({
+                        op: 'create_event',
+                        payload: {
+                            date: date,
+                            start_time: start,
+                            end_time: end,
+                            title: b.title,
+                            block_type: safeType,
+                            status: 'planned',
+                            goal_id: safeGoalId
+                        }
+                    });
                 }
-                return b;
-            }).filter(b => b.start_time && b.end_time); // Safety filter
-
-            if (newBlocks.length === 0 && optimizedBlocks.length > 0) {
-                console.error("No valid blocks could be parsed from AI response. Raw blocks sample:", optimizedBlocks.slice(0, 2));
-                return apiError(API_ERROR_CODES.VALIDATION_ERROR, `Failed to parse time format from AI. Please try again.`, 422, { optimizedBlocks });
             }
 
-            const { data: insertedData, error: insertError } = await supabase
-                .from('schedule_blocks')
-                .insert(newBlocks)
-                .select();
-
-            if (insertError) {
-                console.error("Insert error:", insertError);
-                throw insertError;
+            // 3. Apply Patch
+            if (patchOps.length === 0 && optimizedBlocks.length > 0) {
+                return apiError(`Failed to parse time format from AI. Please try again.`, 422, API_ERROR_CODES.VALIDATION_ERROR, { optimizedBlocks });
             }
 
-            return apiSuccess({
-                optimizedBlocks: insertedData,
-                summary: result.summary,
-                message: warningMessage || "Schedule optimized.",
-                droppedGoals
-            });
+            const patchResult = await PatchService.applyPatch(
+                context.userId,
+                { ops: patchOps, reason: `Optimize day: ${date}`, undoable: true, scope: 'day' },
+                supabase,
+                'calendar_optimize_day'
+            );
+
+            if (!patchResult.success) {
+                console.warn("[Optimization] Patch validation rejected AI proposal:", patchResult.errors);
+                return apiError(`AI proposed an invalid schedule that overlaps with locked blocks: ${patchResult.errors[0]}`, 422, API_ERROR_CODES.VALIDATION_ERROR);
+            }
+
+            return apiSuccess(
+                {
+                    optimizedBlocks: optimizedBlocks, // Send back original proposal for UI
+                    summary: result.summary,
+                    message: warningMessage || "Schedule optimized.",
+                    droppedGoals,
+                    undo_token: patchResult.undo_token
+                },
+                200
+            );
 
         } catch (error: any) {
             console.error("Critical Optimization Failure:", error);
-            return apiError(API_ERROR_CODES.INTERNAL_ERROR, error.message || "Optimization failed. Try again.", 422, { stack: error.stack });
+            return apiError(error.message || "Optimization failed. Try again.", 422, API_ERROR_CODES.INTERNAL_ERROR, { stack: error.stack });
         }
     },
     { requireAuth: true, rateLimit: 'ai', auditAction: 'ai_optimize_day' }
@@ -296,13 +315,13 @@ OUTPUT FORMAT (JSON):
 function subtractMinutes(time: string, mins: number): string {
     const [h, m] = time.split(':').map(Number);
     const date = new Date();
-    date.setHours(h, m - mins, 0);
+    date.setHours(h || 0, (m || 0) - mins, 0);
     return format(date, 'HH:mm');
 }
 
 function addMinutesStr(time: string, mins: number): string {
     const [h, m] = time.split(':').map(Number);
     const date = new Date();
-    date.setHours(h, m + mins, 0);
+    date.setHours(h || 0, (m || 0) + mins, 0);
     return format(date, 'HH:mm');
 }

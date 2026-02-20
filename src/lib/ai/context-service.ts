@@ -62,7 +62,7 @@ export class ContextService {
             supabase.from('profile_preferences').select('*').eq('user_id', userId).single(),
             supabase.from('schedule_blocks').select('id, title, start_time, end_time, is_focus, pillar, block_type').eq('user_id', userId).eq('date', todayStr).order('start_time'),
             supabase.from('schedule_blocks').select('id, title, start_time, end_time, is_focus').eq('user_id', userId).eq('date', tomorrowStr).order('start_time'),
-            supabase.from('goals').select('id, title, category, importance').eq('user_id', userId).eq('status', 'active').limit(10),
+            supabase.from('goals').select('id, title, category, importance, ai_plan').eq('user_id', userId).eq('status', 'active').limit(10),
             supabase.from('commitments').select('id, title, start_time, end_time, days_of_week').eq('user_id', userId).eq('is_active', true).limit(20),
             supabase.from('daily_logs').select('energy_level, mood, created_at').eq('user_id', userId).eq('log_date', todayStr).single()
         ]);

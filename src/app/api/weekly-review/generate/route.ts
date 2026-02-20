@@ -12,7 +12,7 @@ export const POST = secureApiRoute(
         const supabase = await createClient();
 
         // 1. Gather ALL relevant data for the week
-        const [blocksRes, goalsRes, logsRes, reviewsRes] = await Promise.all([
+        const [blocksRes, goalsRes, logsRes, reviewsRes, habitLogsRes, brainDumpsRes, coachThreadsRes] = await Promise.all([
             supabase.from('schedule_blocks')
                 .select('id, title, context, date, start_time, end_time, block_type, status, pillar, goal_id, is_focus')
                 .eq('user_id', userId)
@@ -34,12 +34,30 @@ export const POST = secureApiRoute(
                 .select('week_start, lever_action, user_response')
                 .eq('user_id', userId)
                 .order('week_start', { ascending: false })
-                .limit(3)
+                .limit(3),
+            supabase.from('habit_logs')
+                .select('habit_id, completed_at, status, habits(name)')
+                .eq('user_id', userId)
+                .gte('completed_at', `${week_start}T00:00:00Z`)
+                .lte('completed_at', `${week_end}T23:59:59Z`),
+            supabase.from('brain_dumps')
+                .select('content, created_at, signals')
+                .eq('user_id', userId)
+                .gte('created_at', `${week_start}T00:00:00Z`)
+                .lte('created_at', `${week_end}T23:59:59Z`),
+            supabase.from('coach_threads')
+                .select('id, coach_messages(role, content, created_at)')
+                .eq('user_id', userId)
+                .gte('updated_at', `${week_start}T00:00:00Z`)
+                .lte('updated_at', `${week_end}T23:59:59Z`)
         ]);
 
         const blocks = blocksRes.data || [];
         const goals = goalsRes.data || [];
         const logs = logsRes.data || [];
+        const habitLogs = habitLogsRes.data || [];
+        const brainDumps = brainDumpsRes.data || [];
+        const coachThreads = coachThreadsRes.data || [];
 
         // 2. Calculate REAL metrics
         let plannedMinutes = 0;
@@ -80,6 +98,27 @@ export const POST = secureApiRoute(
         const topPillar = pillarEntries[0]?.[0] || 'none';
         const neglectedPillar = pillarEntries[pillarEntries.length - 1]?.[0] || 'none';
 
+        // Process Habits
+        let totalHabitsPlanned = 0;
+        let totalHabitsCompleted = 0;
+        habitLogs.forEach((hl: any) => {
+            totalHabitsPlanned++;
+            if (hl.status === 'completed') totalHabitsCompleted++;
+        });
+        const habitCompletionRate = totalHabitsPlanned > 0 ? Math.round((totalHabitsCompleted / totalHabitsPlanned) * 100) : 0;
+
+        // Process Dumps
+        const brainDumpThemes = brainDumps.slice(0, 5).map((d: any) => d.content.substring(0, 100) + '...').join(' | ');
+        const avgStress = brainDumps.reduce((acc: number, d: any) => acc + (d.signals?.stress || 0), 0) / (brainDumps.length || 1);
+
+        // Process Coach
+        const activeStruggles = coachThreads
+            .flatMap((t: any) => t.coach_messages)
+            .filter((m: any) => m.role === 'user')
+            .slice(-3)
+            .map((m: any) => m.content)
+            .join(' | ');
+
         const summaryData = {
             range: { start: week_start, end: week_end },
             metrics: {
@@ -91,7 +130,10 @@ export const POST = secureApiRoute(
                 cancelledBlocks,
                 topPillar,
                 neglectedPillar,
-                pillarMinutes
+                pillarMinutes,
+                habitCompletionRate,
+                brainDumpCount: brainDumps.length,
+                avgStress: Math.round(avgStress * 10) / 10
             },
             dayBreakdown,
             blocks: blocks.map((b: any) => ({
@@ -119,7 +161,11 @@ export const POST = secureApiRoute(
                 week: r.week_start,
                 lever: r.lever_action?.label,
                 applied: r.user_response === 'accepted'
-            }))
+            })),
+            insights: {
+                recent_thoughts: brainDumpThemes || 'None recorded',
+                recent_struggles: activeStruggles || 'None discussed'
+            }
         };
 
         // 3. Call AI

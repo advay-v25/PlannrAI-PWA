@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useCalendar } from '@/hooks/use-calendar';
 import { CalendarLayout } from '@/components/calendar/calendar-layout';
+import { apiClient } from '@/lib/api-client';
 import { WeekGrid } from '@/components/calendar/week-grid';
 import { BlockInspector } from '@/components/calendar/block-inspector';
 import { useToast } from '@/components/ui/toast';
@@ -13,6 +14,7 @@ import {
 import { format, startOfWeek, addWeeks, subWeeks, addDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ConflictModal } from '@/components/calendar/conflict-modal';
 
 export default function CalendarPage() {
     const {
@@ -31,7 +33,9 @@ export default function CalendarPage() {
         isOptimizing,
         isPlanning,
         lastUndoToken,
-        undoLastCalendarAction
+        undoLastCalendarAction,
+        conflictError,
+        dismissConflict
     } = useCalendar();
 
     const { showToast } = useToast();
@@ -257,6 +261,32 @@ export default function CalendarPage() {
                     />
                 )}
             </AnimatePresence>
+
+            {/* Conflict Resolution Modal */}
+            <ConflictModal
+                error={conflictError}
+                onClose={dismissConflict}
+                onConfirmOption={async (opt) => {
+                    dismissConflict();
+                    // If backend returned a token or we need to apply the patch, we handle it here
+                    // For now, since ConflictService is just deterministic, if user selects an option
+                    // we re-submit the action but with the `resolution_strategy` flag.
+                    try {
+                        if (conflictError?.pendingAction) {
+                            const { type, payload } = conflictError.pendingAction;
+                            if (type === 'create') {
+                                await apiClient.schedule.createBlock({ ...payload, resolution_strategy: opt.strategy });
+                            } else if (type === 'move') {
+                                await apiClient.schedule.moveBlock(payload.id, payload.newDate, payload.newStart, payload.newEnd, opt.strategy);
+                            }
+                            await refresh();
+                            showToast("Conflict resolved", "success");
+                        }
+                    } catch (e) {
+                        showToast("Failed to resolve conflict", "error");
+                    }
+                }}
+            />
         </div>
     );
 }

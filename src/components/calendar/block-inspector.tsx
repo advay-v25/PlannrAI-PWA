@@ -171,15 +171,21 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                         </button>
                     </div>
 
-                    {!isAnchor && (
-                        <button
-                            onClick={() => onAction('delete')}
-                            className="w-full flex items-center justify-center gap-2 p-3 text-xs font-bold
-                                text-red-500/60 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
-                        >
-                            <Trash2 className="w-4 h-4" /> Delete Block
-                        </button>
-                    )}
+                    <button
+                        onClick={() => {
+                            if (isAnchor) {
+                                if (window.confirm("Delete this anchor? This will permanently remove the entire recurring schedule for this commitment.")) {
+                                    onAction('delete');
+                                }
+                            } else {
+                                onAction('delete');
+                            }
+                        }}
+                        className="w-full flex items-center justify-center gap-2 p-3 text-xs font-bold
+                            text-red-500/60 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
+                    >
+                        <Trash2 className="w-4 h-4" /> Delete {isAnchor ? 'Anchor' : 'Block'}
+                    </button>
                 </div>
             </div>
         </div>

@@ -1,5 +1,5 @@
-
 import { SupabaseClient } from '@supabase/supabase-js';
+import { CalendarEngine } from '@/lib/calendar/calendar-engine';
 
 // --- Patch Op Types ---
 
@@ -59,8 +59,15 @@ export class PatchService {
         supabase: SupabaseClient,
         source: string = 'ai'
     ): Promise<PatchResult> {
-        const errors: string[] = [];
+        let errors: string[] = [];
         let changes = 0;
+
+        // 0. Pre-Flight Validation via Engine (Deterministic Check)
+        const validation = await CalendarEngine.validatePatch(userId, patch, supabase);
+        if (!validation.valid) {
+            console.error(`[PatchService] Pre-flight validation failed:`, validation.errors);
+            return { success: false, undo_token: null, changes: 0, errors: validation.errors };
+        }
 
         // 1. Calculate Inverse Patch (BEFORE applying)
         const inversePatch = await this.calculateInversePatch(userId, patch, supabase);

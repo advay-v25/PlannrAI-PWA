@@ -219,8 +219,8 @@ export const apiClient = {
                     source: 'manual_update'
                 }),
 
-            moveBlock: (id: string, newDate: string, newStart: string, newEnd: string) =>
-                this.post('/api/calendar/move-block', { block_id: id, new_date: newDate, new_start_time: newStart, new_end_time: newEnd }),
+            moveBlock: (id: string, newDate: string, newStart: string, newEnd: string, resolution_strategy?: string) =>
+                this.post('/api/calendar/move-block', { block_id: id, new_date: newDate, new_start_time: newStart, new_end_time: newEnd, resolution_strategy }),
 
             deleteBlock: (id: string) =>
                 this.post('/api/schedule/apply-patch', {
