@@ -374,20 +374,22 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
     } catch (error: any) {
         console.error(`[AI Service] [${requestId}] CRITICAL FAILURE:`, error);
 
-        const channelName = body.channel || 'unknown';
-        let fallback;
+        const channelName = body?.channel || 'unknown';
+        let fallback: any;
         if (channelName && channelName in ChannelRegistry) {
-            // In critical failure, input might not be available if validaton failed, but executeAI body should have it if basic parsing worked
-            // We can use body.input if available, else empty string
-            fallback = ChannelRegistry[channelName].fallback(body.input || '');
+            fallback = ChannelRegistry[channelName].fallback(body?.input || '');
         } else {
             fallback = safeFallback(channelName, requestId);
         }
 
-        return {
-            ...fallback,
-            summary: "System error. We've loaded a backup plan.",
-            _meta: { request_id: requestId, degraded: true, error: error.message }
-        };
+        // Ensure the error bubbles up into the fallback so the UI can log it during debugging
+        if (fallback) {
+            fallback.donna_note = `DEBUG FATAL: ${error.message}`;
+            if (channelName === 'weekly_review') {
+                fallback.reality = `DEBUG FATAL: ${error.message}`;
+            }
+        }
+
+        throw new Error(error.message || 'AI Execution failed completely');
     }
 }
