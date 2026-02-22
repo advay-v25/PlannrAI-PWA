@@ -313,6 +313,13 @@ export const AIResponseSchema = z.object({
     plan: GoalDecompositionSchema.optional(),
     question: QuestionSchema.optional(),
     refusal: RefusalSchema.optional(),
+    extracted: z.object({
+        summary: z.string().optional(),
+        items: z.array(z.any()).optional(),
+        constraints: z.array(z.any()).optional(),
+        signals: z.record(z.string(), z.any()).optional()
+    }).optional(),
+    resolved_proposals: z.array(z.string()).optional(), // Add coach specific field just in case
 }).superRefine((val, ctx) => {
 
     const optionsLen = val.options?.length ?? 0;

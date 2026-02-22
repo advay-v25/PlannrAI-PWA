@@ -56,8 +56,8 @@ export const POST = secureApiRoute(
                         kind: item.kind,
                         pillar: item.pillar,
                         est_min: item.est_min || 15,
-                        urgency: item.urgency || 1,
-                        importance: item.importance || 1,
+                        urgency: item.eisenhower?.urgent ? 5 : 1,
+                        importance: item.eisenhower?.important ? 5 : 1,
                         due_date: item.due === 'today' ? new Date().toISOString() : (item.due === 'tomorrow' ? new Date(Date.now() + 86400000).toISOString() : item.due),
                         status: 'inbox' // default
                     }));
