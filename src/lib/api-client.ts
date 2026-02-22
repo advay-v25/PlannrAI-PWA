@@ -17,7 +17,7 @@ export class ApiError extends Error {
     }
 }
 
-const DEFAULT_TIMEOUT = 15000;
+const DEFAULT_TIMEOUT = 35000;
 const MAX_RETRIES = 2;
 
 const getBaseUrl = () => {
