@@ -28,8 +28,9 @@ export const POST = secureApiRoute(
             limits: { max_options: 3 }
         });
 
-        // 3. Save Assistant Response
+        // 3. Save Assistant Response and Execute Side-Effects
         if (aiRes) {
+            // A. Save Message
             await saveCoachMessage(
                 userId,
                 'assistant',
@@ -37,6 +38,18 @@ export const POST = secureApiRoute(
                 supabase,
                 aiRes
             ).catch(e => console.warn('[Coach] Failed to save assistant message:', e));
+
+            // B. Resolve AI Proposals if requested by the Agent
+            if (aiRes.resolved_proposals && aiRes.resolved_proposals.length > 0) {
+                const { error: proposalError } = await supabase
+                    .from('ai_proposals')
+                    .update({ status: 'resolved', responded_at: new Date().toISOString() })
+                    .in('id', aiRes.resolved_proposals)
+                    .eq('user_id', userId);
+                if (proposalError) {
+                    console.warn('[Coach] Failed to resolve proposals:', proposalError.message);
+                }
+            }
         }
 
         // 4. Return structured response

@@ -105,18 +105,37 @@ export const POST = secureApiRoute(
                 // Skip invalid
                 if (newEnd <= newStart) continue;
 
-                // Check overlap with existing blocks
-                const hasOverlap = occupiedSlots.some(slot =>
-                    newStart < slot.end && newEnd > slot.start
-                );
+                // Auto-repair overlap
+                const duration = newEnd - newStart;
+                let currentStart = newStart;
+                let currentEnd = newEnd;
+                let hasOverlap = true;
+
+                while (hasOverlap && currentEnd <= 1380) { // Max 23:00
+                    hasOverlap = occupiedSlots.some(slot =>
+                        currentStart < slot.end && currentEnd > slot.start
+                    );
+                    if (hasOverlap) {
+                        currentStart += 15;
+                        currentEnd += 15;
+                    }
+                }
+
                 if (hasOverlap) continue;
+
+                // Format back to HH:MM
+                const formatTime = (mins: number) => {
+                    const h = Math.floor(mins / 60).toString().padStart(2, '0');
+                    const m = (mins % 60).toString().padStart(2, '0');
+                    return `${h}:${m}`;
+                };
 
                 patchOps.push({
                     op: 'create_event',
                     event: {
                         date: change.date || dateStr,
-                        start_time: change.new_start_time,
-                        end_time: change.new_end_time,
+                        start_time: formatTime(currentStart),
+                        end_time: formatTime(currentEnd),
                         title: change.block_title,
                         block_type: change.block_type || 'task',
                         status: 'planned'
@@ -124,7 +143,7 @@ export const POST = secureApiRoute(
                 });
 
                 // Track new slot
-                occupiedSlots.push({ id: 'new', start: newStart, end: newEnd });
+                occupiedSlots.push({ id: 'new', start: currentStart, end: currentEnd });
 
             } else if (change.action === 'move') {
                 let blockId = change.block_id;
@@ -139,24 +158,42 @@ export const POST = secureApiRoute(
                     const newEnd = timeToMinutes(change.new_end_time);
                     if (newEnd <= newStart) continue;
 
-                    // Check overlap with OTHER blocks (not the one being moved)
-                    const hasOverlap = occupiedSlots.some(slot =>
-                        slot.id !== blockId && newStart < slot.end && newEnd > slot.start
-                    );
+                    // Auto-repair overlap for move
+                    const duration = newEnd - newStart;
+                    let currentStart = newStart;
+                    let currentEnd = newEnd;
+                    let hasOverlap = true;
+
+                    while (hasOverlap && currentEnd <= 1380) {
+                        hasOverlap = occupiedSlots.some(slot =>
+                            slot.id !== blockId && currentStart < slot.end && currentEnd > slot.start
+                        );
+                        if (hasOverlap) {
+                            currentStart += 15;
+                            currentEnd += 15;
+                        }
+                    }
                     if (hasOverlap) continue;
 
                     // Update tracked position
                     const existing = occupiedSlots.find(s => s.id === blockId);
                     if (existing) {
-                        existing.start = newStart;
-                        existing.end = newEnd;
+                        existing.start = currentStart;
+                        existing.end = currentEnd;
                     }
+
+                    // Format back to HH:MM
+                    const formatTime = (mins: number) => {
+                        const h = Math.floor(mins / 60).toString().padStart(2, '0');
+                        const m = (mins % 60).toString().padStart(2, '0');
+                        return `${h}:${m}`;
+                    };
 
                     patchOps.push({
                         op: 'move_event',
                         event_id: blockId,
-                        to_start: change.new_start_time,
-                        to_end: change.new_end_time,
+                        to_start: formatTime(currentStart),
+                        to_end: formatTime(currentEnd),
                         date: change.date || dateStr
                     });
                 }

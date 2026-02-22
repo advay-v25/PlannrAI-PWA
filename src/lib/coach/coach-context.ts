@@ -8,13 +8,13 @@ export async function buildCoachContext(userId: string, supabase: SupabaseClient
     const startStr = format(today, 'yyyy-MM-dd');
     const endStr = format(threeDaysLater, 'yyyy-MM-dd');
 
-    // Parallel fetch for richness
     const [
         scheduleRes,
         goalsRes,
         anchorsRes,
         logsRes,
-        profileRes
+        profileRes,
+        proposalsRes
     ] = await Promise.all([
         // 1. Schedule (Next 3 days)
         supabase.from('schedule_blocks')
@@ -59,7 +59,15 @@ export async function buildCoachContext(userId: string, supabase: SupabaseClient
             .eq('user_id', userId)
             .order('updated_at', { ascending: false })
             .limit(1)
-            .single()
+            .single(),
+
+        // 7. Pending Proactive Proposals
+        supabase.from('ai_proposals')
+            .select('id, title, description, proposal_type, priority, action_data')
+            .eq('user_id', userId)
+            .eq('status', 'pending')
+            .order('priority', { ascending: false })
+            .limit(3)
     ]);
 
     const thread = (profileRes as any)?.error ? null : (await Promise.resolve(profileRes)).data; // Fix type if needed, but array destructuring handles it
@@ -92,6 +100,7 @@ export async function buildCoachContext(userId: string, supabase: SupabaseClient
         userState: {
             preferences: profileRes.data || {},
         },
+        proposals: proposalsRes.data || [],
         chatHistory: history.map(m => ({ role: m.role, content: m.content }))
     };
 }

@@ -187,6 +187,19 @@ export const PUT = secureApiRoute(
                 console.warn('[habit-stacks] Failed to cascade completion to schedule_block:', e);
             }
 
+            // Proactive Thinking Layer: Trigger on habit completion
+            try {
+                const { ThinkingService } = await import('@/lib/ai/thinking-service');
+                ThinkingService.evaluateContextAndPropose(
+                    context.userId,
+                    `User just completed habit stack: ${stack.name || stack.trigger_habit || 'Routine'}. Current streak is now ${newStreak}.`,
+                    id,
+                    'habit_completion'
+                ).catch(err => console.error('[Thinking Layer] Error triggering from Habit Completion:', err));
+            } catch (e) {
+                console.warn('[habit-stacks] Failed to trigger ThinkingService:', e);
+            }
+
             return apiSuccess({
                 stack: updated,
                 streakInfo: {

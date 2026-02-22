@@ -31,6 +31,7 @@ export const CoachOutputSchema = z.object({
     type: z.enum(['text', 'confirm', 'choice']),
     choices: z.array(z.string()).max(5).optional()
   }).optional(),
+  resolved_proposals: z.array(z.string()).optional().describe('Array of Pending System Proposal IDs that you are addressing in this message or that are no longer relevant'),
   refusal: z.object({
     reason: z.string().max(160),
     next_best: z.string().max(100).optional()
@@ -181,6 +182,18 @@ export const OnboardingInsightOutputSchema = z.object({
   }).optional()
 });
 
+// 10. Proactive Proposal (Thinking Layer)
+export const ProactiveProposalSchema = z.object({
+  has_proposal: z.boolean().describe('Whether a proactive proposal is needed given the context'),
+  proposal: z.object({
+    title: z.string().max(60).describe('Short title like "Adjust Tomorrow\'s Schedule"'),
+    description: z.string().max(200).describe('Why this is being proposed'),
+    proposal_type: z.enum(['schedule_optimization', 'habit_suggestion', 'goal_intervention', 'burnout_prevention']),
+    priority: z.number().min(1).max(5).describe('Urgency. 5 is immediate burnout risk.'),
+    action_data: z.record(z.string(), z.any()).describe('Contextual data needed to execute the proposal')
+  }).optional()
+});
+
 // --- Registry Definition ---
 
 export interface ChannelDef<T = any> {
@@ -260,6 +273,7 @@ Capacity: ${JSON.stringify(ctx.capacity || {})}
 Recent Logs: ${JSON.stringify((ctx.recentLogs || []).slice(0, 2))}
 Chat History: ${JSON.stringify((ctx.chatHistory || []).slice(-6))}
 ${ctx.recentDumps?.length ? `Recent Brain Dumps: ${JSON.stringify(ctx.recentDumps.slice(0, 2))}` : ''}
+${ctx.proposals?.length ? `Pending System Proposals: ${JSON.stringify(ctx.proposals)}` : ''}
 
 THINKING (Required):
 Before responding, analyze in 2-4 steps. Show your reasoning in the "thinking" array.
@@ -272,6 +286,7 @@ Example: ["3 blocks done out of 7 today", "Energy level: 2/5", "Goal 'Learn Pian
 PROACTIVE INTELLIGENCE:
 If the user sends a greeting ("hey", "hi", "what's up", "morning") or their message is vague:
 - DON'T just say hello back. Analyze their current state and surface the most important insight.
+- If there are "Pending System Proposals", ALWAYS prioritize surfacing them to the user (e.g., "I noticed you were overwhelmed yesterday, want me to clear your afternoon?"). You can use the proposals' action_data directly as options. Include the IDs of the proposals you address in the "resolved_proposals" array so they get cleared from the queue.
 - Check: Are they behind on any goals? Is today overloaded? Did they miss blocks yesterday? Is there a scheduling conflict?
 - Lead with the most actionable observation.
 
@@ -774,6 +789,42 @@ OUTPUT FORMAT (Strict JSON, No Markdown):
       }
     `.trim(),
     userPrompt: (input) => `Analyze this onboarding step: ${input}`
+  },
+
+  proactive_thinker: {
+    schema: ProactiveProposalSchema,
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.4, maxTokens: 800 },
+    fallback: () => ({ has_proposal: false }),
+    systemPrompt: (ctx) => `
+      You are the "Thinking Layer" of Donna, the user's AI Chief of Staff.
+      You run in the background after major events (e.g., a Brain Dump).
+      Your job is to look at the user's current situation and decide if you should proactively suggest an action.
+      ${BASE_RULES}
+      
+      CONTEXT:
+      ${JSON.stringify(ctx, null, 2)}
+      
+      OBJECTIVE:
+      1. Has the user's state changed significantly? (e.g., they just submitted a dump saying they are overwhelmed).
+      2. If they are stressed or overloaded, ALWAYS propose a 'schedule_optimization' or 'burnout_prevention'.
+      3. If they are doing well and have blank space, maybe propose a 'habit_suggestion'.
+      4. If no intervention is strongly needed, set has_proposal=false.
+      
+      DO NOT spam the user. Only propose if there is a clear value-add.
+      
+      OUTPUT JSON:
+      {
+        "has_proposal": boolean,
+        "proposal": {
+          "title": "string",
+          "description": "string",
+          "proposal_type": "schedule_optimization|habit_suggestion|goal_intervention|burnout_prevention",
+          "priority": 1-5,
+          "action_data": { "reason": "...", "suggested_action": "..." }
+        }
+      }
+    `.trim(),
+    userPrompt: (input) => `Event occurred: ${input}`
   },
 
   'calendar.optimize': {

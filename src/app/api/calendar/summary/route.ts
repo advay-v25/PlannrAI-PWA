@@ -37,16 +37,45 @@ export const GET = secureApiRoute(
         const habits = habitsRes.data || [];
         const blocks = blocksRes.data || [];
 
+        // --- Generate Virtual Blocks for Commitments ---
+        const virtualBlocks: any[] = [];
+        for (let i = 0; i < days; i++) {
+            const currentDate = addDays(startDate, i);
+            const dateStr = format(currentDate, 'yyyy-MM-dd');
+            // getDay() is 0 (Sun) to 6 (Sat). We map it to 1-7 for consistency.
+            let dayOfWeek = currentDate.getDay(); // 0 is Sunday
+            const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
+
+            commitments.forEach((cmt: any) => {
+                if (!cmt.days_of_week || cmt.days_of_week.includes(isoDay)) {
+                    virtualBlocks.push({
+                        id: `virt-cmt-${cmt.id}-${dateStr}`,
+                        user_id: cmt.user_id,
+                        title: cmt.title || 'Anchor',
+                        date: dateStr,
+                        start_time: cmt.start_time,
+                        end_time: cmt.end_time,
+                        block_type: 'anchor',
+                        status: 'planned',
+                        created_at: new Date().toISOString()
+                    });
+                }
+            });
+        }
+
+        // Merge virtual anchor blocks with real database blocks
+        const allBlocks = [...blocks, ...virtualBlocks];
+
         // --- Metrics Calculation ---
         const metrics = {
-            planned: blocks.filter((b: any) => b.status === 'planned').length,
-            done: blocks.filter((b: any) => b.status === 'done').length,
-            missed: blocks.filter((b: any) => b.status === 'missed').length
+            planned: allBlocks.filter((b: any) => b.status === 'planned').length,
+            done: allBlocks.filter((b: any) => b.status === 'done').length,
+            missed: allBlocks.filter((b: any) => b.status === 'missed').length
         };
 
         // --- Conflict Detection ---
         const conflicts: any[] = [];
-        const blocksByDay = blocks.reduce((acc: any, b: any) => {
+        const blocksByDay = allBlocks.reduce((acc: any, b: any) => {
             acc[b.date] = acc[b.date] || [];
             acc[b.date].push(b);
             return acc;
@@ -86,8 +115,8 @@ export const GET = secureApiRoute(
             profile,
             commitments,
             goals,
-            habit_stacks: habits,
-            blocks,
+            habitStacks: habits,
+            blocks: allBlocks,
             metrics,
             conflicts
         });

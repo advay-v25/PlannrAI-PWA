@@ -61,7 +61,33 @@ export const POST = secureApiRoute(
                     .select()
                     .single();
 
-                if (created) createdStacks.push(created);
+                if (created) {
+                    createdStacks.push(created);
+
+                    // Inject as a recurring calendar anchor (commitment)
+                    let startTime = '08:00';
+                    let endTime = '08:15';
+                    if (stack.schedule_hint?.time_of_day === 'evening') {
+                        startTime = '20:00';
+                        endTime = '20:15';
+                    } else if (stack.schedule_hint?.time_of_day === 'afternoon') {
+                        startTime = '13:00';
+                        endTime = '13:15';
+                    }
+
+                    const { error: anchorError } = await supabase.from('commitments').insert({
+                        user_id: userId,
+                        title: `🗓️ ${stack.name || triggerStep}`,
+                        start_time: startTime,
+                        end_time: endTime,
+                        days_of_week: [1, 2, 3, 4, 5, 6, 7], // Every day by default
+                        is_active: true
+                    });
+                    if (anchorError) {
+                        console.warn('[Habit Assist] Failed to create calendar anchor:', anchorError.message);
+                    }
+                }
+
                 if (error) console.warn('[Habit Assist] Insert error:', error.message);
             }
 

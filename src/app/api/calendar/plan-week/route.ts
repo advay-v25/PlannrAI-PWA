@@ -153,13 +153,34 @@ export const POST = secureApiRoute(
                 // Skip invalid time ranges
                 if (blockEnd <= blockStart) continue;
 
-                // Check overlap with kept blocks and already-added AI blocks
+                // Auto-repair overlap by shifting forward in 15-min increments
+                const duration = blockEnd - blockStart;
+                let currentStart = blockStart;
+                let currentEnd = blockEnd;
+                let hasOverlap = true;
                 const daySlots = occupiedSlots[block.date] || [];
-                const hasOverlap = daySlots.some(slot =>
-                    blockStart < slot.end && blockEnd > slot.start
-                );
 
-                if (hasOverlap) continue; // Skip overlapping block
+                while (hasOverlap && currentEnd <= 1380) { // Max 23:00
+                    hasOverlap = daySlots.some((slot: any) =>
+                        currentStart < slot.end && currentEnd > slot.start
+                    );
+                    if (hasOverlap) {
+                        currentStart += 15;
+                        currentEnd += 15;
+                    }
+                }
+
+                if (hasOverlap) continue; // Skip if it couldn't fit by 23:00
+
+                // Format back to HH:MM
+                const formatTime = (mins: number) => {
+                    const h = Math.floor(mins / 60).toString().padStart(2, '0');
+                    const m = (mins % 60).toString().padStart(2, '0');
+                    return `${h}:${m}`;
+                };
+
+                const finalStartTime = formatTime(currentStart);
+                const finalEndTime = formatTime(currentEnd);
 
                 // Find matching goal by title
                 let goalId = null;
@@ -174,8 +195,8 @@ export const POST = secureApiRoute(
                     op: 'create_event',
                     event: {
                         date: block.date,
-                        start_time: block.start_time,
-                        end_time: block.end_time,
+                        start_time: finalStartTime,
+                        end_time: finalEndTime,
                         title: block.title,
                         block_type: block.block_type || 'task',
                         goal_id: goalId,
@@ -185,7 +206,7 @@ export const POST = secureApiRoute(
 
                 // Mark this slot as occupied
                 if (!occupiedSlots[block.date]) occupiedSlots[block.date] = [];
-                occupiedSlots[block.date].push({ start: blockStart, end: blockEnd });
+                occupiedSlots[block.date].push({ start: currentStart, end: currentEnd });
             }
 
             // 6. Apply via PatchService (with undo!)

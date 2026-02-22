@@ -1,6 +1,7 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { createClient } from '@/lib/supabase/server';
 import { executeAI } from '@/lib/ai/ai-service';
+import { ThinkingService } from '@/lib/ai/thinking-service';
 
 export const POST = secureApiRoute(
     async (context, body) => {
@@ -75,6 +76,15 @@ export const POST = secureApiRoute(
                         last_dump_at: new Date().toISOString()
                     }, { onConflict: 'user_id' });
                 }
+
+                // E. Proactive Thinking Layer: Evaluate if the new context requires intervention
+                // We don't await this so it doesn't block the UI response
+                ThinkingService.evaluateContextAndPropose(
+                    userId,
+                    `User submitted a brain dump with energy level ${aiRes.extracted.signals?.energy || 'unknown'} and items: ${JSON.stringify(itemsToSave.map((i: any) => i.title))}`,
+                    dumpId,
+                    'brain_dump'
+                ).catch(err => console.error('[Thinking Layer] Error triggering from Brain Dump:', err));
             }
         }
 
