@@ -33,8 +33,8 @@ export function OptionCard({ option, isApplying, isApplied, onApply }: OptionCar
         <motion.div
             layout
             className={`group relative rounded-xl border p-3 transition-all cursor-pointer ${isApplied
-                    ? 'bg-[var(--color-success)]/5 border-[var(--color-success)]/20'
-                    : 'bg-[var(--glass-bg)] border-[var(--glass-border)] hover:bg-[var(--glass-bg-hover)] hover:border-[var(--glass-border-hover)]'
+                ? 'bg-[var(--color-success)]/5 border-[var(--color-success)]/20'
+                : 'bg-[var(--glass-bg)] border-[var(--glass-border)] hover:bg-[var(--glass-bg-hover)] hover:border-[var(--glass-border-hover)]'
                 }`}
             onClick={() => !isApplying && !isApplied && onApply()}
         >
@@ -47,6 +47,13 @@ export function OptionCard({ option, isApplying, isApplied, onApply }: OptionCar
                     <p className="text-xs text-[var(--text-secondary)] mt-0.5 leading-normal">
                         {option.impact}
                     </p>
+                    {/* Tradeoff Badge/Text */}
+                    {(option as any).tradeoff && (
+                        <p className="text-[11px] text-[var(--color-warning)] mt-1 font-medium italic flex items-center gap-1">
+                            <ArrowRight className="w-3 h-3 flex-shrink-0" />
+                            {(option as any).tradeoff}
+                        </p>
+                    )}
                     {/* Patch Summary Badge */}
                     {opCount > 0 && !isApplied && (
                         <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--color-primary)]/5 text-[var(--color-primary)]/70 border border-[var(--color-primary)]/10">

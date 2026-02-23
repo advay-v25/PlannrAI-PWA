@@ -58,7 +58,7 @@ export const RoutineGenerationSchema = z.object({
 
 export const ModeEnum = z.enum(["execute", "propose", "ask", "refuse"]);
 
-export const PatchOpSchema = z.union([
+export const PatchOpSchema = z.discriminatedUnion("op", [
     z.object({
         op: z.literal("create_event"),
         payload: z.record(z.string(), z.any()),
@@ -255,6 +255,7 @@ export const OptionSchema = z.object({
     id: z.string().min(1),
     title: z.string().max(60), // Slightly more room for tactical titles
     impact: z.string().max(100),
+    tradeoff: z.string().max(100).optional(),
     patch: PatchSchema,
 });
 

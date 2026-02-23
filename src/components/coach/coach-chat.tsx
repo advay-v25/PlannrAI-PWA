@@ -387,8 +387,8 @@ function OptionCard({ option, isApplying, isApplied, onApply }: {
         <motion.div
             layout
             className={`group relative rounded-xl border p-3 transition-all cursor-pointer ${isApplied
-                    ? 'bg-emerald-500/5 border-emerald-500/20'
-                    : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.06] hover:border-white/10'
+                ? 'bg-emerald-500/5 border-emerald-500/20'
+                : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.06] hover:border-white/10'
                 }`}
             onClick={() => !isApplying && !isApplied && onApply()}
         >
@@ -399,6 +399,12 @@ function OptionCard({ option, isApplying, isApplied, onApply }: {
                         {option.title}
                     </p>
                     <p className="text-xs text-white/40 mt-0.5 leading-normal">{option.impact}</p>
+                    {option.tradeoff && (
+                        <p className="text-xs text-orange-400/70 mt-0.5 leading-normal flex items-center gap-1">
+                            <Zap className="w-3 h-3 flex-shrink-0" />
+                            {option.tradeoff}
+                        </p>
+                    )}
 
                     {/* Impact Badges */}
                     <div className="flex items-center gap-2 mt-2 flex-wrap">

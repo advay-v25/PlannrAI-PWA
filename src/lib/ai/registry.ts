@@ -324,6 +324,7 @@ OUTPUT FORMAT (Strict JSON):
     "id": "opt_1",
     "title": "<= 40 chars",
     "impact": "<= 80 chars with numbers",
+    "tradeoff": "<= 80 chars about what is sacrificed e.g. 'Delays X by 2 days'",
     "effort": "low|medium|high",
     "time_impact_mins": 45,
     "patch": {
@@ -351,24 +352,36 @@ If mode="refuse", refusal is REQUIRED, options should be omitted.`.trim();
       temperature: 0.2, // Need structured precision
       maxTokens: 1000
     },
-    fallback: (input: string) => ({
-      mode: 'propose' as const,
-      summary: "Extracted what I could. Choose an action.",
-      extracted: {
-        summary: "Partial extraction — AI temporarily limited.",
-        items: [{ kind: 'note' as const, title: (input || '').slice(0, 50) }],
-        constraints: [],
-        signals: { overwhelm: 0, sentiment: 0, energy: 3 }
-      },
-      options: [
-        {
-          id: 'fallback_1',
-          title: 'Save to Inbox',
-          impact: 'Items saved for manual review',
-          patch: { ops: [], reason: "Fallback save" }
-        }
-      ]
-    }),
+    fallback: (input: string) => {
+      const lines = input.split('\n').filter(l => l.trim().length > 0);
+      const hasFatigue = /tired|exhausted|burnt|overwhelmed|sleepy/i.test(input);
+      const tasks = lines.map(l => ({ kind: 'task' as const, title: l.slice(0, 50) }));
+
+      return {
+        mode: 'propose' as const,
+        summary: "AI temporarily limited. I've extracted basic actions.",
+        extracted: {
+          summary: "Partial extraction based on text lines.",
+          items: tasks.length > 0 ? tasks : [{ kind: 'note' as const, title: (input || '').slice(0, 50) }],
+          constraints: [],
+          signals: { overwhelm: hasFatigue ? 0.8 : 0, sentiment: 0, energy: hasFatigue ? 2 : 3, health_flag: '' }
+        },
+        options: [
+          {
+            id: 'fallback_1',
+            title: 'Add To Tomorrow',
+            impact: `Move items to tomorrow`,
+            patch: { ops: [], reason: "Fallback scheduling", undoable: true }
+          },
+          {
+            id: 'fallback_2',
+            title: 'Add Recovery Block',
+            impact: 'Add 60m buffer & push non-urgent',
+            patch: { ops: [], reason: "Fallback recovery", undoable: true }
+          }
+        ]
+      };
+    },
     systemPrompt: (ctx) => {
       const isLowEnergy = ctx.userState?.is_low_energy;
       const isOverwhelmed = ctx.userState?.is_overwhelmed;
@@ -402,6 +415,10 @@ G) NOTES/IDEAS: Everything else → kind=note.
 
 OPTION RULES (STRATEGIC OPTIONALITY):
 - ALWAYS produce 2-3 distinct strategic options with REAL patches.
+- Options MUST include at least one action if:
+  - any task is detected
+  - any time constraint is detected
+  - fatigue/overwhelm is detected
 - DO NOT give three variations of the same idea. Provide distinct tactical paths.
   - Option 1 ("The Push"): If they have capacity, how do we conquer this optimally?
   - Option 2 ("The Recovery/Buffer"): If they are stressed, how do we protect them? (High EQ pivot)
@@ -431,6 +448,7 @@ OUTPUT FORMAT (Strict JSON, No Markdown):
     "id": "opt_1",
     "title": "<= 40 chars",
     "impact": "<= 80 chars",
+    "tradeoff": "<= 80 chars about what is sacrificed",
     "patch": { "ops": [{ "op": "create_event", "payload": { "title": "...", "start_time": "HH:MM", "end_time": "HH:MM", "date": "YYYY-MM-DD", "block_type": "task" } }], "undoable": true, "reason": "string" }
   }],
   "question": { "prompt": "string", "type": "text|confirm|choice", "choices": ["A","B"] }
