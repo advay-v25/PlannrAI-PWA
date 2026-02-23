@@ -8,9 +8,11 @@ interface CalendarLayoutProps {
     weekGrid: React.ReactNode;
     inspector: React.ReactNode;
     showInspector: boolean;
+    inbox: React.ReactNode;
+    showInbox: boolean;
 }
 
-export function CalendarLayout({ header, weekGrid, inspector, showInspector }: CalendarLayoutProps) {
+export function CalendarLayout({ header, weekGrid, inspector, showInspector, inbox, showInbox }: CalendarLayoutProps) {
     return (
         <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
             {/* Header / Action Bar */}
@@ -31,18 +33,38 @@ export function CalendarLayout({ header, weekGrid, inspector, showInspector }: C
                     {weekGrid}
                 </motion.main>
 
-                {/* Inspector Slide-in */}
+                {/* Right Area (Inspector OR Inbox) */}
                 <AnimatePresence mode="popLayout">
-                    {showInspector && (
+                    {(showInspector || showInbox) && (
                         <motion.aside
                             initial={{ opacity: 0, x: 20, width: 0 }}
                             animate={{ opacity: 1, x: 0, width: 340 }}
                             exit={{ opacity: 0, x: 20, width: 0 }}
                             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                            className="shrink-0 overflow-hidden border-l border-white/5"
+                            className="shrink-0 overflow-hidden border-l border-white/5 bg-black/40 backdrop-blur-xl"
                         >
-                            <div className="w-[340px] h-full bg-black/40 backdrop-blur-xl overflow-y-auto no-scrollbar">
-                                {inspector}
+                            <div className="w-[340px] h-full overflow-y-auto no-scrollbar relative flex flex-col">
+                                {showInspector ? (
+                                    <motion.div
+                                        key="inspector"
+                                        initial={{ opacity: 0, x: 20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: -20 }}
+                                        className="absolute inset-0 h-full overflow-y-auto"
+                                    >
+                                        {inspector}
+                                    </motion.div>
+                                ) : showInbox ? (
+                                    <motion.div
+                                        key="inbox"
+                                        initial={{ opacity: 0, x: -20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: 20 }}
+                                        className="absolute inset-0 h-full flex flex-col"
+                                    >
+                                        {inbox}
+                                    </motion.div>
+                                ) : null}
                             </div>
                         </motion.aside>
                     )}

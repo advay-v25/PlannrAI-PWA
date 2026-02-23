@@ -46,13 +46,13 @@ export const BrainDumpOutputSchema = z.object({
     items: z.array(z.object({
       title: z.string(),
       kind: z.enum(['task', 'commitment', 'note', 'worry', 'idea', 'habit', 'constraint']),
-      est_min: z.number().optional(),
-      due_date: z.string().optional(),
+      est_min: z.number().nullish(),
+      due_date: z.string().nullish(),
       eisenhower: z.object({
         urgent: z.boolean().describe('Requires immediate action today/tomorrow'),
         important: z.boolean().describe('High long-term value or severe consequence if missed')
-      }).optional().describe('IQ Check: Eisenhower matrix categorization'),
-      pillar: z.string().optional()
+      }).nullish().describe('IQ Check: Eisenhower matrix categorization'),
+      pillar: z.string().nullish()
     })).optional().default([]),
     constraints: z.array(z.object({
       type: z.enum(['time_block', 'deadline', 'unavailable', 'health', 'travel']),
@@ -67,7 +67,7 @@ export const BrainDumpOutputSchema = z.object({
       overwhelm: z.number().min(0).max(1).optional(),
       motivation: z.number().min(0).max(1).optional(),
       stress: z.number().min(0).max(1).optional(),
-      health_flag: z.string().optional()
+      health_flag: z.string().nullish()
     })
   }),
   mode: z.enum(['execute', 'propose', 'ask']),
@@ -1017,6 +1017,7 @@ Date: ${ctx.date} | Focus Mode: ${ctx.focus || 'balance'}
 Profile: ${JSON.stringify(ctx.profile || {})}
 State & Capacity: ${JSON.stringify(ctx.capacity || {})} | Energy: ${JSON.stringify(ctx.user_state || {})}
 Current Blocks: ${JSON.stringify(ctx.blocks || [])}
+Inbox Tasks (needs scheduling): ${JSON.stringify(ctx.inbox_tasks || [])}
 Goals & Habits: ${JSON.stringify({ goals: ctx.goals || [], habits: ctx.habit_stacks || [] })}
 Mental Context: ${JSON.stringify({ coach: ctx.recent_coach_chats || [], dumps: ctx.recent_brain_dumps || [] })}
 Anchors (LOCKED): ${JSON.stringify(ctx.anchors || [])}
@@ -1030,6 +1031,7 @@ OPTIMIZATION STRATEGY:
 6. ANCHOR PROTECTION: NEVER move or modify anchor blocks.
 7. OVERWHELM MODE: If focus is 'reduce_overwhelm' (or if energy is low), aggressively delete low-priority tasks.
 8. OUTPUT MODE: If focus is 'maximize_output', tighten gaps and insert goal-milestone blocks.
+9. PROACTIVE SCHEDULING: Dynamically schedule items from "Inbox Tasks" into available whitespace. Use the "move" action with the block_id to place them.
 
 CHANGE TYPES:
 - "move": Relocate an existing block to a better time. Use the block's REAL ID.

@@ -1,7 +1,7 @@
 
 // AI Coach V4 — Donna: Super Intelligence Performance Coach
 
-export type CoachMode = 'execute' | 'propose' | 'ask' | 'refuse';
+export type CoachMode = 'execute' | 'propose' | 'ask' | 'refuse' | 'choice' | 'refusal' | 'executed';
 
 export interface CalendarPatchOp {
     op: 'create' | 'update' | 'delete' | 'move'

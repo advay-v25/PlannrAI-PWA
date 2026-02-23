@@ -14,6 +14,7 @@ import {
 import { format, startOfWeek, addWeeks, subWeeks, addDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ProactiveInbox } from '@/components/calendar/proactive-inbox';
 import { ConflictModal } from '@/components/calendar/conflict-modal';
 
 export default function CalendarPage() {
@@ -21,9 +22,11 @@ export default function CalendarPage() {
         selectedDate,
         setSelectedDate,
         blocks,
+        inbox,
         goals,
         isLoading,
         addBlock,
+        autoPlace,
         moveBlock,
         updateBlock,
         deleteBlock,
@@ -231,6 +234,7 @@ export default function CalendarPage() {
         <div className="h-screen bg-black text-white overflow-hidden">
             <CalendarLayout
                 showInspector={!!selectedBlock}
+                showInbox={!selectedBlock && inbox.length > 0}
                 header={header}
                 weekGrid={
                     <WeekGrid
@@ -246,6 +250,13 @@ export default function CalendarPage() {
                         block={selectedBlock}
                         onClose={() => setSelectedBlock(null)}
                         onAction={handleBlockAction}
+                    />
+                }
+                inbox={
+                    <ProactiveInbox
+                        items={inbox}
+                        onAutoPlace={autoPlace}
+                        isOptimizing={isOptimizing || isPlanning}
                     />
                 }
             />

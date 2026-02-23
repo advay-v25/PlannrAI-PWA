@@ -15,14 +15,14 @@ export const POST = secureApiRoute(
             // 1. Apply Patch via Unified PatchService
             const result = await PatchService.applyPatch(userId, patch, supabase, 'brain_dump');
 
-            // 2. Mark Inbox Items as Scheduled (if applicable)
+            // 2. Remove Inbox Items generated from this dump (they are now formally scheduled via the patch)
             if (dumpId && result.success) {
-                await supabase.from('inbox_items')
-                    .update({ status: 'scheduled' })
-                    .eq('source_dump_id', dumpId)
+                await supabase.from('schedule_blocks')
+                    .delete()
                     .eq('status', 'inbox')
+                    .contains('meta', { source_dump_id: dumpId })
                     .then(r => {
-                        if (r.error) console.warn('[BrainDump Apply] Inbox update failed:', r.error.message);
+                        if (r.error) console.warn('[BrainDump Apply] Inbox cleanup failed:', r.error.message);
                     });
             }
 

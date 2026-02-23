@@ -14,7 +14,7 @@ export interface OpenRouterConfig {
     maxTokens?: number;
 }
 
-const DEFAULT_MODEL = "meta-llama/llama-3.3-70b-instruct";
+const DEFAULT_MODEL = "openai/gpt-4o-mini";
 
 export async function openRouterChat(
     messages: OpenRouterMessage[],
@@ -61,6 +61,7 @@ export async function openRouterChat(
         const latencyMs = Date.now() - startTime;
 
         console.log(`[OpenRouter] SUCCESS model=${model} latency=${latencyMs}ms`);
+        console.log(`[OpenRouter] finish_reason=${data.choices?.[0]?.finish_reason}, usage:`, data.usage);
 
         const content = data.choices?.[0]?.message?.content;
         if (!content) {

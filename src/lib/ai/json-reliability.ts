@@ -116,6 +116,6 @@ ${clipped}
         const ok2 = schema.safeParse(repaired);
         if (ok2.success) return ok2.data;
 
-        throw new Error(`Schema validation failed after repair`);
+        throw new Error(`Schema validation failed after repair: ${JSON.stringify(ok2.error?.issues || [])}`);
     }
 }

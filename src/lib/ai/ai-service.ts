@@ -351,7 +351,8 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
                 // ... existing options check
             }
         } catch (e: any) {
-            console.error(`[AI Service] [${requestId}] Schema validation failed:`, e.message);
+            console.error(`[AI Service] [${requestId}] Schema validation failed:`, e.message, JSON.stringify((e as any).cause || e, null, 2));
+            console.error('RAW TEXT WAS:\n', rawText);
 
             let fallback;
             fallback = ChannelRegistry[channel].fallback(input);

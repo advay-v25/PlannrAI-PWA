@@ -49,20 +49,27 @@ export const POST = secureApiRoute(
                 // Let's iterate tasks/commitments and save them.
                 const itemsToSave = aiRes.extracted.items || [];
                 if (itemsToSave.length > 0) {
+                    const today = new Date().toISOString().split('T')[0];
                     const inboxRows = itemsToSave.map((item: any) => ({
                         user_id: userId,
-                        source_dump_id: dumpId,
                         title: item.title,
-                        kind: item.kind,
-                        pillar: item.pillar,
-                        est_min: item.est_min || 15,
-                        urgency: item.eisenhower?.urgent ? 5 : 1,
-                        importance: item.eisenhower?.important ? 5 : 1,
-                        due_date: item.due === 'today' ? new Date().toISOString() : (item.due === 'tomorrow' ? new Date(Date.now() + 86400000).toISOString() : item.due),
-                        status: 'inbox' // default
+                        date: today,
+                        start_time: '00:00',
+                        end_time: '00:00',
+                        block_type: item.kind === 'task' ? 'task' : 'adhoc',
+                        status: 'inbox',
+                        meta: {
+                            source_dump_id: dumpId,
+                            kind: item.kind,
+                            pillar: item.pillar,
+                            estimated_minutes: item.est_min || 15,
+                            urgency: item.eisenhower?.urgent ? 5 : 1,
+                            importance: item.eisenhower?.important ? 5 : 1,
+                            due_date: item.due === 'today' ? today : (item.due === 'tomorrow' ? new Date(Date.now() + 86400000).toISOString().split('T')[0] : item.due)
+                        }
                     }));
 
-                    const { error: inboxError } = await supabase.from('inbox_items').insert(inboxRows);
+                    const { error: inboxError } = await supabase.from('schedule_blocks').insert(inboxRows);
                     if (inboxError) console.warn("Inbox Save Error", inboxError);
                 }
 

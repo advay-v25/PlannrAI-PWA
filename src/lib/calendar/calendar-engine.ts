@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { ScheduleBlock } from '@/types/database';
 import { ConflictService } from '@/lib/scheduling/conflict-service';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { addMinutes, parseISO, format } from 'date-fns';
+import { addMinutes, parseISO, format, startOfDay } from 'date-fns';
 
 export class CalendarEngine {
 
@@ -359,6 +359,7 @@ export class CalendarEngine {
                     if (change.payload.start_time) updates.start_time = change.payload.start_time;
                     if (change.payload.end_time) updates.end_time = change.payload.end_time;
                     if (change.payload.date) updates.date = change.payload.date;
+                    if (change.payload.status) updates.status = change.payload.status;
                 } else {
                     // Legacy Coach format?
                     if (change.new_start_ts) {
@@ -422,5 +423,74 @@ export class CalendarEngine {
         }
 
         return { success: true, undoPatch: { changes: inverseChanges } };
+    }
+
+    // --- Proactive Inbox (Staging Area) ---
+
+    static async addInboxItem(userId: string, title: string, estimatedMinutes: number = 30, supabase: SupabaseClient) {
+        const today = new Date().toISOString().split('T')[0];
+        const { data, error } = await supabase
+            .from('schedule_blocks')
+            .insert({
+                user_id: userId,
+                title,
+                date: today,
+                start_time: '00:00', // Pseudo-time for Inbox items
+                end_time: '00:00',
+                status: 'inbox',
+                block_type: 'task',
+                meta: { estimated_minutes: estimatedMinutes }
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
+
+    static async fetchInbox(userId: string, supabase: SupabaseClient) {
+        const { data } = await supabase
+            .from('schedule_blocks')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('status', 'inbox')
+            .order('created_at', { ascending: false });
+        return data || [];
+    }
+
+    static async autoPlace(userId: string, blockId: string, durationMinutes: number, targetDate: string, supabase: SupabaseClient) {
+        const { data: original } = await supabase.from('schedule_blocks').select('*').eq('id', blockId).single();
+        if (!original) throw new Error("Inbox item not found");
+
+        const currentSchedule = await this.fetchDaySchedule(userId, targetDate, supabase);
+        // Exclude inbox items from whitespace calculation
+        const actualSchedule = currentSchedule.filter(b => b.status !== 'inbox');
+
+        const now = new Date();
+        const startSearch = targetDate === now.toISOString().split('T')[0] ? new Date() : startOfDay(parseISO(targetDate));
+
+        const proposal = { start: startSearch, end: addMinutes(startSearch, durationMinutes) };
+        const gap = ConflictService.findNextGap(proposal, actualSchedule);
+
+        if (!gap) {
+            throw new Error(`Could not find a ${durationMinutes}m gap on ${targetDate}.`);
+        }
+
+        const updates = {
+            date: targetDate,
+            start_time: format(gap.start, 'HH:mm'),
+            end_time: format(gap.end, 'HH:mm'),
+            status: 'planned'
+        };
+
+        const { data, error } = await supabase
+            .from('schedule_blocks')
+            .update(updates)
+            .eq('id', blockId)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
     }
 }

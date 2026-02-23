@@ -12,6 +12,7 @@ export interface CalendarState {
     goals: Goal[];
     commitments: Commitment[];
     habitStacks: HabitStack[];
+    inbox: ScheduleBlock[];
     isLoading: boolean;
     error: Error | null;
 }
@@ -33,6 +34,7 @@ export function useCalendar() {
         goals: [],
         commitments: [],
         habitStacks: [],
+        inbox: [],
         isLoading: true,
         error: null
     });
@@ -60,6 +62,7 @@ export function useCalendar() {
                 goals: data.goals || [],
                 commitments: data.commitments || [],
                 habitStacks: data.habitStacks || [],
+                inbox: data.inbox || [],
                 isLoading: false,
                 error: null
             });
@@ -83,6 +86,17 @@ export function useCalendar() {
     }, [loadData]);
 
     // --- Actions ---
+
+    const autoPlace = async (blockId: string, durationMinutes: number) => {
+        try {
+            const dateStr = format(selectedDate, 'yyyy-MM-dd');
+            await apiClient.schedule.autoPlace({ block_id: blockId, duration_minutes: durationMinutes, target_date: dateStr });
+            showToast("Item scheduled", "success");
+            await loadData();
+        } catch (e: any) {
+            showToast(e.message || "Failed to schedule item", "error");
+        }
+    };
 
     const refresh = async () => {
         await loadData();
@@ -251,6 +265,7 @@ export function useCalendar() {
         viewMode,
         setViewMode,
         refresh,
+        autoPlace,
         addBlock,
         moveBlock,
         updateBlock,

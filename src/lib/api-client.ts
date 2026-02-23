@@ -201,6 +201,7 @@ export const apiClient = {
                     goals: Goal[];
                     commitments: Commitment[];
                     habitStacks: HabitStack[];
+                    inbox: ScheduleBlock[];
                 }>(`/api/calendar/summary?start=${start}&end=${end}`),
 
             // Legacy list (redirect to summary or keep for compatibility if needed)
@@ -244,6 +245,12 @@ export const apiClient = {
 
             optimizeDay: (data: { date: string; focus?: string }) =>
                 this.post('/api/calendar/optimize-day', data),
+
+            autoPlace: (data: { block_id: string; duration_minutes: number; target_date: string }) =>
+                this.post('/api/calendar/auto-place', data),
+
+            addInboxItem: (data: { title: string; estimated_minutes: number }) =>
+                this.post('/api/calendar/inbox', data),
         };
     },
 

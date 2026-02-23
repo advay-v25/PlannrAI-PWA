@@ -116,7 +116,7 @@ export class ConflictService {
         };
     }
 
-    private static findNextGap(proposal: { start: Date, end: Date }, schedule: ScheduleBlock[]) {
+    public static findNextGap(proposal: { start: Date, end: Date }, schedule: ScheduleBlock[]) {
         const duration = differenceInMinutes(proposal.end, proposal.start);
         const dayStart = startOfDay(proposal.start);
         const dayEnd = endOfDay(proposal.start);

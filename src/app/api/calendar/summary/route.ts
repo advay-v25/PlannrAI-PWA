@@ -19,7 +19,7 @@ export const GET = secureApiRoute(
         const supabase = await createClient();
 
         // Parallel Fetch: Profile (not profile_preferences), Commitments, Goals, Habits, Blocks
-        const [profileRes, commitmentsRes, goalsRes, habitsRes, blocksRes] = await Promise.all([
+        const [profileRes, commitmentsRes, goalsRes, habitsRes, blocksRes, inboxBlocks] = await Promise.all([
             supabase.from('profiles').select('*').eq('id', context.userId).single(),
             supabase.from('commitments').select('*').eq('user_id', context.userId).eq('is_active', true),
             supabase.from('goals').select('*').eq('user_id', context.userId).eq('is_paused', false),
@@ -29,6 +29,8 @@ export const GET = secureApiRoute(
                 .eq('user_id', context.userId)
                 .gte('date', startStr)
                 .lt('date', endStr)
+                .neq('status', 'inbox'),
+            supabase.from('schedule_blocks').select('*').eq('user_id', context.userId).eq('status', 'inbox')
         ]);
 
         const profile = profileRes.data || {};
@@ -36,6 +38,7 @@ export const GET = secureApiRoute(
         const goals = goalsRes.data || [];
         const habits = habitsRes.data || [];
         const blocks = blocksRes.data || [];
+        const inbox = inboxBlocks.data || [];
 
         // --- Generate Virtual Blocks for Commitments ---
         const virtualBlocks: any[] = [];
@@ -116,6 +119,7 @@ export const GET = secureApiRoute(
             commitments,
             goals,
             habitStacks: habits,
+            inbox,
             blocks: allBlocks,
             metrics,
             conflicts

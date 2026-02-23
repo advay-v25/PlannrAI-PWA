@@ -22,7 +22,9 @@ export const POST = secureApiRoute(
             weekDays: 1 // optimize day only needs immediate schedule
         });
 
-        const blocks = featureCtx.schedule.filter((b: any) => b.date === dateStr);
+        const allBlocks = featureCtx.schedule || [];
+        const blocks = allBlocks.filter((b: any) => b.date === dateStr && b.status !== 'inbox');
+        const inboxTasks = allBlocks.filter((b: any) => b.status === 'inbox');
         const goals = featureCtx.goals;
         const anchors = featureCtx.anchors;
         const prefs = featureCtx.preferences;
@@ -47,6 +49,11 @@ export const POST = secureApiRoute(
                         name: h.name || h.trigger_habit,
                         preferred_window: h.preferred_window,
                         duration_mins: h.action_duration_mins
+                    })),
+                    inbox_tasks: inboxTasks.map((t: any) => ({
+                        id: t.id,
+                        title: t.title,
+                        estimated_minutes: t.meta?.estimated_minutes || 30
                     })),
                     blocks: blocks.map((b: any) => ({
                         id: b.id,
@@ -148,7 +155,7 @@ export const POST = secureApiRoute(
             } else if (change.action === 'move') {
                 let blockId = change.block_id;
                 if (!blockId) {
-                    const match = blocks.find((b: any) =>
+                    const match = allBlocks.find((b: any) =>
                         (b.title || b.context || '').toLowerCase() === (change.block_title || '').toLowerCase()
                     );
                     blockId = match?.id;
@@ -189,18 +196,22 @@ export const POST = secureApiRoute(
                         return `${h}:${m}`;
                     };
 
+                    const originalBlock = allBlocks.find(b => b.id === blockId);
+                    const isFromInbox = originalBlock?.status === 'inbox';
+
                     patchOps.push({
                         op: 'move_event',
                         event_id: blockId,
                         to_start: formatTime(currentStart),
                         to_end: formatTime(currentEnd),
-                        date: change.date || dateStr
+                        date: change.date || dateStr,
+                        payload: isFromInbox ? { status: 'planned' } : {}
                     });
                 }
             } else if (change.action === 'delete') {
                 let blockId = change.block_id;
                 if (!blockId) {
-                    const match = blocks.find((b: any) =>
+                    const match = allBlocks.find((b: any) =>
                         (b.title || b.context || '').toLowerCase() === (change.block_title || '').toLowerCase()
                     );
                     blockId = match?.id;
