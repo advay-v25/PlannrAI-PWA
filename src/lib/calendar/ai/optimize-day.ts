@@ -63,7 +63,7 @@ export async function optimizeDayAI(
     // Filter to remaining blocks (not yet past, not done)
     const remainingBlocks = context.schedule.today.filter(b => {
         const blockStartMins = timeToMinutes(b.start_time);
-        return blockStartMins >= currentMins && b.status !== 'completed' && b.status !== 'skipped';
+        return blockStartMins >= currentMins && b.status !== 'done' && b.status !== 'cancelled';
     });
 
     const fixedBlocks = remainingBlocks.filter(b => b.is_fixed || b.commitment_id);
