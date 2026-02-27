@@ -1,115 +1,42 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
-import { startOfDay, format, parseISO } from 'date-fns';
+import { buildCalendarContext } from '@/lib/calendar/context-builder';
+import { optimizeDayAI } from '@/lib/calendar/ai/optimize-day';
 
 export const POST = secureApiRoute(
     async (context, body) => {
         try {
             const { userId, supabase } = context;
-            const { date, focus } = body as {
-                date: string;
-                focus?: 'reduce_overwhelm' | 'maximize_output' | 'rebalance_pillars'
-            };
+            const { focus } = (body || {}) as { focus?: string };
 
-            const targetDate = date ? parseISO(date) : startOfDay(new Date());
-            const dateStr = format(targetDate, 'yyyy-MM-dd');
+            // 1. Build context
+            const calendarCtx = await buildCalendarContext(userId, supabase);
 
-            // 1. Fetch Deep Context
-            const { buildFeatureContext } = await import('@/lib/services/feature-context');
-            const featureCtx = await buildFeatureContext(userId, supabase, {
-                includeChatHistory: true,
-                includeRecentDumps: true,
-                includeHabitStacks: true,
-                weekDays: 1 // optimize day only needs immediate schedule
-            });
+            // 2. Run optimization
+            const result = await optimizeDayAI(calendarCtx, focus);
 
-            const allBlocks = featureCtx.schedule || [];
-            const blocks = allBlocks.filter((b: any) => b.date === dateStr && b.status !== 'inbox');
-            const inboxTasks = allBlocks.filter((b: any) => b.status === 'inbox');
-            const goals = featureCtx.goals;
-            const anchors = featureCtx.anchors;
-            const prefs = featureCtx.preferences;
-
-            // 2. Call AI with full holistic context
-            let aiResponse: any;
-            try {
-                const { executeAI } = await import('@/lib/ai/ai-service');
-
-                aiResponse = await executeAI(userId, {
-                    channel: 'calendar_optimize_day',
-                    input: `Optimize schedule for ${dateStr}. Focus: ${focus || 'balance'}`,
-                    context: {
-                        date: dateStr,
-                        current_time: new Date().toTimeString().slice(0, 5),
-                        focus,
-                        profile: prefs,
-                        user_state: featureCtx.userState,
-                        capacity: featureCtx.capacity,
-                        inbox_tasks: inboxTasks.map((t: any) => ({
-                            id: t.id,
-                            title: t.title,
-                            estimated_minutes: t.meta?.estimated_minutes || 30
-                        })),
-                        blocks: blocks.map((b: any) => ({
-                            id: b.id,
-                            title: b.title || 'Untitled',
-                            start_time: b.start_time,
-                            end_time: b.end_time,
-                            block_type: b.block_type || 'task',
-                            status: b.status,
-                            pillar: b.pillar,
-                            goal_id: b.goal_id,
-                            is_fixed: b.is_fixed || false,
-                            commitment_id: b.commitment_id || null
-                        })),
-                        goals: goals.map((g: any) => ({
-                            id: g.id,
-                            title: g.title,
-                            importance: g.importance,
-                            category: g.category,
-                            pillar: g.pillar
-                        })),
-                        anchors: anchors.map((a: any) => ({
-                            title: a.title,
-                            start_time: a.start_time,
-                            end_time: a.end_time,
-                            days_of_week: a.days_of_week
-                        }))
-                    }
-                });
-            } catch (aiErr: any) {
-                console.error('[OptimizeDay] AI call failed:', aiErr);
-                return apiSuccess({
-                    analysis: { energy_state: 'error', schedule_health: 'balanced', flow_opportunity: `DEBUG: ${aiErr.message}` },
-                    options: [],
-                    warnings: [`DEBUG OPTIMIZE ERROR: ${aiErr.message || 'Unknown AI service error'}.`]
-                });
-            }
-
-            // 3. Return Options directly to User Interface
-            const options = aiResponse?.options || [];
-            if (options.length === 0) {
-                return apiSuccess({
-                    analysis: aiResponse?.analysis || { energy_state: 'unknown', schedule_health: 'conflict', flow_opportunity: 'none' },
-                    options: []
-                });
-            }
+            // 3. Convert options to frontend format (add patch wrapper)
+            const options = result.options.map(opt => ({
+                id: opt.id,
+                label: opt.label,
+                description: opt.description,
+                tradeoff: opt.tradeoff,
+                patch: {
+                    ops: opt.ops,
+                    undoable: true,
+                    reason: `Optimize Day: ${opt.label}`,
+                },
+            }));
 
             return apiSuccess({
-                analysis: aiResponse?.analysis,
-                options: options,
-                warnings: aiResponse?.warnings || []
+                analysis: result.analysis,
+                options,
+                warnings: [],
             });
 
         } catch (e: any) {
-            console.error('[OptimizeDay] Unexpected Error:', e);
-            return apiError(`Failed to optimize: ${e.message}`, 500);
+            console.error('[OptimizeDay] Error:', e);
+            return apiError(`Optimization failed: ${e.message}`, 500);
         }
     },
     { requireAuth: true }
 );
-
-// Helper: convert "HH:MM" to minutes since midnight
-function timeToMinutes(time: string): number {
-    const [h, m] = time.split(':').map(Number);
-    return (h || 0) * 60 + (m || 0);
-}
