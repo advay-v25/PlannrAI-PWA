@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { executeAI } from '@/lib/ai/ai-service';
 import { saveCoachMessage } from '@/lib/coach/coach-context';
 
+export const maxDuration = 45;
+
 export const POST = secureApiRoute(
     async (context, body) => {
         const { message, date, view, threadId } = body as { message: string, date?: string, view?: string, threadId?: string };

@@ -1,6 +1,7 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { executeAI } from '@/lib/ai/ai-service';
 
+export const maxDuration = 45;
 export const dynamic = 'force-dynamic';
 
 export const POST = secureApiRoute(

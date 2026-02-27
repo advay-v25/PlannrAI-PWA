@@ -264,67 +264,32 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
         };
         console.log(`[AI Service] [${requestId}] Sizes:`, debugMeta);
 
-        // 5. Execute LLM
+        // 5. Execute LLM via Unified Client (Groq primary → OpenRouter fallback)
         let rawText: string | null = null;
         let lastError: Error | null = null;
-        let abortController: AbortController | null = null;
 
-        // Route goal and calendar channels through Groq, everything else through OpenRouter
-        const GROQ_CHANNELS = ['goal_strategy', 'goal_decomposition', 'calendar_plan_week', 'calendar_optimize_day'];
-        const useGroq = GROQ_CHANNELS.includes(channel);
+        try {
+            const { callAI } = await import('@/lib/ai/unified-client');
+            const aiResponse = await callAI<any>({
+                prompt: userMsg,
+                systemPrompt: systemMsg,
+                model: 'smart',
+                temperature: channelDef.config.temperature ?? 0.5,
+                maxTokens: channelDef.config.maxTokens ?? 4000,
+                requireJSON: false, // We handle JSON validation ourselves via JSONReliability
+                timeout: AI_TIMEOUT_MS,
+            });
 
-        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-            try {
-                abortController = new AbortController();
-                const timeoutId = setTimeout(() => abortController?.abort(), AI_TIMEOUT_MS);
-
-                try {
-                    if (useGroq) {
-                        // Use Groq for goal channels
-                        const { groqChat: groqChatFn } = await import('@/lib/ai/groq-client');
-                        const groqResult = await groqChatFn({
-                            model: channelDef.config.model,
-                            messages: [
-                                { role: 'system', content: systemMsg },
-                                { role: 'user', content: userMsg }
-                            ],
-                            temperature: channelDef.config.temperature,
-                            max_tokens: channelDef.config.maxTokens,
-                            userId,
-                            signal: abortController.signal
-                        });
-                        rawText = groqResult;
-                    } else {
-                        // Use OpenRouter for all other channels
-                        const result = await openRouterChat(
-                            [
-                                { role: 'system', content: systemMsg },
-                                { role: 'user', content: userMsg }
-                            ],
-                            {
-                                model: channelDef.config.model,
-                                temperature: channelDef.config.temperature,
-                                maxTokens: channelDef.config.maxTokens
-                            }
-                        );
-                        rawText = result.content;
-                    }
-                } finally {
-                    clearTimeout(timeoutId);
-                }
-
-                if (rawText) break;
-            } catch (e: any) {
-                lastError = e;
-                console.warn(`[AI Service] [${requestId}] Attempt ${attempt + 1} failed:`, e.message);
-
-                const isRetryable = e.message.includes('429') || e.message.includes('network') || e.message.includes('fetch') || e.message.includes('timed out');
-                if (attempt < MAX_RETRIES && isRetryable) {
-                    await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-                    continue;
-                }
-                break;
+            if (aiResponse.success && aiResponse.raw) {
+                rawText = aiResponse.raw;
+                console.log(`[AI Service] [${requestId}] LLM via ${aiResponse.provider}/${aiResponse.model} ${aiResponse.latency_ms}ms`);
+            } else {
+                lastError = new Error(aiResponse.error || 'AI call failed');
+                console.warn(`[AI Service] [${requestId}] All providers failed:`, aiResponse.error);
             }
+        } catch (e: any) {
+            lastError = e;
+            console.error(`[AI Service] [${requestId}] LLM call crashed:`, e.message);
         }
 
         if (!rawText) {

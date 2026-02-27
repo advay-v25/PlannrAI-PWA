@@ -2,6 +2,8 @@ import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protect
 import { createClient } from '@/lib/supabase/server';
 import { executeAI } from '@/lib/ai/ai-service';
 
+export const maxDuration = 45;
+
 export const POST = secureApiRoute(
     async (context, body) => {
         const { week_start, week_end } = body as { week_start: string; week_end: string };
