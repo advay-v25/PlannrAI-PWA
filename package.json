@@ -11,7 +11,8 @@
     "test:interventions": "export $(grep -v '^#' .env.local | xargs) && npx tsx scripts/test-interventions.ts",
     "test:briefing": "export $(grep -v '^#' .env.local | xargs) && npx tsx scripts/test-morning-briefing.ts",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "test:ai": "npx tsx scripts/test-ai-system.ts"
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.105",
