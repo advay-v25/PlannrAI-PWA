@@ -48,41 +48,52 @@ export class ContextService {
         const todayStr = format(today, 'yyyy-MM-dd');
         const tomorrowStr = format(tomorrow, 'yyyy-MM-dd');
 
+        // Safe query wrapper — prevents missing tables from crashing the entire context
+        const safeQuery = async (fn: () => any, fallback: any): Promise<any> => {
+            try {
+                const result = await Promise.resolve(fn());
+                if (result?.error) {
+                    console.warn('[ContextService] Query warning:', result.error.message);
+                    return fallback;
+                }
+                return result?.data ?? fallback;
+            } catch (e: any) {
+                console.warn('[ContextService] Query failed:', e.message);
+                return fallback;
+            }
+        };
+
         // 1. Parallel Fetching for Speed
         const [
-            profileRes,
-            prefsRes,
-            todayBlocksRes,
-            tomorrowBlocksRes,
-            goalsRes,
-            commitmentsRes,
-            dailyLogRes
+            profile,
+            prefs,
+            todayBlocks,
+            tomorrowBlocks,
+            goals,
+            commitments,
+            dailyLog
         ] = await Promise.all([
-            supabase.from('profiles').select('full_name, timezone, bio_data').eq('id', userId).single(),
-            supabase.from('profile_preferences').select('*').eq('user_id', userId).single(),
-            supabase.from('schedule_blocks').select('id, title, start_time, end_time, is_focus, pillar, block_type').eq('user_id', userId).eq('date', todayStr).order('start_time'),
-            supabase.from('schedule_blocks').select('id, title, start_time, end_time, is_focus').eq('user_id', userId).eq('date', tomorrowStr).order('start_time'),
-            supabase.from('goals').select('id, title, category, importance, ai_plan').eq('user_id', userId).eq('status', 'active').limit(10),
-            supabase.from('commitments').select('id, title, start_time, end_time, days_of_week').eq('user_id', userId).eq('is_active', true).limit(20),
-            supabase.from('daily_logs').select('energy_level, mood, created_at').eq('user_id', userId).eq('log_date', todayStr).single()
+            safeQuery(() => supabase.from('profiles').select('full_name, timezone, bio_data').eq('id', userId).single(), { full_name: 'User', timezone: 'UTC', bio_data: null }),
+            safeQuery(() => supabase.from('profile_preferences').select('*').eq('user_id', userId).single(), {}),
+            safeQuery(() => supabase.from('schedule_blocks').select('id, title, start_time, end_time, is_focus, pillar, block_type').eq('user_id', userId).eq('date', todayStr).order('start_time'), []),
+            safeQuery(() => supabase.from('schedule_blocks').select('id, title, start_time, end_time, is_focus').eq('user_id', userId).eq('date', tomorrowStr).order('start_time'), []),
+            safeQuery(() => supabase.from('goals').select('id, title, category, importance, ai_plan').eq('user_id', userId).eq('status', 'active').limit(10), []),
+            safeQuery(() => supabase.from('commitments').select('id, title, start_time, end_time, days_of_week').eq('user_id', userId).eq('is_active', true).limit(20), []),
+            safeQuery(() => supabase.from('daily_logs').select('energy_level, mood, created_at').eq('user_id', userId).eq('log_date', todayStr).single(), null)
         ]);
 
         // 2. Process User & Preferences
-        const profile = profileRes.data || { full_name: 'User', timezone: 'UTC', bio_data: null };
-        const prefs = prefsRes.data || {};
         const aiProfile = (profile as any).bio_data?.ai_profile || null;
 
         // 3. Process Schedule Stats
-        const todayBlocks = todayBlocksRes.data || [];
-        const focusBlocks = todayBlocks.filter(b => b.is_focus || b.pillar === 'Work');
-        const totalFocusMins = focusBlocks.reduce((acc, b) => {
+        const focusBlocks = todayBlocks.filter((b: any) => b.is_focus || b.pillar === 'Work');
+        const totalFocusMins = focusBlocks.reduce((acc: number, b: any) => {
             const start = parseInt(b.start_time.split(':')[0]) * 60 + parseInt(b.start_time.split(':')[1]);
             const end = parseInt(b.end_time.split(':')[0]) * 60 + parseInt(b.end_time.split(':')[1]);
             return acc + (end - start);
         }, 0);
 
         // 4. Process Bio-State (from Daily Log or defaults)
-        const dailyLog = dailyLogRes.data;
         const energyLevel = dailyLog?.energy_level ?? 7;
         const mood = dailyLog?.mood ?? 'neutral';
 
@@ -101,18 +112,18 @@ export class ContextService {
             },
             schedule: {
                 today: todayBlocks,
-                tomorrow: tomorrowBlocksRes.data || [],
+                tomorrow: tomorrowBlocks,
                 conflicts: [], // TODO: Run conflict detection here
                 stats: {
                     total_focus_time: totalFocusMins,
-                    meetings_count: todayBlocks.filter(b => !b.is_focus).length
+                    meetings_count: todayBlocks.filter((b: any) => !b.is_focus).length
                 }
             },
             goals: {
-                active: goalsRes.data || [],
-                pending_action: (goalsRes.data || []).length
+                active: goals,
+                pending_action: goals.length
             },
-            anchors: commitmentsRes.data || [],
+            anchors: commitments,
             ai_profile: aiProfile
         };
 
@@ -155,11 +166,15 @@ export class ContextService {
      * Snapshots the current context to the DB for debugging and history.
      */
     static async saveSnapshot(userId: string, context: LiquidContext, eventType: string = 'manual'): Promise<void> {
-        const supabase = await createClient();
-        await supabase.from('context_snapshots').insert({
-            user_id: userId,
-            context_data: context,
-            event_type: eventType
-        });
+        try {
+            const supabase = await createClient();
+            await supabase.from('context_snapshots').insert({
+                user_id: userId,
+                context_data: context,
+                event_type: eventType
+            });
+        } catch (e: any) {
+            console.warn('[ContextService] Snapshot save failed:', e.message);
+        }
     }
 }

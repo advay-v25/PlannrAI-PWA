@@ -25,6 +25,7 @@ export const ChannelEnum = z.enum([
     "system.translate",
     "onboarding_architect",
     "calendar_plan_week",
+    "calendar_optimize_day",
     "conflict_resolution"
 ]);
 
@@ -267,7 +268,7 @@ export const CalendarOptionSchema = z.object({
     description: z.string().describe("One sentence explaining the approach"),
     tradeoff: z.string().describe("What the user gives up with this choice"),
     stats: z.record(z.string(), z.any()).optional().describe("e.g. mind_minutes, total_blocks"),
-    patch: CanonicalPatchSchema
+    patch: PatchSchema
 });
 
 // Day Optimization (Options-Based)

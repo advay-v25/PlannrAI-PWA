@@ -975,12 +975,21 @@ OUTPUT FORMAT (Strict JSON, No Markdown):
     config: { model: "llama-3.3-70b-versatile", temperature: 0.4, maxTokens: 4000 },
     fallback: () => ({
       plan_summary: "Week planning temporarily unavailable.",
-      blocks: [],
+      options: [
+        {
+          id: 'fallback_balanced',
+          label: 'Manual Planning',
+          description: 'AI planning is temporarily offline. Add blocks manually.',
+          tradeoff: 'No AI optimization',
+          patch: { ops: [], undoable: false, reason: 'Fallback — no ops' }
+        }
+      ],
+      warnings: ['AI planning is currently offline.'],
       donna_note: "AI planning is offline — add blocks manually for now."
     }),
     systemPrompt: (ctx) => {
       return `You are the Calendar Intelligence Core of PlannrAI.
-Your objective is to generate 3 conflict-free weekly schedule options based on the user's constraints, goals, and energy patterns.
+Your objective is to generate 2-3 conflict-free weekly schedule options based on the user's constraints, goals, and energy patterns.
 
 ${BASE_RULES}
 
@@ -993,7 +1002,6 @@ State & Capacity: ${JSON.stringify(ctx.capacity || {})}
 User State (Energy/Emotion): ${JSON.stringify(ctx.user_state || {})}
 Goals (Targets & Limits): ${JSON.stringify(ctx.goals || [])}
 Habit Stacks: ${JSON.stringify(ctx.existing_habits || [])}
-Mental Context (Chats & Dumps): ${JSON.stringify({ coach: ctx.recent_coach_chats || [], dumps: ctx.recent_brain_dumps || [] })}
 Anchors (LOCKED): ${JSON.stringify(ctx.anchors || [])}
 Existing Kept Blocks: ${JSON.stringify(ctx.existing_blocks_sample || [])}
 
@@ -1003,6 +1011,9 @@ PLANNING RULES (STRICT ENFORCEMENT):
 3. TIER 2 (ROUTINES): Schedule Meals (2-3/day) and Habit Stacks in their preferred windows.
 4. TIER 3 (STRATEGY): Distribute Goal work. Respect preferred times per pillar.
 5. Provide 2-3 distinct options (e.g., "Balanced", "Front-loaded", "Recovery-first").
+6. All times in HH:MM format. All dates in YYYY-MM-DD format.
+7. Include meal blocks (breakfast, lunch, dinner) at reasonable times.
+8. Weekend should be lighter unless allow_weekend is true.
 
 OUTPUT FORMAT (Strict JSON, No Markdown):
 {
@@ -1013,19 +1024,25 @@ OUTPUT FORMAT (Strict JSON, No Markdown):
       "label": "Balanced Week",
       "description": "Even spread across the week",
       "tradeoff": "More context switching between days",
-      "stats": { "mind_minutes": 300, "total_blocks": 15 },
+      "stats": { "total_blocks": 15, "goal_minutes": 300 },
       "patch": {
-        "reason": "Applying Balanced Week plan",
-        "changes": [
-          { "op": "CREATE", "block": { "date": "YYYY-MM-DD", "start_time": "HH:MM", "end_time": "HH:MM", "title": "Block Name", "block_type": "focus|task|goal|habit", "goal_id": "uuid-if-matching" } }
-        ]
+        "ops": [
+          { "op": "create_event", "payload": { "date": "YYYY-MM-DD", "start_time": "HH:MM", "end_time": "HH:MM", "title": "Block Name", "block_type": "focus", "goal_id": null } }
+        ],
+        "undoable": true,
+        "reason": "Applying Balanced Week plan"
       }
     }
   ],
-  "warnings": ["Insufficient capacity for all goal targets"]
+  "warnings": ["Insufficient capacity for all goal targets"],
+  "donna_note": "Brief planning insight"
 }
 
-Generate 15-30 blocks max per option. Ensure 0% overlap with existing blocks.`.trim();
+OPS TYPES:
+- "create_event" with payload: { date, start_time, end_time, title, block_type, goal_id }
+  block_type can be: "focus", "task", "meal", "buffer", "routine"
+
+Generate 10-25 blocks per option. Ensure 0% overlap with anchors and existing blocks.`.trim();
     },
     userPrompt: (input: string) => `Plan week: ${input}`
   },
@@ -1045,43 +1062,51 @@ Generate 15-30 blocks max per option. Ensure 0% overlap with existing blocks.`.t
           label: "Keep Current Schedule",
           description: "Optimization is temporarily unavailable.",
           tradeoff: "No changes will be applied.",
-          patch: { reason: "Fallback", changes: [] }
+          patch: { ops: [], undoable: false, reason: 'Fallback — no ops' }
         }
       ],
       warnings: ["AI optimization is currently offline."]
     }),
     systemPrompt: (ctx) => {
+      const now = ctx.current_time || new Date().toTimeString().slice(0, 5);
+      const todayBlocks = ctx.blocks || [];
+      const remaining = todayBlocks.filter((b: any) => b.status === 'planned');
+      const completed = todayBlocks.filter((b: any) => b.status === 'done' || b.status === 'partial');
+
       return `You are the Calendar Intelligence Core of PlannrAI.
 Your objective is to optimize the remainder of the user's day by generating 2-3 distinct schedule options based on their current energy, emotions, and remaining capacity.
 
 ${BASE_RULES}
 
 CONTEXT:
-Date: ${ctx.date} | Current Time: ${ctx.current_time}
-User State: { Energy: ${ctx.energy}/10, Emotion: ${ctx.emotion} }
-Remaining Capacity (Hours): ${ctx.remaining_capacity}
-Uncompleted Blocks Today: ${JSON.stringify(ctx.remaining_blocks || [])}
-Completed Blocks Today: ${JSON.stringify(ctx.completed_blocks || [])}
+Date: ${ctx.date} | Current Time: ${now}
+User State: ${JSON.stringify(ctx.user_state || {})}
 Profile (Bioclock): ${JSON.stringify(ctx.profile || {})}
+Capacity: ${JSON.stringify(ctx.capacity || {})}
+Remaining Planned Blocks: ${JSON.stringify(remaining)}
+Completed Blocks Today: ${JSON.stringify(completed)}
 Goals (Targets): ${JSON.stringify(ctx.goals || [])}
 Anchors (LOCKED): ${JSON.stringify(ctx.anchors || [])}
+Inbox Tasks: ${JSON.stringify(ctx.inbox_tasks || [])}
 
 OPTIMIZATION RULES (STRICT ENFORCEMENT):
 1. STATE MATCHING: 
-   - If energy < 5: deprioritize deep Mind work, suggest light Body/admin.
-   - If energy > 7: suggest tackling the hardest Craft/Mind block now.
-   - If overwhelmed: offer a "Minimum Viable Day" option (1 block per pillar max).
-2. SALVAGE LOGIC: If user is >2hrs behind schedule, offer a "Reset to Evening" option (clear afternoon, salvage evening).
-3. TIER 1 (LOCKED): NEVER move or delete Anchors.
+   - If user is low energy or fatigued: deprioritize deep Mind work, suggest light Body/admin.
+   - If user has good energy: suggest tackling the hardest block now.
+   - If overwhelmed: offer a "Minimum Viable Day" option (keep only essential blocks).
+2. SALVAGE LOGIC: If user is >2hrs behind schedule, offer a "Reset" option (clear remaining, salvage evening).
+3. TIER 1 (LOCKED): NEVER move or delete Anchors (is_fixed=true or commitment_id set).
 4. TIER 2 (ROUTINES): Protect Meals and Habit Stacks (can shift ±30m).
-5. Provide exactly 3 distinct options: "Realistic Salvage", "Compressed Mode", and "Recovery Day".
+5. Provide 2-3 distinct options.
+6. For MOVE ops, you MUST use a real block_id from the Remaining Planned Blocks list.
+7. For DELETE ops, you MUST use a real block_id from the Remaining Planned Blocks list.
 
 OUTPUT FORMAT (Strict JSON, No Markdown):
 {
   "analysis": {
-    "energy_state": "Vibe assessment",
+    "energy_state": "Vibe assessment of user's current state",
     "schedule_health": "balanced|packed|loose|conflict",
-    "flow_opportunity": "Best time for deep work"
+    "flow_opportunity": "Best remaining slot for deep work"
   },
   "options": [
     {
@@ -1090,18 +1115,26 @@ OUTPUT FORMAT (Strict JSON, No Markdown):
       "description": "Protect the 2 most important blocks, defer the rest",
       "tradeoff": "Pushing 3 blocks to tomorrow",
       "patch": {
-        "reason": "Applying Realistic Salvage",
-        "changes": [
-          { "op": "MOVE", "block_id": "uuid", "new_date": "YYYY-MM-DD", "new_start_time": "HH:MM", "new_end_time": "HH:MM" },
-          { "op": "DELETE", "block_id": "uuid" }
-        ]
+        "ops": [
+          { "op": "move_event", "event_id": "block-uuid", "to_start": "HH:MM", "to_end": "HH:MM" },
+          { "op": "delete_event", "event_id": "block-uuid" },
+          { "op": "create_event", "payload": { "date": "YYYY-MM-DD", "start_time": "HH:MM", "end_time": "HH:MM", "title": "Recovery Break", "block_type": "buffer" } }
+        ],
+        "undoable": true,
+        "reason": "Applying Realistic Salvage"
       }
     }
   ],
   "warnings": ["Energy too low for deep work"]
 }
 
-Scope all changes to today ONLY (or deferring to tomorrow).`.trim();
+OPS TYPES:
+- "create_event" with payload: { date, start_time, end_time, title, block_type }
+- "move_event" with event_id + to_start + to_end (use existing block IDs)
+- "delete_event" with event_id (use existing block IDs)
+- "update_event" with event_id + fields: { status, ... }
+
+Scope all changes to TODAY (${ctx.date}) only, or deferring to tomorrow.`.trim();
     },
     userPrompt: (input: string) => `Optimize day: ${input}`
   },

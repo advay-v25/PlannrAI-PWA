@@ -8,27 +8,33 @@ export const GET = secureApiRoute(
         const { searchParams } = new URL(context.request.url);
         const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
 
-        // Parallel Fetching for Performance
-        const [
-            { data: profile },
-            { data: userState },
-            { data: blocks },
-            { data: anchors }, // Commitments
-            { data: goals },
-            { data: habitStacks },
-            { data: tasks }
-        ] = await Promise.all([
-            supabase.from('profiles').select('*, bio_data').eq('id', userId).single(),
-            supabase.from('user_states').select('*').eq('user_id', userId).single(),
-            supabase.from('schedule_blocks')
+        // Resilient parallel fetching — each query catches its own errors
+        const safeQuery = async (fn: () => any, fallback: any): Promise<any> => {
+            try {
+                const result = await Promise.resolve(fn());
+                if (result?.error) {
+                    console.warn('[HomeSummary] Query warning:', result.error.message);
+                    return fallback;
+                }
+                return result?.data ?? fallback;
+            } catch (e: any) {
+                console.warn('[HomeSummary] Query failed:', e.message);
+                return fallback;
+            }
+        };
+
+        const [profile, userState, blocks, anchors, goals, habitStacks, tasks] = await Promise.all([
+            safeQuery(() => supabase.from('profiles').select('*, bio_data').eq('id', userId).single(), null),
+            safeQuery(() => supabase.from('user_states').select('*').eq('user_id', userId).single(), null),
+            safeQuery(() => supabase.from('schedule_blocks')
                 .select('*')
                 .eq('user_id', userId)
                 .eq('date', date)
-                .order('start_time'),
-            supabase.from('commitments').select('*').eq('user_id', userId),
-            supabase.from('goals').select('id, title, pillar').eq('user_id', userId),
-            supabase.from('habit_stacks').select('*').eq('user_id', userId).eq('enabled', true),
-            supabase.from('task_items').select('*').eq('user_id', userId).neq('status', 'done') // Only pending tasks? Or all for today?
+                .order('start_time'), []),
+            safeQuery(() => supabase.from('commitments').select('*').eq('user_id', userId), []),
+            safeQuery(() => supabase.from('goals').select('id, title, pillar').eq('user_id', userId), []),
+            safeQuery(() => supabase.from('habit_stacks').select('*').eq('user_id', userId).eq('enabled', true), []),
+            safeQuery(() => supabase.from('task_items').select('*').eq('user_id', userId).neq('status', 'done'), [])
         ]);
 
         if (!profile) return apiError('Profile not found', 404);
@@ -42,9 +48,9 @@ export const GET = secureApiRoute(
         // Filter blocks for valid calculation (exclude buffers if desired, but "planned" usually implies all active blocks)
         // Valid types: anchor, body, craft, mind, meal
         const validTypes = ['anchor', 'body', 'craft', 'mind', 'meal'];
-        const validBlocks = blocks?.filter(b => validTypes.includes(b.block_type)) || [];
+        const validBlocks = (blocks as any[])?.filter((b: any) => validTypes.includes(b.block_type)) || [];
 
-        validBlocks.forEach(b => {
+        validBlocks.forEach((b: any) => {
             // Parse time carefully
             const start = new Date(`${date}T${b.start_time}`);
             const end = new Date(`${date}T${b.end_time}`);
@@ -69,12 +75,12 @@ export const GET = secureApiRoute(
         let nextUpReason = "Scheduled";
 
         if (blocks && blocks.length > 0) {
-            const activeBlock = blocks.find(b => b.start_time <= currentTimeStr && b.end_time > currentTimeStr);
+            const activeBlock = (blocks as any[]).find((b: any) => b.start_time <= currentTimeStr && b.end_time > currentTimeStr);
             if (activeBlock) {
                 nextUpBlock = activeBlock;
                 nextUpReason = "Now";
             } else {
-                const futureBlock = blocks.find(b => b.start_time > currentTimeStr);
+                const futureBlock = (blocks as any[]).find((b: any) => b.start_time > currentTimeStr);
                 if (futureBlock) {
                     nextUpBlock = futureBlock;
                     nextUpReason = "Up Next";

@@ -39,17 +39,11 @@ export const POST = secureApiRoute(
                     input: `Optimize schedule for ${dateStr}. Focus: ${focus || 'balance'}`,
                     context: {
                         date: dateStr,
+                        current_time: new Date().toTimeString().slice(0, 5),
                         focus,
                         profile: prefs,
                         user_state: featureCtx.userState,
                         capacity: featureCtx.capacity,
-                        recent_brain_dumps: featureCtx.recentDumps,
-                        recent_coach_chats: featureCtx.chatHistory,
-                        habit_stacks: featureCtx.habitStacks?.map((h: any) => ({
-                            name: h.name || h.trigger_habit,
-                            preferred_window: h.preferred_window,
-                            duration_mins: h.action_duration_mins
-                        })),
                         inbox_tasks: inboxTasks.map((t: any) => ({
                             id: t.id,
                             title: t.title,
@@ -64,15 +58,15 @@ export const POST = secureApiRoute(
                             status: b.status,
                             pillar: b.pillar,
                             goal_id: b.goal_id,
-                            is_focus: b.is_focus
+                            is_fixed: b.is_fixed || false,
+                            commitment_id: b.commitment_id || null
                         })),
                         goals: goals.map((g: any) => ({
                             id: g.id,
                             title: g.title,
                             importance: g.importance,
                             category: g.category,
-                            pillar: g.pillar,
-                            ai_plan: g.ai_plan // Ensure goals milestones are visible
+                            pillar: g.pillar
                         })),
                         anchors: anchors.map((a: any) => ({
                             title: a.title,
