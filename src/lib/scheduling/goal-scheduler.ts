@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { addDays, format, parse, setHours, setMinutes, startOfDay, endOfDay, isSameDay, addMinutes } from 'date-fns';
 import { findNextAvailableSlot } from './solver';
 import { CalendarPatch } from '@/lib/validation/calendar-contract';

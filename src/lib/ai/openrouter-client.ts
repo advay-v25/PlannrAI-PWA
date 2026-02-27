@@ -28,7 +28,7 @@ export async function openRouterChat(
     // Map internal model names to OpenRouter specific names if needed
     let model = config.model;
     if (model === "llama-3.3-70b-versatile" || model === "llama3-70b-8192") {
-        model = DEFAULT_MODEL;
+        model = "meta-llama/llama-3.3-70b-instruct";
     }
 
     const startTime = Date.now();

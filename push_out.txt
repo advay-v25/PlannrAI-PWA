@@ -1,0 +1,24 @@
+Initialising login role...
+Connecting to remote database...
+Skipping migration 20260217000002_create_context_snapshots.txt... (file name must match pattern "<timestamp>_name.sql")
+Do you want to push these migrations to the remote database?
+ • 20260226000000_v1_revolution.sql
+ • 20260227000000_v1_5_revolution.sql
+
+ [Y/n] 
+Applying migration 20260226000000_v1_revolution.sql...
+ERROR: relation "user_profiles" does not exist (SQLSTATE 42P01)                                                 
+At statement: 0                                                                                                 
+-- PlannrAI V1 Revolution Migration                                                                             
+-- Adds physics engine telemetry, 90-day cycles, and deep energy mapping                                        
+                                                                                                                
+-- 1. Profile Upgrades (Energy & Boundaries)                                                                    
+ALTER TABLE user_profiles                                                                                       
+ADD COLUMN IF NOT EXISTS wind_down_minutes INT DEFAULT 30,                                                      
+ADD COLUMN IF NOT EXISTS meal_count INT DEFAULT 3,                                                              
+ADD COLUMN IF NOT EXISTS meal_times JSONB DEFAULT '{"breakfast": "08:00", "lunch": "13:00", "dinner": "19:00"}',
+ADD COLUMN IF NOT EXISTS meal_duration_minutes INT DEFAULT 30,                                                  
+ADD COLUMN IF NOT EXISTS peak_windows TEXT[],                                                                   
+ADD COLUMN IF NOT EXISTS low_windows TEXT[],                                                                    
+ADD COLUMN IF NOT EXISTS work_style TEXT DEFAULT 'marathoner'                                                   
+Try rerunning the command with --debug to troubleshoot the error.

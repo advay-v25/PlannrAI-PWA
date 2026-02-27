@@ -2,20 +2,26 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldAlert, Check, X, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ConflictError } from '@/hooks/use-calendar';
+import type { Patch } from '@/lib/ai/schemas';
+
+export interface CalendarOption {
+    id: string;
+    label: string;
+    description: string;
+    tradeoff: string;
+    patch: Patch;
+}
 
 interface ConflictModalProps {
     error: ConflictError | null;
     onClose: () => void;
-    onConfirmOption: (option: any) => void;
+    onConfirmOption: (option: CalendarOption) => void;
 }
 
 export function ConflictModal({ error, onClose, onConfirmOption }: ConflictModalProps) {
     if (!error || !error.conflict) return null;
 
-    // The backend `ConflictService` returns `resolution_options`.
-    // We expect the options array to look like:
-    // [ { strategy: "shift", changes: [ { id, start_time, end_time, title } ] }, ... ]
-
+    // The backend `resolve-conflict` API returns an array of `CalendarOption`.
     return (
         <AnimatePresence>
             <motion.div
@@ -54,7 +60,7 @@ export function ConflictModal({ error, onClose, onConfirmOption }: ConflictModal
                     {/* Options List */}
                     <div className="p-5 max-h-[60vh] overflow-y-auto no-scrollbar space-y-3">
                         {error.options?.length > 0 ? (
-                            error.options.map((opt, i) => (
+                            error.options.map((opt: CalendarOption, i: number) => (
                                 <button
                                     key={i}
                                     onClick={() => onConfirmOption(opt)}
@@ -62,32 +68,21 @@ export function ConflictModal({ error, onClose, onConfirmOption }: ConflictModal
                                 >
                                     <div className="flex items-center justify-between mb-2">
                                         <div className="font-bold text-white text-sm">
-                                            {opt.strategy === 'shift' && 'Shift Existing Blocks Down'}
-                                            {opt.strategy === 'shrink' && 'Shrink New Block'}
-                                            {opt.strategy === 'cancel' && 'Cancel Operation'}
-                                            {!['shift', 'shrink', 'cancel'].includes(opt.strategy) && opt.strategy}
+                                            {opt.label}
                                         </div>
                                         <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                             <ArrowRight className="w-3 h-3 text-white" />
                                         </div>
                                     </div>
+                                    <p className="text-xs text-white/70 mb-2">{opt.description}</p>
+                                    <p className="text-[10px] text-white/50 italic">Tradeoff: {opt.tradeoff}</p>
 
-                                    {/* Preview Changes */}
-                                    {opt.changes && opt.changes.length > 0 && (
-                                        <div className="space-y-1 mt-3 pl-3 border-l-2 border-white/10">
-                                            {opt.changes.map((change: any, cIdx: number) => (
-                                                <div key={cIdx} className="text-xs flex items-center gap-2">
-                                                    <span className="text-white/40 truncate max-w-[120px]">
-                                                        {change.title}
-                                                    </span>
-                                                    <span className="text-white/20">→</span>
-                                                    <span className="font-mono text-[10px] text-white/60 bg-white/5 px-1.5 py-0.5 rounded">
-                                                        {change.start_time} - {change.end_time}
-                                                    </span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
+                                    {/* Preview Changes Count */}
+                                    <div className="mt-2 flex gap-2">
+                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-white/40">
+                                            {opt.patch?.ops?.length || 0} Block Changes
+                                        </span>
+                                    </div>
                                 </button>
                             ))
                         ) : (

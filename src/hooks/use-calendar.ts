@@ -192,7 +192,7 @@ export function useCalendar() {
     };
 
     // AI: Plan Week
-    const planWeek = async (options: { mode: 'balanced' | 'intense' | 'recovery', allow_weekend?: boolean }) => {
+    const planWeek = async (options: { mode: 'balanced' | 'momentum' | 'recovery', allow_weekend?: boolean }) => {
         setIsPlanning(true);
         try {
             const startStr = format(startOfWeek(selectedDate, { weekStartsOn: 1 }), 'yyyy-MM-dd');
@@ -202,12 +202,14 @@ export function useCalendar() {
                 allow_weekend: options.allow_weekend ?? false
             });
 
-            // Store undo token
-            if (res.undo_token) setLastUndoToken(res.undo_token);
-
-            await loadData();
-            showToast(`✅ ${res.plan_summary || 'Week planned!'} (${res.blocks_created} blocks)`, 'success');
-            return res;
+            // We no longer get changes directly, we get options.
+            // Return the options and summary to the UI to render the selection modal.
+            return {
+                summary: res.plan_summary,
+                options: res.options || [],
+                warnings: res.warnings || [],
+                note: res.donna_note
+            };
         } catch (e: any) {
             showToast("Failed to generate plan", "error");
             throw e;
@@ -223,12 +225,12 @@ export function useCalendar() {
             const dateStr = format(selectedDate, 'yyyy-MM-dd');
             const res: any = await apiClient.schedule.optimizeDay({ date: dateStr, focus });
 
-            // Store undo token
-            if (res.undo_token) setLastUndoToken(res.undo_token);
-
-            await loadData();
-            showToast(`✅ ${res.donna_note || 'Day optimized!'} (${res.changes} changes)`, 'success');
-            return res;
+            return {
+                analysis: res.analysis,
+                options: res.options || [],
+                warnings: res.warnings || [],
+                note: res.donna_note
+            };
         } catch (e: any) {
             showToast("Failed to optimize day", "error");
             throw e;
@@ -237,11 +239,29 @@ export function useCalendar() {
         }
     };
 
+    // Apply User-Selected AI Option
+    const applyOption = async (option: any) => {
+        try {
+            // Apply the patch via the PatchService apply endpoint
+            const result: any = await apiClient.post('/api/patch/apply', {
+                patch: option.patch,
+                context: option.id
+            });
+
+            if (result.undo_token) setLastUndoToken(result.undo_token);
+            await loadData();
+            showToast(`✅ Option applied! (${result.changes} changes)`, 'success');
+        } catch (e: any) {
+            showToast("Failed to apply option", "error");
+            throw e;
+        }
+    };
+
     // AI: Undo last calendar action
     const undoLastCalendarAction = async () => {
         if (!lastUndoToken) return;
         try {
-            await apiClient.post('/api/coach/undo', { undo_token: lastUndoToken });
+            await apiClient.post('/api/patch/undo', { undo_token: lastUndoToken });
             setLastUndoToken(null);
             await loadData();
             showToast('Undone!', 'success');
@@ -272,6 +292,7 @@ export function useCalendar() {
         deleteBlock,
         planWeek,
         optimizeDay,
+        applyOption,
         isOptimizing,
         isPlanning,
         lastUndoToken,

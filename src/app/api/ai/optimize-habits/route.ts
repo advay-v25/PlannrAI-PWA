@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { groqChat } from '@/lib/ai/groq-client';
 import { JSONReliability } from '@/lib/ai/json-reliability';

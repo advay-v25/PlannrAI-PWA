@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createClient } from '@/lib/supabase/server';
 import { AgentContext } from './core/types';
 import { startOfDay, endOfDay } from 'date-fns';

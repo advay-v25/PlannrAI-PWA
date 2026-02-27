@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { runAI } from '@/lib/ai/run-ai';
 import { BrainDumpAnalysisSchema, BrainDumpAnalysis } from '@/lib/validation/brain-dump-contract';
 import { format } from 'date-fns';

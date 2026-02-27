@@ -4,7 +4,8 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Send, Sparkles, RotateCcw, Brain, ArrowRight, Check, Loader2,
-    MessageCircle, Zap, Eye, Clock, Target, TrendingUp
+    MessageCircle, Zap, Eye, Clock, Target, TrendingUp,
+    CalendarDays, Plus, RefreshCw, MoveRight
 } from 'lucide-react';
 import { useCoach, CoachMessage } from '@/hooks/use-coach';
 
@@ -51,16 +52,40 @@ export function CoachChat() {
     return (
         <div className="flex flex-col h-full">
             {/* Header */}
-            <div className="h-14 flex items-center gap-3 px-5 border-b border-white/5 bg-black/40 backdrop-blur-xl shrink-0">
-                <div className="relative">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500/20 to-cyan-500/20 flex items-center justify-center border border-white/10">
-                        <Sparkles className="w-4 h-4 text-violet-400" />
+            <div className="border-b border-white/5 bg-black/40 backdrop-blur-xl shrink-0">
+                <div className="h-14 flex items-center gap-3 px-5">
+                    <div className="relative">
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500/20 to-cyan-500/20 flex items-center justify-center border border-white/10">
+                            <Sparkles className="w-4 h-4 text-violet-400" />
+                        </div>
+                        <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-black" />
                     </div>
-                    <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-black" />
+                    <div>
+                        <span className="font-bold text-sm text-white tracking-tight">Donna</span>
+                        <div className="text-[10px] text-white/30 font-medium">Chief of Staff • Performance Coach</div>
+                    </div>
                 </div>
-                <div>
-                    <span className="font-bold text-sm text-white tracking-tight">Donna</span>
-                    <div className="text-[10px] text-white/30 font-medium">Chief of Staff • Performance Coach</div>
+                {/* Quick Actions Panel */}
+                <div className="flex items-center gap-1.5 px-4 pb-2.5 overflow-x-auto">
+                    {[
+                        { icon: <MoveRight className="w-3 h-3" />, label: 'Move a block', msg: 'I need to move a block in my schedule' },
+                        { icon: <Plus className="w-3 h-3" />, label: 'Add task', msg: 'I need to add a new task to my schedule' },
+                        { icon: <RefreshCw className="w-3 h-3" />, label: 'Rebalance week', msg: 'Rebalance my week for me' },
+                        { icon: <CalendarDays className="w-3 h-3" />, label: 'Clear afternoon', msg: 'Clear my afternoon today' },
+                    ].map((action) => (
+                        <button
+                            key={action.label}
+                            onClick={() => sendMessage(action.msg)}
+                            disabled={isLoading}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium
+                                bg-white/[0.04] border border-white/[0.06] text-white/40 whitespace-nowrap
+                                hover:bg-violet-500/10 hover:border-violet-500/20 hover:text-violet-300
+                                disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                        >
+                            {action.icon}
+                            {action.label}
+                        </button>
+                    ))}
                 </div>
             </div>
 
@@ -301,6 +326,11 @@ function AssistantMessage({
                 </div>
             )}
 
+            {/* Calendar Preview (Before/After for schedule patches) */}
+            {msg.options && msg.options.some(o => o.patch?.ops?.length) && (
+                <CalendarPreview options={msg.options.filter(o => o.patch?.ops?.length)} />
+            )}
+
             {/* Options */}
             {msg.options && msg.options.length > 0 && (
                 <div className="ml-9 space-y-2">
@@ -516,6 +546,52 @@ function QuestionBlock({ question, onAnswer }: {
                     </button>
                 </div>
             )}
+        </div>
+    );
+}
+
+// --- Calendar Preview (Before/After diff for schedule patches) ---
+function CalendarPreview({ options }: { options: any[] }) {
+    const allOps = options.flatMap(o => o.patch?.ops || []);
+    if (allOps.length === 0) return null;
+
+    return (
+        <div className="ml-9 p-3 rounded-xl bg-cyan-500/5 border border-cyan-500/10 space-y-2">
+            <div className="flex items-center gap-1.5">
+                <CalendarDays className="w-3 h-3 text-cyan-400" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-400/60">
+                    Schedule changes preview
+                </span>
+            </div>
+            <div className="space-y-1.5">
+                {allOps.slice(0, 5).map((op: any, i: number) => (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                        {op.type === 'add' && (
+                            <>
+                                <span className="w-4 h-4 rounded bg-emerald-500/10 flex items-center justify-center text-emerald-400 font-bold text-[10px]">+</span>
+                                <span className="text-white/70">{op.title || 'New block'}</span>
+                                <span className="text-white/30">{op.start_time} – {op.end_time}</span>
+                            </>
+                        )}
+                        {op.type === 'update' && (
+                            <>
+                                <span className="w-4 h-4 rounded bg-amber-500/10 flex items-center justify-center text-amber-400 font-bold text-[10px]">~</span>
+                                <span className="text-white/70">{op.title || 'Block update'}</span>
+                                {op.start_time && <span className="text-white/30">→ {op.start_time}</span>}
+                            </>
+                        )}
+                        {op.type === 'remove' && (
+                            <>
+                                <span className="w-4 h-4 rounded bg-red-500/10 flex items-center justify-center text-red-400 font-bold text-[10px]">−</span>
+                                <span className="text-white/40 line-through">{op.title || op.id?.slice(0, 8)}</span>
+                            </>
+                        )}
+                    </div>
+                ))}
+                {allOps.length > 5 && (
+                    <span className="text-[10px] text-white/30">...and {allOps.length - 5} more changes</span>
+                )}
+            </div>
         </div>
     );
 }

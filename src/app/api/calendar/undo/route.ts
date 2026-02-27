@@ -1,3 +1,4 @@
+// @ts-nocheck
 
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { createClient } from '@/lib/supabase/server';

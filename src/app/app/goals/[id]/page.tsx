@@ -1,215 +1,185 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { Goal } from '@/types/database';
+import {
+    ArrowLeft,
+    TrendingUp,
+    Zap,
+    Trophy,
+    Activity,
+    Calendar,
+    Target
+} from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
-import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Brain, CheckCircle2, Calendar, Target } from 'lucide-react';
-import { apiClient } from '@/lib/api-client';
-import { motion } from 'framer-motion';
+import { GlassButton } from '@/components/ui/glass-button';
+import { useGoalsManager } from '@/hooks/use-goals-manager';
+import type { Goal } from '@/types/database';
 
-export default function GoalMissionControl() {
-    const { id } = useParams();
+export default function GoalDetailPage() {
+    const params = useParams();
     const router = useRouter();
+    const { goals, fetchGoals } = useGoalsManager();
     const [goal, setGoal] = useState<Goal | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [generating, setGenerating] = useState(false);
-    const [plan, setPlan] = useState<any>(null); // TODO: Type this properly
-
-    const [approving, setApproving] = useState(false);
 
     useEffect(() => {
-        fetchGoal();
-    }, [id]);
+        if (!goals.length) {
+            fetchGoals();
+        }
+    }, [goals.length, fetchGoals]);
 
-    const fetchGoal = async () => {
-        const supabase = createClient();
-        const { data, error } = await supabase
-            .from('goals')
-            .select('*')
-            .eq('id', id)
-            .single();
-
-        if (data) {
-            setGoal(data);
-            if (data.ai_plan) {
-                setPlan(data.ai_plan);
+    useEffect(() => {
+        if (params.id && goals.length > 0) {
+            const found = goals.find(g => g.id === params.id);
+            if (found) {
+                setGoal(found);
             }
         }
-        setLoading(false);
-    };
+    }, [params.id, goals]);
 
-    const handleDecompose = async () => {
-        if (!goal) return;
-        setGenerating(true);
-        try {
-            const res = await apiClient.post<any>('/api/goals/decompose', {
-                goal_title: goal.title,
-                goal_description: goal.description,
-                timeline: '3 months' // Todo: Make dynamic
-            });
-
-            if (res.plan) {
-                setPlan(res.plan);
-                // Save to DB immediately as draft
-                const supabase = createClient();
-                await supabase.from('goals').update({ ai_plan: res.plan }).eq('id', goal.id);
-            } else {
-                console.warn('No plan in response:', res);
-            }
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setGenerating(false);
-        }
-    };
-
-    const handleApprove = async () => {
-        if (!goal || !plan) return;
-        setApproving(true);
-        try {
-            await apiClient.post('/api/goals/execute', {
-                goal_id: goal.id,
-                plan: plan
-            });
-            // Redirect to main goals page or show success
-            router.push('/app/goals');
-        } catch (e) {
-            console.error('Approval failed:', e);
-            // Optional: Show error toast
-        } finally {
-            setApproving(false);
-        }
-    };
-
-    if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin" /></div>;
-    if (!goal) return <div>Goal not found</div>;
-
-    return (
-        <div className="min-h-screen bg-[var(--bg-primary)] p-4 md:p-8 space-y-8">
-            {/* Header */}
-            <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" onClick={() => router.back()}>
-                    <ArrowLeft className="w-5 h-5" />
-                </Button>
-                <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <Target className="w-6 h-6 text-[var(--color-primary)]" />
-                        {goal.title}
-                    </h1>
-                    <p className="text-[var(--text-secondary)]">Mission Control</p>
-                </div>
-            </div>
-
-            {/* Strategic Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <GlassCard className="p-6 col-span-2">
-                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                        <Brain className="w-4 h-4 text-purple-400" />
-                        Execute Strategy
-                    </h2>
-
-                    {!plan ? (
-                        <div className="text-center py-12 space-y-4">
-                            <p className="text-[var(--text-secondary)]">No execution plan detected.</p>
-                            <Button
-                                onClick={handleDecompose}
-                                disabled={generating}
-                                className="bg-purple-600 hover:bg-purple-700 text-white"
-                            >
-                                {generating ? (
-                                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Analyzing...</>
-                                ) : (
-                                    <><Brain className="w-4 h-4 mr-2" /> Decompose with AI</>
-                                )}
-                            </Button>
-                        </div>
-                    ) : (
-                        <div className="space-y-6">
-                            <div className="grid grid-cols-3 gap-4 mb-6">
-                                <div className="bg-white/5 p-3 rounded-lg text-center">
-                                    <div className="text-xs text-[var(--text-tertiary)] uppercase">Complexity</div>
-                                    <div className="font-bold text-lg capitalize">{plan.analysis.complexity}</div>
-                                </div>
-                                <div className="bg-white/5 p-3 rounded-lg text-center">
-                                    <div className="text-xs text-[var(--text-tertiary)] uppercase">Timeline</div>
-                                    <div className="font-bold text-lg">{plan.analysis.time_horizon}</div>
-                                </div>
-                                <div className="bg-white/5 p-3 rounded-lg text-center">
-                                    <div className="text-xs text-[var(--text-tertiary)] uppercase">Milestones</div>
-                                    <div className="font-bold text-lg">{plan.milestones.length}</div>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                {plan.milestones.map((m: any, idx: number) => (
-                                    <div key={idx} className="border border-white/10 rounded-xl p-4 bg-black/20">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <h3 className="font-bold text-white">{m.title}</h3>
-                                            <span className="text-xs bg-white/10 px-2 py-1 rounded">T+{m.deadline_offset_days} days</span>
-                                        </div>
-                                        <p className="text-sm text-[var(--text-secondary)] mb-4">{m.description}</p>
-
-                                        <div className="space-y-2">
-                                            {m.tasks.map((t: any, tIdx: number) => (
-                                                <div key={tIdx} className="flex items-center gap-3 text-sm bg-white/5 p-2 rounded hover:bg-white/10 transition-colors">
-                                                    <div className="w-4 h-4 rounded-full border border-white/20" />
-                                                    <span className="flex-1">{t.title}</span>
-                                                    <span className="text-xs text-[var(--text-tertiary)] flex items-center gap-1">
-                                                        <Calendar className="w-3 h-3" />
-                                                        {t.estimated_minutes}m
-                                                    </span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <div className="flex justify-end gap-2 pt-4 border-t border-white/10">
-                                <Button variant="outline" onClick={handleDecompose} disabled={generating || approving}>
-                                    Regenerate
-                                </Button>
-                                <Button
-                                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                                    onClick={handleApprove}
-                                    disabled={approving}
-                                >
-                                    {approving ? (
-                                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Approving...</>
-                                    ) : (
-                                        "Approve Plan"
-                                    )}
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                </GlassCard>
-
-                {/* Sidebar Info */}
-                <div className="space-y-6">
-                    <GlassCard className="p-4">
-                        <h3 className="text-sm font-semibold mb-2">Goal Details</h3>
-                        <div className="space-y-2 text-sm">
-                            <div className="flex justify-between">
-                                <span className="text-[var(--text-tertiary)]">Category</span>
-                                <span>{goal.category}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-[var(--text-tertiary)]">Importance</span>
-                                <span className="capitalize">{goal.importance}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span className="text-[var(--text-tertiary)]">Deadline</span>
-                                <span>--</span>
-                            </div>
-                        </div>
-                    </GlassCard>
-                </div>
+    if (!goal) return (
+        <div className="flex justify-center items-center py-20">
+            <div className="animate-pulse flex items-center gap-2 text-[var(--text-tertiary)]">
+                <Target className="w-5 h-5" />
+                <span>Loading Goal Physics...</span>
             </div>
         </div>
     );
+
+    // Physics Calculations (Mocked if data missing, scaling based on V1 PRD)
+    const level = goal.level || 1;
+    const currentStreak = goal.current_streak_days || 0;
+    const weeklyTarget = goal.weekly_target_minutes || 180;
+
+    // Cycle Progess
+    const cycleStart = goal.cycle_start_date ? new Date(goal.cycle_start_date) : new Date();
+    const cycleEnd = goal.cycle_end_date ? new Date(goal.cycle_end_date) : new Date(new Date().setDate(new Date().getDate() + 90));
+    const now = new Date();
+
+    const cycleTotalDays = Math.max(1, Math.floor((cycleEnd.getTime() - cycleStart.getTime()) / (1000 * 60 * 60 * 24)));
+    const cycleDaysElapsed = Math.max(0, Math.floor((now.getTime() - cycleStart.getTime()) / (1000 * 60 * 60 * 24)));
+    const cycleProgress = Math.min(100, Math.round((cycleDaysElapsed / cycleTotalDays) * 100));
+
+    return (
+        <div className="pb-24 space-y-8 animate-in fade-in duration-500">
+            {/* 1. Header & Navigation */}
+            <header className="flex items-center gap-4">
+                <button
+                    onClick={() => router.back()}
+                    className="p-2 rounded-full hover:bg-[var(--glass-bg-hover)] text-[var(--text-secondary)] transition-colors"
+                >
+                    <ArrowLeft className="w-5 h-5" />
+                </button>
+                <div>
+                    <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">
+                        {goal.title}
+                    </h1>
+                    <div className="flex items-center gap-2 text-sm text-[var(--text-tertiary)] mt-1">
+                        <span className="capitalize">{goal.category}</span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                            <Zap className="w-3 h-3 text-orange-400" />
+                            Lvl {level}
+                        </span>
+                    </div>
+                </div>
+            </header>
+
+            {/* 2. Physics Dashboard (Momentum, Streak, Velocity) */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {/* Level Badge */}
+                <GlassCard padding="md" className="flex flex-col items-center justify-center text-center">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center mb-2 border border-purple-500/30">
+                        <Trophy className="w-6 h-6 text-purple-400" />
+                    </div>
+                    <span className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Current Level</span>
+                    <span className="text-2xl font-black font-mono mt-1">{level}</span>
+                </GlassCard>
+
+                {/* Streak Badge */}
+                <GlassCard padding="md" className="flex flex-col items-center justify-center text-center">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-500/20 to-red-500/20 flex items-center justify-center mb-2 border border-orange-500/30">
+                        <Zap className="w-6 h-6 text-orange-400" />
+                    </div>
+                    <span className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Active Streak</span>
+                    <span className="text-2xl font-black font-mono mt-1">{currentStreak} <span className="text-sm font-sans text-[var(--text-tertiary)] font-normal">days</span></span>
+                </GlassCard>
+
+                {/* Velocity */}
+                <GlassCard padding="md" className="flex flex-col items-center justify-center text-center">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-500/20 to-emerald-500/20 flex items-center justify-center mb-2 border border-green-500/30">
+                        <Activity className="w-6 h-6 text-green-400" />
+                    </div>
+                    <span className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Velocity</span>
+                    <span className="text-2xl font-black font-mono mt-1">+2.4<span className="text-sm font-sans text-[var(--text-tertiary)] font-normal">x</span></span>
+                </GlassCard>
+
+                {/* Weekly Target */}
+                <GlassCard padding="md" className="flex flex-col items-center justify-center text-center">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center mb-2 border border-blue-500/30">
+                        <Target className="w-6 h-6 text-blue-400" />
+                    </div>
+                    <span className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Weekly Target</span>
+                    <span className="text-2xl font-black font-mono mt-1">{weeklyTarget}<span className="text-sm font-sans text-[var(--text-tertiary)] font-normal">m</span></span>
+                </GlassCard>
+            </div>
+
+            {/* 3. Cycle Progress Timeline */}
+            <GlassCard padding="lg" className="space-y-6">
+                <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 rounded-lg bg-[var(--color-primary)]/10 text-[var(--color-primary)]">
+                        <Calendar className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <h2 className="text-lg font-bold">90-Day Cycle Progress</h2>
+                        <p className="text-sm text-[var(--text-tertiary)]">
+                            Day {cycleDaysElapsed} of {cycleTotalDays}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="relative pt-8">
+                    {/* The Rail */}
+                    <div className="h-3 w-full bg-[var(--glass-border)] rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-gradient-to-r from-[var(--color-primary)] to-purple-500 transition-all duration-1000 ease-out"
+                            style={{ width: `${cycleProgress}%` }}
+                        />
+                    </div>
+
+                    {/* Milestones / Nodes */}
+                    <div className="absolute top-0 left-0 w-full flex justify-between px-1">
+                        {[0, 30, 60, 90].map((dayMarker, i) => (
+                            <div key={dayMarker} className="flex flex-col items-center -ml-3" style={{ left: `${(i / 3) * 100}%`, position: i > 0 && i < 3 ? 'absolute' : 'relative' }}>
+                                <div className={`w-1 h-3 mb-1 rounded-full ${cycleDaysElapsed >= dayMarker ? 'bg-[var(--color-primary)]' : 'bg-[var(--text-tertiary)]/30'}`} />
+                                <span className={`text-[10px] font-bold ${cycleDaysElapsed >= dayMarker ? 'text-[var(--text-primary)]' : 'text-[var(--text-tertiary)]'}`}>D{dayMarker}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </GlassCard>
+
+            {/* 4. AI Strategy & Expert Routines (Placeholder for MVP) */}
+            <GlassCard padding="lg" className="border border-purple-500/20 bg-gradient-to-b from-purple-500/5 to-transparent">
+                <div className="flex items-start justify-between">
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                            <Sparkles className="w-5 h-5 text-purple-400" />
+                            <h2 className="text-lg font-bold text-purple-100">AI Expert Strategy</h2>
+                        </div>
+                        <p className="text-sm text-[var(--text-tertiary)] max-w-xl">
+                            {goal.ai_strategy ? "We've mapped a path based on your energy patterns." : "Unlock the physics-engine to generate a specialized path for this cycle."}
+                        </p>
+                    </div>
+                    <GlassButton variant="primary">
+                        {goal.ai_strategy ? 'View Path' : 'Generate'}
+                    </GlassButton>
+                </div>
+            </GlassCard>
+
+        </div>
+    );
 }
+
+// Ensure Sparkles is imported
+import { Sparkles } from 'lucide-react';

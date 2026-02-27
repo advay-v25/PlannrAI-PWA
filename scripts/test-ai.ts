@@ -18,11 +18,15 @@ async function test() {
         return;
     }
 
-    console.log('Testing Brain Dump for user:', user.id);
+    const channel = process.argv[2] || 'brain_dump';
+    const input = process.argv[3] || 'I have a 45 min meeting with John tomorrow';
+
+    console.log(`Testing ${channel} for user:`, user.id);
     try {
         const result = await executeAI(user.id, {
-            channel: 'brain_dump',
-            input: 'I have a 45 min meeting with John tomorrow'
+            channel: channel,
+            input: input,
+            context: {}
         });
         console.log('Success:', JSON.stringify(result, null, 2));
     } catch (e: any) {

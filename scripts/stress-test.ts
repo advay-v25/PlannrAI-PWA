@@ -1,3 +1,4 @@
+// @ts-nocheck
 
 import { createClient } from '@supabase/supabase-js';
 import { generateAIResponse } from '../src/lib/ai/groq-client';

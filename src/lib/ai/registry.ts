@@ -1,5 +1,15 @@
 import { z } from 'zod';
-import { PatchSchema, OnboardingArchitectSchema, DayOptimizationSchema, RoutineGenerationSchema, CalendarPlanWeekSchema, ConflictResolutionSchema } from './schemas';
+import {
+  PatchSchema,
+  OnboardingArchitectSchema,
+  DayOptimizationSchema,
+  RoutineGenerationSchema,
+  CalendarPlanWeekSchema,
+  ConflictResolutionSchema,
+  LifeSnapshotExtractionSchema,
+  GoalDiscoveryExtractionSchema,
+  FirstScheduleGeneratorSchema
+} from './schemas';
 
 // --- Shared Types ---
 export type AIContext = Record<string, any>;
@@ -142,6 +152,7 @@ export const WeeklyReviewOutputSchema = z.object({
 export const GoalDecompositionSchema = z.object({
   channel: z.literal('goal_decomposition').optional(),
   mode: z.literal('propose').optional(),
+  summary: z.string().optional(),
   plan: z.object({
     analysis: z.object({
       complexity: z.enum(['low', 'medium', 'high']),
@@ -161,7 +172,24 @@ export const GoalDecompositionSchema = z.object({
       }))
     }))
   }),
-  summary: z.string().optional()
+  // Support for legacy GoalInterpret component
+  daily_routine: z.object({
+    name: z.string(),
+    total_mins: z.number(),
+    blocks: z.array(z.object({
+      name: z.string(),
+      duration_mins: z.number(),
+      type: z.enum(['warmup', 'core', 'cooldown', 'review']),
+      tips: z.string()
+    }))
+  }).optional(),
+  phases: z.array(z.object({
+    week: z.number(),
+    focus: z.string(),
+    milestone: z.string()
+  })).optional(),
+  subtasks: z.array(z.string()).optional(),
+  advice: z.string().optional()
 });
 
 // 8. Daily Briefing
@@ -580,9 +608,9 @@ RULES:
 ${BASE_RULES}
 
 CONTEXT:
-Goal: ${JSON.stringify(ctx.goal_title || ctx.goal || 'Unknown')}
-Goal Category: ${ctx.goal_category || 'General'}
-Current Config: ${ctx.minutes_per_day || 30}m/day, ${ctx.days_per_week || 5}d/week
+Goal: ${JSON.stringify(ctx.goal?.title || ctx.goal_title || ctx.goal || 'Unknown')}
+Goal Category: ${ctx.goal?.category || ctx.goal_category || 'General'}
+Current Config: ${ctx.goal?.current_commitment || (ctx.minutes_per_day ? `${ctx.minutes_per_day}m/day` : '30m/day')}
 Skill Level: ${ctx.skill_level || 'Beginner'}
 Schedule: ${JSON.stringify(ctx.schedule || [])}
 Anchors: ${JSON.stringify(ctx.anchors || [])}
@@ -616,7 +644,7 @@ OUTPUT FORMAT (Strict JSON, No Markdown):
     "frequency": "daily|3x_week|5x_week|weekly",
     "duration_mins": number,
     "steps": ["Step 1: Specific action", "Step 2: Specific action"],
-    "best_time": "morning|afternoon|evening|anytime",
+    "best_time": "morning|afternoon|evening|anytime (Pick EXACTLY one, no pipes)",
     "notes": "Optional tips or modifications"
   },
   "milestones": ["Week 1: ...", "Week 3: ...", "Month 2: ..."],
@@ -951,48 +979,53 @@ OUTPUT FORMAT (Strict JSON, No Markdown):
       donna_note: "AI planning is offline — add blocks manually for now."
     }),
     systemPrompt: (ctx) => {
-      return `You are an elite Performance Coach & Flow State Engineer.
-Your objective is to architect a realistic, high-performance weekly schedule that aligns with the user's goals while protecting their energy and mental bandwidth.
+      return `You are the Calendar Intelligence Core of PlannrAI.
+Your objective is to generate 3 conflict-free weekly schedule options based on the user's constraints, goals, and energy patterns.
 
 ${BASE_RULES}
 
 CONTEXT:
 Week: ${ctx.week_start} to ${ctx.week_end}
-Mode: ${ctx.mode || 'balanced'} (balanced=even spread, intense=maximize output, recovery=light load)
+Mode Request: ${ctx.mode || 'balanced'}
 Allow Weekend: ${ctx.allow_weekend || false}
-Profile: ${JSON.stringify(ctx.profile || {})}
-State & Capacity: ${JSON.stringify(ctx.capacity || {})} | User State: ${JSON.stringify(ctx.user_state || {})}
-Goals & Habits: ${JSON.stringify({ goals: ctx.goals || [], habits: ctx.existing_habits || [] })}
-Mental Context (Coach Chats & Dumps): ${JSON.stringify({ coach: ctx.recent_coach_chats || [], dumps: ctx.recent_brain_dumps || [] })}
-Existing Blocks: ${JSON.stringify(ctx.existing_blocks_sample || [])}
+Profile (Bioclock): ${JSON.stringify(ctx.profile || {})}
+State & Capacity: ${JSON.stringify(ctx.capacity || {})}
+User State (Energy/Emotion): ${JSON.stringify(ctx.user_state || {})}
+Goals (Targets & Limits): ${JSON.stringify(ctx.goals || [])}
+Habit Stacks: ${JSON.stringify(ctx.existing_habits || [])}
+Mental Context (Chats & Dumps): ${JSON.stringify({ coach: ctx.recent_coach_chats || [], dumps: ctx.recent_brain_dumps || [] })}
 Anchors (LOCKED): ${JSON.stringify(ctx.anchors || [])}
+Existing Kept Blocks: ${JSON.stringify(ctx.existing_blocks_sample || [])}
 
-PLANNING RULES:
-1. THE PERFORMANCE AUDIT: Read the Mental Context (Chats & Dumps). Are they overwhelmed? Anxious? Account for this by adding buffer time or recovery blocks immediately.
-2. INTEGRATE HABITS: Automatically weave their active 'habit_stacks' into the schedule at their preferred times.
-3. GOAL ACCELERATION: Read the 'ai_plan' milestones inside 'goals'. Schedule explicit focus blocks targeting these specific milestones.
-4. PROTECT THE BASELINE: NEVER schedule over locked anchors.
-5. FLOW STATE ENGINEERING: Group high-cognitive tasks (Deep Work) in the morning or during their peak energy windows. Group meetings/admin in the afternoon.
-6. AVOID FATIGUE: No more than 5-6 blocks per day. Insert 15-min buffers between intensive blocks.
-7. Don't duplicate existing blocks. Output ONLY valid patches.
+PLANNING RULES (STRICT ENFORCEMENT):
+1. TIER 0 (BIOLOGY): NEVER schedule during Sleep window (sleep_time -> wake_time + wind_down).
+2. TIER 1 (LOCKED): NEVER schedule over Anchors or Existing Kept Blocks.
+3. TIER 2 (ROUTINES): Schedule Meals (2-3/day) and Habit Stacks in their preferred windows.
+4. TIER 3 (STRATEGY): Distribute Goal work. Respect preferred times per pillar.
+5. Provide 2-3 distinct options (e.g., "Balanced", "Front-loaded", "Recovery-first").
 
 OUTPUT FORMAT (Strict JSON, No Markdown):
 {
-  "plan_summary": "Brief overview of the week plan (max 100 chars)",
-  "blocks": [
+  "plan_summary": "Brief analysis of capacity vs requests",
+  "options": [
     {
-      "title": "Block Title",
-      "date": "YYYY-MM-DD",
-      "start_time": "HH:MM",
-      "end_time": "HH:MM",
-      "block_type": "focus|task|break|habit|goal",
-      "goal_title": "Matching goal title (if applicable)"
+      "id": "balanced_v1",
+      "label": "Balanced Week",
+      "description": "Even spread across the week",
+      "tradeoff": "More context switching between days",
+      "stats": { "mind_minutes": 300, "total_blocks": 15 },
+      "patch": {
+        "reason": "Applying Balanced Week plan",
+        "changes": [
+          { "op": "CREATE", "block": { "date": "YYYY-MM-DD", "start_time": "HH:MM", "end_time": "HH:MM", "title": "Block Name", "block_type": "focus|task|goal|habit", "goal_id": "uuid-if-matching" } }
+        ]
+      }
     }
   ],
-  "donna_note": "1-2 sentences about the plan strategy"
+  "warnings": ["Insufficient capacity for all goal targets"]
 }
 
-Generate 15-30 blocks max. Every block must have a valid date within the week range.`.trim();
+Generate 15-30 blocks max per option. Ensure 0% overlap with existing blocks.`.trim();
     },
     userPrompt: (input: string) => `Plan week: ${input}`
   },
@@ -1001,65 +1034,74 @@ Generate 15-30 blocks max. Every block must have a valid date within the week ra
     schema: DayOptimizationSchema,
     config: { model: "llama-3.3-70b-versatile", temperature: 0.3, maxTokens: 2500 },
     fallback: () => ({
-      analysis: { energy_state: "normal", schedule_health: 'balanced' as const, flow_opportunity: "No optimization available" },
-      strategy: { main_focus: "Keep current schedule", changes_made: "None — fallback active", reality_check_applied: false },
-      changes: [],
-      donna_note: "AI optimization temporarily unavailable."
+      analysis: {
+        energy_state: "Unknown",
+        schedule_health: "conflict",
+        flow_opportunity: "None"
+      },
+      options: [
+        {
+          id: "keep_current",
+          label: "Keep Current Schedule",
+          description: "Optimization is temporarily unavailable.",
+          tradeoff: "No changes will be applied.",
+          patch: { reason: "Fallback", changes: [] }
+        }
+      ],
+      warnings: ["AI optimization is currently offline."]
     }),
     systemPrompt: (ctx) => {
-      return `You are an elite Performance Coach & Flow State Engineer.
-Your objective is to optimize the user's daily schedule dynamically. You read between the lines of their mental state and rearrange their blocks to guarantee a peak performance day.
+      return `You are the Calendar Intelligence Core of PlannrAI.
+Your objective is to optimize the remainder of the user's day by generating 2-3 distinct schedule options based on their current energy, emotions, and remaining capacity.
 
 ${BASE_RULES}
 
 CONTEXT:
-Date: ${ctx.date} | Focus Mode: ${ctx.focus || 'balance'}
-Profile: ${JSON.stringify(ctx.profile || {})}
-State & Capacity: ${JSON.stringify(ctx.capacity || {})} | Energy: ${JSON.stringify(ctx.user_state || {})}
-Current Blocks: ${JSON.stringify(ctx.blocks || [])}
-Inbox Tasks (needs scheduling): ${JSON.stringify(ctx.inbox_tasks || [])}
-Goals & Habits: ${JSON.stringify({ goals: ctx.goals || [], habits: ctx.habit_stacks || [] })}
-Mental Context: ${JSON.stringify({ coach: ctx.recent_coach_chats || [], dumps: ctx.recent_brain_dumps || [] })}
+Date: ${ctx.date} | Current Time: ${ctx.current_time}
+User State: { Energy: ${ctx.energy}/10, Emotion: ${ctx.emotion} }
+Remaining Capacity (Hours): ${ctx.remaining_capacity}
+Uncompleted Blocks Today: ${JSON.stringify(ctx.remaining_blocks || [])}
+Completed Blocks Today: ${JSON.stringify(ctx.completed_blocks || [])}
+Profile (Bioclock): ${JSON.stringify(ctx.profile || {})}
+Goals (Targets): ${JSON.stringify(ctx.goals || [])}
 Anchors (LOCKED): ${JSON.stringify(ctx.anchors || [])}
 
-OPTIMIZATION STRATEGY:
-1. ANALYZE THE MINDSET: If their 'recent_brain_dumps' or 'coach_chats' reveal stress or a specific priority, restructure the day to tackle that specific bottleneck FIRST.
-2. FLOW STATE BATCHING: Group similar tasks together to minimize context switching. Put analytical tasks during peak energy, admin during low energy.
-3. WEAVE HABITS: Ensure their 'habit_stacks' are seamlessly mapped onto the schedule.
-4. CONFLICT RESOLUTION: Fix overlapping blocks. If two blocks overlap, move the lower-priority one or shrink them.
-5. BUFFER INJECTION: If they have 3+ consecutive blocks, force a recovery break.
-6. ANCHOR PROTECTION: NEVER move or modify anchor blocks.
-7. OVERWHELM MODE: If focus is 'reduce_overwhelm' (or if energy is low), aggressively delete low-priority tasks.
-8. OUTPUT MODE: If focus is 'maximize_output', tighten gaps and insert goal-milestone blocks.
-9. PROACTIVE SCHEDULING: Dynamically schedule items from "Inbox Tasks" into available whitespace. Use the "move" action with the block_id to place them.
-
-CHANGE TYPES:
-- "move": Relocate an existing block to a better time. Use the block's REAL ID.
-- "create": Add a new block (break, buffer, goal session).
-- "delete": Remove a block (only if reducing overwhelm or eliminating conflicts).
+OPTIMIZATION RULES (STRICT ENFORCEMENT):
+1. STATE MATCHING: 
+   - If energy < 5: deprioritize deep Mind work, suggest light Body/admin.
+   - If energy > 7: suggest tackling the hardest Craft/Mind block now.
+   - If overwhelmed: offer a "Minimum Viable Day" option (1 block per pillar max).
+2. SALVAGE LOGIC: If user is >2hrs behind schedule, offer a "Reset to Evening" option (clear afternoon, salvage evening).
+3. TIER 1 (LOCKED): NEVER move or delete Anchors.
+4. TIER 2 (ROUTINES): Protect Meals and Habit Stacks (can shift ±30m).
+5. Provide exactly 3 distinct options: "Realistic Salvage", "Compressed Mode", and "Recovery Day".
 
 OUTPUT FORMAT (Strict JSON, No Markdown):
 {
   "analysis": {
-    "energy_state": "high|medium|low",
+    "energy_state": "Vibe assessment",
     "schedule_health": "balanced|packed|loose|conflict",
-    "flow_opportunity": "Where is the best deep work slot? (1 sentence)"
+    "flow_opportunity": "Best time for deep work"
   },
-  "strategy": {
-    "main_focus": "The one priority for today (max 50 chars)",
-    "changes_made": "Summary of changes (max 80 chars)",
-    "reality_check_applied": boolean
-  },
-  "changes": [
-    { "action": "move|create|delete", "block_title": "Title", "block_id": "UUID (for move/delete)", "new_start_time": "HH:MM", "new_end_time": "HH:MM", "block_type": "task|break|focus|buffer", "date": "YYYY-MM-DD", "reason": "Brief reason" }
+  "options": [
+    {
+      "id": "realistic_salvage",
+      "label": "Realistic Salvage",
+      "description": "Protect the 2 most important blocks, defer the rest",
+      "tradeoff": "Pushing 3 blocks to tomorrow",
+      "patch": {
+        "reason": "Applying Realistic Salvage",
+        "changes": [
+          { "op": "MOVE", "block_id": "uuid", "new_date": "YYYY-MM-DD", "new_start_time": "HH:MM", "new_end_time": "HH:MM" },
+          { "op": "DELETE", "block_id": "uuid" }
+        ]
+      }
+    }
   ],
-  "donna_note": "1 sentence optimization summary"
+  "warnings": ["Energy too low for deep work"]
 }
 
-RULES:
-- Use REAL block IDs from context for move/delete operations.
-- Maximum 6 changes per optimization.
-- Always explain WHY each change improves the day.`.trim();
+Scope all changes to today ONLY (or deferring to tomorrow).`.trim();
     },
     userPrompt: (input: string) => `Optimize day: ${input}`
   },
@@ -1076,9 +1118,9 @@ RULES:
     }),
     systemPrompt: (ctx) => `
       You are the Conflict Resolver.
-      Proposed block conflicts with existing schedule. Propose solutions.
-      ${BASE_RULES}
-  
+      Proposed block conflicts with existing schedule.Propose solutions.
+        ${BASE_RULES}
+
       SOLUTIONS:
       1. Move new block to next available slot.
       2. Move conflicting block.
@@ -1088,11 +1130,11 @@ RULES:
       {
         "options": [{ "label": "string", "description": "string", "patch": { "ops": [...], "undoable": true } }]
       }
-  
+
       CONTEXT:
       ${JSON.stringify(ctx, null, 2)}
       `.trim(),
-    userPrompt: (input) => `Resolve conflict: ${input}`
+    userPrompt: (input) => `Resolve conflict: ${input} `
   },
 
   goal_decomposition: {
@@ -1111,46 +1153,54 @@ RULES:
       You are "The Architect", an expert goal planning agent.
       Break down the user's goal into a concrete, actionable plan.
       ${BASE_RULES}
-  
+
       CONTEXT:
       User Context: ${JSON.stringify(ctx, null, 2)}
-      
+
       REQUIREMENTS:
       1. Analyze the goal complexity and constraints.
-      2. Break it into logical MILESTONES (Phases).
+      2. Break it into logical MILESTONES(Phases).
       3. For each milestone, list specific TASKS with time estimates.
       4. Be realistic based on user's energy and existing goals.
   
       OUTPUT JSON:
       {
         "channel": "goal_decomposition",
-        "mode": "propose",
-        "summary": "Brief strategy summary",
-        "plan": {
+          "mode": "propose",
+            "summary": "Brief strategy summary",
+              "plan": {
           "analysis": { "complexity": "low|medium|high", "time_horizon": "string", "resources": ["string"], "obstacles": ["string"] },
           "milestones": [{
-              "title": "string",
-              "description": "string",
-              "deadline_offset_days": number,
-              "tasks": [{ "title": "string", "estimated_minutes": number, "is_recurring": boolean, "recurrence": "string" }]
+            "title": "string",
+            "description": "string",
+            "deadline_offset_days": number,
+            "tasks": [{ "title": "string", "estimated_minutes": number, "is_recurring": boolean, "recurrence": "string" }]
           }]
-        }
+        },
+        "daily_routine": {
+          "name": "string",
+            "total_mins": number,
+              "blocks": [{ "name": "string", "duration_mins": number, "type": "warmup|core|cooldown|review", "tips": "string" }]
+        },
+        "phases": [{ "week": number, "focus": "string", "milestone": "string" }],
+          "subtasks": ["string"],
+            "advice": "string"
       }
       `.trim(),
-    userPrompt: (input) => `Goal: ${input}`
+    userPrompt: (input) => `Goal: ${input} `
   },
 
   daily_briefing: {
     schema: DailyBriefingOutputSchema,
     config: { model: 'llama-3.3-70b-versatile', temperature: 0.6, maxTokens: 600 },
     fallback: (input, ctx) => ({
-      briefing: `Good morning. You have ${ctx?.schedule?.count || 0} blocks scheduled today. Stay focused.`,
+      briefing: `Good morning.You have ${ctx?.schedule?.count || 0} blocks scheduled today.Stay focused.`,
       tone: 'focused' as const,
       priorities: []
     }),
     systemPrompt: (ctx) => `
-      You are a crisp, motivational morning briefing writer for a high-performance operator.
-      ${BASE_RULES}
+      You are a crisp, motivational morning briefing writer for a high - performance operator.
+        ${BASE_RULES}
 
       USER CONTEXT:
       Name: ${ctx.user?.name || 'User'}
@@ -1164,15 +1214,69 @@ RULES:
       1. Keep briefing under 500 chars — punchy, actionable.
       2. Tone must match energy: low energy → gentle, high energy → energized, deadline pressure → urgent.
       3. Reference specific schedule items by name if available.
-      4. Include up to 3 priorities extracted from schedule/goals.
+      4. Include up to 3 priorities extracted from schedule / goals.
 
       OUTPUT JSON:
       {
         "briefing": "string (max 500 chars)",
-        "tone": "focused|energized|gentle|urgent",
-        "priorities": ["string", "string", "string"]
+          "tone": "focused|energized|gentle|urgent",
+            "priorities": ["string", "string", "string"]
       }
-    `.trim(),
+      `.trim(),
     userPrompt: (input) => input || 'Generate Command Briefing'
+  },
+
+  onboarding_life_snapshot: {
+    schema: LifeSnapshotExtractionSchema,
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.1, maxTokens: 1000 },
+    fallback: () => ({
+      extracted: {
+        wake_time: "07:00", sleep_time: "23:00", wind_down_start: "22:00", anchors: [],
+        meals: {}, morning_routine: { exists: false, duration_min: 0 }, evening_routine: { exists: false, duration_min: 0 }
+      },
+      confidence: 0, missing: [], next_question: "Let's move on."
+    }),
+    systemPrompt: () => `
+You are DONNA. An elite executive coach performing an intake for a new high-performer.
+Your goal is to extract strictly their schedule boundaries (sleep, meals, fixed commitments) from their free-text explanation.
+Be conversational in the 'next_question' if data is missing, but STRICT in the JSON extraction.
+If confidence is < 0.8, fill 'missing' and ask for it in 'next_question'.
+
+${BASE_RULES}
+`,
+    userPrompt: (input, ctx) => `Chat History: ${JSON.stringify(ctx?.chatHistory || [])}\nUser: ${input}`
+  },
+
+  onboarding_goal_discovery: {
+    schema: GoalDiscoveryExtractionSchema,
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.2, maxTokens: 1000 },
+    fallback: () => ({
+      identified_goals: {}, missing_pillars: ['mind', 'body', 'craft'], clarification_needed: false, response_to_user: "Let's move on."
+    }),
+    systemPrompt: () => `
+You are DONNA. An elite executive coach helping a user clarify their 90-day goals across Mind, Body, and Craft.
+Extract their goals and estimate hours needed based on their text.
+
+${BASE_RULES}
+`,
+    userPrompt: (input, ctx) => `Chat History: ${JSON.stringify(ctx?.chatHistory || [])}\nUser: ${input}`
+  },
+
+  onboarding_schedule_gen: {
+    schema: FirstScheduleGeneratorSchema,
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.2, maxTokens: 4000 },
+    fallback: () => ({
+      variants: [], recommendation: "Balanced variant", recommendation_reason: "Safe default"
+    }),
+    systemPrompt: (ctx) => `
+You are DONNA. Generate 3 variants of a realistic weekly schedule (Balanced, Momentum, Gentle Start) based on the extracted life snapshot and goals.
+
+Profile: ${JSON.stringify(ctx?.profile || {})}
+Goals: ${JSON.stringify(ctx?.goals || {})}
+Available Capacity: ${ctx?.capacity || 'Unknown'}
+
+${BASE_RULES}
+`,
+    userPrompt: () => "Generate the initial 3 schedule variants."
   }
 };

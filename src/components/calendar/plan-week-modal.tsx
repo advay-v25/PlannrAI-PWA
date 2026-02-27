@@ -5,46 +5,40 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
-import { apiClient } from '@/lib/api-client';
 import type { Patch } from '@/lib/ai/schemas';
 import {
     Calendar, Sparkles, X, Check, Loader2, ArrowRight, Zap, Battery, Activity
 } from 'lucide-react';
-import { format, startOfWeek } from 'date-fns';
 
-interface PlanWeekModalProps {
-    onClose: () => void;
-    onApply: (patch: Patch) => void;
-    context: any;
-}
-
-interface PlanOption {
+export interface CalendarOption {
+    id: string;
     label: string;
     description: string;
+    tradeoff: string;
     patch: Patch;
 }
 
-export function PlanWeekModal({ onClose, onApply, context }: PlanWeekModalProps) {
+interface PlanWeekModalProps {
+    onClose: () => void;
+    onApply: (option: CalendarOption) => void;
+    planWeek: (options: { mode: 'balanced' | 'momentum' | 'recovery', allow_weekend?: boolean }) => Promise<{ summary: string, options: CalendarOption[], warnings: string[], note: string | undefined }>;
+    context: any;
+}
+
+export function PlanWeekModal({ onClose, onApply, planWeek, context }: PlanWeekModalProps) {
     const [step, setStep] = useState<'mode' | 'generating' | 'selection'>('mode');
-    const [selectedMode, setSelectedMode] = useState<'balanced' | 'intense' | 'recovery'>('balanced');
-    const [options, setOptions] = useState<PlanOption[]>([]);
-    const [selectedOption, setSelectedOption] = useState<PlanOption | null>(null);
+    const [selectedMode, setSelectedMode] = useState<'balanced' | 'momentum' | 'recovery'>('balanced');
+    const [options, setOptions] = useState<CalendarOption[]>([]);
+    const [selectedOption, setSelectedOption] = useState<CalendarOption | null>(null);
 
     const handleGenerate = async () => {
         setStep('generating');
         try {
-            const dateStr = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd');
-            // Call API
-            const result: any = await apiClient.schedule.planWeek({
-                start_date: dateStr,
+            // Call API via the passed hook function
+            const result = await planWeek({
                 mode: selectedMode,
                 allow_weekend: false // or user pref
             });
-
-            // The API returns { options: PlanOption[] } or we adapt
-            // It might return { options: [...] } directly if using validated response
-            // Let's assume result structure, log to be safe
-            // result = { options: [...] }
 
             if (result && result.options) {
                 setOptions(result.options);
@@ -52,8 +46,6 @@ export function PlanWeekModal({ onClose, onApply, context }: PlanWeekModalProps)
                 setStep('selection');
             } else {
                 console.warn("No options returned", result);
-                // Fallback or error?
-                // Just close for now or show error state
                 onClose();
             }
         } catch (e) {
@@ -64,7 +56,7 @@ export function PlanWeekModal({ onClose, onApply, context }: PlanWeekModalProps)
 
     const handleApply = () => {
         if (selectedOption) {
-            onApply(selectedOption.patch);
+            onApply(selectedOption); // Pass the entire option back to the hook
         }
     };
 
@@ -72,8 +64,8 @@ export function PlanWeekModal({ onClose, onApply, context }: PlanWeekModalProps)
         <button
             onClick={() => setSelectedMode(mode)}
             className={`w-full p-4 rounded-xl border text-left transition-all ${selectedMode === mode
-                    ? 'bg-[var(--color-primary)]/10 border-[var(--color-primary)] shadow-lg shadow-[var(--color-primary)]/20'
-                    : 'bg-white/5 border-white/5 hover:bg-white/10'
+                ? 'bg-[var(--color-primary)]/10 border-[var(--color-primary)] shadow-lg shadow-[var(--color-primary)]/20'
+                : 'bg-white/5 border-white/5 hover:bg-white/10'
                 }`}
         >
             <div className="flex items-center gap-3 mb-2">
@@ -132,9 +124,9 @@ export function PlanWeekModal({ onClose, onApply, context }: PlanWeekModalProps)
                                         desc="Sustainable mix of deep work and rest. Recommended."
                                     />
                                     <ModeCard
-                                        mode="intense"
+                                        mode="momentum"
                                         icon={Zap}
-                                        title="High Intensity"
+                                        title="Momentum"
                                         desc="Maximize output. Minimal buffers. Use sparingly."
                                     />
                                     <ModeCard
@@ -185,8 +177,8 @@ export function PlanWeekModal({ onClose, onApply, context }: PlanWeekModalProps)
                                             key={i}
                                             onClick={() => setSelectedOption(opt)}
                                             className={`w-full p-4 rounded-xl border text-left transition-all ${selectedOption === opt
-                                                    ? 'bg-[var(--color-success)]/10 border-[var(--color-success)] shadow-lg shadow-[var(--color-success)]/10'
-                                                    : 'bg-white/5 border-white/5 hover:bg-white/10'
+                                                ? 'bg-[var(--color-success)]/10 border-[var(--color-success)] shadow-lg shadow-[var(--color-success)]/10'
+                                                : 'bg-white/5 border-white/5 hover:bg-white/10'
                                                 }`}
                                         >
                                             <div className="flex justify-between items-start mb-1">

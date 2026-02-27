@@ -3,6 +3,9 @@ import { z } from "zod";
 
 export const ChannelEnum = z.enum([
     "onboarding",
+    "onboarding_life_snapshot",
+    "onboarding_goal_discovery",
+    "onboarding_schedule_gen",
     "home",
     "home.insight",
     "home.briefing",
@@ -24,6 +27,90 @@ export const ChannelEnum = z.enum([
     "calendar_plan_week",
     "conflict_resolution"
 ]);
+
+// --- V1 Onboarding Extraction Schemas ---
+
+export const LifeSnapshotExtractionSchema = z.object({
+    extracted: z.object({
+        wake_time: z.string().describe("HH:MM"),
+        sleep_time: z.string().describe("HH:MM"),
+        wind_down_start: z.string().describe("HH:MM"),
+        anchors: z.array(z.object({
+            title: z.string(),
+            start: z.string(),
+            end: z.string(),
+            days: z.array(z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']))
+        })),
+        meals: z.object({
+            breakfast: z.string().optional(),
+            lunch: z.string().optional(),
+            dinner: z.string().optional()
+        }),
+        morning_routine: z.object({
+            exists: z.boolean(),
+            duration_min: z.number()
+        }),
+        evening_routine: z.object({
+            exists: z.boolean(),
+            duration_min: z.number()
+        })
+    }),
+    confidence: z.number().min(0).max(1),
+    missing: z.array(z.string()),
+    next_question: z.string()
+});
+
+export const GoalDiscoveryExtractionSchema = z.object({
+    identified_goals: z.record(
+        z.enum(['mind', 'body', 'craft']),
+        z.object({
+            title: z.string(),
+            description: z.string(),
+            suggested_hours_week: z.number(),
+            confidence: z.number().min(0).max(1)
+        })
+    ),
+    missing_pillars: z.array(z.enum(['mind', 'body', 'craft'])),
+    clarification_needed: z.boolean(),
+    response_to_user: z.string()
+});
+
+export const ScheduleVariantSchema = z.object({
+    id: z.string(),
+    label: z.string(),
+    description: z.string(),
+    philosophy: z.string(),
+    weekly_stats: z.object({
+        mind_minutes: z.number(),
+        body_minutes: z.number(),
+        craft_minutes: z.number(),
+        total_blocks: z.number(),
+        avg_daily_hours: z.number()
+    }),
+    schedule_blocks: z.array(z.object({
+        title: z.string(),
+        pillar: z.enum(['mind', 'body', 'craft']).optional().nullable(),
+        goal_id: z.string().nullable().optional(),
+        date: z.string(), // YYYY-MM-DD
+        start_time: z.string(), // HH:MM
+        end_time: z.string(), // HH:MM
+        block_type: z.string(), // goal_work, etc.
+        is_locked: z.boolean(),
+        energy_level: z.enum(['low', 'medium', 'high', 'any']).optional().nullable()
+    })),
+    daily_breakdown: z.record(
+        z.string(),
+        z.record(z.string(), z.number())
+    )
+});
+
+export const FirstScheduleGeneratorSchema = z.object({
+    variants: z.array(ScheduleVariantSchema),
+    recommendation: z.string(),
+    recommendation_reason: z.string()
+});
+
+// ------------------------------------------
 
 export const OnboardingArchitectSchema = z.object({
     analysis: z.object({
@@ -127,28 +214,71 @@ export const PatchSchema = z.object({
     reason: z.string().max(160).optional(),
 });
 
-// Day Optimization (Flat — no PatchSchema)
+// --- Canonical Patch Schema (Phase 2.5) ---
+export const CanonicalPatchOpSchema = z.discriminatedUnion('op', [
+    z.object({
+        op: z.literal('CREATE'),
+        block: z.object({
+            date: z.string(),
+            start_time: z.string(),
+            end_time: z.string(),
+            title: z.string(),
+            block_type: z.enum(['focus', 'routine', 'meal', 'social', 'rest', 'sleep', 'buffer']),
+            is_fixed: z.boolean().optional(),
+            status: z.enum(['planned', 'completed', 'skipped']).optional(),
+            goal_id: z.string().optional(),
+            pillar: z.string().optional(),
+            energy_cost: z.enum(['low', 'medium', 'high']).optional(),
+            commitment_id: z.string().optional(),
+            is_locked: z.boolean().optional(),
+            meta: z.record(z.string(), z.any()).optional()
+        })
+    }),
+    z.object({
+        op: z.literal('MOVE'),
+        block_id: z.string(),
+        new_date: z.string(),
+        new_start_time: z.string(),
+        new_end_time: z.string()
+    }),
+    z.object({
+        op: z.literal('UPDATE'),
+        block_id: z.string(),
+        fields: z.record(z.string(), z.any())
+    }),
+    z.object({
+        op: z.literal('DELETE'),
+        block_id: z.string()
+    })
+]);
+
+export const CanonicalPatchSchema = z.object({
+    reason: z.string(),
+    changes: z.array(CanonicalPatchOpSchema)
+});
+
+export type CanonicalPatch = z.infer<typeof CanonicalPatchSchema>;
+export type CanonicalPatchOp = z.infer<typeof CanonicalPatchOpSchema>;
+
+// Calendar Option Schema (Shared between Plan Week and Optimize Day)
+export const CalendarOptionSchema = z.object({
+    id: z.string().describe("Unique identifier for this option"),
+    label: z.string().describe("Short title (e.g., 'Balanced Week', 'Realistic Salvage')"),
+    description: z.string().describe("One sentence explaining the approach"),
+    tradeoff: z.string().describe("What the user gives up with this choice"),
+    stats: z.record(z.string(), z.any()).optional().describe("e.g. mind_minutes, total_blocks"),
+    patch: CanonicalPatchSchema
+});
+
+// Day Optimization (Options-Based)
 export const DayOptimizationSchema = z.object({
     analysis: z.object({
         energy_state: z.string().describe("User's current energy vibe"),
         schedule_health: z.enum(['balanced', 'packed', 'loose', 'conflict']),
         flow_opportunity: z.string().describe("Where is the best deep work slot?")
     }),
-    strategy: z.object({
-        main_focus: z.string().describe("The one thing to nail today"),
-        changes_made: z.string().describe("Summary of what we moved and why"),
-        reality_check_applied: z.boolean().describe("Did we have to condense tasks?")
-    }),
-    changes: z.array(z.object({
-        action: z.enum(['move', 'create', 'delete']),
-        block_title: z.string(),
-        date: z.string().optional(),
-        new_start_time: z.string().describe('HH:MM format'),
-        new_end_time: z.string().describe('HH:MM format'),
-        block_type: z.enum(['task', 'goal', 'break', 'focus', 'anchor']).optional(),
-        reason: z.string().optional()
-    })).describe('Schedule changes to apply'),
-    donna_note: z.string().optional().describe('Encouraging note about the optimized day')
+    options: z.array(CalendarOptionSchema).max(3),
+    warnings: z.array(z.string()).optional()
 });
 
 export const WeeklyReviewOutputSchema = z.object({
@@ -229,26 +359,20 @@ export const BrainDumpResponseSchema = z.object({
     }).optional()
 });
 
-// Calendar Plan Week (Flat — no PatchSchema)
+// Calendar Plan Week (Options-Based)
 export const CalendarPlanWeekSchema = z.object({
-    plan_summary: z.string().describe('Brief summary of the planned week'),
-    blocks: z.array(z.object({
-        title: z.string(),
-        date: z.string().describe('YYYY-MM-DD format'),
-        start_time: z.string().describe('HH:MM format'),
-        end_time: z.string().describe('HH:MM format'),
-        block_type: z.enum(['task', 'goal', 'break', 'focus', 'habit', 'anchor']),
-        goal_title: z.string().optional().describe('Associated goal title if applicable')
-    })).describe('Schedule blocks for the week'),
+    plan_summary: z.string().describe('Brief summary of the plan analysis'),
+    options: z.array(CalendarOptionSchema).max(3),
+    warnings: z.array(z.string()).optional(),
     donna_note: z.string().optional().describe('Brief planning note')
 });
 
 export const ConflictResolutionSchema = z.object({
-    options: z.array(z.object({
-        label: z.string(),
-        description: z.string(),
-        patch: PatchSchema
-    }))
+    conflict: z.object({
+        proposed_block: z.record(z.string(), z.any()).optional(),
+        conflicting_blocks: z.array(z.record(z.string(), z.any())).optional(),
+    }).optional(),
+    options: z.array(CalendarOptionSchema).max(3)
 });
 
 export const OptionSchema = z.object({
@@ -347,53 +471,10 @@ export const AIResponseSchema = z.object({
     }
 });
 
-
-// --- Canonical Patch Schema (Phase 2.5) ---
-export const CanonicalPatchOpSchema = z.discriminatedUnion('op', [
-    z.object({
-        op: z.literal('CREATE'),
-        block: z.object({
-            date: z.string(),
-            start_time: z.string(),
-            end_time: z.string(),
-            title: z.string(),
-            block_type: z.enum(['focus', 'routine', 'meal', 'social', 'rest', 'sleep', 'buffer']),
-            is_fixed: z.boolean().optional(),
-            status: z.enum(['planned', 'completed', 'skipped']).optional(),
-            goal_id: z.string().optional(),
-            pillar: z.string().optional(),
-            energy_cost: z.enum(['low', 'medium', 'high']).optional(),
-            commitment_id: z.string().optional(),
-            is_locked: z.boolean().optional(),
-            meta: z.record(z.string(), z.any()).optional()
-        })
-    }),
-    z.object({
-        op: z.literal('MOVE'),
-        block_id: z.string(),
-        new_date: z.string(),
-        new_start_time: z.string(),
-        new_end_time: z.string()
-    }),
-    z.object({
-        op: z.literal('UPDATE'),
-        block_id: z.string(),
-        fields: z.record(z.string(), z.any())
-    }),
-    z.object({
-        op: z.literal('DELETE'),
-        block_id: z.string()
-    })
-]);
-
-export const CanonicalPatchSchema = z.object({
-    reason: z.string(),
-    changes: z.array(CanonicalPatchOpSchema)
-});
-
-export type CanonicalPatch = z.infer<typeof CanonicalPatchSchema>;
-export type CanonicalPatchOp = z.infer<typeof CanonicalPatchOpSchema>;
-
+export type FirstScheduleGenerator = z.infer<typeof FirstScheduleGeneratorSchema>;
+export type ScheduleVariant = z.infer<typeof ScheduleVariantSchema>;
+export type GoalDiscoveryExtraction = z.infer<typeof GoalDiscoveryExtractionSchema>;
+export type LifeSnapshotExtraction = z.infer<typeof LifeSnapshotExtractionSchema>;
 export type AIResponse = z.infer<typeof AIResponseSchema>;
 export type Patch = z.infer<typeof PatchSchema>;
 export type PatchOp = z.infer<typeof PatchOpSchema>;

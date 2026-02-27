@@ -45,44 +45,26 @@ interface OnboardingState {
 }
 
 const defaultOnboardingData: OnboardingData = {
+    full_name: '',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+
+    // Step 2: Life Snapshot
     sleep_start: '22:00',
     sleep_end: '07:00',
-    commitments: [],
-    goals: [],
-    energy_level: 3,
-    stress_level: 3,
-    ai_can_suggest: true,
-    ai_can_analyze: true,
-    ai_can_draft: true,
-    full_name: '',
-    // V3 Defaults
     wind_down_mins: 45,
+    commitments: [],
     meals_per_day: 3,
-    meal_windows: {
-        breakfast: '08:00',
-        lunch: '13:00',
-        dinner: '19:00',
-    },
-    buffer_config: {
-        gap_mins: 10,
-        type: 'normal',
-    },
-    body_preferences: {
-        activity_types: ['walk'],
-        preferred_time: 'morning',
-        duration_mins: 30,
-    },
-    scan_skipped: false,
-    bio_scan_url: undefined,
-    ai_profile: {
-        chronotype: null,
-        productivity_archetype: null,
-        energy_pattern: null,
-        risk_factors: [],
-        donna_notes: [],
-        step_insights: {},
-    },
+    meal_windows: {},
+    // Step 3: Goals
+    goals: [],
+
+    // Step 4: Energy Patterns
+    peak_windows: [],
+    low_windows: [],
+    work_style: null,
+
+    // Step 5: Options
+    selected_variant_id: null
 };
 
 export const useOnboardingStore = create<OnboardingState>()(

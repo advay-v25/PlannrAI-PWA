@@ -9,61 +9,42 @@ import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
 import { AIInsightTransition } from '@/components/onboarding/ai-insight-transition';
 
-// Step Components
-import { Step1Framing } from '@/components/onboarding/step-1-framing';
-import { Step2Time } from '@/components/onboarding/step-2-time';
-import { Step3Meals } from '@/components/onboarding/step-3-meals';
-import { Step4Commitments } from '@/components/onboarding/step-4-commitments';
-import { Step5Body } from '@/components/onboarding/step-5-body';
-import { Step3Goals } from '@/components/onboarding/step-3-goals';
-import { Step7Scan } from '@/components/onboarding/step-7-scan';
-import { Step8Generate } from '@/components/onboarding/step-8-generate';
+import { Step1Framing } from '@/components/onboarding/v1/step-1-framing';
+import { Step2Snapshot } from '@/components/onboarding/v1/step-2-snapshot';
+import { Step3Goals } from '@/components/onboarding/v1/step-3-goals';
+import { Step4Energy } from '@/components/onboarding/v1/step-4-energy';
+import { Step5Options } from '@/components/onboarding/v1/step-5-options';
 
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 
 const STEPS = [
     { id: 'framing', title: 'Initialization', component: Step1Framing, aiInsight: false },
-    { id: 'time', title: 'Circadian Rhythm', component: Step2Time, aiInsight: true },
-    { id: 'meals', title: 'Fuel & Space', component: Step3Meals, aiInsight: true },
-    { id: 'commitments', title: 'Anchors', component: Step4Commitments, aiInsight: true },
-    { id: 'body', title: 'Body Baseline', component: Step5Body, aiInsight: true },
-    { id: 'goals', title: 'Time Investment', component: Step3Goals, aiInsight: true },
-    { id: 'scan', title: 'Bio-Calibration', component: Step7Scan, aiInsight: false },
-    { id: 'generate', title: 'Day Synthesis', component: Step8Generate, aiInsight: false },
+    { id: 'snapshot', title: 'Life Snapshot', component: Step2Snapshot, aiInsight: true },
+    { id: 'goals', title: 'Goal Discovery', component: Step3Goals, aiInsight: true },
+    { id: 'energy', title: 'Energy Patterns', component: Step4Energy, aiInsight: true },
+    { id: 'options', title: 'Schedule Options', component: Step5Options, aiInsight: false },
 ];
 
 // Extract step-specific data for the AI insight context
 function getStepData(stepId: string, data: any): Record<string, any> {
     switch (stepId) {
-        case 'time':
+        case 'snapshot':
             return {
                 sleep_start: data.sleep_start,
                 sleep_end: data.sleep_end,
-                wind_down_mins: data.wind_down_mins,
-                wake_hour: parseInt(data.sleep_end?.split(':')[0] || '7'),
-            };
-        case 'meals':
-            return {
-                meals_per_day: data.meals_per_day,
-                meal_windows: data.meal_windows,
-                buffer_config: data.buffer_config,
-            };
-        case 'commitments':
-            return {
-                commitments: data.commitments?.map((c: any) => ({ title: c.title, days: c.days_of_week?.length })),
-                total_commitments: data.commitments?.length || 0,
-            };
-        case 'body':
-            return {
-                activity_types: data.body_preferences?.activity_types,
-                preferred_time: data.body_preferences?.preferred_time,
-                duration_mins: data.body_preferences?.duration_mins,
+                commitments: data.commitments?.length || 0,
+                meals: data.meals_per_day,
             };
         case 'goals':
             return {
-                goals: data.goals?.map((g: any) => ({ title: g.title, category: g.category, minutes: g.minutes_per_day })),
-                total_goal_minutes: data.goals?.reduce((s: number, g: any) => s + (g.minutes_per_day || 0), 0),
+                goals: data.goals?.map((g: any) => ({ title: g.title, category: g.category, hours: g.suggested_hours_week })),
                 goal_count: data.goals?.length || 0,
+            };
+        case 'energy':
+            return {
+                peak_windows: data.peak_windows,
+                low_windows: data.low_windows,
+                work_style: data.work_style,
             };
         default:
             return {};
@@ -95,25 +76,7 @@ export default function OnboardingPage() {
             const response = await fetch('/api/onboarding/complete', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    timezone: data.timezone,
-                    sleep_start: data.sleep_start || '22:00',
-                    sleep_end: data.sleep_end || '07:00',
-                    goals: data.goals,
-                    energy_level: data.energy_level,
-                    stress_level: data.stress_level,
-                    meals_per_day: data.meals_per_day,
-                    meal_windows: data.meal_windows,
-                    body_preferences: data.body_preferences,
-                    buffer_config: data.buffer_config,
-                    wind_down_mins: data.wind_down_mins,
-                    full_name: data.full_name,
-                    commitments: data.commitments,
-                    ai_can_suggest: data.ai_can_suggest,
-                    ai_can_analyze: data.ai_can_analyze,
-                    ai_can_draft: data.ai_can_draft,
-                    ai_profile: data.ai_profile
-                })
+                body: JSON.stringify(data)
             });
 
             const result = await response.json();
@@ -136,41 +99,16 @@ export default function OnboardingPage() {
         }
     };
 
-    // Handle AI insight completion — merge into profile and advance
+    // Handle AI insight completion (V1: we just log it or notify, then move on)
     const handleInsightComplete = useCallback((insight: any) => {
         setShowInsight(false);
+        // Instead of accumulating a giant ai_profile, we could just log this insight or skip.
+        // For V1 conversational flow, the "Insights" are handled mostly sequentially in the Chat UI.
 
-        const currentProfile = data.ai_profile || {
-            chronotype: null,
-            productivity_archetype: null,
-            energy_pattern: null,
-            risk_factors: [],
-            donna_notes: [],
-            step_insights: {},
-        };
+        console.log("Insight generated between steps:", insight);
 
-        const updatedProfile = {
-            ...currentProfile,
-            ...(insight.profile_update?.chronotype && { chronotype: insight.profile_update.chronotype }),
-            ...(insight.profile_update?.productivity_archetype && { productivity_archetype: insight.profile_update.productivity_archetype }),
-            ...(insight.profile_update?.energy_pattern && { energy_pattern: insight.profile_update.energy_pattern }),
-            risk_factors: [
-                ...currentProfile.risk_factors,
-                ...(insight.profile_update?.risk_flag ? [insight.profile_update.risk_flag] : [])
-            ],
-            donna_notes: [
-                ...currentProfile.donna_notes,
-                insight.donna_note
-            ],
-            step_insights: {
-                ...currentProfile.step_insights,
-                [STEPS[currentStep].id]: insight.insight
-            }
-        };
-
-        updateData({ ai_profile: updatedProfile });
         nextStep();
-    }, [data.ai_profile, currentStep, updateData, nextStep]);
+    }, [currentStep, updateData, nextStep]);
 
     const handleNext = () => {
         if (isLastStep) {
@@ -194,12 +132,11 @@ export default function OnboardingPage() {
                         accumulatedData={{
                             name: data.full_name,
                             sleep: { start: data.sleep_start, end: data.sleep_end },
-                            energy_level: data.energy_level,
-                            stress_level: data.stress_level,
+                            energy_level: 3,
+                            stress_level: 3,
                             goals_count: data.goals?.length || 0,
-                            total_goal_minutes: data.goals?.reduce((s: number, g: any) => s + (g.minutes_per_day || 0), 0),
+                            total_goal_minutes: 0,
                             commitments_count: data.commitments?.length || 0,
-                            existing_profile: data.ai_profile,
                         }}
                         onComplete={handleInsightComplete}
                         userName={data.full_name}

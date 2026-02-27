@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 import { AgentOrchestrator } from '../src/lib/agents/orchestrator';

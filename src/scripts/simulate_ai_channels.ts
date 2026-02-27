@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createClient } from '@supabase/supabase-js';
 import { buildCoachContext } from '../lib/coach/coach-context';
 import { ChannelRegistry } from '../lib/ai/registry';

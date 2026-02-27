@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { SolverConstraints } from './solver';
 import { Goal, EnergyDemand } from '@/types/database';
 

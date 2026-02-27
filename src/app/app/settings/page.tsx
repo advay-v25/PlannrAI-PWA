@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Clock, Layout, Brain, Activity, Calendar as CalendarIcon,
     User, LogOut, Shield, Trash2, Save, AlertTriangle, Loader2,
-    ChevronRight, ExternalLink, Moon
+    ChevronRight, ExternalLink, Moon, TrendingUp
 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
@@ -19,6 +19,9 @@ import WorkPreferences from './_components/work-preferences';
 import AIControls from './_components/ai-controls';
 import BodyDiet from './_components/body-diet';
 import Integrations from './_components/integrations';
+import ProductivityProfile from './_components/productivity-profile';
+import CommitmentsManager from './_components/commitments-manager';
+import PersonalRulesManager from './_components/personal-rules-manager';
 
 export default function SettingsPage() {
     const router = useRouter();
@@ -111,10 +114,13 @@ export default function SettingsPage() {
 
     const sections = [
         { id: 'account', label: 'Account', icon: User },
+        { id: 'profile', label: 'Productivity Profile', icon: TrendingUp },
         { id: 'core', label: 'Core Constraints', icon: Clock },
+        { id: 'commitments', label: 'Commitments', icon: Shield },
         { id: 'work', label: 'Work Pillars', icon: Layout },
         { id: 'body', label: 'Body & Diet', icon: Activity },
         { id: 'ai', label: 'AI Intelligence', icon: Brain },
+        { id: 'rules', label: 'Personal Rules', icon: Shield },
         { id: 'integrations', label: 'Integrations', icon: CalendarIcon },
         { id: 'danger', label: 'Danger Zone', icon: AlertTriangle },
     ];
@@ -165,6 +171,9 @@ export default function SettingsPage() {
                     {activeSection === 'account' && (
                         <AccountSection profile={profile} onSignOut={handleSignOut} isSigningOut={isSigningOut} />
                     )}
+                    {activeSection === 'profile' && (
+                        <ProductivityProfile />
+                    )}
                     {activeSection === 'core' && preferences && (
                         <CoreConstraints preferences={preferences} onChange={handleUpdate} />
                     )}
@@ -177,8 +186,14 @@ export default function SettingsPage() {
                     {activeSection === 'ai' && preferences && (
                         <AIControls preferences={preferences} onChange={handleUpdate} />
                     )}
+                    {activeSection === 'commitments' && (
+                        <CommitmentsManager />
+                    )}
                     {activeSection === 'integrations' && preferences && (
                         <Integrations preferences={preferences} onChange={handleUpdate} />
+                    )}
+                    {activeSection === 'rules' && (
+                        <PersonalRulesManager />
                     )}
                     {activeSection === 'danger' && (
                         <DangerZone />

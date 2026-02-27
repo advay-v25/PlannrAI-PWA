@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { HomeLayout } from '@/components/home/home-layout';
-import { NowCard } from '@/components/home/now-card';
+import { StateHero } from '@/components/home/state-hero';
 import { TimelineStrip } from '@/components/home/timeline-strip';
 import { StacksModule } from '@/components/home/stacks-module';
 import { BriefingModule } from '@/components/home/briefing-module';
@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 
 export default function HomePage() {
     const [data, setData] = useState<any>(null);
+    const [stateData, setStateData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [briefing, setBriefing] = useState<string | undefined>(undefined);
     const [briefingTone, setBriefingTone] = useState<string | undefined>(undefined);
@@ -28,11 +29,19 @@ export default function HomePage() {
     const fetchHomeData = async () => {
         try {
             const today = new Date().toISOString().split('T')[0];
-            const res = await fetch(`/api/home/summary?date=${today}`);
-            if (res.ok) {
-                const json = await res.json();
+            const [summaryRes, stateRes] = await Promise.all([
+                fetch(`/api/home/summary?date=${today}`),
+                fetch(`/api/home/state?date=${today}`)
+            ]);
+
+            if (summaryRes.ok) {
+                const json = await summaryRes.json();
                 setData(json.data);
                 if (json.data.briefing) setBriefing(json.data.briefing);
+            }
+            if (stateRes.ok) {
+                const stateJson = await stateRes.json();
+                setStateData(stateJson.data);
             }
         } catch (e) {
             console.error(e);
@@ -108,7 +117,7 @@ export default function HomePage() {
         );
     }
 
-    if (!data) return <div className="p-8 text-white">System Error. Check Network.</div>;
+    if (!data || !stateData) return <div className="p-8 text-white">System Error. Check Network.</div>;
 
     // Header Content
     const header = (
@@ -141,9 +150,19 @@ export default function HomePage() {
         <HomeLayout
             header={header}
             nowCard={
-                <NowCard
-                    block={data.next_up}
-                    onAction={handleRefresh}
+                <StateHero
+                    state={stateData.state}
+                    currentTime={stateData.current_time}
+                    activeBlock={stateData.active_block}
+                    nextBlock={stateData.next_block}
+                    metrics={stateData.metrics}
+                    insight={stateData.proactive_insight}
+                    onAction={(action) => {
+                        console.log('Action Triggered:', action);
+                        if (['complete_block', 'fail_block', 'generate_schedule', 'start_early', 'shift_schedule', 'drop_block', 'rest'].includes(action)) {
+                            handleRefresh();
+                        }
+                    }}
                 />
             }
             timeline={

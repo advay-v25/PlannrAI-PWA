@@ -75,11 +75,11 @@ export const POST = secureApiRoute(
             const newGoals = goals.filter((g: any) => !existingTitles.has(g.title)).map((g: any) => ({
                 user_id: userId,
                 title: g.title,
+                description: g.description,
                 category: g.category,
-                pillar: g.pillar || g.category, // Sync pillar with category if missing
-                importance: g.importance || 'medium',
-                minutes_per_day: g.minutes_per_day || 30,
-                days_per_week: g.days_per_week || 5,
+                pillar: g.category,
+                importance: g.importance || 'high',
+                weekly_target_minutes: (g.suggested_hours_week || 5) * 60,
                 status: 'active'
             }));
 

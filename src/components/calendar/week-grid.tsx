@@ -20,18 +20,21 @@ const HOURS = Array.from({ length: 18 }, (_, i) => i + 5); // 5am - 10pm
 const CELL_HEIGHT = 64;
 
 // Pillar color mapping
-const PILLAR_COLORS: Record<string, { bg: string; border: string; text: string; dot: string }> = {
-    mind: { bg: 'bg-cyan-500/10', border: 'border-cyan-500/25', text: 'text-cyan-300', dot: 'bg-cyan-400' },
-    body: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/25', text: 'text-emerald-300', dot: 'bg-emerald-400' },
-    craft: { bg: 'bg-violet-500/10', border: 'border-violet-500/25', text: 'text-violet-300', dot: 'bg-violet-400' },
-    soul: { bg: 'bg-rose-500/10', border: 'border-rose-500/25', text: 'text-rose-300', dot: 'bg-rose-400' },
-    anchor: { bg: 'bg-amber-500/10', border: 'border-amber-500/25', text: 'text-amber-300', dot: 'bg-amber-400' },
+const PILLAR_COLORS: Record<string, { bg: string; border: string; text: string; dot: string; styleClasses?: string }> = {
+    mind: { bg: 'bg-indigo-500/20', border: 'border-indigo-500/30 text-indigo-200', text: 'text-indigo-200', dot: 'bg-indigo-400' },
+    body: { bg: 'bg-emerald-500/20', border: 'border-emerald-500/30 text-emerald-200', text: 'text-emerald-200', dot: 'bg-emerald-400' },
+    craft: { bg: 'bg-amber-500/20', border: 'border-amber-500/30 text-amber-200', text: 'text-amber-200', dot: 'bg-amber-400' },
+    anchor: { bg: 'bg-slate-500/20', border: 'border-slate-500/30', text: 'text-slate-200', dot: 'bg-slate-400' },
+    meal: { bg: 'bg-slate-400/10', border: 'border-slate-400/40 border-dashed border-2', text: 'text-slate-300', dot: 'bg-slate-300' },
+    sleep: { bg: 'bg-[url("/patterns/hatch.svg")] bg-repeat bg-black/40', border: 'border-white/10', text: 'text-white/40', dot: 'bg-white/20' },
     break: { bg: 'bg-gray-500/10', border: 'border-gray-500/20', text: 'text-gray-400', dot: 'bg-gray-400' },
     default: { bg: 'bg-blue-500/10', border: 'border-blue-500/25', text: 'text-blue-300', dot: 'bg-blue-400' }
 };
 
 function getBlockColors(block: any) {
-    if (block.block_type === 'anchor') return PILLAR_COLORS.anchor;
+    if (block.is_locked || block.block_type === 'anchor') return PILLAR_COLORS.anchor;
+    if (block.block_type === 'meal') return PILLAR_COLORS.meal;
+    if (block.block_type === 'sleep') return PILLAR_COLORS.sleep;
     if (block.block_type === 'break' || block.block_type === 'buffer') return PILLAR_COLORS.break;
     const pillar = (block.pillar || block.goal?.pillar || '').toLowerCase();
     return PILLAR_COLORS[pillar] || PILLAR_COLORS.default;
@@ -245,7 +248,7 @@ function DroppableHour({ dayIndex, hour, onClick }: { dayIndex: number; hour: nu
 function BlockCard({ block, layout, onClick }: { block: any; layout: LayoutBlock; onClick: () => void }) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: block.id,
-        disabled: block.block_type === 'anchor'
+        disabled: block.is_locked || block.block_type === 'anchor' || block.block_type === 'sleep'
     });
 
     const colors = getBlockColors(block);
@@ -278,10 +281,10 @@ function BlockCard({ block, layout, onClick }: { block: any; layout: LayoutBlock
             {...attributes}
             onClick={(e) => { if (!isDragging) onClick(); }}
             className={cn(
-                "absolute rounded-lg border overflow-hidden cursor-pointer transition-all",
+                "absolute rounded-lg overflow-hidden cursor-pointer transition-all",
                 "hover:brightness-125 hover:shadow-lg hover:z-20",
-                isDragging && "opacity-50 z-50 shadow-2xl ring-1 ring-white/30",
-                colors.bg, colors.border,
+                isDragging ? "opacity-50 z-50 shadow-2xl ring-1 ring-white/30" : "border",
+                colors.bg, colors.border, colors.styleClasses,
                 STATUS_STYLES[block.status] || '',
                 "backdrop-blur-sm"
             )}

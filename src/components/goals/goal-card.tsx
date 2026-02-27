@@ -10,7 +10,8 @@ import {
     MoreHorizontal,
     Maximize2,
     Minimize2,
-    Target
+    Target,
+    Zap
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
@@ -60,15 +61,14 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
 
                         {!isExpanded && (
                             <div className="flex items-center gap-3 text-xs text-[var(--text-tertiary)] mt-1">
-                                <span className="font-mono">{goal.minutes_per_day}m/day</span>
+                                <span className="font-mono text-[var(--color-primary)] font-bold">Lvl {goal.level || 1}</span>
                                 <span className="w-1 h-1 rounded-full bg-[var(--text-tertiary)]/30" />
-                                <span className="capitalize">{goal.days_per_week || 7} days/wk</span>
+                                <span className="font-mono">{goal.weekly_target_minutes || 0}m/wk</span>
                                 <span className="w-1 h-1 rounded-full bg-[var(--text-tertiary)]/30" />
-                                <span className={`uppercase font-bold text-[10px] ${goal.energy_demand === 'heavy' ? 'text-orange-400' :
-                                    goal.energy_demand === 'light' ? 'text-green-400' : 'text-blue-400'
-                                    }`}>
-                                    {goal.energy_demand}
-                                </span>
+                                <div className="flex items-center gap-1 text-orange-400">
+                                    <Zap className="w-3 h-3" />
+                                    <span className="font-mono font-bold">{goal.current_streak_days || 0}</span>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -117,36 +117,37 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                                 {/* Duration Slider */}
                                 <div className="space-y-2">
                                     <div className="flex justify-between">
-                                        <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Duration (min)</label>
-                                        <span className="text-xs font-mono font-bold text-[var(--color-primary)]">{goal.minutes_per_day}m</span>
+                                        <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Weekly Target</label>
+                                        <span className="text-xs font-mono font-bold text-[var(--color-primary)]">{goal.weekly_target_minutes || 0}m/wk</span>
                                     </div>
                                     <input
-                                        type="range" min={5} max={180} step={5}
-                                        value={goal.minutes_per_day || 0}
-                                        onChange={(e) => onUpdate(goal.id, { minutes_per_day: Number(e.target.value) })}
+                                        type="range" min={30} max={1440} step={30}
+                                        value={goal.weekly_target_minutes || 0}
+                                        onChange={(e) => onUpdate(goal.id, { weekly_target_minutes: Number(e.target.value) })}
                                         className="w-full accent-[var(--color-primary)] h-1.5 bg-[var(--glass-border)] rounded-lg appearance-none cursor-pointer"
                                     />
                                     <div className="flex justify-between text-[10px] text-[var(--text-tertiary)]">
-                                        <span>5m</span>
-                                        <span>3h</span>
+                                        <span>30m</span>
+                                        <span>24h</span>
                                     </div>
                                 </div>
 
-                                {/* Frequency Slider */}
+                                {/* Physics Display (Read-only) */}
                                 <div className="space-y-2">
-                                    <div className="flex justify-between">
-                                        <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Frequency</label>
-                                        <span className="text-xs font-mono font-bold text-[var(--color-primary)]">{goal.days_per_week || 7}d/wk</span>
-                                    </div>
-                                    <input
-                                        type="range" min={1} max={7} step={1}
-                                        value={goal.days_per_week || 7}
-                                        onChange={(e) => onUpdate(goal.id, { days_per_week: Number(e.target.value) })}
-                                        className="w-full accent-[var(--color-primary)] h-1.5 bg-[var(--glass-border)] rounded-lg appearance-none cursor-pointer"
-                                    />
-                                    <div className="flex justify-between text-[10px] text-[var(--text-tertiary)]">
-                                        <span>1d</span>
-                                        <span>7d</span>
+                                    <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Momentum</label>
+                                    <div className="flex items-center gap-4 bg-[var(--glass-bg)] h-10 px-3 rounded-xl border border-[var(--glass-border)]">
+                                        <div className="flex flex-col">
+                                            <span className="text-[9px] uppercase text-[var(--text-tertiary)]">Level</span>
+                                            <span className="text-sm font-bold font-mono text-white">{goal.level || 1}</span>
+                                        </div>
+                                        <div className="h-4 w-px bg-white/10" />
+                                        <div className="flex flex-col">
+                                            <span className="text-[9px] uppercase text-[var(--text-tertiary)]">Streak</span>
+                                            <div className="flex items-center gap-1">
+                                                <Zap className="w-3 h-3 text-orange-400" />
+                                                <span className="text-sm font-bold font-mono text-orange-400">{goal.current_streak_days || 0}</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

@@ -39,101 +39,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      profile_preferences: {
-        Row: {
-          allow_weekend_work: boolean | null
-          ask_before_changes: boolean | null
-          buffer_min: number | null
-          calendar_integration_enabled: boolean | null
-          diet_type: string | null
-          is_workout_protected: boolean | null
-          low_energy_mode: boolean | null
-          max_ai_options: number | null
-          max_daily_load_min: number | null
-          meal_windows: Json | null
-          meals_per_day: number | null
-          notification_times: Json | null
-          notifications_enabled: boolean | null
-          overwhelm_mode: boolean | null
-          pillar_spacing_preference: string | null
-          preferred_windows: Json | null
-          proactive_level: string | null
-          sleep_start: string | null
-          updated_at: string | null
-          user_id: string
-          wake_time: string | null
-          weekend_intensity: string | null
-          wind_down_min: number | null
-          workout_min_per_day: number | null
-          workout_preference: string | null
-          allergies: Json | null
-        }
-        Insert: {
-          allow_weekend_work?: boolean | null
-          ask_before_changes?: boolean | null
-          buffer_min?: number | null
-          calendar_integration_enabled?: boolean | null
-          diet_type?: string | null
-          is_workout_protected?: boolean | null
-          low_energy_mode?: boolean | null
-          max_ai_options?: number | null
-          max_daily_load_min?: number | null
-          meal_windows?: Json | null
-          meals_per_day?: number | null
-          notification_times?: Json | null
-          notifications_enabled?: boolean | null
-          overwhelm_mode?: boolean | null
-          pillar_spacing_preference?: string | null
-          preferred_windows?: Json | null
-          proactive_level?: string | null
-          sleep_start?: string | null
-          updated_at?: string | null
-          user_id: string
-          wake_time?: string | null
-          weekend_intensity?: string | null
-          wind_down_min?: number | null
-          workout_min_per_day?: number | null
-          workout_preference?: string | null
-          allergies?: Json | null
-        }
-        Update: {
-          allow_weekend_work?: boolean | null
-          ask_before_changes?: boolean | null
-          buffer_min?: number | null
-          calendar_integration_enabled?: boolean | null
-          diet_type?: string | null
-          is_workout_protected?: boolean | null
-          low_energy_mode?: boolean | null
-          max_ai_options?: number | null
-          max_daily_load_min?: number | null
-          meal_windows?: Json | null
-          meals_per_day?: number | null
-          notification_times?: Json | null
-          notifications_enabled?: boolean | null
-          overwhelm_mode?: boolean | null
-          pillar_spacing_preference?: string | null
-          preferred_windows?: Json | null
-          proactive_level?: string | null
-          sleep_start?: string | null
-          updated_at?: string | null
-          user_id?: string
-          wake_time?: string | null
-          weekend_intensity?: string | null
-          wind_down_min?: number | null
-          workout_min_per_day?: number | null
-          workout_preference?: string | null
-          allergies?: Json | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "profile_preferences_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       agent_options: {
         Row: {
           context_snapshot: Json | null
@@ -163,6 +68,86 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      ai_audit_log: {
+        Row: {
+          action: string
+          cost_usd: number | null
+          created_at: string | null
+          id: string
+          input_tokens: number | null
+          latency_ms: number | null
+          metadata: Json | null
+          model: string | null
+          output_tokens: number | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          cost_usd?: number | null
+          created_at?: string | null
+          id?: string
+          input_tokens?: number | null
+          latency_ms?: number | null
+          metadata?: Json | null
+          model?: string | null
+          output_tokens?: number | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          cost_usd?: number | null
+          created_at?: string | null
+          id?: string
+          input_tokens?: number | null
+          latency_ms?: number | null
+          metadata?: Json | null
+          model?: string | null
+          output_tokens?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ai_insights: {
+        Row: {
+          action_data: Json | null
+          created_at: string | null
+          id: string
+          insight_type: string
+          is_resolved: boolean | null
+          message: string
+          resolved_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action_data?: Json | null
+          created_at?: string | null
+          id?: string
+          insight_type: string
+          is_resolved?: boolean | null
+          message: string
+          resolved_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action_data?: Json | null
+          created_at?: string | null
+          id?: string
+          insight_type?: string
+          is_resolved?: boolean | null
+          message?: string
+          resolved_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_insights_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ai_interventions: {
         Row: {
@@ -345,6 +330,54 @@ export type Database = {
           },
         ]
       }
+      block_completions: {
+        Row: {
+          actual_duration_minutes: number | null
+          block_id: string | null
+          completed_at: string | null
+          deviation_type: string | null
+          energy_level_after: number | null
+          id: string
+          notes: string | null
+          user_id: string | null
+        }
+        Insert: {
+          actual_duration_minutes?: number | null
+          block_id?: string | null
+          completed_at?: string | null
+          deviation_type?: string | null
+          energy_level_after?: number | null
+          id?: string
+          notes?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          actual_duration_minutes?: number | null
+          block_id?: string | null
+          completed_at?: string | null
+          deviation_type?: string | null
+          energy_level_after?: number | null
+          id?: string
+          notes?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "block_completions_block_id_fkey"
+            columns: ["block_id"]
+            isOneToOne: false
+            referencedRelation: "schedule_blocks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "block_completions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       block_logs: {
         Row: {
           ai_analysis: Json | null
@@ -413,46 +446,182 @@ export type Database = {
         }
         Relationships: []
       }
-      brain_dumps: {
+      brain_dump_extractions: {
         Row: {
-          ai_categories: string[] | null
-          ai_sentiment: string | null
-          ai_themes: string[] | null
-          content: string
-          text: string | null
+          brain_dump_id: string | null
           created_at: string | null
-          detected_constraints: Json | null
-          extracted_signals: Json | null
+          extracted: Json
           id: string
+          note: string | null
+          options: Json | null
           user_id: string
         }
         Insert: {
-          ai_categories?: string[] | null
-          ai_sentiment?: string | null
-          ai_themes?: string[] | null
-          content: string
-          text?: string | null
+          brain_dump_id?: string | null
           created_at?: string | null
-          detected_constraints?: Json | null
-          extracted_signals?: Json | null
+          extracted?: Json
           id?: string
+          note?: string | null
+          options?: Json | null
           user_id: string
         }
         Update: {
-          ai_categories?: string[] | null
-          ai_sentiment?: string | null
-          ai_themes?: string[] | null
-          content?: string
-          text?: string | null
+          brain_dump_id?: string | null
           created_at?: string | null
-          detected_constraints?: Json | null
-          extracted_signals?: Json | null
+          extracted?: Json
           id?: string
+          note?: string | null
+          options?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      brain_dump_items: {
+        Row: {
+          action_result: Json | null
+          action_taken: string | null
+          actioned_at: string | null
+          brain_dump_id: string
+          category: string
+          content: string
+          created_at: string | null
+          entities: Json | null
+          goal_id: string | null
+          id: string
+          schedule_block_id: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          action_result?: Json | null
+          action_taken?: string | null
+          actioned_at?: string | null
+          brain_dump_id: string
+          category: string
+          content: string
+          created_at?: string | null
+          entities?: Json | null
+          goal_id?: string | null
+          id?: string
+          schedule_block_id?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          action_result?: Json | null
+          action_taken?: string | null
+          actioned_at?: string | null
+          brain_dump_id?: string
+          category?: string
+          content?: string
+          created_at?: string | null
+          entities?: Json | null
+          goal_id?: string | null
+          id?: string
+          schedule_block_id?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brain_dump_items_brain_dump_id_fkey"
+            columns: ["brain_dump_id"]
+            isOneToOne: false
+            referencedRelation: "brain_dumps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brain_dump_items_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brain_dump_items_schedule_block_id_fkey"
+            columns: ["schedule_block_id"]
+            isOneToOne: false
+            referencedRelation: "schedule_blocks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brain_dump_items_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      brain_dumps: {
+        Row: {
+          created_at: string | null
+          extracted_items: Json | null
+          id: string
+          processed: boolean
+          processed_at: string | null
+          raw_text: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          extracted_items?: Json | null
+          id?: string
+          processed?: boolean
+          processed_at?: string | null
+          raw_text: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          extracted_items?: Json | null
+          id?: string
+          processed?: boolean
+          processed_at?: string | null
+          raw_text?: string
           user_id?: string
         }
         Relationships: [
           {
             foreignKeyName: "brain_dumps_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coach_conversations: {
+        Row: {
+          context: Json | null
+          id: string
+          is_active: boolean | null
+          last_message_at: string | null
+          started_at: string | null
+          topic: string | null
+          user_id: string
+        }
+        Insert: {
+          context?: Json | null
+          id?: string
+          is_active?: boolean | null
+          last_message_at?: string | null
+          started_at?: string | null
+          topic?: string | null
+          user_id: string
+        }
+        Update: {
+          context?: Json | null
+          id?: string
+          is_active?: boolean | null
+          last_message_at?: string | null
+          started_at?: string | null
+          topic?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_conversations_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -495,37 +664,85 @@ export type Database = {
           },
         ]
       }
-      coach_messages: {
+      coach_learnings: {
         Row: {
-          content: string
+          category: string
+          confidence_score: number
+          conversation_id: string | null
           created_at: string | null
           id: string
-          role: string
-          thread_id: string
+          learning: string
           user_id: string
         }
         Insert: {
-          content: string
+          category: string
+          confidence_score: number
+          conversation_id?: string | null
           created_at?: string | null
           id?: string
-          role: string
-          thread_id: string
+          learning: string
           user_id: string
         }
         Update: {
-          content?: string
+          category?: string
+          confidence_score?: number
+          conversation_id?: string | null
           created_at?: string | null
           id?: string
-          role?: string
-          thread_id?: string
+          learning?: string
           user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "coach_messages_thread_id_fkey"
-            columns: ["thread_id"]
+            foreignKeyName: "coach_learnings_conversation_id_fkey"
+            columns: ["conversation_id"]
             isOneToOne: false
-            referencedRelation: "coach_threads"
+            referencedRelation: "coach_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coach_learnings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coach_messages: {
+        Row: {
+          action_proposed: Json | null
+          action_status: string | null
+          content: string
+          conversation_id: string
+          created_at: string | null
+          id: string
+          role: string
+        }
+        Insert: {
+          action_proposed?: Json | null
+          action_status?: string | null
+          content: string
+          conversation_id: string
+          created_at?: string | null
+          id?: string
+          role: string
+        }
+        Update: {
+          action_proposed?: Json | null
+          action_status?: string | null
+          content?: string
+          conversation_id?: string
+          created_at?: string | null
+          id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "coach_conversations"
             referencedColumns: ["id"]
           },
         ]
@@ -739,193 +956,146 @@ export type Database = {
         }
         Relationships: []
       }
-      milestones: {
+      energy_checkins: {
         Row: {
-          created_at: string | null
-          deadline: string | null
-          description: string | null
-          goal_id: string
+          checked_in_at: string | null
+          context_note: string | null
+          emotional_state: string | null
+          energy_level: number | null
           id: string
-          sort_order: number | null
-          status: string | null
-          title: string
-          updated_at: string | null
+          user_id: string | null
         }
         Insert: {
-          created_at?: string | null
-          deadline?: string | null
-          description?: string | null
-          goal_id: string
+          checked_in_at?: string | null
+          context_note?: string | null
+          emotional_state?: string | null
+          energy_level?: number | null
           id?: string
-          sort_order?: number | null
-          status?: string | null
-          title: string
-          updated_at?: string | null
+          user_id?: string | null
         }
         Update: {
-          created_at?: string | null
-          deadline?: string | null
-          description?: string | null
-          goal_id?: string
+          checked_in_at?: string | null
+          context_note?: string | null
+          emotional_state?: string | null
+          energy_level?: number | null
           id?: string
-          sort_order?: number | null
-          status?: string | null
-          title?: string
-          updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "milestones_goal_id_fkey"
-            columns: ["goal_id"]
+            foreignKeyName: "energy_checkins_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "goals"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      goal_tasks: {
-        Row: {
-          created_at: string | null
-          estimated_minutes: number | null
-          goal_id: string
-          id: string
-          milestone_id: string | null
-          schedule_block_id: string | null
-          status: string | null
-          title: string
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          estimated_minutes?: number | null
-          goal_id: string
-          id?: string
-          milestone_id?: string | null
-          schedule_block_id?: string | null
-          status?: string | null
-          title: string
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          estimated_minutes?: number | null
-          goal_id?: string
-          id?: string
-          milestone_id?: string | null
-          schedule_block_id?: string | null
-          status?: string | null
-          title?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "goal_tasks_goal_id_fkey"
-            columns: ["goal_id"]
-            isOneToOne: false
-            referencedRelation: "goals"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "goal_tasks_milestone_id_fkey"
-            columns: ["milestone_id"]
-            isOneToOne: false
-            referencedRelation: "milestones"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "goal_tasks_schedule_block_id_fkey"
-            columns: ["schedule_block_id"]
-            isOneToOne: false
-            referencedRelation: "schedule_blocks"
-            referencedColumns: ["id"]
-          }
         ]
       }
       goals: {
         Row: {
-          ai_plan: Json | null
           ai_routine: Json | null
           ai_strategy: Json | null
           category: string
           constraints: Json | null
           created_at: string | null
+          current_streak_days: number | null
+          cycle_end_date: string | null
+          cycle_start_date: string | null
           days_per_week: number | null
           description: string | null
-          energy_demand: string | null
           energy: string | null
+          energy_demand: string | null
           id: string
           importance: string | null
-          priority: string | null
-          pillar: string | null
           is_paused: boolean | null
+          level: number | null
+          longest_streak_days: number | null
           milestone_progress: number | null
           minutes_per_day: number | null
           non_negotiables: string[] | null
           notes: string | null
           parent_id: string | null
-          preferred_windows: string[] | null
+          pillar: string | null
+          preferred_windows: Json | null
+          priority: string | null
           sort_order: number | null
           status: string | null
           time_commitment_mins: number | null
           title: string
+          total_completed_minutes: number | null
           updated_at: string | null
           user_id: string
+          weekly_target_minutes: number | null
         }
         Insert: {
-          ai_plan?: Json | null
           ai_routine?: Json | null
           ai_strategy?: Json | null
           category: string
           constraints?: Json | null
           created_at?: string | null
+          current_streak_days?: number | null
+          cycle_end_date?: string | null
+          cycle_start_date?: string | null
           days_per_week?: number | null
           description?: string | null
-          energy_demand?: string | null
           energy?: string | null
+          energy_demand?: string | null
           id?: string
           importance?: string | null
-          priority?: string | null
-          pillar?: string | null
           is_paused?: boolean | null
+          level?: number | null
+          longest_streak_days?: number | null
           milestone_progress?: number | null
           minutes_per_day?: number | null
           non_negotiables?: string[] | null
           notes?: string | null
           parent_id?: string | null
+          pillar?: string | null
+          preferred_windows?: Json | null
+          priority?: string | null
           sort_order?: number | null
           status?: string | null
           time_commitment_mins?: number | null
           title: string
+          total_completed_minutes?: number | null
           updated_at?: string | null
           user_id: string
+          weekly_target_minutes?: number | null
         }
         Update: {
-          ai_plan?: Json | null
           ai_routine?: Json | null
           ai_strategy?: Json | null
           category?: string
           constraints?: Json | null
           created_at?: string | null
+          current_streak_days?: number | null
+          cycle_end_date?: string | null
+          cycle_start_date?: string | null
           days_per_week?: number | null
           description?: string | null
-          energy_demand?: string | null
           energy?: string | null
+          energy_demand?: string | null
           id?: string
           importance?: string | null
-          priority?: string | null
-          pillar?: string | null
           is_paused?: boolean | null
+          level?: number | null
+          longest_streak_days?: number | null
           milestone_progress?: number | null
           minutes_per_day?: number | null
           non_negotiables?: string[] | null
           notes?: string | null
           parent_id?: string | null
+          pillar?: string | null
+          preferred_windows?: Json | null
+          priority?: string | null
           sort_order?: number | null
           status?: string | null
           time_commitment_mins?: number | null
           title?: string
+          total_completed_minutes?: number | null
           updated_at?: string | null
           user_id?: string
+          weekly_target_minutes?: number | null
         }
         Relationships: [
           {
@@ -933,13 +1103,6 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "goals"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "goals_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -995,17 +1158,16 @@ export type Database = {
           action_habit: string
           created_at: string | null
           current_streak: number | null
-          duration_min: number | null // NEW
-          enabled: boolean | null // NEW
+          duration_min: number | null
+          enabled: boolean | null
           goal_id: string | null
           grace_days_used: number | null
           id: string
           is_active: boolean | null
           last_completed: string | null
-          preferred_window: string | null // NEW
-
-
+          longest_streak: number | null
           max_grace_days: number | null
+          preferred_window: string | null
           total_completions: number | null
           trigger_habit: string
           trigger_time: string | null
@@ -1017,6 +1179,8 @@ export type Database = {
           action_habit: string
           created_at?: string | null
           current_streak?: number | null
+          duration_min?: number | null
+          enabled?: boolean | null
           goal_id?: string | null
           grace_days_used?: number | null
           id?: string
@@ -1024,6 +1188,7 @@ export type Database = {
           last_completed?: string | null
           longest_streak?: number | null
           max_grace_days?: number | null
+          preferred_window?: string | null
           total_completions?: number | null
           trigger_habit: string
           trigger_time?: string | null
@@ -1035,6 +1200,8 @@ export type Database = {
           action_habit?: string
           created_at?: string | null
           current_streak?: number | null
+          duration_min?: number | null
+          enabled?: boolean | null
           goal_id?: string | null
           grace_days_used?: number | null
           id?: string
@@ -1042,6 +1209,7 @@ export type Database = {
           last_completed?: string | null
           longest_streak?: number | null
           max_grace_days?: number | null
+          preferred_window?: string | null
           total_completions?: number | null
           trigger_habit?: string
           trigger_time?: string | null
@@ -1057,6 +1225,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      inbox_items: {
+        Row: {
+          created_at: string
+          due_date: string | null
+          est_min: number | null
+          id: string
+          importance: number | null
+          kind: string | null
+          pillar: string | null
+          source_dump_id: string | null
+          status: string | null
+          title: string
+          updated_at: string
+          urgency: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          due_date?: string | null
+          est_min?: number | null
+          id?: string
+          importance?: number | null
+          kind?: string | null
+          pillar?: string | null
+          source_dump_id?: string | null
+          status?: string | null
+          title: string
+          updated_at?: string
+          urgency?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          due_date?: string | null
+          est_min?: number | null
+          id?: string
+          importance?: number | null
+          kind?: string | null
+          pillar?: string | null
+          source_dump_id?: string | null
+          status?: string | null
+          title?: string
+          updated_at?: string
+          urgency?: number | null
+          user_id?: string
+        }
+        Relationships: []
       }
       intervention_logs: {
         Row: {
@@ -1162,12 +1378,245 @@ export type Database = {
           },
         ]
       }
+      personal_rules: {
+        Row: {
+          applies_to_day: string | null
+          applies_to_pillar: string | null
+          applies_to_time_range: string | null
+          category: string
+          created_at: string | null
+          id: string
+          is_active: boolean
+          is_hard_rule: boolean
+          rule: string
+          source_review_id: string | null
+          times_applied: number
+          times_violated: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          applies_to_day?: string | null
+          applies_to_pillar?: string | null
+          applies_to_time_range?: string | null
+          category: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean
+          is_hard_rule?: boolean
+          rule: string
+          source_review_id?: string | null
+          times_applied?: number
+          times_violated?: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          applies_to_day?: string | null
+          applies_to_pillar?: string | null
+          applies_to_time_range?: string | null
+          category?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean
+          is_hard_rule?: boolean
+          rule?: string
+          source_review_id?: string | null
+          times_applied?: number
+          times_violated?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "personal_rules_source_review_id_fkey"
+            columns: ["source_review_id"]
+            isOneToOne: false
+            referencedRelation: "weekly_reviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "personal_rules_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      potential_goals: {
+        Row: {
+          created_at: string | null
+          first_mentioned_at: string | null
+          goal_id: string | null
+          id: string
+          last_mentioned_at: string | null
+          mention_count: number
+          pillar: string | null
+          source_items: Json | null
+          status: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          first_mentioned_at?: string | null
+          goal_id?: string | null
+          id?: string
+          last_mentioned_at?: string | null
+          mention_count?: number
+          pillar?: string | null
+          source_items?: Json | null
+          status?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          first_mentioned_at?: string | null
+          goal_id?: string | null
+          id?: string
+          last_mentioned_at?: string | null
+          mention_count?: number
+          pillar?: string | null
+          source_items?: Json | null
+          status?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "potential_goals_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "potential_goals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profile_preferences: {
+        Row: {
+          allergies: Json | null
+          allow_weekend_work: boolean
+          ask_before_changes: boolean
+          buffer_min: number
+          calendar_integration_enabled: boolean
+          created_at: string
+          default_morning_stack_id: string | null
+          default_night_stack_id: string | null
+          diet_type: string | null
+          is_workout_protected: boolean | null
+          low_energy_mode: boolean
+          max_ai_options: number
+          max_daily_load_min: number | null
+          meal_windows: Json | null
+          meals_per_day: number
+          notification_times: Json | null
+          notifications_enabled: boolean
+          overwhelm_mode: boolean
+          pillar_spacing_preference: string
+          preferred_windows: Json | null
+          proactive_level: string
+          sleep_start: string
+          updated_at: string
+          user_id: string
+          wake_time: string
+          weekend_intensity: string
+          wind_down_min: number
+          workout_min_per_day: number | null
+          workout_preference: string | null
+        }
+        Insert: {
+          allergies?: Json | null
+          allow_weekend_work?: boolean
+          ask_before_changes?: boolean
+          buffer_min?: number
+          calendar_integration_enabled?: boolean
+          created_at?: string
+          default_morning_stack_id?: string | null
+          default_night_stack_id?: string | null
+          diet_type?: string | null
+          is_workout_protected?: boolean | null
+          low_energy_mode?: boolean
+          max_ai_options?: number
+          max_daily_load_min?: number | null
+          meal_windows?: Json | null
+          meals_per_day?: number
+          notification_times?: Json | null
+          notifications_enabled?: boolean
+          overwhelm_mode?: boolean
+          pillar_spacing_preference?: string
+          preferred_windows?: Json | null
+          proactive_level?: string
+          sleep_start?: string
+          updated_at?: string
+          user_id: string
+          wake_time?: string
+          weekend_intensity?: string
+          wind_down_min?: number
+          workout_min_per_day?: number | null
+          workout_preference?: string | null
+        }
+        Update: {
+          allergies?: Json | null
+          allow_weekend_work?: boolean
+          ask_before_changes?: boolean
+          buffer_min?: number
+          calendar_integration_enabled?: boolean
+          created_at?: string
+          default_morning_stack_id?: string | null
+          default_night_stack_id?: string | null
+          diet_type?: string | null
+          is_workout_protected?: boolean | null
+          low_energy_mode?: boolean
+          max_ai_options?: number
+          max_daily_load_min?: number | null
+          meal_windows?: Json | null
+          meals_per_day?: number
+          notification_times?: Json | null
+          notifications_enabled?: boolean
+          overwhelm_mode?: boolean
+          pillar_spacing_preference?: string
+          preferred_windows?: Json | null
+          proactive_level?: string
+          sleep_start?: string
+          updated_at?: string
+          user_id?: string
+          wake_time?: string
+          weekend_intensity?: string
+          wind_down_min?: number
+          workout_min_per_day?: number | null
+          workout_preference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_preferences_default_morning_stack_id_fkey"
+            columns: ["default_morning_stack_id"]
+            isOneToOne: false
+            referencedRelation: "habit_stacks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_preferences_default_night_stack_id_fkey"
+            columns: ["default_night_stack_id"]
+            isOneToOne: false
+            referencedRelation: "habit_stacks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           ai_can_analyze: boolean | null
           ai_can_draft: boolean | null
           ai_can_suggest: boolean | null
-          behavior_patterns_id: string | null
           bio_data: Json | null
           bio_scan_url: string | null
           body_preferences: Json | null
@@ -1178,11 +1627,15 @@ export type Database = {
           full_name: string | null
           id: string
           low_energy_mode: boolean | null
-          meal_preferences: Json | null
+          low_windows: string[] | null
+          meal_count: number | null
           meal_duration_minutes: number | null
+          meal_preferences: Json | null
+          meal_times: Json | null
           meal_windows: Json | null
           meals_per_day: number | null
           onboarding_complete: boolean | null
+          peak_windows: string[] | null
           pillar_preferences: Json | null
           preferred_name: string | null
           preferred_workdays: number[] | null
@@ -1193,6 +1646,8 @@ export type Database = {
           updated_at: string | null
           weekend_intensity: string | null
           wind_down_mins: number | null
+          wind_down_minutes: number | null
+          work_style: string | null
         }
         Insert: {
           ai_can_analyze?: boolean | null
@@ -1208,11 +1663,15 @@ export type Database = {
           full_name?: string | null
           id: string
           low_energy_mode?: boolean | null
-          meal_preferences?: Json | null
+          low_windows?: string[] | null
+          meal_count?: number | null
           meal_duration_minutes?: number | null
+          meal_preferences?: Json | null
+          meal_times?: Json | null
           meal_windows?: Json | null
           meals_per_day?: number | null
           onboarding_complete?: boolean | null
+          peak_windows?: string[] | null
           pillar_preferences?: Json | null
           preferred_name?: string | null
           preferred_workdays?: number[] | null
@@ -1223,6 +1682,8 @@ export type Database = {
           updated_at?: string | null
           weekend_intensity?: string | null
           wind_down_mins?: number | null
+          wind_down_minutes?: number | null
+          work_style?: string | null
         }
         Update: {
           ai_can_analyze?: boolean | null
@@ -1238,11 +1699,15 @@ export type Database = {
           full_name?: string | null
           id?: string
           low_energy_mode?: boolean | null
-          meal_preferences?: Json | null
+          low_windows?: string[] | null
+          meal_count?: number | null
           meal_duration_minutes?: number | null
+          meal_preferences?: Json | null
+          meal_times?: Json | null
           meal_windows?: Json | null
           meals_per_day?: number | null
           onboarding_complete?: boolean | null
+          peak_windows?: string[] | null
           pillar_preferences?: Json | null
           preferred_name?: string | null
           preferred_workdays?: number[] | null
@@ -1253,6 +1718,8 @@ export type Database = {
           updated_at?: string | null
           weekend_intensity?: string | null
           wind_down_mins?: number | null
+          wind_down_minutes?: number | null
+          work_style?: string | null
         }
         Relationships: []
       }
@@ -1341,14 +1808,18 @@ export type Database = {
           context: string | null
           created_at: string | null
           date: string
+          deviation_reason: string | null
           end_time: string
           energy_cost: string | null
+          energy_level_required: number | null
           goal_id: string | null
-          habit_stack_id: string | null // NEW
+          habit_stack_id: string | null
           id: string
           is_fixed: boolean | null
           is_locked: boolean | null
           meta: Json | null
+          original_date: string | null
+          original_start_time: string | null
           pillar: string | null
           priority: number | null
           source: string | null
@@ -1364,13 +1835,18 @@ export type Database = {
           context?: string | null
           created_at?: string | null
           date: string
+          deviation_reason?: string | null
           end_time: string
           energy_cost?: string | null
+          energy_level_required?: number | null
           goal_id?: string | null
+          habit_stack_id?: string | null
           id?: string
           is_fixed?: boolean | null
           is_locked?: boolean | null
           meta?: Json | null
+          original_date?: string | null
+          original_start_time?: string | null
           pillar?: string | null
           priority?: number | null
           source?: string | null
@@ -1386,13 +1862,18 @@ export type Database = {
           context?: string | null
           created_at?: string | null
           date?: string
+          deviation_reason?: string | null
           end_time?: string
           energy_cost?: string | null
+          energy_level_required?: number | null
           goal_id?: string | null
+          habit_stack_id?: string | null
           id?: string
           is_fixed?: boolean | null
           is_locked?: boolean | null
           meta?: Json | null
+          original_date?: string | null
+          original_start_time?: string | null
           pillar?: string | null
           priority?: number | null
           source?: string | null
@@ -1416,6 +1897,13 @@ export type Database = {
             referencedRelation: "goals"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "schedule_blocks_habit_stack_id_fkey"
+            columns: ["habit_stack_id"]
+            isOneToOne: false
+            referencedRelation: "habit_stacks"
+            referencedColumns: ["id"]
+          },
         ]
       }
       schedule_versions: {
@@ -1423,7 +1911,12 @@ export type Database = {
           created_at: string | null
           id: string
           is_active: boolean | null
+          patch_json: Json | null
+          reason: string | null
+          request_id: string | null
           snapshot: Json
+          snapshot_after: Json | null
+          snapshot_before: Json | null
           source: string
           user_id: string
           week_start: string
@@ -1432,7 +1925,12 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_active?: boolean | null
+          patch_json?: Json | null
+          reason?: string | null
+          request_id?: string | null
           snapshot?: Json
+          snapshot_after?: Json | null
+          snapshot_before?: Json | null
           source: string
           user_id: string
           week_start: string
@@ -1441,7 +1939,12 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_active?: boolean | null
+          patch_json?: Json | null
+          reason?: string | null
+          request_id?: string | null
           snapshot?: Json
+          snapshot_after?: Json | null
+          snapshot_before?: Json | null
           source?: string
           user_id?: string
           week_start?: string
@@ -1568,6 +2071,57 @@ export type Database = {
           },
         ]
       }
+      task_items: {
+        Row: {
+          created_at: string | null
+          est_minutes: number | null
+          id: string
+          order_index: number | null
+          schedule_block_id: string | null
+          status: string | null
+          title: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          est_minutes?: number | null
+          id?: string
+          order_index?: number | null
+          schedule_block_id?: string | null
+          status?: string | null
+          title: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          est_minutes?: number | null
+          id?: string
+          order_index?: number | null
+          schedule_block_id?: string | null
+          status?: string | null
+          title?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_items_schedule_block_id_fkey"
+            columns: ["schedule_block_id"]
+            isOneToOne: false
+            referencedRelation: "schedule_blocks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_items_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_context: {
         Row: {
           confidence: number | null
@@ -1597,6 +2151,80 @@ export type Database = {
           last_used_at?: string | null
           source?: string | null
           type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_playbook: {
+        Row: {
+          category: string
+          created_at: string | null
+          id: string
+          insight: string
+          last_surfaced_at: string | null
+          pillar: string | null
+          source: string
+          source_id: string | null
+          tags: string[] | null
+          times_surfaced: number
+          user_id: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string | null
+          id?: string
+          insight: string
+          last_surfaced_at?: string | null
+          pillar?: string | null
+          source?: string
+          source_id?: string | null
+          tags?: string[] | null
+          times_surfaced?: number
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          id?: string
+          insight?: string
+          last_surfaced_at?: string | null
+          pillar?: string | null
+          source?: string
+          source_id?: string | null
+          tags?: string[] | null
+          times_surfaced?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_playbook_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_state: {
+        Row: {
+          emotional_state: Json | null
+          energy_level: number | null
+          last_dump_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          emotional_state?: Json | null
+          energy_level?: number | null
+          last_dump_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          emotional_state?: Json | null
+          energy_level?: number | null
+          last_dump_at?: string | null
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
@@ -1631,51 +2259,145 @@ export type Database = {
         }
         Relationships: []
       }
-      weekly_reviews: {
+      weekly_review_data: {
         Row: {
-          actual_minutes: number | null
+          associated_block_id: string | null
+          associated_goal_id: string | null
+          content: string
           created_at: string | null
-          energy_trend: string | null
-          friction_patterns: Json | null
+          data_type: string
           id: string
-          lever_action: Json | null
-          planned_minutes: number | null
-          stress_trend: string | null
-          suggested_adjustment: string | null
+          source: string
+          source_id: string | null
           user_id: string
-          user_response: string | null
-          week_end: string
           week_start: string
         }
         Insert: {
-          actual_minutes?: number | null
+          associated_block_id?: string | null
+          associated_goal_id?: string | null
+          content: string
           created_at?: string | null
-          energy_trend?: string | null
-          friction_patterns?: Json | null
+          data_type: string
           id?: string
-          lever_action?: Json | null
-          planned_minutes?: number | null
-          stress_trend?: string | null
-          suggested_adjustment?: string | null
+          source?: string
+          source_id?: string | null
           user_id: string
-          user_response?: string | null
-          week_end: string
           week_start: string
         }
         Update: {
-          actual_minutes?: number | null
+          associated_block_id?: string | null
+          associated_goal_id?: string | null
+          content?: string
           created_at?: string | null
-          energy_trend?: string | null
-          friction_patterns?: Json | null
+          data_type?: string
           id?: string
-          lever_action?: Json | null
-          planned_minutes?: number | null
-          stress_trend?: string | null
-          suggested_adjustment?: string | null
+          source?: string
+          source_id?: string | null
           user_id?: string
-          user_response?: string | null
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_review_data_associated_block_id_fkey"
+            columns: ["associated_block_id"]
+            isOneToOne: false
+            referencedRelation: "schedule_blocks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_review_data_associated_goal_id_fkey"
+            columns: ["associated_goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_review_data_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      weekly_reviews: {
+        Row: {
+          ai_patterns: Json | null
+          ai_suggestions: Json | null
+          body_completion_percent: number | null
+          challenges: string | null
+          changes_for_next_week: string | null
+          completed_at: string | null
+          completed_blocks: number
+          completion_by_day: Json | null
+          completion_percent: number
+          craft_completion_percent: number | null
+          created_at: string | null
+          duration_seconds: number | null
+          energy_factors: string[] | null
+          id: string
+          mind_completion_percent: number | null
+          overall_energy: string | null
+          saved_rules: Json | null
+          schedule_changes_applied: Json | null
+          skipped_blocks: number
+          total_blocks: number
+          user_id: string
+          week_end: string
+          week_start: string
+          what_worked: string | null
+        }
+        Insert: {
+          ai_patterns?: Json | null
+          ai_suggestions?: Json | null
+          body_completion_percent?: number | null
+          challenges?: string | null
+          changes_for_next_week?: string | null
+          completed_at?: string | null
+          completed_blocks?: number
+          completion_by_day?: Json | null
+          completion_percent?: number
+          craft_completion_percent?: number | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          energy_factors?: string[] | null
+          id?: string
+          mind_completion_percent?: number | null
+          overall_energy?: string | null
+          saved_rules?: Json | null
+          schedule_changes_applied?: Json | null
+          skipped_blocks?: number
+          total_blocks?: number
+          user_id: string
+          week_end: string
+          week_start: string
+          what_worked?: string | null
+        }
+        Update: {
+          ai_patterns?: Json | null
+          ai_suggestions?: Json | null
+          body_completion_percent?: number | null
+          challenges?: string | null
+          changes_for_next_week?: string | null
+          completed_at?: string | null
+          completed_blocks?: number
+          completion_by_day?: Json | null
+          completion_percent?: number
+          craft_completion_percent?: number | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          energy_factors?: string[] | null
+          id?: string
+          mind_completion_percent?: number | null
+          overall_energy?: string | null
+          saved_rules?: Json | null
+          schedule_changes_applied?: Json | null
+          skipped_blocks?: number
+          total_blocks?: number
+          user_id?: string
           week_end?: string
           week_start?: string
+          what_worked?: string | null
         }
         Relationships: [
           {
@@ -1725,116 +2447,116 @@ type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
-  | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-  : never = never,
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
-  ? R
-  : never
+    ? R
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-    DefaultSchema["Views"])
-  ? (DefaultSchema["Tables"] &
-    DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-      Row: infer R
-    }
-  ? R
-  : never
-  : never
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-  | keyof DefaultSchema["Tables"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-    Insert: infer I
-  }
-  ? I
-  : never
+      Insert: infer I
+    }
+    ? I
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-    Insert: infer I
-  }
-  ? I
-  : never
-  : never
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-  | keyof DefaultSchema["Tables"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-    Update: infer U
-  }
-  ? U
-  : never
+      Update: infer U
+    }
+    ? U
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-    Update: infer U
-  }
-  ? U
-  : never
-  : never
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-  | keyof DefaultSchema["Enums"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-  : never
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-  | keyof DefaultSchema["CompositeTypes"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-  : never
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
 
 export const Constants = {
   graphql_public: {
@@ -1847,83 +2569,3 @@ export const Constants = {
     },
   },
 } as const
-
-export type ScheduleBlock = Tables<'schedule_blocks'>;
-export type Goal = Tables<'goals'>;
-export type HabitStack = Tables<'habit_stacks'>;
-export type HabitInstance = Tables<'habit_instances'>;
-export type InterventionLog = Tables<'intervention_logs'>;
-export type Commitment = Tables<'commitments'>;
-export type BlockStatus = string;
-export type Profile = Tables<'profiles'> & {
-  preferred_workdays?: number[];
-  weekend_intensity?: 'normal' | 'light' | 'off';
-};
-
-export interface GoalCapacity {
-  available_min_per_day: number;
-  committed_min_per_day: number;
-  totalGoalMinutes: number;
-  over_by_min_per_day: number;
-  percentage: number;
-}
-
-// AI-generated personality profile built progressively during onboarding
-export interface AIProfile {
-  chronotype: 'early_bird' | 'night_owl' | 'balanced' | null;
-  productivity_archetype: string | null;     // e.g. "Deep Work Specialist", "Multi-Tasker", "Sprinter"
-  energy_pattern: string | null;             // e.g. "Morning Peak", "Afternoon Surge", "Steady State"
-  risk_factors: string[];                    // e.g. ["overcommitment", "insufficient_recovery"]
-  donna_notes: string[];                     // Cumulative AI observations from each step
-  step_insights: Record<string, string>;     // step_id → insight shown at that step
-}
-
-// Onboarding data shape used by the store and API
-export interface OnboardingData {
-  timezone: string;
-  sleep_start: string;
-  sleep_end: string;
-  commitments: Array<{
-    title: string;
-    start_time: string;
-    end_time: string;
-    days_of_week: number[];
-    is_active?: boolean;
-  }>;
-  goals: Array<{
-    title: string;
-    category: string;
-    pillar?: string;
-    importance: string;
-    minutes_per_day: number;
-    days_per_week?: number;
-  }>;
-  energy_level: number;
-  stress_level: number;
-  ai_can_suggest: boolean;
-  ai_can_analyze: boolean;
-  ai_can_draft: boolean;
-  full_name: string;
-  wind_down_mins: number;
-  meals_per_day: number;
-  meal_windows: {
-    breakfast: string;
-    lunch: string;
-    dinner: string;
-  };
-  buffer_config: {
-    gap_mins: number;
-    type: 'light' | 'normal' | 'spacious';
-  };
-  body_preferences: {
-    activity_types: string[];
-    preferred_time: string;
-    duration_mins: number;
-  };
-  scan_skipped: boolean;
-  bio_scan_url?: string;
-  ai_profile?: AIProfile;
-}
-
-export type GoalCategory = 'mind' | 'body' | 'craft';
-export type GoalImportance = 'low' | 'medium' | 'high' | 'critical';

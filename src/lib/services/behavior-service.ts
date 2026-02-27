@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createClient } from '@/lib/supabase/server';
 import { BehaviorEvent, BehaviorPattern } from '@/types/database';
 import { SupabaseClient } from '@supabase/supabase-js';

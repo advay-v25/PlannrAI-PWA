@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useCalendar } from '@/hooks/use-calendar';
 import { CalendarLayout } from '@/components/calendar/calendar-layout';
 import { apiClient } from '@/lib/api-client';
@@ -16,6 +16,8 @@ import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ProactiveInbox } from '@/components/calendar/proactive-inbox';
 import { ConflictModal } from '@/components/calendar/conflict-modal';
+import { PlanWeekModal } from '@/components/calendar/plan-week-modal';
+import { DayOptimizerModal } from '@/components/calendar/day-optimizer-modal';
 
 export default function CalendarPage() {
     const {
@@ -33,6 +35,7 @@ export default function CalendarPage() {
         refresh,
         planWeek,
         optimizeDay,
+        applyOption,
         isOptimizing,
         isPlanning,
         lastUndoToken,
@@ -45,10 +48,34 @@ export default function CalendarPage() {
     const [selectedBlock, setSelectedBlock] = useState<any>(null);
     const [showAddModal, setShowAddModal] = useState(false);
     const [addModalDefaults, setAddModalDefaults] = useState<{ date?: string; hour?: number }>({});
-    const [planMode, setPlanMode] = useState<'balanced' | 'intense' | 'recovery'>('balanced');
-    const [showPlanOptions, setShowPlanOptions] = useState(false);
+    const [showPlanWeekModal, setShowPlanWeekModal] = useState(false);
+    const [showOptimizerModal, setShowOptimizerModal] = useState(false);
 
     const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
+
+    // --- Deviation Handler Auto-Trigger ---
+    useEffect(() => {
+        if (!blocks || isLoading) return;
+
+        // Count missed focus/task blocks for today
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const isViewingToday = format(selectedDate, 'yyyy-MM-dd') === todayStr;
+
+        if (!isViewingToday) return;
+
+        const missedImportant = blocks.filter(b =>
+            b.date === todayStr &&
+            (b.status === 'missed' || b.status === 'cancelled') &&
+            b.block_type !== 'break' &&
+            b.block_type !== 'meal'
+        );
+
+        // If >= 2 missed, and we haven't shown it yet this session (simple local state flag)
+        if (missedImportant.length >= 2 && !sessionStorage.getItem('deviation_handler_shown')) {
+            setShowOptimizerModal(true);
+            sessionStorage.setItem('deviation_handler_shown', 'true');
+        }
+    }, [blocks, selectedDate, isLoading]);
 
     // --- Handlers ---
     const handleBlockMove = async (id: string, date: string, start: string, end: string) => {
@@ -98,11 +125,6 @@ export default function CalendarPage() {
             end_time: data.end_time
         });
         setShowAddModal(false);
-    };
-
-    const handlePlanWeek = async (mode: 'balanced' | 'intense' | 'recovery') => {
-        setShowPlanOptions(false);
-        await planWeek({ mode, allow_weekend: false });
     };
 
     // --- Loading ---
@@ -177,55 +199,23 @@ export default function CalendarPage() {
 
                 {/* Optimize Day */}
                 <button
-                    onClick={() => optimizeDay()}
-                    disabled={isOptimizing}
+                    onClick={() => setShowOptimizerModal(true)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
                         bg-emerald-500/10 border border-emerald-500/20 text-emerald-400
-                        hover:bg-emerald-500/20 disabled:opacity-50 transition-all"
+                        hover:bg-emerald-500/20 transition-all"
                 >
-                    {isOptimizing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
-                    Optimize Day
+                    <Zap className="w-3.5 h-3.5" /> Optimize Day
                 </button>
 
                 {/* Plan Week */}
-                <div className="relative">
-                    <button
-                        onClick={() => setShowPlanOptions(!showPlanOptions)}
-                        disabled={isPlanning}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
-                            bg-violet-500/10 border border-violet-500/20 text-violet-400
-                            hover:bg-violet-500/20 disabled:opacity-50 transition-all"
-                    >
-                        {isPlanning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Layout className="w-3.5 h-3.5" />}
-                        Plan Week
-                    </button>
-
-                    <AnimatePresence>
-                        {showPlanOptions && (
-                            <motion.div
-                                initial={{ opacity: 0, y: -5 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -5 }}
-                                className="absolute right-0 top-full mt-1 bg-black/90 border border-white/10 rounded-xl p-1 z-50 min-w-[140px] shadow-2xl backdrop-blur-xl"
-                            >
-                                {([
-                                    { mode: 'balanced', label: 'Balanced', desc: 'Even distribution' },
-                                    { mode: 'intense', label: 'Intense', desc: 'Max productivity' },
-                                    { mode: 'recovery', label: 'Recovery', desc: 'Light schedule' },
-                                ] as const).map(opt => (
-                                    <button
-                                        key={opt.mode}
-                                        onClick={() => handlePlanWeek(opt.mode)}
-                                        className="w-full text-left px-3 py-2 rounded-lg text-xs hover:bg-white/10 transition-colors"
-                                    >
-                                        <div className="font-bold text-white">{opt.label}</div>
-                                        <div className="text-[10px] text-white/40">{opt.desc}</div>
-                                    </button>
-                                ))}
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
+                <button
+                    onClick={() => setShowPlanWeekModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
+                        bg-violet-500/10 border border-violet-500/20 text-violet-400
+                        hover:bg-violet-500/20 transition-all"
+                >
+                    <Layout className="w-3.5 h-3.5" /> Plan Week
+                </button>
             </div>
         </div>
     );
@@ -273,6 +263,36 @@ export default function CalendarPage() {
                 )}
             </AnimatePresence>
 
+            {/* Plan Week Modal */}
+            <AnimatePresence>
+                {showPlanWeekModal && (
+                    <PlanWeekModal
+                        onClose={() => setShowPlanWeekModal(false)}
+                        onApply={(opt) => {
+                            applyOption(opt);
+                            setShowPlanWeekModal(false);
+                        }}
+                        planWeek={planWeek}
+                        context={null}
+                    />
+                )}
+            </AnimatePresence>
+
+            {/* Optimize Day Modal */}
+            <AnimatePresence>
+                {showOptimizerModal && (
+                    <DayOptimizerModal
+                        date={selectedDate}
+                        onClose={() => setShowOptimizerModal(false)}
+                        onApply={(opt) => {
+                            applyOption(opt);
+                            setShowOptimizerModal(false);
+                        }}
+                        optimizeDay={optimizeDay}
+                    />
+                )}
+            </AnimatePresence>
+
             {/* Conflict Resolution Modal */}
             <ConflictModal
                 error={conflictError}
@@ -286,9 +306,9 @@ export default function CalendarPage() {
                         if (conflictError?.pendingAction) {
                             const { type, payload } = conflictError.pendingAction;
                             if (type === 'create') {
-                                await apiClient.schedule.createBlock({ ...payload, resolution_strategy: opt.strategy });
+                                await apiClient.schedule.createBlock({ ...payload, resolution_strategy: opt.id });
                             } else if (type === 'move') {
-                                await apiClient.schedule.moveBlock(payload.id, payload.newDate, payload.newStart, payload.newEnd, opt.strategy);
+                                await apiClient.schedule.moveBlock(payload.id, payload.newDate, payload.newStart, payload.newEnd, opt.id);
                             }
                             await refresh();
                             showToast("Conflict resolved", "success");
