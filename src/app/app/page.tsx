@@ -117,7 +117,26 @@ export default function HomePage() {
         );
     }
 
-    if (!data || !stateData) return <div className="p-8 text-white">System Error. Check Network.</div>;
+    // Safe defaults if APIs fail
+    const effectiveData = data || {
+        schedule_blocks: [],
+        anchors: [],
+        habit_stacks: [],
+        tasks: [],
+        metrics: { planned_min: 0, completed_min: 0, free_min: 1440 },
+        user_state: { energy_level: 5, emotional_state: 'neutral' },
+        ai_profile: null,
+        insight: { text: 'Welcome to PlannrAI', type: 'neutral' },
+        next_up: null,
+    };
+    const effectiveState = stateData || {
+        state: 'NO_SCHEDULE',
+        current_time: new Date().toTimeString().slice(0, 5),
+        active_block: null,
+        next_block: null,
+        metrics: { time_remaining_in_block: null, time_until_next_block: null },
+        proactive_insight: 'Plan your day or let AI generate a schedule.',
+    };
 
     // Header Content
     const header = (
@@ -131,10 +150,10 @@ export default function HomePage() {
             <div className="flex items-center gap-4">
                 <div className="hidden md:block text-right">
                     <div className="text-xs font-bold text-white/60">
-                        {Math.round(data.metrics.completed_min / 60)}h {Math.round(data.metrics.completed_min % 60)}m DONE
+                        {Math.round(effectiveData.metrics.completed_min / 60)}h {Math.round(effectiveData.metrics.completed_min % 60)}m DONE
                     </div>
                     <div className="text-[10px] text-white/30 uppercase tracking-widest">
-                        {Math.round(data.metrics.planned_min / 60)}h {Math.round(data.metrics.planned_min % 60)}m PLANNED
+                        {Math.round(effectiveData.metrics.planned_min / 60)}h {Math.round(effectiveData.metrics.planned_min % 60)}m PLANNED
                     </div>
                 </div>
                 <Link href="/app/settings">
@@ -151,12 +170,12 @@ export default function HomePage() {
             header={header}
             nowCard={
                 <StateHero
-                    state={stateData.state}
-                    currentTime={stateData.current_time}
-                    activeBlock={stateData.active_block}
-                    nextBlock={stateData.next_block}
-                    metrics={stateData.metrics}
-                    insight={stateData.proactive_insight}
+                    state={effectiveState.state}
+                    currentTime={effectiveState.current_time}
+                    activeBlock={effectiveState.active_block}
+                    nextBlock={effectiveState.next_block}
+                    metrics={effectiveState.metrics}
+                    insight={effectiveState.proactive_insight}
                     onAction={(action) => {
                         console.log('Action Triggered:', action);
                         if (['complete_block', 'fail_block', 'generate_schedule', 'start_early', 'shift_schedule', 'drop_block', 'rest'].includes(action)) {
@@ -167,14 +186,14 @@ export default function HomePage() {
             }
             timeline={
                 <TimelineStrip
-                    blocks={data.schedule_blocks}
-                    anchors={data.anchors}
+                    blocks={effectiveData.schedule_blocks}
+                    anchors={effectiveData.anchors}
                 />
             }
             energyCheckin={
                 <EnergyCheckin
-                    currentEnergy={data.user_state?.energy_level > 0 ? data.user_state.energy_level : undefined}
-                    currentMood={data.user_state?.emotional_state !== 'neutral' ? data.user_state.emotional_state : undefined}
+                    currentEnergy={effectiveData.user_state?.energy_level > 0 ? effectiveData.user_state.energy_level : undefined}
+                    currentMood={effectiveData.user_state?.emotional_state !== 'neutral' ? effectiveData.user_state.emotional_state : undefined}
                     onCheckin={handleEnergyCheckin}
                 />
             }
@@ -194,19 +213,19 @@ export default function HomePage() {
                 ) : undefined
             }
             aiProfile={
-                data.ai_profile ? (
-                    <AIProfileBadge aiProfile={data.ai_profile} />
+                effectiveData.ai_profile ? (
+                    <AIProfileBadge aiProfile={effectiveData.ai_profile} />
                 ) : undefined
             }
             insights={
                 <InsightsCard
-                    userState={data.user_state}
-                    insight={data.insight}
+                    userState={effectiveData.user_state}
+                    insight={effectiveData.insight}
                 />
             }
             stacks={
                 <StacksModule
-                    stacks={data.habit_stacks}
+                    stacks={effectiveData.habit_stacks}
                     onUpdate={handleRefresh}
                 />
             }

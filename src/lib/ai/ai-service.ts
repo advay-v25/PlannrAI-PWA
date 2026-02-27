@@ -269,24 +269,46 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
         let lastError: Error | null = null;
         let abortController: AbortController | null = null;
 
+        // Route goal channels through Groq, everything else through OpenRouter
+        const GROQ_CHANNELS = ['goal_strategy', 'goal_decomposition'];
+        const useGroq = GROQ_CHANNELS.includes(channel);
+
         for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
             try {
                 abortController = new AbortController();
                 const timeoutId = setTimeout(() => abortController?.abort(), AI_TIMEOUT_MS);
 
                 try {
-                    const result = await openRouterChat(
-                        [
-                            { role: 'system', content: systemMsg },
-                            { role: 'user', content: userMsg }
-                        ],
-                        {
+                    if (useGroq) {
+                        // Use Groq for goal channels
+                        const { groqChat: groqChatFn } = await import('@/lib/ai/groq-client');
+                        const groqResult = await groqChatFn({
                             model: channelDef.config.model,
+                            messages: [
+                                { role: 'system', content: systemMsg },
+                                { role: 'user', content: userMsg }
+                            ],
                             temperature: channelDef.config.temperature,
-                            maxTokens: channelDef.config.maxTokens
-                        }
-                    );
-                    rawText = result.content;
+                            max_tokens: channelDef.config.maxTokens,
+                            userId,
+                            signal: abortController.signal
+                        });
+                        rawText = groqResult;
+                    } else {
+                        // Use OpenRouter for all other channels
+                        const result = await openRouterChat(
+                            [
+                                { role: 'system', content: systemMsg },
+                                { role: 'user', content: userMsg }
+                            ],
+                            {
+                                model: channelDef.config.model,
+                                temperature: channelDef.config.temperature,
+                                maxTokens: channelDef.config.maxTokens
+                            }
+                        );
+                        rawText = result.content;
+                    }
                 } finally {
                     clearTimeout(timeoutId);
                 }
