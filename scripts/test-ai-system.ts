@@ -345,6 +345,7 @@ async function main() {
         '12. App Health Check',
         '/api/ai/health',
         {
+            requireAuth: true,
             validate: (data) => ({
                 valid: true,
                 details: `Status: ${data.status || data.data?.status || 'responsive'}`,
