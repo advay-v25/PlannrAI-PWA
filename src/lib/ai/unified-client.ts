@@ -162,7 +162,7 @@ async function callProvider<T>(
         body.response_format = { type: 'json_object' };
     }
 
-    const timeout = options.timeout ?? (options.model === 'fast' ? 10000 : 20000);
+    const timeout = options.timeout ?? (options.model === 'fast' ? 25000 : 45000);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 

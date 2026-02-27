@@ -63,7 +63,7 @@ export async function optimizeDayAI(
     // Filter to remaining blocks (not yet past, not done)
     const remainingBlocks = context.schedule.today.filter(b => {
         const blockStartMins = timeToMinutes(b.start_time);
-        return blockStartMins >= currentMins && b.status !== 'done' && b.status !== 'cancelled';
+        return blockStartMins >= currentMins && b.status !== 'completed' && b.status !== 'skipped';
     });
 
     const fixedBlocks = remainingBlocks.filter(b => b.is_fixed || b.commitment_id);
@@ -144,7 +144,7 @@ OUTPUT FORMAT (strict JSON):
         temperature: 0.5,
         maxTokens: 3000,
         requireJSON: true,
-        timeout: 15000,
+        timeout: 25000,
     });
 
     if (!response.success || !response.data) {
@@ -175,20 +175,41 @@ OUTPUT FORMAT (strict JSON):
 // ── Fallback ─────────────────────────────────────────────────────
 
 function generateFallbackOptimization(ctx: CalendarContext, blocks: ScheduleBlock[]): OptimizeDayResult {
+    const health = blocks.length > 6 ? 'overloaded' : blocks.length > 0 ? 'manageable' : 'light';
+    const movable = blocks.filter(b => !b.is_fixed && !b.commitment_id);
+
+    const options: DayOptimization[] = [
+        {
+            id: 'keep',
+            label: 'Keep Current',
+            description: blocks.length === 0
+                ? 'Schedule is clear — add blocks or plan in the calendar'
+                : `Keep your ${blocks.length} remaining blocks as-is`,
+            tradeoff: 'No disruption to existing plan',
+            ops: [],
+        },
+    ];
+
+    // If there are movable blocks, offer a "light" option that removes low-priority ones
+    if (movable.length > 1) {
+        const lowestPriority = movable[movable.length - 1];
+        options.push({
+            id: 'lighten',
+            label: 'Lighten Load',
+            description: `Remove "${lowestPriority.title}" to free up time`,
+            tradeoff: `You'll skip ${lowestPriority.title} today`,
+            ops: [{ op: 'delete_event', event_id: lowestPriority.id }],
+        });
+    }
+
     return {
         analysis: {
             energy_state: 'moderate',
-            schedule_health: blocks.length > 6 ? 'overloaded' : blocks.length > 0 ? 'manageable' : 'empty',
+            schedule_health: health,
             recommendation: blocks.length === 0
-                ? 'No blocks remaining today. Take it easy or plan tomorrow.'
-                : 'Keep your current schedule — only adjust if needed.',
+                ? 'No blocks remaining today. Add activities or plan your week.'
+                : `${blocks.length} blocks left today (${movable.length} adjustable). ${health === 'overloaded' ? 'Consider reducing.' : 'On track.'}`,
         },
-        options: [{
-            id: 'keep',
-            label: 'Keep Current',
-            description: 'No changes to current schedule',
-            tradeoff: 'No risk, no change',
-            ops: [],
-        }],
+        options,
     };
 }

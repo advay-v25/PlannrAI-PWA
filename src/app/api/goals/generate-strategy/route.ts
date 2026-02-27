@@ -8,6 +8,9 @@ import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protect
 import { callAI } from '@/lib/ai/unified-client';
 import { buildCalendarContext } from '@/lib/calendar/context-builder';
 
+export const maxDuration = 30;
+export const dynamic = 'force-dynamic';
+
 export const POST = secureApiRoute(
     async (context) => {
         const { userId, supabase } = context;

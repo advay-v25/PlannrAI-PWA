@@ -4,6 +4,9 @@ import { buildCalendarContext } from '@/lib/calendar/context-builder';
 import { generateWeekPlan } from '@/lib/calendar/ai/plan-week';
 import { format, startOfWeek, addDays } from 'date-fns';
 
+export const maxDuration = 45;
+export const dynamic = 'force-dynamic';
+
 const PlanWeekSchema = z.object({
     start_date: z.string().optional(),
     mode: z.enum(['balanced', 'momentum', 'recovery']).default('balanced'),

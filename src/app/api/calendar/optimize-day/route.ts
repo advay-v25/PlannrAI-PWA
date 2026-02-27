@@ -2,6 +2,9 @@ import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protect
 import { buildCalendarContext } from '@/lib/calendar/context-builder';
 import { optimizeDayAI } from '@/lib/calendar/ai/optimize-day';
 
+export const maxDuration = 30;
+export const dynamic = 'force-dynamic';
+
 export const POST = secureApiRoute(
     async (context, body) => {
         try {
