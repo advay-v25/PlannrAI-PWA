@@ -6,13 +6,13 @@ import { useOnboardingStore } from '@/stores';
 import { Input } from '@/components/ui/input';
 import { GlassButton } from '@/components/ui/glass-button';
 import { Send, CheckCircle2, Bot, BrainCircuit, Activity, Wrench } from 'lucide-react';
-// @ts-ignore
-import { useChat } from 'ai/react';
+import { useChat } from '@ai-sdk/react';
 
 export function Step3Goals() {
     const { data, updateData } = useOnboardingStore();
     const bottomRef = useRef<HTMLDivElement>(null);
     const [goalsComplete, setGoalsComplete] = useState(false);
+    const [input, setInput] = useState('');
 
     // Naive capacity math for V1 Onboarding
     const totalSleepHours = (typeof data.sleep_end === 'string' && typeof data.sleep_start === 'string')
@@ -26,7 +26,7 @@ export function Step3Goals() {
     const remainingHours = Math.max(0, totalAvailableHoursWeek - usedHours);
     const capacityPercentage = Math.min(100, Math.round((usedHours / totalAvailableHoursWeek) * 100)) || 0;
 
-    const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+    const { messages, sendMessage, status } = useChat({
         api: '/api/onboarding/conversation',
         body: {
             step: 'goals',
@@ -36,46 +36,57 @@ export function Step3Goals() {
             {
                 id: '1',
                 role: 'assistant',
-                content: `Boundaries locked. You have roughly \${Math.round(totalAvailableHoursWeek)} hours of liquid capacity this week.\\n\\nNow, what are we executing? Tell me your top 1-3 goals for the next 90 days across Mind, Body, and Craft. Keep it concise.`
+                content: `Boundaries locked. You have roughly ${Math.round(totalAvailableHoursWeek)} hours of liquid capacity this week.\n\nNow, what are we executing? Tell me your top 1-3 goals for the next 90 days across Mind, Body, and Craft. Keep it concise.`
             }
-        ],
-        onFinish: (message: any) => {
+        ]
+    } as any);
+
+    const isLoading = status === 'loading' || status === 'streaming';
+
+    const handleFormSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!input.trim() || isLoading) return;
+
+        const currentInput = input;
+        setInput('');
+        await sendMessage({ text: currentInput });
+    };
+
+    useEffect(() => {
+        if (bottomRef.current) {
+            bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        const lastMessage = messages[messages.length - 1];
+        if (lastMessage?.role === 'assistant' && lastMessage.content.includes('EXTRACTION_COMPLETE')) {
             try {
-                if (message.content.includes('EXTRACTION_COMPLETE')) {
-                    const jsonMatch = message.content.match(/```json\\n([\\s\\S] *?) \\n```/);
-                    if (jsonMatch) {
-                        const extracted = JSON.parse(jsonMatch[1]);
-                        console.log("Extracted goals:", extracted);
+                const jsonMatch = lastMessage.content.match(/```json\n([\s\S]*?)\n```/);
+                if (jsonMatch) {
+                    const extracted = JSON.parse(jsonMatch[1]);
+                    console.log("Extracted goals:", extracted);
 
-                        const newGoals: any[] = [];
-                        Object.entries(extracted.identified_goals || {}).forEach(([title, details]: [string, any]) => {
-                            newGoals.push({
-                                title,
-                                description: details.description || '',
-                                category: details.pillar || 'craft',
-                                suggested_hours_week: details.estimated_hours_per_week || 5,
-                                importance: 'high'
-                            });
+                    const newGoals: any[] = [];
+                    Object.entries(extracted.identified_goals || {}).forEach(([title, details]: [string, any]) => {
+                        newGoals.push({
+                            title,
+                            description: details.description || '',
+                            category: details.pillar || 'craft',
+                            suggested_hours_week: details.estimated_hours_per_week || 5,
+                            importance: 'high'
                         });
+                    });
 
-                        updateData({ goals: newGoals });
+                    updateData({ goals: newGoals });
 
-                        if (extracted.clarification_needed === false && newGoals.length > 0) {
-                            setGoalsComplete(true);
-                        }
+                    if (extracted.clarification_needed === false && newGoals.length > 0) {
+                        setGoalsComplete(true);
                     }
                 }
             } catch (e) {
                 console.error("Failed to parse goal extraction", e);
             }
         }
-    });
-
-    useEffect(() => {
-        if (bottomRef.current) {
-            bottomRef.current.scrollIntoView({ behavior: 'smooth' });
-        }
-    }, [messages, data.goals]);
+    }, [messages, updateData]);
 
     const getPillarIcon = (category: string) => {
         switch (category.toLowerCase()) {
@@ -97,9 +108,9 @@ export function Step3Goals() {
                 </div>
                 <div className="w-full h-2 bg-black/50 rounded-full overflow-hidden">
                     <motion.div
-                        className={`h-full \${capacityPercentage > 90 ? 'bg-red-500 shadow-[0_0_10px_rgba(255,0,0,0.5)]' : 'bg-[var(--color-primary)] shadow-[0_0_10px_var(--color-primary)]'}`}
+                        className={`h-full ${capacityPercentage > 90 ? 'bg-red-500 shadow-[0_0_10px_rgba(255,0,0,0.5)]' : 'bg-[var(--color-primary)] shadow-[0_0_10px_var(--color-primary)]'}`}
                         initial={{ width: 0 }}
-                        animate={{ width: `\${capacityPercentage}%` }}
+                        animate={{ width: `${capacityPercentage}%` }}
                         transition={{ duration: 0.5, ease: "easeOut" }}
                     />
                 </div>
@@ -132,19 +143,18 @@ export function Step3Goals() {
                             key={m.id}
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className={`flex \${isAi ? 'justify-start' : 'justify-end'}`}
+                            className={`flex ${isAi ? 'justify-start' : 'justify-end'}`}
                         >
-                            <div className={`flex max-w-[85%] \${isAi ? 'flex-row' : 'flex-row-reverse'} gap-3 items-end`}>
+                            <div className={`flex max-w-[85%] ${isAi ? 'flex-row' : 'flex-row-reverse'} gap-3 items-end`}>
                                 {isAi && (
                                     <div className="w-8 h-8 rounded-full bg-[var(--color-primary)]/20 flex items-center justify-center shrink-0 border border-[var(--color-primary)]/40 shadow-[0_0_10px_rgba(var(--color-primary-rgb),0.2)]">
                                         <Bot size={16} className="text-[var(--color-primary)]" />
                                     </div>
                                 )}
-                                <div className={`px-4 py-3 rounded-2xl text-sm md:text-base \${
-                                    isAi 
-                                    ? 'bg-[var(--glass-surface)] border border-[var(--glass-border)] text-white/90 rounded-bl-sm' 
-                                    : 'bg-[var(--color-primary)] text-black font-medium border border-[var(--color-primary)]/50 rounded-br-sm'
-                                }`}>
+                                <div className={`px-4 py-3 rounded-2xl text-sm md:text-base ${isAi
+                                        ? 'bg-[var(--glass-surface)] border border-[var(--glass-border)] text-white/90 rounded-bl-sm'
+                                        : 'bg-[var(--color-primary)] text-black font-medium border border-[var(--color-primary)]/50 rounded-br-sm'
+                                    }`}>
                                     {m.content}
                                 </div>
                             </div>
@@ -179,10 +189,10 @@ export function Step3Goals() {
                         Targets Confirmed. Proceed.
                     </motion.div>
                 ) : (
-                    <form onSubmit={handleSubmit} className="relative flex items-center w-full">
+                    <form onSubmit={handleFormSubmit} className="relative flex items-center w-full">
                         <Input
                             value={input}
-                            onChange={handleInputChange}
+                            onChange={(e) => setInput(e.target.value)}
                             placeholder="Type your goals..."
                             className="bg-[var(--glass-surface)] border-[var(--glass-border)] focus:border-[var(--color-primary)] text-white pr-14 py-6 rounded-xl w-full font-mono text-sm placeholder:text-gray-600"
                             disabled={isLoading}

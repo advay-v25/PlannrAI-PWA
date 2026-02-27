@@ -85,31 +85,36 @@ export class CoachAI {
         // Execute AI
         const response = await runAI({
             channel: 'coach',
-            prompt,
-            history,
-            schema: coachResponseSchema,
-            timeout: 15000
+            input: message,
+            context: {
+                ...context,
+                chat_history: history,
+            },
+            userId: this.userId
         });
 
         // Save assistant message
         const { data: msg } = await supabase.from('coach_messages').insert({
             conversation_id: this.conversationId,
             role: 'assistant',
-            content: response.message,
-            action_proposed: response.suggested_action,
-            action_status: response.suggested_action ? 'pending' : null
+            content: response.summary || '',
+            action_proposed: response.options ? response.options[0] : null,
+            action_status: response.options ? 'pending' : null
         }).select().single();
 
-        // Extract learning if present
-        if (response.learning && response.learning.confidence > 0.8) {
-            await supabase.from('coach_learnings').insert({
-                user_id: this.userId,
-                conversation_id: this.conversationId,
-                learning: response.learning.insight,
-                category: response.learning.category,
-                confidence_score: response.learning.confidence
-            });
-        }
+        // Map AIResponse to CoachResponse
+        const coachResponse: CoachResponse = {
+            message: response.summary || '',
+            suggested_action: response.options?.[0] ? {
+                type: 'schedule_patch',
+                data: response.options[0].patch,
+                patch: response.options[0].patch as any
+            } : undefined
+        };
+
+        // Extract learning if present in extracted.signals or similar (mapped from schemas)
+        // For coach, we might want to check if summary contains a deep realization
+        // or if there's an extraction item for 'note'
 
         // Update conversation
         await supabase.from('coach_conversations').update({
@@ -117,11 +122,11 @@ export class CoachAI {
         }).eq('id', this.conversationId);
 
         // Inject message ID to the response action so UI can call apply-action
-        if (response.suggested_action) {
-            response.suggested_action.data = { ...response.suggested_action.data, message_id: msg?.id };
+        if (coachResponse.suggested_action) {
+            coachResponse.suggested_action.data = { ...coachResponse.suggested_action.data, message_id: msg?.id };
         }
 
-        return response;
+        return coachResponse;
     }
 
     private async gatherContext(): Promise<CoachChatContext> {
@@ -155,6 +160,7 @@ export class CoachAI {
     }
 
     private async getChatHistory(): Promise<{ role: "user" | "assistant" | "system", content: string }[]> {
+        const supabase = await createClient();
         const { data } = await supabase
             .from('coach_messages')
             .select('role, content')
@@ -162,7 +168,7 @@ export class CoachAI {
             .order('created_at', { ascending: true })
             .limit(10);
 
-        return data || [];
+        return (data || []) as any;
     }
 
     private buildPrompt(userMessage: string, context: CoachChatContext): string {

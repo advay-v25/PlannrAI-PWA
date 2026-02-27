@@ -90,10 +90,15 @@ Behavior:
 
   brain_dump: `
 Channel: brain_dump
-Goal: Extraction & Triage.
-- Mode: "propose".
-- Options: 2-3 paths (e.g., "Log Only", "Action A", "Action B").
-- MUST include 'analyze_content' op.
+Goal: Extreme Extraction & Triage.
+Extract every task (kind: task), recurring commitment (kind: commitment), vague worry (kind: worry), fleeting idea (kind: idea), and hard time constraint (kind: constraint).
+
+Instructions:
+1. SUMMARY: Supportive acknowledgement of their mental state.
+2. SIGNALS: energy (1-5), overwhelm (0-1), stress (0-1), motivation (0-1).
+3. EXTRACTED: Map everything to 'items'. 
+4. OPTIONS: 2-3 high-leverage actions (add_task, rebalance_day, start_coaching).
+5. POTENTIAL_GOALS: If they mention a recurring ambition, flag it in extraction.
 `.trim(),
 
   weekly_review: `
