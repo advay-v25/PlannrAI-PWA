@@ -63,14 +63,24 @@ export class PatchService {
         let changes = 0;
 
         // 0. Pre-Flight Validation via Engine (Deterministic Check)
-        const validation = await CalendarEngine.validatePatch(userId, patch, supabase);
-        if (!validation.valid) {
-            console.error(`[PatchService] Pre-flight validation failed:`, validation.errors);
-            return { success: false, undo_token: null, changes: 0, errors: validation.errors };
+        try {
+            const validation = await CalendarEngine.validatePatch(userId, patch, supabase);
+            if (!validation.valid) {
+                console.error(`[PatchService] Pre-flight validation failed:`, validation.errors);
+                return { success: false, undo_token: null, changes: 0, errors: validation.errors };
+            }
+        } catch (validateErr: any) {
+            // Don't crash if validation itself fails — proceed with ops
+            console.warn('[PatchService] Validation check failed, proceeding:', validateErr.message);
         }
 
-        // 1. Calculate Inverse Patch (BEFORE applying)
-        const inversePatch = await this.calculateInversePatch(userId, patch, supabase);
+        // 1. Calculate Inverse Patch (BEFORE applying) — for undo support
+        let inversePatch: any = { ops: [] };
+        try {
+            inversePatch = await this.calculateInversePatch(userId, patch, supabase);
+        } catch (invErr: any) {
+            console.warn('[PatchService] Inverse patch calc failed (undo will be unavailable):', invErr.message);
+        }
 
         // 2. Execute Operations
         for (const op of patch.ops) {

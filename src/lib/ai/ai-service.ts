@@ -269,8 +269,8 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
         let lastError: Error | null = null;
         let abortController: AbortController | null = null;
 
-        // Route goal channels through Groq, everything else through OpenRouter
-        const GROQ_CHANNELS = ['goal_strategy', 'goal_decomposition'];
+        // Route goal and calendar channels through Groq, everything else through OpenRouter
+        const GROQ_CHANNELS = ['goal_strategy', 'goal_decomposition', 'calendar_plan_week', 'calendar_optimize_day'];
         const useGroq = GROQ_CHANNELS.includes(channel);
 
         for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
