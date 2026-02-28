@@ -192,7 +192,6 @@ export class PatchService {
                     date: event.date || op.date || new Date().toISOString().split('T')[0],
                     status: event.status || 'planned',
                     block_type: event.block_type || 'task',
-                    is_focus: event.is_focus || false,
                     pillar: event.pillar || null,
                     goal_id: event.goal_id || null,
                 };
