@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { HomeLayout } from '@/components/home/home-layout';
 import { StateHero } from '@/components/home/state-hero';
 import { TimelineStrip } from '@/components/home/timeline-strip';
@@ -16,6 +17,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 
 export default function HomePage() {
+    const router = useRouter();
     const [data, setData] = useState<any>(null);
     const [stateData, setStateData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -23,6 +25,7 @@ export default function HomePage() {
     const [briefingTone, setBriefingTone] = useState<string | undefined>(undefined);
     const [priorities, setPriorities] = useState<string[]>([]);
     const [briefingLoading, setBriefingLoading] = useState(false);
+    const [generating, setGenerating] = useState(false);
 
     const briefingAttempted = useRef(false);
 
@@ -108,6 +111,62 @@ export default function HomePage() {
         }
     };
 
+    const handleGenerateSchedule = async () => {
+        if (generating) return;
+        setGenerating(true);
+        toast.info('🤖 Generating your schedule...');
+        try {
+            // 1. Call plan-week API
+            const today = new Date().toISOString().split('T')[0];
+            const planRes = await fetch('/api/calendar/plan-week', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ start_date: today, mode: 'balanced' })
+            });
+
+            if (!planRes.ok) {
+                const err = await planRes.json().catch(() => ({}));
+                throw new Error(err?.error?.message || 'Failed to generate plan');
+            }
+
+            const planData = await planRes.json();
+            const options = planData.data?.options || planData.options || [];
+
+            if (options.length === 0) {
+                toast.error('AI could not generate a schedule. Try adding goals first.');
+                return;
+            }
+
+            // 2. Auto-apply the first option (balanced variant)
+            const firstOption = options[0];
+            const applyRes = await fetch('/api/patch/apply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    patch: firstOption.patch,
+                    source: 'generate_schedule',
+                    context: firstOption.id
+                })
+            });
+
+            if (!applyRes.ok) {
+                throw new Error('Failed to apply schedule');
+            }
+
+            const applyData = await applyRes.json();
+            toast.success(`✅ Schedule created! ${applyData.data?.changes || ''} blocks added.`);
+
+            // 3. Refresh home data to show new blocks
+            await fetchHomeData();
+
+        } catch (e: any) {
+            console.error('Generate schedule failed:', e);
+            toast.error(e.message || 'Failed to generate schedule');
+        } finally {
+            setGenerating(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen bg-black flex flex-col items-center justify-center text-[var(--color-text-tertiary)] gap-4">
@@ -178,7 +237,11 @@ export default function HomePage() {
                     insight={effectiveState.proactive_insight}
                     onAction={(action) => {
                         console.log('Action Triggered:', action);
-                        if (['complete_block', 'fail_block', 'generate_schedule', 'start_early', 'shift_schedule', 'drop_block', 'rest'].includes(action)) {
+                        if (action === 'generate_schedule') {
+                            handleGenerateSchedule();
+                        } else if (action === 'optimize_day') {
+                            router.push('/app/calendar');
+                        } else {
                             handleRefresh();
                         }
                     }}
