@@ -116,12 +116,12 @@ export default function HomePage() {
         setGenerating(true);
         toast.info('🤖 Generating your schedule...');
         try {
-            // 1. Call plan-week API
+            // 1. Call generate-today API (creates a full wake-to-sleep schedule)
             const today = new Date().toISOString().split('T')[0];
-            const planRes = await fetch('/api/calendar/plan-week', {
+            const planRes = await fetch('/api/calendar/generate-today', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ start_date: today, mode: 'balanced' })
+                body: JSON.stringify({ date: today })
             });
 
             if (!planRes.ok) {
