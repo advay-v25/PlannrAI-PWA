@@ -150,7 +150,8 @@ OUTPUT FORMAT (strict JSON):
           "title": "Deep work: [goal name]",
           "block_type": "focus",
           "goal_id": "goal-uuid-or-null",
-          "pillar": "craft"
+          "pillar": "craft",
+          "checklist": [{"text": "First action step"}, {"text": "Second concrete step"}]
         }
       ],
       "stats": {
@@ -204,6 +205,7 @@ function cleanVariant(raw: any, ctx: CalendarContext, weekStart: string, index: 
             block_type: b.block_type || 'focus',
             goal_id: b.goal_id || undefined,
             pillar: b.pillar || undefined,
+            checklist: Array.isArray(b.checklist) ? b.checklist : undefined,
         }));
 
     const totalMins = blocks.reduce((sum, b) => {

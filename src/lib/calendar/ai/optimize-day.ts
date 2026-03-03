@@ -69,7 +69,20 @@ export async function optimizeDayAI(
     const fixedBlocks = remainingBlocks.filter(b => b.is_fixed || b.commitment_id);
     const movableBlocks = remainingBlocks.filter(b => !b.is_fixed && !b.commitment_id);
 
-    // ── Build Prompt ────────────────────────────────────────────
+    const goalsText = context.goals.length > 0
+        ? context.goals.map(g =>
+            `  - ${g.title} (${g.pillar.toUpperCase()}, ${g.energy_demand} energy): ${g.minutes_per_day || 30}min/day, ID: ${g.id}`
+        ).join('\n')
+        : '  (No specific goals)';
+
+    const commitmentsText = context.commitments.length > 0
+        ? context.commitments.filter(c => {
+            const dow = new Date(context.current.date + 'T12:00:00').getDay();
+            return (c.days_of_week || []).includes(dow as any);
+        }).map(c =>
+            `  - ${c.title}: ${c.start_time}-${c.end_time} (FIXED)`
+        ).join('\n')
+        : '  (No fixed commitments today)';
 
     const systemPrompt = `You are PlannrAI's schedule optimizer. Analyze the remaining day and suggest adjustments.
 
@@ -77,9 +90,9 @@ CRITICAL RULES:
 1. NEVER move or delete FIXED blocks (is_fixed=true or has commitment_id)
 2. Wind-down starts at ${windDown} — no work after this
 3. Sleep starts at ${context.user.sleep_start} — everything must end before wind-down
-4. Generate exactly 2 optimization options
-5. Each option should be meaningfully different
-6. Include specific ops (create_event, move_event, delete_event) for each option
+4. Generate exactly 2 optimization options. Each should be meaningfully different.
+5. You can use 'move_event' to shift blocks, 'delete_event' to cancel them, or 'create_event' to fill gaps.
+6. For 'create_event', payload must match: {"title":"...", "start_time":"HH:MM", "end_time":"HH:MM", "block_type":"focus|routine|meal", "goal_id":"...", "pillar":"..."}
 7. Use existing block IDs for move/delete operations
 
 Return valid JSON only.`;
@@ -96,6 +109,12 @@ DATE: ${context.current.date}
 FOCUS: ${focus || 'balance'}
 WIND-DOWN: ${windDown}
 
+GOALS TO SCHEDULE (if not already in blocks):
+${goalsText}
+
+FIXED COMMITMENTS (Must be scheduled if missing):
+${commitmentsText}
+
 REMAINING BLOCKS (${remainingBlocks.length}):
 ${blocksText || '  (No remaining blocks)'}
 
@@ -105,14 +124,15 @@ MOVABLE BLOCKS (${movableBlocks.length}): Can be rearranged or removed
 USER PERFORMANCE: ${context.performance.last_7_days_completion_rate}% completion rate last 7 days
 
 INSTRUCTIONS:
-${focus === 'reduce_overwhelm' ? 'User feels overwhelmed. Remove non-essential blocks, add breaks.' :
-            focus === 'maximize_output' ? 'User wants max productivity. Tighten schedule, remove gaps.' :
-                'Balance the schedule — ensure breaks and focus time.'}
+${focus === 'reduce_overwhelm' ? 'User feels overwhelmed. Remove non-essential blocks, add breaks. Do not schedule heavy goals.' :
+            focus === 'maximize_output' ? 'User wants max productivity. Tighten schedule, fill gaps with focus blocks.' :
+                'Balance the schedule — ensure breaks, meals, and focus time are placed optimally until wind-down.'}
+Identify gaps in the schedule and CREATE routines (e.g., Afternoon Reset, Evening Routine), Meals, and Focus Blocks for the user's goals if they are missing.
 
 Generate 2 options:
 
-Option 1: "Realistic" — Keep essential blocks, defer or remove what won't fit
-Option 2: "Focused" — Prioritize the most important block, simplify everything else
+Option 1: "Realistic" — Keep essential blocks, defer or remove what won't fit, fill gaps with routines.
+Option 2: "Focused" — Prioritize the most important goals, simplify everything else, tightening gaps.
 
 OUTPUT FORMAT (strict JSON):
 {
@@ -129,22 +149,21 @@ OUTPUT FORMAT (strict JSON):
       "tradeoff": "You'll miss the reading session but complete deep work",
       "ops": [
         {"op": "move_event", "event_id": "block-uuid", "to_start": "16:00", "to_end": "17:00"},
+        {"op": "create_event", "payload": {"title": "Evening Routine", "start_time": "19:00", "end_time": "20:00", "block_type": "routine", "goal_id": null, "pillar": null}},
         {"op": "delete_event", "event_id": "block-uuid"}
       ]
     }
   ]
 }`;
 
-    // ── Call AI ──────────────────────────────────────────────────
-
     const response = await callAI<OptimizeDayResult>({
         prompt: userPrompt,
         systemPrompt,
-        model: 'fast',
+        model: 'smart',
         temperature: 0.5,
-        maxTokens: 3000,
+        maxTokens: 4000,
         requireJSON: true,
-        timeout: 25000,
+        timeout: 30000,
     });
 
     if (!response.success || !response.data) {

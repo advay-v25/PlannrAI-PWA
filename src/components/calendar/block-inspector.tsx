@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Check, SkipForward, Clock, Trash2, Edit3, Save } from 'lucide-react';
+import { X, Check, SkipForward, Clock, Trash2, Edit3, Save, ListTodo, Circle, CheckCircle2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { useHabitStacksStore } from '@/stores';
 
 interface BlockInspectorProps {
     block: any;
@@ -22,6 +23,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
     const [isEditing, setIsEditing] = useState(false);
     const [editStart, setEditStart] = useState('');
     const [editEnd, setEditEnd] = useState('');
+    const { stacks, completeStack } = useHabitStacksStore();
 
     if (!block) return null;
 
@@ -42,6 +44,18 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
         });
         setIsEditing(false);
     };
+
+    const blockTitle = (block.title || block.context || '').toLowerCase();
+    const relatedStacks = stacks.filter(s =>
+        s.is_active &&
+        (
+            (blockTitle && s.trigger_habit.toLowerCase().includes(blockTitle)) ||
+            (blockTitle && blockTitle.includes(s.trigger_habit.toLowerCase())) ||
+            (block.goal_id && s.goal_id === block.goal_id)
+        )
+    );
+    const checklist = block.checklist || [];
+    const hasSubTasks = relatedStacks.length > 0 || checklist.length > 0;
 
     return (
         <div className="h-full flex flex-col relative">
@@ -145,6 +159,77 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                         {block.status || 'planned'}
                     </span>
                 </div>
+
+                {/* Sub-Tasks / Habit Stacks */}
+                {hasSubTasks && (
+                    <div className="p-3 rounded-xl bg-white/5 border border-white/5 space-y-3">
+                        <div className="flex items-center gap-2 text-white/40 mb-2">
+                            <ListTodo className="w-3.5 h-3.5" />
+                            <span className="text-[10px] font-bold uppercase tracking-widest">
+                                Action Steps & Stacks
+                            </span>
+                        </div>
+
+                        <div className="space-y-2">
+                            {/* Render AI Checklist if any */}
+                            {checklist.map((item: any, i: number) => (
+                                <div key={`task-${i}`} className="flex items-start gap-2 p-2 rounded-lg hover:bg-white/5 transition-colors group">
+                                    <button
+                                        className="mt-0.5 text-white/30 group-hover:text-white/50 transition-colors"
+                                        onClick={() => {
+                                            const newChecklist = [...checklist];
+                                            newChecklist[i] = { ...item, completed: !item.completed };
+                                            onAction('update', { checklist: newChecklist });
+                                        }}
+                                    >
+                                        {item.completed ? (
+                                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                        ) : (
+                                            <Circle className="w-4 h-4" />
+                                        )}
+                                    </button>
+                                    <span className={cn(
+                                        "text-sm",
+                                        item.completed ? "text-white/30 line-through" : "text-white/80"
+                                    )}>
+                                        {item.text}
+                                    </span>
+                                </div>
+                            ))}
+
+                            {/* Render Habit Stacks */}
+                            {relatedStacks.map(stack => {
+                                const isCompleted = stack.last_completed === new Date().toISOString().split('T')[0];
+                                return (
+                                    <div key={stack.id} className="flex items-start gap-2 p-2 rounded-lg bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 hover:bg-[var(--color-primary)]/20 transition-colors group">
+                                        <button
+                                            className="mt-0.5 text-[var(--color-primary)]/50 hover:text-[var(--color-primary)] transition-colors"
+                                            onClick={() => !isCompleted && completeStack(stack.id)}
+                                            disabled={isCompleted}
+                                        >
+                                            {isCompleted ? (
+                                                <CheckCircle2 className="w-4 h-4 text-[var(--color-success)]" />
+                                            ) : (
+                                                <Circle className="w-4 h-4" />
+                                            )}
+                                        </button>
+                                        <div className={cn(
+                                            "text-sm flex flex-col",
+                                            isCompleted ? "opacity-50 line-through" : ""
+                                        )}>
+                                            <span className="text-white">
+                                                {stack.action_habit}
+                                            </span>
+                                            <span className="text-xs text-[var(--color-primary)]/70">
+                                                {stack.action_duration_mins}m • Habit Stack
+                                            </span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
 
                 {/* Quick Actions */}
                 <div className="space-y-3 pt-3 border-t border-white/5">

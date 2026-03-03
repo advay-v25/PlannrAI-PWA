@@ -114,7 +114,8 @@ OUTPUT FORMAT:
       "title": "Morning Routine",
       "block_type": "routine",
       "goal_id": null,
-      "pillar": null
+      "pillar": null,
+      "checklist": [{"text": "Specific sub-task or habit 1"}, {"text": "Specific sub-task 2"}]
     }
   ],
   "summary": "Your day plan: X blocks, Y hours of focused work",
@@ -161,6 +162,7 @@ OUTPUT FORMAT:
                     goal_id: b.goal_id || null,
                     pillar: b.pillar || null,
                     status: 'planned',
+                    checklist: Array.isArray(b.checklist) ? b.checklist : [],
                 }));
 
             // 5. Return as a single option to auto-apply
