@@ -40,6 +40,14 @@ export interface CalendarContext {
         is_active: boolean;
     }>;
 
+    habitStacks: Array<{
+        id: string;
+        trigger_habit: string;
+        action_habit: string;
+        action_duration_mins: number;
+        goal_id?: string;
+    }>;
+
     schedule: {
         today: ScheduleBlock[];
         this_week: ScheduleBlock[];
@@ -109,7 +117,7 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
 
     // ── Parallel Fetch ───────────────────────────────────────────
 
-    const [profileRes, goalsRes, commitmentsRes, todayBlocksRes, weekBlocksRes, perfBlocksRes] = await Promise.all([
+    const [profileRes, goalsRes, commitmentsRes, habitStacksRes, todayBlocksRes, weekBlocksRes, perfBlocksRes] = await Promise.all([
         // 1. Profile
         db.from('profiles')
             .select('id, first_name, sleep_start, sleep_end, wind_down_mins')
@@ -128,6 +136,13 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
             .select('id, title, start_time, end_time, days_of_week, is_active')
             .eq('user_id', userId)
             .eq('is_active', true)
+            .limit(30),
+
+        // 4. Active Habit Stacks
+        db.from('habit_stacks')
+            .select('id, trigger_habit, action_habit, action_duration_mins, goal_id')
+            .eq('user_id', userId)
+            .eq('enabled', true)
             .limit(30),
 
         // 4. Today's Blocks
@@ -189,6 +204,14 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
         is_active: c.is_active,
     }));
 
+    const habitStacks = (habitStacksRes.data || []).map((h: any) => ({
+        id: h.id,
+        trigger_habit: h.trigger_habit,
+        action_habit: h.action_habit,
+        action_duration_mins: h.action_duration_mins || 15,
+        goal_id: h.goal_id || undefined,
+    }));
+
     const todayBlocks: ScheduleBlock[] = (todayBlocksRes.data || []).map(mapBlock);
     const weekBlocks: ScheduleBlock[] = (weekBlocksRes.data || []).map(mapBlock);
 
@@ -203,12 +226,12 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
     const windDownHoursDaily = (profile.wind_down_mins || 30) / 60;
     const bufferHoursDaily = dailyAwakeHours * 0.1; // 10% buffer
 
-    const weeklyCommittedHours = commitments.reduce((sum, c) => {
+    const weeklyCommittedHours = commitments.reduce((sum: number, c: { start_time: string; end_time: string; days_of_week: string[] }) => {
         const duration = timeToMinutes(c.end_time) - timeToMinutes(c.start_time);
         return sum + (Math.max(0, duration) / 60) * (c.days_of_week?.length || 0);
     }, 0);
 
-    const weeklyGoalHours = goals.reduce((sum, g) => sum + g.weekly_target_minutes / 60, 0);
+    const weeklyGoalHours = goals.reduce((sum: number, g: { weekly_target_minutes: number }) => sum + g.weekly_target_minutes / 60, 0);
     const weeklyAvailable = (dailyAwakeHours - windDownHoursDaily - bufferHoursDaily) * 7 - weeklyCommittedHours;
 
     // ── Performance ──────────────────────────────────────────────
@@ -230,6 +253,7 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
         },
         goals,
         commitments,
+        habitStacks,
         schedule: {
             today: todayBlocks,
             this_week: weekBlocks,

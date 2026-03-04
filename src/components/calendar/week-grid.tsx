@@ -16,8 +16,8 @@ interface WeekGridProps {
     onCellClick?: (date: string, hour: number) => void;
 }
 
-const HOURS = Array.from({ length: 18 }, (_, i) => i + 5); // 5am - 10pm
-const CELL_HEIGHT = 64;
+const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 6am - 11pm
+const CELL_HEIGHT = 72;
 
 // Pillar color mapping
 const PILLAR_COLORS: Record<string, { bg: string; border: string; text: string; dot: string; styleClasses?: string }> = {
@@ -60,7 +60,7 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
         const updateTime = () => {
             const now = new Date();
             const minutes = now.getHours() * 60 + now.getMinutes();
-            setNowTop(((minutes - 5 * 60) / 60) * CELL_HEIGHT); // offset by start hour (5am)
+            setNowTop(((minutes - 6 * 60) / 60) * CELL_HEIGHT); // offset by start hour (6am)
             const idx = days.findIndex(d => isSameDay(d, now));
             setNowDayIndex(idx);
         };
@@ -189,7 +189,7 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                                     // Adjust layout top for the start-hour offset
                                     const adjustedLayout = {
                                         ...layout,
-                                        top: layout.top - (5 * CELL_HEIGHT) // offset since we start at 5am
+                                        top: layout.top - (6 * CELL_HEIGHT) // offset since we start at 6am
                                     };
                                     return (
                                         <BlockCard
@@ -289,8 +289,13 @@ function BlockCard({ block, layout, onClick }: { block: any; layout: LayoutBlock
                 "backdrop-blur-sm"
             )}
         >
-            <div className="p-1.5 h-full flex flex-col">
-                <div className="flex items-start gap-1">
+            <div className="p-1.5 h-full flex flex-col relative">
+                {/* Pillar accent stripe */}
+                <div className={cn(
+                    "absolute left-0 top-0 bottom-0 w-[3px] rounded-l-lg",
+                    colors.dot
+                )} />
+                <div className="pl-1.5 flex items-start gap-1">
                     {/* Status dot */}
                     <div className={cn("w-1.5 h-1.5 rounded-full shrink-0 mt-1", colors.dot, isDone && "bg-emerald-400", isMissed && "bg-red-400")} />
                     <span className={cn(
@@ -304,15 +309,22 @@ function BlockCard({ block, layout, onClick }: { block: any; layout: LayoutBlock
                     {block.block_type === 'anchor' && <Lock className="w-2.5 h-2.5 text-amber-400/50 shrink-0" />}
                 </div>
                 {layout.height > 35 && (
-                    <div className={cn("text-[9px] mt-0.5 font-mono", colors.text, "opacity-50")}>
+                    <div className={cn("text-[9px] mt-0.5 font-mono pl-1.5", colors.text, "opacity-50")}>
                         {block.start_time?.slice(0, 5)} – {block.end_time?.slice(0, 5)}
                     </div>
                 )}
-                {layout.height > 55 && block.pillar && (
-                    <div className="mt-auto">
-                        <span className={cn("text-[8px] font-bold uppercase tracking-wider", colors.text, "opacity-40")}>
-                            {block.pillar}
-                        </span>
+                {layout.height > 55 && (
+                    <div className="mt-auto flex items-center justify-between pl-1.5">
+                        {block.pillar && (
+                            <span className={cn("text-[8px] font-bold uppercase tracking-wider", colors.text, "opacity-40")}>
+                                {block.pillar}
+                            </span>
+                        )}
+                        {Array.isArray(block.checklist) && block.checklist.length > 0 && (
+                            <span className="text-[8px] font-mono text-white/25 bg-white/5 px-1.5 py-0.5 rounded">
+                                {block.checklist.filter((c: any) => c.completed).length}/{block.checklist.length}
+                            </span>
+                        )}
                     </div>
                 )}
             </div>

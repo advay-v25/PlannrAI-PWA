@@ -84,6 +84,12 @@ export async function optimizeDayAI(
         ).join('\n')
         : '  (No fixed commitments today)';
 
+    const habitStacksText = context.habitStacks?.length > 0
+        ? context.habitStacks.map(h =>
+            `  - When doing "${h.trigger_habit}" → also do "${h.action_habit}" (${h.action_duration_mins}min)`
+        ).join('\n')
+        : '  (No habit stacks)';
+
     const systemPrompt = `You are PlannrAI's schedule optimizer. Analyze the remaining day and suggest adjustments.
 
 CRITICAL RULES:

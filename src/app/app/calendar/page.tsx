@@ -1,20 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useCalendar } from '@/hooks/use-calendar';
 import { CalendarLayout } from '@/components/calendar/calendar-layout';
 import { apiClient } from '@/lib/api-client';
+
 import { WeekGrid } from '@/components/calendar/week-grid';
 import { BlockInspector } from '@/components/calendar/block-inspector';
-import { useToast } from '@/components/ui/toast';
-import {
-    Loader2, ChevronLeft, ChevronRight, Plus, Zap, Layout, RotateCcw,
-    Sparkles, X, Calendar as CalendarIcon
-} from 'lucide-react';
-import { format, startOfWeek, addWeeks, subWeeks, addDays } from 'date-fns';
-import { cn } from '@/lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
 import { ProactiveInbox } from '@/components/calendar/proactive-inbox';
+import { useToast } from '@/components/ui/toast';
+import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay } from 'date-fns';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+    ChevronLeft, ChevronRight, Plus, Zap, Layout,
+    RotateCcw, Loader2, Calendar, Sparkles, MoreHorizontal
+} from 'lucide-react';
+
 import { ConflictModal } from '@/components/calendar/conflict-modal';
 import { PlanWeekModal } from '@/components/calendar/plan-week-modal';
 import { DayOptimizerModal } from '@/components/calendar/day-optimizer-modal';
@@ -50,17 +51,23 @@ export default function CalendarPage() {
     const [addModalDefaults, setAddModalDefaults] = useState<{ date?: string; hour?: number }>({});
     const [showPlanWeekModal, setShowPlanWeekModal] = useState(false);
     const [showOptimizerModal, setShowOptimizerModal] = useState(false);
+    const [isGeneratingToday, setIsGeneratingToday] = useState(false);
+    const [showActionsMenu, setShowActionsMenu] = useState(false);
 
     const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+
+    // Count today's blocks
+    const todayBlocks = useMemo(() =>
+        blocks.filter(b => b.date === todayStr),
+        [blocks, todayStr]
+    );
+    const hasScheduleToday = todayBlocks.length > 0;
 
     // --- Deviation Handler Auto-Trigger ---
     useEffect(() => {
         if (!blocks || isLoading) return;
-
-        // Count missed focus/task blocks for today
-        const todayStr = format(new Date(), 'yyyy-MM-dd');
         const isViewingToday = format(selectedDate, 'yyyy-MM-dd') === todayStr;
-
         if (!isViewingToday) return;
 
         const missedImportant = blocks.filter(b =>
@@ -70,12 +77,69 @@ export default function CalendarPage() {
             b.block_type !== 'meal'
         );
 
-        // If >= 2 missed, and we haven't shown it yet this session (simple local state flag)
         if (missedImportant.length >= 2 && !sessionStorage.getItem('deviation_handler_shown')) {
             setShowOptimizerModal(true);
             sessionStorage.setItem('deviation_handler_shown', 'true');
         }
-    }, [blocks, selectedDate, isLoading]);
+    }, [blocks, selectedDate, isLoading, todayStr]);
+
+    // --- Generate Today's Schedule ---
+    const handleGenerateToday = async (force = false) => {
+        if (isGeneratingToday) return;
+        setIsGeneratingToday(true);
+        showToast('🤖 Planning your day...', 'info');
+        try {
+            const res = await fetch('/api/calendar/generate-today', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date: todayStr, force }),
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err?.error?.message || 'Failed to generate plan');
+            }
+
+            const planData = await res.json();
+            const options = planData.data?.options || planData.options || [];
+
+            if (options.length === 0) {
+                if (planData.data?.has_existing) {
+                    // Already has blocks — ask to force regenerate
+                    showToast('Schedule exists. Regenerating...', 'info');
+                    await handleGenerateToday(true);
+                    return;
+                }
+                showToast('Could not generate schedule. Add goals first.', 'error');
+                return;
+            }
+
+            // Auto-apply the first option
+            const firstOption = options[0];
+            const applyRes = await fetch('/api/patch/apply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    patch: firstOption.patch,
+                    source: 'generate_today',
+                    context: firstOption.id,
+                }),
+            });
+
+            if (!applyRes.ok) throw new Error('Failed to apply schedule');
+
+            const applyData = await applyRes.json();
+            showToast(`✅ Day planned! ${applyData.data?.changes || ''} blocks created.`, 'success');
+            await refresh();
+
+        } catch (e: any) {
+            console.error('Generate today failed:', e);
+            showToast(e.message || 'Failed to generate schedule', 'error');
+        } finally {
+            setIsGeneratingToday(false);
+            setShowActionsMenu(false);
+        }
+    };
 
     // --- Handlers ---
     const handleBlockMove = async (id: string, date: string, start: string, end: string) => {
@@ -139,7 +203,7 @@ export default function CalendarPage() {
 
     // --- Header / Action Bar ---
     const header = (
-        <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center justify-between gap-4">
             {/* Left: Navigation */}
             <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1">
@@ -168,9 +232,9 @@ export default function CalendarPage() {
                 </h1>
             </div>
 
-            {/* Right: Actions */}
-            <div className="flex items-center gap-2">
-                {/* Undo */}
+            {/* Right: Actions — clean dropdown */}
+            <div className="flex items-center gap-2 relative">
+                {/* Undo (conditional) */}
                 <AnimatePresence>
                     {lastUndoToken && (
                         <motion.button
@@ -187,53 +251,141 @@ export default function CalendarPage() {
                     )}
                 </AnimatePresence>
 
-                {/* Add Block */}
-                <button
-                    onClick={() => { setAddModalDefaults({}); setShowAddModal(true); }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
-                        bg-white/5 border border-white/10 text-white/60
-                        hover:bg-white/10 hover:text-white transition-all"
-                >
-                    <Plus className="w-3.5 h-3.5" /> Block
-                </button>
+                {/* Primary: Generate Today (prominent when no schedule) */}
+                {!hasScheduleToday && (
+                    <button
+                        onClick={() => handleGenerateToday()}
+                        disabled={isGeneratingToday}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold
+                            bg-gradient-to-r from-violet-600 to-indigo-600 text-white
+                            hover:from-violet-500 hover:to-indigo-500
+                            disabled:opacity-50 disabled:cursor-wait transition-all shadow-lg shadow-violet-500/20"
+                    >
+                        {isGeneratingToday ? (
+                            <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Planning...</>
+                        ) : (
+                            <><Sparkles className="w-3.5 h-3.5" /> Plan Today</>
+                        )}
+                    </button>
+                )}
 
-                {/* Optimize Day */}
-                <button
-                    onClick={() => setShowOptimizerModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
-                        bg-emerald-500/10 border border-emerald-500/20 text-emerald-400
-                        hover:bg-emerald-500/20 transition-all"
-                >
-                    <Zap className="w-3.5 h-3.5" /> Optimize Day
-                </button>
+                {/* Actions Menu */}
+                <div className="relative">
+                    <button
+                        onClick={() => setShowActionsMenu(!showActionsMenu)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
+                            bg-white/5 border border-white/10 text-white/60
+                            hover:bg-white/10 hover:text-white transition-all"
+                    >
+                        <MoreHorizontal className="w-4 h-4" />
+                    </button>
 
-                {/* Plan Week */}
-                <button
-                    onClick={() => setShowPlanWeekModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
-                        bg-violet-500/10 border border-violet-500/20 text-violet-400
-                        hover:bg-violet-500/20 transition-all"
-                >
-                    <Layout className="w-3.5 h-3.5" /> Plan Week
-                </button>
+                    <AnimatePresence>
+                        {showActionsMenu && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                                transition={{ duration: 0.15 }}
+                                className="absolute right-0 top-full mt-2 w-52 rounded-xl bg-zinc-900/95 border border-white/10
+                                    shadow-2xl backdrop-blur-xl z-50 overflow-hidden"
+                            >
+                                <div className="p-1.5 space-y-0.5">
+                                    <button
+                                        onClick={() => { handleGenerateToday(true); }}
+                                        disabled={isGeneratingToday}
+                                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium
+                                            text-white/80 hover:bg-white/10 transition-colors text-left"
+                                    >
+                                        <Sparkles className="w-4 h-4 text-violet-400" />
+                                        {hasScheduleToday ? 'Regenerate Today' : 'Plan Today'}
+                                    </button>
+                                    <button
+                                        onClick={() => { setShowOptimizerModal(true); setShowActionsMenu(false); }}
+                                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium
+                                            text-white/80 hover:bg-white/10 transition-colors text-left"
+                                    >
+                                        <Zap className="w-4 h-4 text-emerald-400" />
+                                        Optimize Day
+                                    </button>
+                                    <button
+                                        onClick={() => { setShowPlanWeekModal(true); setShowActionsMenu(false); }}
+                                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium
+                                            text-white/80 hover:bg-white/10 transition-colors text-left"
+                                    >
+                                        <Layout className="w-4 h-4 text-indigo-400" />
+                                        Plan Week
+                                    </button>
+                                    <div className="border-t border-white/5 my-1" />
+                                    <button
+                                        onClick={() => { setAddModalDefaults({}); setShowAddModal(true); setShowActionsMenu(false); }}
+                                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium
+                                            text-white/80 hover:bg-white/10 transition-colors text-left"
+                                    >
+                                        <Plus className="w-4 h-4 text-white/40" />
+                                        Add Block
+                                    </button>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
             </div>
         </div>
     );
 
+    // --- Empty State ---
+    const emptyState = !hasScheduleToday && !isLoading && format(selectedDate, 'yyyy-MM-dd') === todayStr && (
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"
+        >
+            <div className="pointer-events-auto text-center p-8 rounded-2xl bg-zinc-900/80 border border-white/10
+                backdrop-blur-xl max-w-sm shadow-2xl">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-600/20 to-indigo-600/20
+                    flex items-center justify-center mx-auto mb-4">
+                    <Calendar className="w-7 h-7 text-violet-400" />
+                </div>
+                <h3 className="text-white font-bold text-lg mb-2">No schedule for today</h3>
+                <p className="text-white/40 text-sm mb-5">
+                    Let AI plan your entire day — from morning routine to wind-down — based on your goals.
+                </p>
+                <button
+                    onClick={() => handleGenerateToday()}
+                    disabled={isGeneratingToday}
+                    className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold mx-auto
+                        bg-gradient-to-r from-violet-600 to-indigo-600 text-white
+                        hover:from-violet-500 hover:to-indigo-500
+                        disabled:opacity-50 disabled:cursor-wait transition-all shadow-lg shadow-violet-500/25"
+                >
+                    {isGeneratingToday ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" /> Planning your day...</>
+                    ) : (
+                        <><Sparkles className="w-4 h-4" /> Plan Today with AI</>
+                    )}
+                </button>
+            </div>
+        </motion.div>
+    );
+
     return (
-        <div className="h-screen bg-black text-white overflow-hidden">
+        <div className="h-screen bg-black text-white overflow-hidden" onClick={() => showActionsMenu && setShowActionsMenu(false)}>
             <CalendarLayout
                 showInspector={!!selectedBlock}
                 showInbox={!selectedBlock && inbox.length > 0}
                 header={header}
                 weekGrid={
-                    <WeekGrid
-                        date={selectedDate}
-                        blocks={blocks}
-                        onBlockMove={handleBlockMove}
-                        onBlockSelect={setSelectedBlock}
-                        onCellClick={handleCellClick}
-                    />
+                    <div className="relative h-full">
+                        {emptyState}
+                        <WeekGrid
+                            date={selectedDate}
+                            blocks={blocks}
+                            onBlockMove={handleBlockMove}
+                            onBlockSelect={setSelectedBlock}
+                            onCellClick={handleCellClick}
+                        />
+                    </div>
                 }
                 inspector={
                     <BlockInspector
@@ -299,9 +451,6 @@ export default function CalendarPage() {
                 onClose={dismissConflict}
                 onConfirmOption={async (opt) => {
                     dismissConflict();
-                    // If backend returned a token or we need to apply the patch, we handle it here
-                    // For now, since ConflictService is just deterministic, if user selects an option
-                    // we re-submit the action but with the `resolution_strategy` flag.
                     try {
                         if (conflictError?.pendingAction) {
                             const { type, payload } = conflictError.pendingAction;
@@ -329,13 +478,14 @@ function AddBlockModal({ defaults, goals, onSubmit, onClose }: {
     onSubmit: (data: { title: string; date: string; start_time: string; end_time: string }) => void;
     onClose: () => void;
 }) {
-    const today = format(new Date(), 'yyyy-MM-dd');
-    const defaultHour = defaults.hour || 9;
-
     const [title, setTitle] = useState('');
-    const [date, setDate] = useState(defaults.date || today);
-    const [startTime, setStartTime] = useState(`${defaultHour.toString().padStart(2, '0')}:00`);
-    const [endTime, setEndTime] = useState(`${(defaultHour + 1).toString().padStart(2, '0')}:00`);
+    const [date, setDate] = useState(defaults.date || format(new Date(), 'yyyy-MM-dd'));
+    const [startTime, setStartTime] = useState(
+        defaults.hour ? `${defaults.hour.toString().padStart(2, '0')}:00` : '09:00'
+    );
+    const [endTime, setEndTime] = useState(
+        defaults.hour ? `${(defaults.hour + 1).toString().padStart(2, '0')}:00` : '10:00'
+    );
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -348,82 +498,78 @@ function AddBlockModal({ defaults, goals, onSubmit, onClose }: {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={onClose}
         >
-            <motion.div
+            <motion.form
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                onClick={(e) => e.stopPropagation()}
-                className="w-full max-w-md bg-black/90 border border-white/10 rounded-2xl p-6 shadow-2xl"
+                onClick={e => e.stopPropagation()}
+                onSubmit={handleSubmit}
+                className="bg-zinc-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4"
             >
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-bold text-white">Add Block</h2>
-                    <button onClick={onClose} className="p-1 rounded-lg hover:bg-white/10 text-white/40">
-                        <X className="w-4 h-4" />
-                    </button>
+                <h2 className="text-white font-bold text-lg">Add Block</h2>
+
+                <input
+                    value={title}
+                    onChange={e => setTitle(e.target.value)}
+                    placeholder="Block title..."
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm
+                        placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-violet-500/30"
+                    autoFocus
+                />
+
+                <div className="grid grid-cols-3 gap-3">
+                    <div>
+                        <label className="text-[10px] uppercase text-white/30 font-bold">Date</label>
+                        <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm" />
+                    </div>
+                    <div>
+                        <label className="text-[10px] uppercase text-white/30 font-bold">Start</label>
+                        <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm" />
+                    </div>
+                    <div>
+                        <label className="text-[10px] uppercase text-white/30 font-bold">End</label>
+                        <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm" />
+                    </div>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-1 block">Title</label>
-                        <input
-                            type="text"
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            placeholder="What are you working on?"
-                            autoFocus
-                            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-sm text-white
-                                placeholder:text-white/20 focus:outline-none focus:border-[var(--color-primary)]/40"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-1 block">Date</label>
-                        <input
-                            type="date"
-                            value={date}
-                            onChange={(e) => setDate(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-sm text-white
-                                focus:outline-none focus:border-[var(--color-primary)]/40 [color-scheme:dark]"
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-1 block">Start</label>
-                            <input
-                                type="time"
-                                value={startTime}
-                                onChange={(e) => setStartTime(e.target.value)}
-                                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-sm text-white
-                                    focus:outline-none focus:border-[var(--color-primary)]/40 [color-scheme:dark]"
-                            />
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-1 block">End</label>
-                            <input
-                                type="time"
-                                value={endTime}
-                                onChange={(e) => setEndTime(e.target.value)}
-                                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-sm text-white
-                                    focus:outline-none focus:border-[var(--color-primary)]/40 [color-scheme:dark]"
-                            />
+                {/* Quick goal suggestions */}
+                {goals.length > 0 && !title && (
+                    <div className="space-y-1.5">
+                        <span className="text-[10px] uppercase text-white/30 font-bold">Quick add from goals:</span>
+                        <div className="flex flex-wrap gap-1.5">
+                            {goals.slice(0, 5).map((g: any) => (
+                                <button
+                                    key={g.id}
+                                    type="button"
+                                    onClick={() => setTitle(g.title)}
+                                    className="px-2.5 py-1 rounded-lg text-[11px] font-medium
+                                        bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+                                >
+                                    {g.title}
+                                </button>
+                            ))}
                         </div>
                     </div>
+                )}
 
-                    <button
-                        type="submit"
-                        disabled={!title.trim()}
-                        className="w-full py-3 rounded-xl font-bold text-sm text-white
-                            bg-[var(--color-primary)] hover:brightness-110 active:scale-[0.98]
-                            disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                    >
+                <div className="flex gap-2 pt-2">
+                    <button type="button" onClick={onClose}
+                        className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white/40 hover:text-white hover:bg-white/5 transition-all">
+                        Cancel
+                    </button>
+                    <button type="submit" disabled={!title.trim()}
+                        className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-violet-600 text-white
+                            hover:bg-violet-500 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
                         Add Block
                     </button>
-                </form>
-            </motion.div>
+                </div>
+            </motion.form>
         </motion.div>
     );
 }
