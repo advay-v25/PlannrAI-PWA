@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useCalendar } from '@/hooks/use-calendar';
 import { CalendarLayout } from '@/components/calendar/calendar-layout';
 import { apiClient } from '@/lib/api-client';
+import { cn } from '@/lib/utils';
 
 import { WeekGrid } from '@/components/calendar/week-grid';
 import { BlockInspector } from '@/components/calendar/block-inspector';
@@ -33,6 +34,7 @@ export default function CalendarPage() {
         moveBlock,
         updateBlock,
         deleteBlock,
+        createCommitment,
         refresh,
         planWeek,
         optimizeDay,
@@ -57,12 +59,31 @@ export default function CalendarPage() {
     const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
     const todayStr = format(new Date(), 'yyyy-MM-dd');
 
-    // Count today's blocks
+    // Count today's blocks and stats
     const todayBlocks = useMemo(() =>
         blocks.filter(b => b.date === todayStr),
         [blocks, todayStr]
     );
     const hasScheduleToday = todayBlocks.length > 0;
+
+    // Day stats for the viewing week
+    const viewDateStr = format(selectedDate, 'yyyy-MM-dd');
+    const viewDayBlocks = useMemo(() =>
+        blocks.filter(b => b.date === viewDateStr),
+        [blocks, viewDateStr]
+    );
+    const dayStats = useMemo(() => {
+        const total = viewDayBlocks.length;
+        const done = viewDayBlocks.filter(b => b.status === 'done').length;
+        const hoursMins = viewDayBlocks.reduce((sum, b) => {
+            const [sh, sm] = (b.start_time || '00:00').split(':').map(Number);
+            const [eh, em] = (b.end_time || '00:00').split(':').map(Number);
+            return sum + ((eh * 60 + em) - (sh * 60 + sm));
+        }, 0);
+        const hours = Math.round(hoursMins / 60 * 10) / 10;
+        const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+        return { total, done, hours, pct };
+    }, [viewDayBlocks]);
 
     // --- Deviation Handler Auto-Trigger ---
     useEffect(() => {
@@ -181,21 +202,25 @@ export default function CalendarPage() {
         setShowAddModal(true);
     };
 
-    const handleAddBlock = async (data: { title: string; date: string; start_time: string; end_time: string }) => {
-        await addBlock({
-            context: data.title,
-            date: data.date,
-            start_time: data.start_time,
-            end_time: data.end_time
-        });
+    const handleAddBlock = async (data: { title: string; date: string; start_time: string; end_time: string; isAnchor?: boolean }) => {
+        if (data.isAnchor) {
+            await createCommitment(data);
+        } else {
+            await addBlock({
+                context: data.title,
+                date: data.date,
+                start_time: data.start_time,
+                end_time: data.end_time
+            });
+        }
         setShowAddModal(false);
     };
 
     // --- Loading ---
     if (isLoading && blocks.length === 0) {
         return (
-            <div className="flex h-screen items-center justify-center bg-black text-white/50 gap-3">
-                <Loader2 className="w-6 h-6 animate-spin" />
+            <div className="flex h-screen items-center justify-center bg-gradient-to-br from-zinc-950 to-black text-white/50 gap-3">
+                <Loader2 className="w-5 h-5 animate-spin text-violet-400" />
                 <span className="text-xs font-bold uppercase tracking-widest">Loading Calendar...</span>
             </div>
         );
@@ -203,134 +228,166 @@ export default function CalendarPage() {
 
     // --- Header / Action Bar ---
     const header = (
-        <div className="flex items-center justify-between gap-4">
-            {/* Left: Navigation */}
-            <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1">
-                    <button
-                        onClick={() => setSelectedDate(subWeeks(selectedDate, 1))}
-                        className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-colors"
-                    >
-                        <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <button
-                        onClick={() => setSelectedDate(new Date())}
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-white/60 hover:text-white hover:bg-white/10 transition-colors"
-                    >
-                        Today
-                    </button>
-                    <button
-                        onClick={() => setSelectedDate(addWeeks(selectedDate, 1))}
-                        className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-colors"
-                    >
-                        <ChevronRight className="w-4 h-4" />
-                    </button>
+        <div className="space-y-1">
+            <div className="flex items-center justify-between gap-4">
+                {/* Left: Navigation */}
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => setSelectedDate(subWeeks(selectedDate, 1))}
+                            className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-colors"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => setSelectedDate(new Date())}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+                        >
+                            Today
+                        </button>
+                        <button
+                            onClick={() => setSelectedDate(addWeeks(selectedDate, 1))}
+                            className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-colors"
+                        >
+                            <ChevronRight className="w-4 h-4" />
+                        </button>
+                    </div>
+
+                    <h1 className="text-lg font-bold text-white tracking-tight">
+                        {format(weekStart, 'MMM d')} – {format(addDays(weekStart, 6), 'MMM d, yyyy')}
+                    </h1>
                 </div>
 
-                <h1 className="text-lg font-bold text-white tracking-tight">
-                    {format(weekStart, 'MMM d')} – {format(addDays(weekStart, 6), 'MMM d, yyyy')}
-                </h1>
-            </div>
-
-            {/* Right: Actions — clean dropdown */}
-            <div className="flex items-center gap-2 relative">
-                {/* Undo (conditional) */}
-                <AnimatePresence>
-                    {lastUndoToken && (
-                        <motion.button
-                            initial={{ scale: 0, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0, opacity: 0 }}
-                            onClick={undoLastCalendarAction}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
+                {/* Right: Actions — clean dropdown */}
+                <div className="flex items-center gap-2 relative">
+                    {/* Undo (conditional) */}
+                    <AnimatePresence>
+                        {lastUndoToken && (
+                            <motion.button
+                                initial={{ scale: 0, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0, opacity: 0 }}
+                                onClick={undoLastCalendarAction}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
                                 bg-orange-500/10 border border-orange-500/20 text-orange-400
                                 hover:bg-orange-500/20 transition-all"
-                        >
-                            <RotateCcw className="w-3 h-3" /> Undo
-                        </motion.button>
-                    )}
-                </AnimatePresence>
+                            >
+                                <RotateCcw className="w-3 h-3" /> Undo
+                            </motion.button>
+                        )}
+                    </AnimatePresence>
 
-                {/* Primary: Generate Today (prominent when no schedule) */}
-                {!hasScheduleToday && (
-                    <button
-                        onClick={() => handleGenerateToday()}
-                        disabled={isGeneratingToday}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold
+                    {/* Primary: Generate Today (prominent when no schedule) */}
+                    {!hasScheduleToday && (
+                        <button
+                            onClick={() => handleGenerateToday()}
+                            disabled={isGeneratingToday}
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold
                             bg-gradient-to-r from-violet-600 to-indigo-600 text-white
                             hover:from-violet-500 hover:to-indigo-500
                             disabled:opacity-50 disabled:cursor-wait transition-all shadow-lg shadow-violet-500/20"
-                    >
-                        {isGeneratingToday ? (
-                            <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Planning...</>
-                        ) : (
-                            <><Sparkles className="w-3.5 h-3.5" /> Plan Today</>
-                        )}
-                    </button>
-                )}
+                        >
+                            {isGeneratingToday ? (
+                                <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Planning...</>
+                            ) : (
+                                <><Sparkles className="w-3.5 h-3.5" /> Plan Today</>
+                            )}
+                        </button>
+                    )}
 
-                {/* Actions Menu */}
-                <div className="relative">
-                    <button
-                        onClick={() => setShowActionsMenu(!showActionsMenu)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
+                    {/* Actions Menu */}
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowActionsMenu(!showActionsMenu)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
                             bg-white/5 border border-white/10 text-white/60
                             hover:bg-white/10 hover:text-white transition-all"
-                    >
-                        <MoreHorizontal className="w-4 h-4" />
-                    </button>
+                        >
+                            <MoreHorizontal className="w-4 h-4" />
+                        </button>
 
-                    <AnimatePresence>
-                        {showActionsMenu && (
-                            <motion.div
-                                initial={{ opacity: 0, y: -8, scale: 0.95 }}
-                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                exit={{ opacity: 0, y: -8, scale: 0.95 }}
-                                transition={{ duration: 0.15 }}
-                                className="absolute right-0 top-full mt-2 w-52 rounded-xl bg-zinc-900/95 border border-white/10
+                        <AnimatePresence>
+                            {showActionsMenu && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                                    transition={{ duration: 0.15 }}
+                                    className="absolute right-0 top-full mt-2 w-52 rounded-xl bg-zinc-900/95 border border-white/10
                                     shadow-2xl backdrop-blur-xl z-50 overflow-hidden"
-                            >
-                                <div className="p-1.5 space-y-0.5">
-                                    <button
-                                        onClick={() => { handleGenerateToday(true); }}
-                                        disabled={isGeneratingToday}
-                                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium
+                                >
+                                    <div className="p-1.5 space-y-0.5">
+                                        <button
+                                            onClick={() => { handleGenerateToday(true); }}
+                                            disabled={isGeneratingToday}
+                                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium
                                             text-white/80 hover:bg-white/10 transition-colors text-left"
-                                    >
-                                        <Sparkles className="w-4 h-4 text-violet-400" />
-                                        {hasScheduleToday ? 'Regenerate Today' : 'Plan Today'}
-                                    </button>
-                                    <button
-                                        onClick={() => { setShowOptimizerModal(true); setShowActionsMenu(false); }}
-                                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium
+                                        >
+                                            <Sparkles className="w-4 h-4 text-violet-400" />
+                                            {hasScheduleToday ? 'Regenerate Today' : 'Plan Today'}
+                                        </button>
+                                        <button
+                                            onClick={() => { setShowOptimizerModal(true); setShowActionsMenu(false); }}
+                                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium
                                             text-white/80 hover:bg-white/10 transition-colors text-left"
-                                    >
-                                        <Zap className="w-4 h-4 text-emerald-400" />
-                                        Optimize Day
-                                    </button>
-                                    <button
-                                        onClick={() => { setShowPlanWeekModal(true); setShowActionsMenu(false); }}
-                                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium
+                                        >
+                                            <Zap className="w-4 h-4 text-emerald-400" />
+                                            Optimize Day
+                                        </button>
+                                        <button
+                                            onClick={() => { setShowPlanWeekModal(true); setShowActionsMenu(false); }}
+                                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium
                                             text-white/80 hover:bg-white/10 transition-colors text-left"
-                                    >
-                                        <Layout className="w-4 h-4 text-indigo-400" />
-                                        Plan Week
-                                    </button>
-                                    <div className="border-t border-white/5 my-1" />
-                                    <button
-                                        onClick={() => { setAddModalDefaults({}); setShowAddModal(true); setShowActionsMenu(false); }}
-                                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium
+                                        >
+                                            <Layout className="w-4 h-4 text-indigo-400" />
+                                            Plan Week
+                                        </button>
+                                        <div className="border-t border-white/5 my-1" />
+                                        <button
+                                            onClick={() => { setAddModalDefaults({}); setShowAddModal(true); setShowActionsMenu(false); }}
+                                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium
                                             text-white/80 hover:bg-white/10 transition-colors text-left"
-                                    >
-                                        <Plus className="w-4 h-4 text-white/40" />
-                                        Add Block
-                                    </button>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                                        >
+                                            <Plus className="w-4 h-4 text-white/40" />
+                                            Add Block
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
                 </div>
             </div>
+
+            {/* Day Stats Micro-Bar */}
+            {viewDayBlocks.length > 0 && (
+                <div className="flex items-center gap-4 mt-2 pt-2 border-t border-white/5">
+                    <div className="flex items-center gap-1.5 text-[10px] text-white/30">
+                        <span className="font-bold text-white/50">{dayStats.total}</span> blocks
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] text-white/30">
+                        <span className="font-bold text-white/50">{dayStats.hours}</span> hours
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] text-white/30">
+                        <span className={cn(
+                            "font-bold",
+                            dayStats.pct >= 70 ? 'text-emerald-400' : dayStats.pct >= 30 ? 'text-amber-400' : 'text-white/50'
+                        )}>{dayStats.pct}%</span> done
+                    </div>
+                    {dayStats.pct > 0 && (
+                        <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
+                            <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${dayStats.pct}%` }}
+                                className={cn(
+                                    "h-full rounded-full transition-all",
+                                    dayStats.pct >= 70 ? 'bg-emerald-500' : dayStats.pct >= 30 ? 'bg-amber-500' : 'bg-white/20'
+                                )}
+                            />
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 
@@ -370,7 +427,7 @@ export default function CalendarPage() {
     );
 
     return (
-        <div className="h-screen bg-black text-white overflow-hidden" onClick={() => showActionsMenu && setShowActionsMenu(false)}>
+        <div className="h-screen bg-gradient-to-br from-zinc-950 via-zinc-950 to-zinc-900 text-white overflow-hidden" onClick={() => showActionsMenu && setShowActionsMenu(false)}>
             <CalendarLayout
                 showInspector={!!selectedBlock}
                 showInbox={!selectedBlock && inbox.length > 0}
@@ -475,7 +532,7 @@ export default function CalendarPage() {
 function AddBlockModal({ defaults, goals, onSubmit, onClose }: {
     defaults: { date?: string; hour?: number };
     goals: any[];
-    onSubmit: (data: { title: string; date: string; start_time: string; end_time: string }) => void;
+    onSubmit: (data: { title: string; date: string; start_time: string; end_time: string; isAnchor: boolean }) => void;
     onClose: () => void;
 }) {
     const [title, setTitle] = useState('');
@@ -486,11 +543,12 @@ function AddBlockModal({ defaults, goals, onSubmit, onClose }: {
     const [endTime, setEndTime] = useState(
         defaults.hour ? `${(defaults.hour + 1).toString().padStart(2, '0')}:00` : '10:00'
     );
+    const [isAnchor, setIsAnchor] = useState(false);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!title.trim()) return;
-        onSubmit({ title: title.trim(), date, start_time: startTime, end_time: endTime });
+        onSubmit({ title: title.trim(), date, start_time: startTime, end_time: endTime, isAnchor });
     };
 
     return (
@@ -509,12 +567,22 @@ function AddBlockModal({ defaults, goals, onSubmit, onClose }: {
                 onSubmit={handleSubmit}
                 className="bg-zinc-900 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4"
             >
-                <h2 className="text-white font-bold text-lg">Add Block</h2>
+                <div className="flex items-center justify-between">
+                    <h2 className="text-white font-bold text-lg">Add to Schedule</h2>
+                    <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg">
+                        <span className="text-xs font-bold text-white/50">Fixed Anchor?</span>
+                        <button type="button" onClick={() => setIsAnchor(!isAnchor)}
+                            className={cn("w-8 h-4 rounded-full transition-colors relative", isAnchor ? "bg-amber-500" : "bg-white/20")}>
+                            <motion.div layout className="w-3 h-3 bg-white rounded-full mx-0.5"
+                                style={{ transform: isAnchor ? 'translateX(16px)' : 'translateX(0px)' }} />
+                        </button>
+                    </div>
+                </div>
 
                 <input
                     value={title}
                     onChange={e => setTitle(e.target.value)}
-                    placeholder="Block title..."
+                    placeholder={isAnchor ? "Anchor title (e.g. Gym, Work)" : "Block title..."}
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-sm
                         placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-violet-500/30"
                     autoFocus
@@ -564,9 +632,9 @@ function AddBlockModal({ defaults, goals, onSubmit, onClose }: {
                         Cancel
                     </button>
                     <button type="submit" disabled={!title.trim()}
-                        className="flex-1 py-2.5 rounded-xl text-sm font-bold bg-violet-600 text-white
-                            hover:bg-violet-500 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
-                        Add Block
+                        className={cn("flex-1 py-2.5 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed",
+                            isAnchor ? "bg-amber-600 hover:bg-amber-500" : "bg-violet-600 hover:bg-violet-500")}>
+                        {isAnchor ? 'Create Anchor' : 'Add Block'}
                     </button>
                 </div>
             </motion.form>

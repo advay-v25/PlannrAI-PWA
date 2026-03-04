@@ -251,6 +251,22 @@ export const apiClient = {
 
             addInboxItem: (data: { title: string; estimated_minutes: number }) =>
                 this.post('/api/calendar/inbox', data),
+
+            deleteCommitment: (commitmentId: string) =>
+                this.post('/api/schedule/apply-patch', {
+                    patch: {
+                        ops: [{ op: 'delete_anchor', anchor_id: commitmentId }]
+                    },
+                    source: 'manual_delete_anchor'
+                }),
+
+            createCommitment: (data: { title: string; start_time: string; end_time: string; days_of_week: number[] }) =>
+                this.post('/api/schedule/apply-patch', {
+                    patch: {
+                        ops: [{ op: 'create_anchor', ...data }]
+                    },
+                    source: 'manual_create_anchor'
+                }),
         };
     },
 

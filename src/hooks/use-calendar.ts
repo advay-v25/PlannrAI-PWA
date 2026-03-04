@@ -174,7 +174,25 @@ export function useCalendar() {
     };
 
     const deleteBlock = async (id: string) => {
-        // Optimistic Update
+        // Check if this is a virtual anchor block
+        if (id.startsWith('virt-cmt-')) {
+            // Extract the commitment ID: "virt-cmt-{commitmentId}-{date}"
+            const parts = id.replace('virt-cmt-', '').split('-');
+            // UUID is everything except the last part (date)
+            const commitmentId = parts.slice(0, -3).join('-');
+            // The date is the last three parts joined with -
+            // Actually the format is virt-cmt-{uuid}-{yyyy}-{mm}-{dd}
+            // UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (5 groups)
+            // So we need to extract properly
+            const fullSuffix = id.replace('virt-cmt-', '');
+            // Find the date at the end (yyyy-mm-dd = 10 chars)
+            const dateStr = fullSuffix.slice(-10);
+            const cmtId = fullSuffix.slice(0, -(10 + 1)); // -1 for the dash before date
+            await deleteCommitment(cmtId);
+            return;
+        }
+
+        // Regular block deletion
         const originalBlocks = [...state.blocks];
         setState(prev => ({
             ...prev,
@@ -188,6 +206,31 @@ export function useCalendar() {
             // Revert
             setState(prev => ({ ...prev, blocks: originalBlocks }));
             showToast(e.message || "Failed to delete block", "error");
+        }
+    };
+
+    const deleteCommitment = async (commitmentId: string) => {
+        try {
+            await apiClient.schedule.deleteCommitment(commitmentId);
+            showToast("Commitment deleted permanently", "success");
+            await loadData();
+        } catch (e: any) {
+            showToast(e.message || "Failed to delete commitment", "error");
+        }
+    };
+
+    const createCommitment = async (data: { title: string; start_time: string; end_time: string; date: string }) => {
+        try {
+            await apiClient.schedule.createCommitment({
+                title: data.title,
+                start_time: data.start_time,
+                end_time: data.end_time,
+                days_of_week: [new Date(data.date).getDay()]
+            });
+            showToast("Anchor created", "success");
+            await loadData();
+        } catch (e: any) {
+            showToast(e.message || "Failed to create anchor", "error");
         }
     };
 
@@ -290,6 +333,8 @@ export function useCalendar() {
         moveBlock,
         updateBlock,
         deleteBlock,
+        deleteCommitment,
+        createCommitment,
         planWeek,
         optimizeDay,
         applyOption,
