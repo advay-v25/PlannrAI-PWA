@@ -194,6 +194,8 @@ export class PatchService {
                     block_type: event.block_type || 'task',
                     pillar: event.pillar || null,
                     goal_id: event.goal_id || null,
+                    checklist: Array.isArray(event.checklist) ? event.checklist : null,
+                    habit_stack_id: event.habit_stack_id || null,
                 };
 
                 // Generate ID if provided (for reliable undo)

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Check, SkipForward, Clock, Trash2, Edit3, Save, ListTodo, Circle, CheckCircle2 } from 'lucide-react';
+import { X, Check, SkipForward, Clock, Trash2, Edit3, Save, ListTodo, Circle, CheckCircle2, Sparkles, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useHabitStacksStore } from '@/stores';
@@ -23,6 +23,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
     const [isEditing, setIsEditing] = useState(false);
     const [editStart, setEditStart] = useState('');
     const [editEnd, setEditEnd] = useState('');
+    const [isGenerating, setIsGenerating] = useState(false);
     const { stacks, completeStack } = useHabitStacksStore();
 
     if (!block) return null;
@@ -229,6 +230,53 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                             })}
                         </div>
                     </div>
+                )}
+
+                {/* Generate Sub-tasks Button (when no checklist exists) */}
+                {!hasSubTasks && block.block_type !== 'sleep' && block.block_type !== 'break' && (
+                    <button
+                        onClick={async () => {
+                            setIsGenerating(true);
+                            try {
+                                const res = await fetch('/api/calendar/generate-checklist', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        block_id: block.id?.startsWith('virt-') ? undefined : block.id,
+                                        title: block.title || block.context || 'Block',
+                                        block_type: block.block_type,
+                                        goal_title: block.goal?.title,
+                                        duration_minutes: (() => {
+                                            const [sh, sm] = (block.start_time || '00:00').split(':').map(Number);
+                                            const [eh, em] = (block.end_time || '01:00').split(':').map(Number);
+                                            return (eh * 60 + em) - (sh * 60 + sm);
+                                        })(),
+                                    }),
+                                });
+                                if (res.ok) {
+                                    const json = await res.json();
+                                    const newChecklist = json.data?.checklist || json.checklist || [];
+                                    if (newChecklist.length > 0) {
+                                        onAction('update', { checklist: newChecklist });
+                                    }
+                                }
+                            } catch (e) {
+                                console.error('Failed to generate sub-tasks:', e);
+                            } finally {
+                                setIsGenerating(false);
+                            }
+                        }}
+                        disabled={isGenerating}
+                        className="w-full flex items-center justify-center gap-2 p-3 rounded-xl text-xs font-bold
+                            bg-violet-500/10 border border-violet-500/20 text-violet-400
+                            hover:bg-violet-500/20 disabled:opacity-50 disabled:cursor-wait transition-all"
+                    >
+                        {isGenerating ? (
+                            <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</>
+                        ) : (
+                            <><Sparkles className="w-4 h-4" /> Generate Sub-tasks</>
+                        )}
+                    </button>
                 )}
 
                 {/* Quick Actions */}

@@ -151,19 +151,39 @@ OUTPUT FORMAT:
             }
 
             // 4. Clean and validate blocks
+            const goalMap = new Map(ctx.goals.map(g => [g.id, g]));
+            const goalsByTitle = new Map(ctx.goals.map(g => [g.title.toLowerCase(), g]));
+
             const cleanBlocks = blocks
                 .filter((b: any) => b.start_time && b.end_time)
-                .map((b: any) => ({
-                    date: targetDate,
-                    start_time: b.start_time,
-                    end_time: b.end_time,
-                    title: b.title || 'Block',
-                    block_type: b.block_type || 'task',
-                    goal_id: b.goal_id || null,
-                    pillar: b.pillar || null,
-                    status: 'planned',
-                    checklist: Array.isArray(b.checklist) ? b.checklist : [],
-                }));
+                .map((b: any) => {
+                    // Resolve goal_id: check if it's a real UUID that exists, else try title matching
+                    let resolvedGoalId: string | null = null;
+                    if (b.goal_id && goalMap.has(b.goal_id)) {
+                        resolvedGoalId = b.goal_id;
+                    } else if (b.goal_id) {
+                        // AI might have returned a title or invalid UUID — fuzzy match
+                        const titleLower = (b.title || '').toLowerCase();
+                        for (const [gTitle, goal] of goalsByTitle) {
+                            if (titleLower.includes(gTitle) || gTitle.includes(titleLower)) {
+                                resolvedGoalId = goal.id;
+                                break;
+                            }
+                        }
+                    }
+
+                    return {
+                        date: targetDate,
+                        start_time: b.start_time,
+                        end_time: b.end_time,
+                        title: b.title || 'Block',
+                        block_type: b.block_type || 'task',
+                        goal_id: resolvedGoalId,
+                        pillar: b.pillar || null,
+                        status: 'planned',
+                        checklist: Array.isArray(b.checklist) ? b.checklist : [],
+                    };
+                });
 
             // 5. Return as a single option to auto-apply
             const option = {

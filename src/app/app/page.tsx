@@ -159,6 +159,11 @@ export default function HomePage() {
             // 3. Refresh home data to show new blocks
             await fetchHomeData();
 
+            // 4. Notify calendar (if mounted) to refresh
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new Event('calendar-refresh'));
+            }
+
         } catch (e: any) {
             console.error('Generate schedule failed:', e);
             toast.error(e.message || 'Failed to generate schedule');

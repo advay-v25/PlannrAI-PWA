@@ -195,18 +195,37 @@ function cleanVariant(raw: any, ctx: CalendarContext, weekStart: string, index: 
     const defaults = ['balanced', 'front-loaded', 'sustainable'];
     const labels = ['Balanced Week', 'Front-Loaded', 'Sustainable'];
 
+    const goalMap = new Map(ctx.goals.map(g => [g.id, g]));
+    const goalsByTitle = new Map(ctx.goals.map(g => [g.title.toLowerCase(), g]));
+
     const blocks: PlanBlock[] = (raw.blocks || [])
         .filter((b: any) => b.date && b.start_time && b.end_time)
-        .map((b: any) => ({
-            date: b.date,
-            start_time: b.start_time,
-            end_time: b.end_time,
-            title: b.title || b.context || 'Scheduled Block',
-            block_type: b.block_type || 'focus',
-            goal_id: b.goal_id || undefined,
-            pillar: b.pillar || undefined,
-            checklist: Array.isArray(b.checklist) ? b.checklist : undefined,
-        }));
+        .map((b: any) => {
+            // Resolve goal_id to real UUID
+            let resolvedGoalId: string | undefined;
+            if (b.goal_id && goalMap.has(b.goal_id)) {
+                resolvedGoalId = b.goal_id;
+            } else if (b.goal_id) {
+                const titleLower = (b.title || '').toLowerCase();
+                for (const [gTitle, goal] of goalsByTitle) {
+                    if (titleLower.includes(gTitle) || gTitle.includes(titleLower)) {
+                        resolvedGoalId = goal.id;
+                        break;
+                    }
+                }
+            }
+
+            return {
+                date: b.date,
+                start_time: b.start_time,
+                end_time: b.end_time,
+                title: b.title || b.context || 'Scheduled Block',
+                block_type: b.block_type || 'focus',
+                goal_id: resolvedGoalId,
+                pillar: b.pillar || undefined,
+                checklist: Array.isArray(b.checklist) ? b.checklist : undefined,
+            };
+        });
 
     const totalMins = blocks.reduce((sum, b) => {
         return sum + Math.max(0, timeToMinutes(b.end_time) - timeToMinutes(b.start_time));
