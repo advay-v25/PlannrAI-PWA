@@ -267,6 +267,14 @@ export const apiClient = {
                     },
                     source: 'manual_create_anchor'
                 }),
+
+            updateBlockStatus: (data: {
+                block_id: string;
+                status: 'planned' | 'in_progress' | 'done' | 'missed' | 'cancelled' | 'partial';
+                actual_start_time?: string;
+                actual_end_time?: string;
+                notes?: string;
+            }) => this.post('/api/calendar/block-status', data),
         };
     },
 

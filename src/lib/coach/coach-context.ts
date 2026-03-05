@@ -18,7 +18,7 @@ export async function buildCoachContext(userId: string, supabase: SupabaseClient
     ] = await Promise.all([
         // 1. Schedule (Next 3 days)
         supabase.from('schedule_blocks')
-            .select('id, title, start_time, end_time, is_focus, pillar, date')
+            .select('id, title, start_time, end_time, pillar, date, block_type')
             .eq('user_id', userId)
             .gte('date', startStr)
             .lte('date', endStr)

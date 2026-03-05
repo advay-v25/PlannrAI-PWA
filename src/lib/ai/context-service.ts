@@ -75,9 +75,9 @@ export class ContextService {
         ] = await Promise.all([
             safeQuery(() => supabase.from('profiles').select('full_name, timezone, bio_data').eq('id', userId).single(), { full_name: 'User', timezone: 'UTC', bio_data: null }),
             safeQuery(() => supabase.from('profile_preferences').select('*').eq('user_id', userId).single(), {}),
-            safeQuery(() => supabase.from('schedule_blocks').select('id, title, start_time, end_time, is_focus, pillar, block_type').eq('user_id', userId).eq('date', todayStr).order('start_time'), []),
-            safeQuery(() => supabase.from('schedule_blocks').select('id, title, start_time, end_time, is_focus').eq('user_id', userId).eq('date', tomorrowStr).order('start_time'), []),
-            safeQuery(() => supabase.from('goals').select('id, title, category, importance, ai_plan').eq('user_id', userId).eq('status', 'active').limit(10), []),
+            safeQuery(() => supabase.from('schedule_blocks').select('id, title, start_time, end_time, pillar, block_type').eq('user_id', userId).eq('date', todayStr).order('start_time'), []),
+            safeQuery(() => supabase.from('schedule_blocks').select('id, title, start_time, end_time, block_type').eq('user_id', userId).eq('date', tomorrowStr).order('start_time'), []),
+            safeQuery(() => supabase.from('goals').select('id, title, category, importance').eq('user_id', userId).eq('status', 'active').limit(10), []),
             safeQuery(() => supabase.from('commitments').select('id, title, start_time, end_time, days_of_week').eq('user_id', userId).eq('is_active', true).limit(20), []),
             safeQuery(() => supabase.from('daily_logs').select('energy_level, mood, created_at').eq('user_id', userId).eq('log_date', todayStr).single(), null)
         ]);
@@ -86,7 +86,7 @@ export class ContextService {
         const aiProfile = (profile as any).bio_data?.ai_profile || null;
 
         // 3. Process Schedule Stats
-        const focusBlocks = todayBlocks.filter((b: any) => b.is_focus || b.pillar === 'Work');
+        const focusBlocks = todayBlocks.filter((b: any) => b.block_type === 'goal' || b.block_type === 'anchor' || b.pillar === 'Work');
         const totalFocusMins = focusBlocks.reduce((acc: number, b: any) => {
             const start = parseInt(b.start_time.split(':')[0]) * 60 + parseInt(b.start_time.split(':')[1]);
             const end = parseInt(b.end_time.split(':')[0]) * 60 + parseInt(b.end_time.split(':')[1]);
@@ -116,7 +116,7 @@ export class ContextService {
                 conflicts: [], // TODO: Run conflict detection here
                 stats: {
                     total_focus_time: totalFocusMins,
-                    meetings_count: todayBlocks.filter((b: any) => !b.is_focus).length
+                    meetings_count: todayBlocks.filter((b: any) => b.block_type !== 'goal' && b.block_type !== 'anchor').length
                 }
             },
             goals: {

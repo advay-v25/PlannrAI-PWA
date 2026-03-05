@@ -105,15 +105,16 @@ export default function CalendarPage() {
     }, [blocks, selectedDate, isLoading, todayStr]);
 
     // --- Generate Today's Schedule ---
-    const handleGenerateToday = async (force = false) => {
+    const handleGenerateToday = async () => {
         if (isGeneratingToday) return;
         setIsGeneratingToday(true);
         showToast('🤖 Planning your day...', 'info');
         try {
+            // Always force to ensure clean generation
             const res = await fetch('/api/calendar/generate-today', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ date: todayStr, force }),
+                body: JSON.stringify({ date: todayStr, force: true }),
             });
 
             if (!res.ok) {
@@ -125,32 +126,33 @@ export default function CalendarPage() {
             const options = planData.data?.options || planData.options || [];
 
             if (options.length === 0) {
-                if (planData.data?.has_existing) {
-                    // Already has blocks — ask to force regenerate
-                    showToast('Schedule exists. Regenerating...', 'info');
-                    await handleGenerateToday(true);
-                    return;
-                }
                 showToast('Could not generate schedule. Add goals first.', 'error');
                 return;
             }
 
-            // Auto-apply the first option
+            // Extract blocks from the first option and apply via apply-schedule
             const firstOption = options[0];
-            const applyRes = await fetch('/api/patch/apply', {
+            const ops = firstOption.patch?.ops || [];
+            const addBlocks = ops
+                .filter((o: any) => o.op === 'create_event' || o.op === 'create')
+                .map((o: any) => o.payload || o.event || {});
+
+            const applyRes = await fetch('/api/calendar/apply-schedule', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    patch: firstOption.patch,
-                    source: 'generate_today',
-                    context: firstOption.id,
+                    action: 'plan_week',
+                    clear_week: true,
+                    week_start: todayStr,
+                    patch: { add: addBlocks },
                 }),
             });
 
             if (!applyRes.ok) throw new Error('Failed to apply schedule');
 
             const applyData = await applyRes.json();
-            showToast(`✅ Day planned! ${applyData.data?.changes || ''} blocks created.`, 'success');
+            const added = applyData.data?.added || addBlocks.length;
+            showToast(`✅ Day planned! ${added} blocks created.`, 'success');
             await refresh();
 
         } catch (e: any) {
@@ -318,7 +320,7 @@ export default function CalendarPage() {
                                 >
                                     <div className="p-1.5 space-y-0.5">
                                         <button
-                                            onClick={() => { handleGenerateToday(true); }}
+                                            onClick={() => { handleGenerateToday(); }}
                                             disabled={isGeneratingToday}
                                             className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium
                                             text-white/80 hover:bg-white/10 transition-colors text-left"

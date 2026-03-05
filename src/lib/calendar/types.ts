@@ -5,6 +5,7 @@ export type ScheduleBlock = Database['public']['Tables']['schedule_blocks']['Row
 export interface ValidationResult {
     valid: boolean;
     errors?: string[];
+    warnings?: string[];
 }
 
 export interface ConflictResult {

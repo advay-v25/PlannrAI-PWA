@@ -55,6 +55,19 @@ function minutesToTime(mins: number): string {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 }
 
+/** Maps AI-generated block_type values to DB-allowed constraint values */
+function normalizeBlockType(type: string): string {
+    const map: Record<string, string> = {
+        'focus': 'goal', 'body': 'goal', 'mind': 'goal', 'craft': 'goal',
+        'task': 'flex', 'break': 'buffer', 'free': 'buffer', 'transition': 'buffer',
+        'exercise': 'goal', 'work': 'goal', 'deep_work': 'goal',
+        'admin': 'flex', 'personal': 'flex',
+    };
+    const allowed = ['anchor', 'goal', 'meal', 'buffer', 'routine', 'sleep', 'wind_down', 'flex'];
+    if (allowed.includes(type)) return type;
+    return map[type] || 'flex';
+}
+
 // ── Main Function ────────────────────────────────────────────────
 
 export async function generateWeekPlan(
@@ -220,7 +233,7 @@ function cleanVariant(raw: any, ctx: CalendarContext, weekStart: string, index: 
                 start_time: b.start_time,
                 end_time: b.end_time,
                 title: b.title || b.context || 'Scheduled Block',
-                block_type: b.block_type || 'focus',
+                block_type: normalizeBlockType(b.block_type || 'goal'),
                 goal_id: resolvedGoalId,
                 pillar: b.pillar || undefined,
                 checklist: Array.isArray(b.checklist) ? b.checklist : undefined,
@@ -277,7 +290,7 @@ function generateFallbackSchedule(ctx: CalendarContext, weekStart: string): Week
                 start_time: minutesToTime(currentHour * 60),
                 end_time: minutesToTime(currentHour * 60 + durationMins),
                 title: goal.title,
-                block_type: 'focus',
+                block_type: 'goal',
                 goal_id: goal.id,
                 pillar: goal.pillar,
             });

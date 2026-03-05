@@ -57,7 +57,7 @@ export async function buildFeatureContext(
     const queries: Promise<any>[] = [
         // 0. Schedule (next N days)
         Promise.resolve(supabase.from('schedule_blocks')
-            .select('id, title, start_time, end_time, is_focus, pillar, date, block_type, goal_id, status, is_fixed, commitment_id')
+            .select('id, title, start_time, end_time, pillar, date, block_type, goal_id, status, is_fixed, commitment_id')
             .eq('user_id', userId)
             .gte('date', startStr)
             .lte('date', endStr)
@@ -109,7 +109,7 @@ export async function buildFeatureContext(
     let recentDumpsPromise = Promise.resolve({ data: [] });
     if (includeRecentDumps) {
         recentDumpsPromise = supabase.from('brain_dumps')
-            .select('content, created_at')
+            .select('raw_text, created_at')
             .eq('user_id', userId)
             .order('created_at', { ascending: false })
             .limit(3) as any;
@@ -154,7 +154,7 @@ export async function buildFeatureContext(
     let recentDumps: string[] = [];
     if (includeRecentDumps) {
         const dumpData = dumpRes?.data || [];
-        recentDumps = dumpData.map((d: any) => d.content);
+        recentDumps = dumpData.map((d: any) => d.raw_text || d.content || '');
     }
 
     // Habit Stacks processing

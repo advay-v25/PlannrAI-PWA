@@ -285,15 +285,32 @@ export function useCalendar() {
     // Apply User-Selected AI Option
     const applyOption = async (option: any) => {
         try {
-            // Apply the patch via the PatchService apply endpoint
-            const result: any = await apiClient.post('/api/patch/apply', {
-                patch: option.patch,
-                context: option.id
+            // Extract blocks from the patch ops
+            const ops = option.patch?.ops || [];
+            const createOps = ops.filter((o: any) => o.op === 'create_event' || o.op === 'create');
+            const addBlocks = createOps.map((o: any) => o.payload || o.event || {});
+
+            // Determine affected date range
+            const dates = addBlocks.map((b: any) => b.date).filter(Boolean);
+            const weekStartStr = dates.length > 0
+                ? dates.sort()[0]
+                : format(startOfWeek(selectedDate, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+
+            // Use apply-schedule endpoint which supports clear_week
+            const result: any = await apiClient.post('/api/calendar/apply-schedule', {
+                action: 'plan_week',
+                variant_id: option.id,
+                clear_week: true,
+                week_start: weekStartStr,
+                patch: {
+                    add: addBlocks,
+                },
             });
 
-            if (result.undo_token) setLastUndoToken(result.undo_token);
+            if (result.version_id) setLastUndoToken(result.version_id);
             await loadData();
-            showToast(`✅ Option applied! (${result.changes} changes)`, 'success');
+            const total = (result.added || 0);
+            showToast(`✅ Plan applied! ${total} blocks created.`, 'success');
         } catch (e: any) {
             showToast("Failed to apply option", "error");
             throw e;
@@ -315,6 +332,26 @@ export function useCalendar() {
 
     const dismissConflict = () => {
         setConflictError(null);
+    };
+
+    // Block status transition
+    const updateBlockStatus = async (
+        blockId: string,
+        status: 'planned' | 'in_progress' | 'done' | 'missed' | 'cancelled' | 'partial',
+        opts?: { actual_start_time?: string; actual_end_time?: string; notes?: string }
+    ) => {
+        try {
+            const response = await apiClient.schedule.updateBlockStatus({
+                block_id: blockId,
+                status,
+                ...opts,
+            });
+            await loadData();
+            showToast(`Block ${status === 'done' ? 'completed' : status}`, 'success');
+            return response;
+        } catch (e: any) {
+            showToast(e.message || 'Failed to update status', 'error');
+        }
     };
 
     // Derived State
@@ -344,6 +381,7 @@ export function useCalendar() {
         undoLastCalendarAction,
         conflictError,
         setConflictError,
-        dismissConflict
+        dismissConflict,
+        updateBlockStatus,
     };
 }

@@ -25,13 +25,13 @@ export const POST = secureApiRoute(
 
         const { start_date, mode } = validation.data;
 
-        // 2. Determine week start (default to next Monday)
+        // 2. Determine week start (default to current week's Monday)
         let weekStart: string;
         if (start_date) {
             weekStart = start_date;
         } else {
-            const nextMonday = startOfWeek(new Date(), { weekStartsOn: 1 });
-            weekStart = format(addDays(nextMonday, 7), 'yyyy-MM-dd');
+            const thisMonday = startOfWeek(new Date(), { weekStartsOn: 1 });
+            weekStart = format(thisMonday, 'yyyy-MM-dd');
         }
 
         try {

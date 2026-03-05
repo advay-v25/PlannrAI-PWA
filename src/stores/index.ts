@@ -1,6 +1,27 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Profile, Goal, Commitment, OnboardingData } from '@/types/database';
+import type { Profile, Goal, Commitment } from '@/types/database';
+
+export interface OnboardingData {
+    full_name: string;
+    timezone: string;
+    sleep_start: string;
+    sleep_end: string;
+    wind_down_mins: number;
+    commitments: Partial<Commitment>[];
+    meals_per_day: number;
+    meal_windows: Record<string, any>;
+    goals: Partial<Goal>[];
+    peak_windows: any[];
+    low_windows: any[];
+    work_style: string | null;
+    selected_variant_id: string | null;
+    energy_level?: string;
+    stress_level?: string;
+    body_preferences?: Record<string, any>;
+    buffer_config?: Record<string, any>;
+    ai_profile?: Record<string, any>;
+}
 
 // User Store
 interface UserState {
@@ -83,22 +104,22 @@ export const useOnboardingStore = create<OnboardingState>()(
                 set((state) => ({
                     data: { ...state.data, goals: [...state.data.goals, goal] },
                 })),
-            removeGoal: (index) =>
+            removeGoal: (index: number) =>
                 set((state) => ({
                     data: {
                         ...state.data,
-                        goals: state.data.goals.filter((_, i) => i !== index),
+                        goals: state.data.goals.filter((_: any, i: number) => i !== index),
                     },
                 })),
             addCommitment: (commitment) =>
                 set((state) => ({
                     data: { ...state.data, commitments: [...state.data.commitments, commitment] },
                 })),
-            removeCommitment: (index) =>
+            removeCommitment: (index: number) =>
                 set((state) => ({
                     data: {
                         ...state.data,
-                        commitments: state.data.commitments.filter((_, i) => i !== index),
+                        commitments: state.data.commitments.filter((_: any, i: number) => i !== index),
                     },
                 })),
             reset: () => set({ currentStep: 0, data: defaultOnboardingData }),

@@ -68,17 +68,42 @@ export const POST = secureApiRoute(
             }
 
             // 2. Clear week if requested
+            // For full plan regeneration (plan_week/optimize_day), clear ALL blocks 
+            // since the new plan already includes commitment time slots.
+            // For manual edits, respect the is_locked flag.
             if (clear_week && week_start) {
-                const { count } = await supabase
+                const endDate = addDays(week_start, 6);
+
+                // First count what we're about to delete
+                const { data: toDelete } = await supabase
                     .from('schedule_blocks')
-                    .delete()
+                    .select('id')
                     .eq('user_id', userId)
                     .gte('date', week_start)
-                    .lte('date', addDays(week_start, 6))
-                    .not('is_fixed', 'eq', true)
-                    .is('commitment_id', null);
+                    .lte('date', endDate);
 
-                removed += count || 0;
+                console.log(`[ApplySchedule] Found ${toDelete?.length || 0} blocks in range ${week_start} to ${endDate}`);
+
+                // Delete with no lock filter for plan actions
+                let deleteQuery = supabase
+                    .from('schedule_blocks')
+                    .delete({ count: 'exact' })
+                    .eq('user_id', userId)
+                    .gte('date', week_start)
+                    .lte('date', endDate);
+
+                if (action === 'manual') {
+                    deleteQuery = deleteQuery.or('is_locked.is.null,is_locked.eq.false');
+                }
+
+                const { count: deletedCount, error: deleteError } = await deleteQuery;
+
+                if (deleteError) {
+                    console.error(`[ApplySchedule] Delete error:`, deleteError);
+                } else {
+                    removed += deletedCount || 0;
+                    console.log(`[ApplySchedule] Cleared ${removed} blocks for ${week_start} (action=${action})`);
+                }
             }
 
             // 3. Remove blocks
@@ -111,6 +136,7 @@ export const POST = secureApiRoute(
                     ...b,
                     user_id: userId,
                     status: b.status || 'planned',
+                    block_type: normalizeBlockType(b.block_type || 'flex'),
                 }));
 
                 const { data, error } = await supabase
@@ -143,4 +169,17 @@ function addDays(date: string, days: number): string {
     const d = new Date(date);
     d.setDate(d.getDate() + days);
     return d.toISOString().split('T')[0];
+}
+
+/** Maps AI-generated block_type values to DB-allowed constraint values */
+function normalizeBlockType(type: string): string {
+    const map: Record<string, string> = {
+        'focus': 'goal', 'body': 'goal', 'mind': 'goal', 'craft': 'goal',
+        'task': 'flex', 'break': 'buffer', 'free': 'buffer', 'transition': 'buffer',
+        'exercise': 'goal', 'work': 'goal', 'deep_work': 'goal',
+        'admin': 'flex', 'personal': 'flex',
+    };
+    const allowed = ['anchor', 'goal', 'meal', 'buffer', 'routine', 'sleep', 'wind_down', 'flex'];
+    if (allowed.includes(type)) return type;
+    return map[type] || 'flex';
 }

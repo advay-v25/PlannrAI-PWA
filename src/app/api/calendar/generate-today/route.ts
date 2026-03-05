@@ -45,16 +45,14 @@ export const POST = secureApiRoute(
                 });
             }
 
-            // If force=true and existing blocks, clear them first
+            // If force=true and existing blocks, clear ALL of them for a clean slate
             if (force && existingBlocks && existingBlocks.length > 0) {
-                const nonFixedIds = existingBlocks
-                    .filter((b: any) => !b.is_fixed && !b.commitment_id)
-                    .map((b: any) => b.id);
-                if (nonFixedIds.length > 0) {
+                const blockIds = existingBlocks.map((b: any) => b.id);
+                if (blockIds.length > 0) {
                     await supabase
                         .from('schedule_blocks')
                         .delete()
-                        .in('id', nonFixedIds)
+                        .in('id', blockIds)
                         .eq('user_id', userId);
                 }
             }
@@ -206,6 +204,29 @@ IMPORTANT:
             const goalMap = new Map(ctx.goals.map(g => [g.id, g]));
             const goalsByTitle = new Map(ctx.goals.map(g => [g.title.toLowerCase(), g]));
 
+            // Map AI block_types to DB-allowed values
+            const normalizeBlockType = (type: string): string => {
+                const map: Record<string, string> = {
+                    'focus': 'goal',
+                    'body': 'goal',
+                    'mind': 'goal',
+                    'craft': 'goal',
+                    'task': 'flex',
+                    'break': 'buffer',
+                    'free': 'buffer',
+                    'transition': 'buffer',
+                    'exercise': 'goal',
+                    'work': 'goal',
+                    'deep_work': 'goal',
+                    'admin': 'flex',
+                    'personal': 'flex',
+                };
+                // DB allows: anchor, goal, meal, buffer, routine, sleep, wind_down, flex
+                const allowed = ['anchor', 'goal', 'meal', 'buffer', 'routine', 'sleep', 'wind_down', 'flex'];
+                if (allowed.includes(type)) return type;
+                return map[type] || 'flex';
+            };
+
             const cleanBlocks = blocks
                 .filter((b: any) => b.start_time && b.end_time)
                 .map((b: any) => {
@@ -227,7 +248,7 @@ IMPORTANT:
                         start_time: b.start_time,
                         end_time: b.end_time,
                         title: b.title || 'Block',
-                        block_type: b.block_type || 'task',
+                        block_type: normalizeBlockType(b.block_type || 'flex'),
                         goal_id: resolvedGoalId,
                         pillar: b.pillar || null,
                         status: 'planned',
@@ -321,7 +342,7 @@ function generateFallbackDay(
         const dur = Math.min(goal.minutes_per_day || 60, 90);
         blocks.push({
             date, start_time: minutesToTime(cursor), end_time: minutesToTime(cursor + dur),
-            title: goal.title, block_type: 'focus', goal_id: goal.id, pillar: goal.pillar,
+            title: goal.title, block_type: 'goal', goal_id: goal.id, pillar: goal.pillar,
             checklist: [
                 { text: `Focus on ${goal.title} — main task` },
                 { text: 'Review progress at end' },
@@ -336,7 +357,7 @@ function generateFallbackDay(
         const dur = Math.min(goal.minutes_per_day || 45, 60);
         blocks.push({
             date, start_time: minutesToTime(cursor), end_time: minutesToTime(cursor + dur),
-            title: goal.title, block_type: 'focus', goal_id: goal.id, pillar: goal.pillar,
+            title: goal.title, block_type: 'goal', goal_id: goal.id, pillar: goal.pillar,
             checklist: [{ text: `Work on ${goal.title}` }],
         });
         cursor += dur + 10;
@@ -357,7 +378,7 @@ function generateFallbackDay(
         const dur = Math.min(goal.minutes_per_day || 45, 60);
         blocks.push({
             date, start_time: minutesToTime(cursor), end_time: minutesToTime(cursor + dur),
-            title: goal.title, block_type: 'focus', goal_id: goal.id, pillar: goal.pillar,
+            title: goal.title, block_type: 'goal', goal_id: goal.id, pillar: goal.pillar,
             checklist: [{ text: `Work on ${goal.title}` }],
         });
         cursor += dur + 15;
@@ -368,7 +389,7 @@ function generateFallbackDay(
         const exStart = Math.max(cursor, 16 * 60 + 30);
         blocks.push({
             date, start_time: minutesToTime(exStart), end_time: minutesToTime(exStart + 45),
-            title: 'Exercise / Walk', block_type: 'body',
+            title: 'Exercise / Walk', block_type: 'goal',
             checklist: [{ text: 'Warm up for 5 minutes' }, { text: 'Main workout / walk' }, { text: 'Cool down and stretch' }],
         });
         cursor = exStart + 60;
@@ -378,7 +399,7 @@ function generateFallbackDay(
     if (cursor < 18 * 60 + 30) {
         blocks.push({
             date, start_time: minutesToTime(cursor), end_time: minutesToTime(cursor + 45),
-            title: 'Free Time', block_type: 'break',
+            title: 'Free Time', block_type: 'buffer',
             checklist: [{ text: 'Relax, hobby, or social time' }],
         });
         cursor += 60;
@@ -399,7 +420,7 @@ function generateFallbackDay(
     if (cursor < windDownMins) {
         blocks.push({
             date, start_time: minutesToTime(cursor), end_time: minutesToTime(Math.min(cursor + 60, windDownMins)),
-            title: 'Evening Free Time', block_type: 'break',
+            title: 'Evening Free Time', block_type: 'buffer',
             checklist: [{ text: 'Reading, journaling, or leisure' }],
         });
     }

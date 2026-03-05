@@ -19,9 +19,9 @@ export async function POST(req: NextRequest) {
             .insert({
                 user_id: user.id,
                 week_start,
-                reality,
+                week_end: week_start, // Same as start if not provided
+                ai_patterns: reality ? JSON.stringify({ reality }) : null,
                 lever_action: lever,
-                status: 'completed',
                 completed_at: new Date().toISOString()
             })
             .select()
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
         if (personal_rules && Array.isArray(personal_rules)) {
             const rulesToSave = personal_rules.map(rule => ({
                 user_id: user.id,
-                rule_text: rule.text,
+                rule: rule.text || rule.rule_text || rule.rule,
                 category: rule.category || 'productivity',
                 is_active: true,
                 source_review_id: review.id

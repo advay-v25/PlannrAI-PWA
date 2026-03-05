@@ -19,7 +19,7 @@ export async function buildBrainDumpContext(userId: string, supabase: SupabaseCl
     ] = await Promise.all([
         // 1. Schedule (Next 3 days)
         supabase.from('schedule_blocks')
-            .select('id, title, start_time, end_time, is_focus, pillar, date')
+            .select('id, title, start_time, end_time, pillar, date, block_type')
             .eq('user_id', userId)
             .gte('date', startStr)
             .lte('date', endStr)
@@ -48,7 +48,7 @@ export async function buildBrainDumpContext(userId: string, supabase: SupabaseCl
 
         // 5. Recent Dumps (Context of past thoughts)
         supabase.from('brain_dumps')
-            .select('content, created_at')
+            .select('raw_text, created_at')
             .eq('user_id', userId)
             .order('created_at', { ascending: false })
             .limit(3),
@@ -68,6 +68,6 @@ export async function buildBrainDumpContext(userId: string, supabase: SupabaseCl
         goals: goalsRes.data || [],
         userState: userStateRes.data || {},
         preferences: prefsRes.data || {},
-        recentDumps: recentDumpsRes.data?.map(d => d.content) || []
+        recentDumps: recentDumpsRes.data?.map(d => (d as any).raw_text || (d as any).content || '') || []
     };
 }

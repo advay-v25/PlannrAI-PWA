@@ -16,7 +16,7 @@ export const POST = secureApiRoute(
         // 1. Gather ALL relevant data for the week
         const [blocksRes, goalsRes, logsRes, reviewsRes, habitLogsRes, brainDumpsRes, coachThreadsRes] = await Promise.all([
             supabase.from('schedule_blocks')
-                .select('id, title, context, date, start_time, end_time, block_type, status, pillar, goal_id, is_focus')
+                .select('id, title, context, date, start_time, end_time, block_type, status, pillar, goal_id')
                 .eq('user_id', userId)
                 .gte('date', week_start)
                 .lte('date', week_end)
@@ -43,7 +43,7 @@ export const POST = secureApiRoute(
                 .gte('completed_at', `${week_start}T00:00:00Z`)
                 .lte('completed_at', `${week_end}T23:59:59Z`),
             supabase.from('brain_dumps')
-                .select('content, created_at, signals')
+                .select('raw_text, created_at')
                 .eq('user_id', userId)
                 .gte('created_at', `${week_start}T00:00:00Z`)
                 .lte('created_at', `${week_end}T23:59:59Z`),
@@ -110,8 +110,8 @@ export const POST = secureApiRoute(
         const habitCompletionRate = totalHabitsPlanned > 0 ? Math.round((totalHabitsCompleted / totalHabitsPlanned) * 100) : 0;
 
         // Process Dumps
-        const brainDumpThemes = brainDumps.slice(0, 5).map((d: any) => d.content.substring(0, 100) + '...').join(' | ');
-        const avgStress = brainDumps.reduce((acc: number, d: any) => acc + (d.signals?.stress || 0), 0) / (brainDumps.length || 1);
+        const brainDumpThemes = brainDumps.slice(0, 5).map((d: any) => (d.raw_text || '').substring(0, 100) + '...').join(' | ');
+        const avgStress = 0; // signals column no longer exists on brain_dumps
 
         // Process Coach
         const activeStruggles = coachThreads

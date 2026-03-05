@@ -15,7 +15,7 @@ export class WeeklyReviewAI {
         // 1. Gather Data (Re-using logic from route)
         const [blocksRes, goalsRes, logsRes, reviewsRes, habitLogsRes, brainDumpsRes, coachThreadsRes] = await Promise.all([
             supabase.from('schedule_blocks')
-                .select('id, title, context, date, start_time, end_time, block_type, status, pillar, goal_id, is_focus')
+                .select('id, title, context, date, start_time, end_time, block_type, status, pillar, goal_id')
                 .eq('user_id', this.userId)
                 .gte('date', weekStart)
                 .lte('date', weekEnd),
