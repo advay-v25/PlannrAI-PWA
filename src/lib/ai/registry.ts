@@ -27,7 +27,7 @@ export const CoachOutputSchema = z.object({
   thinking: z.array(z.string().max(100)).max(4).optional().describe('Reasoning chain — show your work'),
   summary: z.string().max(300),
   message: z.string().optional(),
-  context_used: z.array(z.string().max(40)).max(4).optional().describe('What data points you actually used'),
+  context_used: z.array(z.string().max(100)).max(4).optional().describe('What data points you actually used'),
   options: z.array(z.object({
     id: z.string(),
     title: z.string().max(40),
@@ -356,7 +356,10 @@ OUTPUT FORMAT (Strict JSON):
     "effort": "low|medium|high",
     "time_impact_mins": 45,
     "patch": {
-      "ops": [{ "op": "move_event", "event_id": "uuid", "to_start": "HH:MM", "to_end": "HH:MM", "date": "YYYY-MM-DD" }],
+      "ops": [
+        { "op": "move_event", "event_id": "uuid", "to_start": "HH:MM", "to_end": "HH:MM" },
+        { "op": "create_event", "payload": { "title": "...", "start_time": "HH:MM", "end_time": "HH:MM", "date": "YYYY-MM-DD", "block_type": "task" } }
+      ],
       "undoable": true,
       "reason": "short reason"
     }

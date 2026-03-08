@@ -266,13 +266,23 @@ export const PUT = secureApiRoute(
         }
 
         if (minutes_per_day !== undefined) {
-            if (minutes_per_day < 5 || minutes_per_day > 480) {
-                return apiError('Minutes per day must be between 5 and 480');
+            if (minutes_per_day < 5 || minutes_per_day > 1440) {
+                return apiError('Minutes per day must be between 5 and 1440');
             }
             updates.minutes_per_day = minutes_per_day;
         }
 
         if (is_paused !== undefined) updates.is_paused = is_paused;
+        // Support `status` parameter as well since GoalCard sends it
+        // @ts-ignore - Dynamic field
+        if (body.status !== undefined) updates.status = body.status;
+        // Support `weekly_target_minutes` parameter
+        // @ts-ignore - Dynamic field
+        if (body.weekly_target_minutes !== undefined) updates.weekly_target_minutes = body.weekly_target_minutes;
+        // Support `energy_demand` parameter
+        // @ts-ignore - Dynamic field
+        if (body.energy_demand !== undefined) updates.energy_demand = body.energy_demand;
+
         if (constraints !== undefined) updates.constraints = constraints;
         if (non_negotiables !== undefined) updates.non_negotiables = non_negotiables;
         if (time_commitment_mins !== undefined) updates.time_commitment_mins = time_commitment_mins;

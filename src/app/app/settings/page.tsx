@@ -76,17 +76,15 @@ export default function SettingsPage() {
 
     const handlePreviewApply = async () => {
         try {
-            const previewRes = await apiClient.post<any>('/api/settings/preview-regenerate', {
-                reason: "User settings update",
-                changes: unsavedChanges
-            });
-            await apiClient.post('/api/settings/apply', { patch: previewRes.patch });
+            await apiClient.post('/api/settings/update', unsavedChanges);
             setUnsavedChanges({});
             setIsPreviewing(false);
-            toast.success("Schedule regenerated with new settings");
+            toast.success("Settings saved successfully.");
+            // Eventually trigger reactive scheduling here if needed
             if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('calendar-refresh'));
             }
+            loadSettings();
         } catch (err) {
             toast.error("Failed to apply changes");
         }
@@ -258,7 +256,7 @@ export default function SettingsPage() {
                                     onClick={handlePreviewApply}
                                     className="px-4 py-2 rounded-lg text-sm font-bold bg-amber-500 text-black hover:brightness-110 transition-all"
                                 >
-                                    Regenerate Schedule
+                                    Proceed & Save
                                 </button>
                             </div>
                         </div>

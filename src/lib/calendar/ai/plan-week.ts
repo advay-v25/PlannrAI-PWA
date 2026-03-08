@@ -31,6 +31,7 @@ export interface PlanBlock {
     block_type: string;
     goal_id?: string;
     pillar?: string;
+    checklist?: Array<{ text: string }>;
 }
 
 // ── Utilities ────────────────────────────────────────────────────
@@ -68,6 +69,97 @@ function normalizeBlockType(type: string): string {
     return map[type] || 'flex';
 }
 
+/** Enforces strict flow state rules: zero overlaps and alternating pillars. */
+function enforceFlowState(blocks: PlanBlock[], commitments: any[]): PlanBlock[] {
+    const timeToMin = (t: string) => {
+        const [h, m] = t.split(':').map(Number);
+        return (h || 0) * 60 + (m || 0);
+    };
+
+    const minToTime = (m: number) => {
+        const h = Math.floor(m / 60) % 24;
+        const ms = m % 60;
+        return `${h.toString().padStart(2, '0')}:${ms.toString().padStart(2, '0')}`;
+    };
+
+    // Group blocks by date
+    const blocksByDate = blocks.reduce((acc, b) => {
+        if (!acc[b.date]) acc[b.date] = [];
+        acc[b.date].push(b);
+        return acc;
+    }, {} as Record<string, PlanBlock[]>);
+
+    const finalBlocks: PlanBlock[] = [];
+
+    // Process day by day to fix flow
+    for (const [date, dayBlocks] of Object.entries(blocksByDate)) {
+        // Sort blocks chronologically
+        dayBlocks.sort((a, b) => timeToMin(a.start_time) - timeToMin(b.start_time));
+
+        // Get commitments for this date for buffer checking
+        const dayOfWeek = new Date(date + 'T12:00:00').getDay();
+        const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
+        const dayCommitments = commitments.filter(c => (c.days_of_week || []).includes(isoDay));
+
+        let processedDay: PlanBlock[] = [];
+        let lastPillar: string | null = null;
+        let lastEndTime = 0;
+
+        for (let i = 0; i < dayBlocks.length; i++) {
+            let b = { ...dayBlocks[i] };
+            let bStart = timeToMin(b.start_time);
+            let duration = timeToMin(b.end_time) - bStart;
+
+            // 1. Force Alternate Pillars (Insert Buffer if needed)
+            if (b.block_type === 'goal' && b.pillar) {
+                if (b.pillar === lastPillar) {
+                    // Inject a 15-min buffer block
+                    const bufferStart = Math.max(lastEndTime, bStart - 15);
+                    processedDay.push({
+                        date: b.date,
+                        start_time: minToTime(bufferStart),
+                        end_time: minToTime(bufferStart + 15),
+                        title: 'Flow Transition',
+                        block_type: 'buffer',
+                    });
+                    lastEndTime = bufferStart + 15;
+                    bStart = Math.max(bStart, lastEndTime);
+                }
+                lastPillar = b.pillar;
+            } else if (b.block_type !== 'buffer') {
+                lastPillar = null; // Reset pillar constraint if we hit a meal/break/etc
+            }
+
+            // 2. Prevent Overlap with previous blocks
+            if (bStart < lastEndTime) {
+                bStart = lastEndTime; // Shift start time down
+            }
+
+            // 3. Prevent Overlap with Commitments (Anchor 30-min buffer)
+            for (const cmt of dayCommitments) {
+                const cStart = timeToMin(cmt.start_time);
+                const cEnd = timeToMin(cmt.end_time);
+
+                // If block falls within the commitment + 30m buffer zone, push it after
+                if (bStart < cEnd + 30 && bStart + duration > cStart - 30) {
+                    bStart = cEnd + 30;
+                }
+            }
+
+            // Apply shifted times
+            b.start_time = minToTime(bStart);
+            b.end_time = minToTime(bStart + duration);
+
+            processedDay.push(b);
+            lastEndTime = bStart + duration;
+        }
+
+        finalBlocks.push(...processedDay);
+    }
+
+    return finalBlocks;
+}
+
 // ── Main Function ────────────────────────────────────────────────
 
 export async function generateWeekPlan(
@@ -93,12 +185,15 @@ CRITICAL RULES:
 8. Each goal block should be 30-90 minutes max
 9. All times in HH:MM format (24-hour)
 10. All dates in YYYY-MM-DD format
+11. FLOW STATE: NEVER schedule two goals of the SAME PILLAR consecutively. You MUST alternate pillars (e.g., MIND -> BODY -> CRAFT) or insert a BREAK/BUFFER to maintain flow.
+12. ZERO OVERLAP: NEVER allow multiple blocks to exist at the exact same start_time. Every block MUST have a distinct, non-overlapping time slot.
+13. CHECKLIST SYNC: For every 'goal' block you schedule, you MUST examine its provided 'AI Strategy' to generate a realistic 2-3 item 'checklist'. Extract the most immediate actionable steps from the strategy.
 
 You MUST return valid JSON with exactly 3 variants.`;
 
     const goalsText = context.goals.length > 0
         ? context.goals.map(g =>
-            `  - ${g.title} (${g.pillar.toUpperCase()}, ${g.energy_demand} energy): ${g.weekly_target_minutes}min/week (~${Math.round(g.weekly_target_minutes / 60 * 10) / 10}h), ID: ${g.id}`
+            `  - ${g.title} (${g.pillar.toUpperCase()}, ${g.energy_demand} energy): ${g.weekly_target_minutes}min/week (~${Math.round(g.weekly_target_minutes / 60 * 10) / 10}h), ID: ${g.id}\n    AI Strategy: ${g.ai_strategy ? JSON.stringify(g.ai_strategy) : 'None'}`
         ).join('\n')
         : '  (No goals set — generate suggested focus blocks)';
 
@@ -240,20 +335,23 @@ function cleanVariant(raw: any, ctx: CalendarContext, weekStart: string, index: 
             };
         });
 
-    const totalMins = blocks.reduce((sum, b) => {
+    // Enforce Flow State and Strict Overlaps
+    const flowBlocks = enforceFlowState(blocks, ctx.commitments);
+
+    const totalMins = flowBlocks.reduce((sum, b) => {
         return sum + Math.max(0, timeToMinutes(b.end_time) - timeToMinutes(b.start_time));
     }, 0);
 
-    const uniqueDays = new Set(blocks.map(b => b.date));
+    const uniqueDays = new Set(flowBlocks.map(b => b.date));
 
     return {
         id: raw.id || defaults[index] || `variant_${index}`,
         label: raw.label || labels[index] || `Option ${index + 1}`,
         description: raw.description || 'AI-generated schedule variant',
         philosophy: raw.philosophy || 'Optimized for your goals and energy.',
-        blocks,
+        blocks: flowBlocks,
         stats: {
-            total_blocks: blocks.length,
+            total_blocks: flowBlocks.length,
             total_hours: Math.round(totalMins / 60 * 10) / 10,
             days_with_work: uniqueDays.size,
         },

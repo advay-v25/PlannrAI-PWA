@@ -114,15 +114,16 @@ export function useCalendar() {
             showToast("Block added", "success");
             await loadData();
         } catch (e: any) {
-            if (e.status === 409 && e.data?.conflict) {
+            const conflictData = e.data?.error?.details || e.data;
+            if (e.status === 409 && conflictData?.conflict) {
                 setConflictError({
                     conflict: true,
-                    options: e.data.resolution_options,
+                    options: conflictData.resolution_options,
                     pendingAction: { type: 'create', payload: { ...blockData, date } }
                 });
                 return;
             }
-            showToast(e.message || "Failed to add block", "error");
+            showToast(e.message || e.data?.error?.message || "Failed to add block", "error");
         }
     };
 
@@ -143,15 +144,16 @@ export function useCalendar() {
             // Revert
             setState(prev => ({ ...prev, blocks: originalBlocks }));
 
-            if (e.status === 409 && e.data?.conflict) {
+            const conflictData = e.data?.error?.details || e.data;
+            if (e.status === 409 && conflictData?.conflict) {
                 setConflictError({
                     conflict: true,
-                    options: e.data.resolution_options,
+                    options: conflictData.resolution_options,
                     pendingAction: { type: 'move', payload: { id, newStart, newEnd, newDate: targetDate } }
                 });
                 return;
             }
-            showToast(e.message || "Failed to move block", "error");
+            showToast(e.message || e.data?.error?.message || "Failed to move block", "error");
         }
     };
 
@@ -291,21 +293,26 @@ export function useCalendar() {
             const addBlocks = createOps.map((o: any) => o.payload || o.event || {});
 
             // Determine affected date range
-            const dates = addBlocks.map((b: any) => b.date).filter(Boolean);
-            const weekStartStr = dates.length > 0
-                ? dates.sort()[0]
-                : format(startOfWeek(selectedDate, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+            const dates = [...new Set(addBlocks.map((b: any) => b.date).filter(Boolean))] as string[];
+            const uniqueDates = dates.sort();
+            const isSingleDay = uniqueDates.length <= 1;
 
-            // Use apply-schedule endpoint which supports clear_week
-            const result: any = await apiClient.post('/api/calendar/apply-schedule', {
-                action: 'plan_week',
+            // For single-day operations, use clear_date; for multi-day, use clear_week
+            const body: any = {
+                action: isSingleDay ? 'optimize_day' : 'plan_week',
                 variant_id: option.id,
-                clear_week: true,
-                week_start: weekStartStr,
-                patch: {
-                    add: addBlocks,
-                },
-            });
+                patch: { add: addBlocks },
+            };
+
+            if (isSingleDay) {
+                body.clear_date = uniqueDates[0] || format(selectedDate, 'yyyy-MM-dd');
+            } else {
+                body.clear_week = true;
+                body.week_start = uniqueDates[0] || format(startOfWeek(selectedDate, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+            }
+
+            // Use apply-schedule endpoint
+            const result: any = await apiClient.post('/api/calendar/apply-schedule', body);
 
             if (result.version_id) setLastUndoToken(result.version_id);
             await loadData();

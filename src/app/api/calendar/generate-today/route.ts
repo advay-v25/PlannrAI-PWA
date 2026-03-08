@@ -60,7 +60,7 @@ export const POST = secureApiRoute(
             // 2. Build rich context for AI prompt
             const goalsText = ctx.goals.length > 0
                 ? ctx.goals.map(g =>
-                    `  - ${g.title} (Pillar: ${g.pillar.toUpperCase()}, Energy: ${g.energy_demand}, ${g.minutes_per_day}min/day) → ID: ${g.id}`
+                    `  - ${g.title} (Pillar: ${g.pillar.toUpperCase()}, Energy: ${g.energy_demand}, ${g.minutes_per_day}min/day) → ID: ${g.id}\n    AI Strategy: ${g.ai_strategy ? JSON.stringify(g.ai_strategy) : 'None'}`
                 ).join('\n')
                 : '  (No goals — generate general productivity blocks like "Deep Work", "Exercise", "Learning")';
 
@@ -103,9 +103,16 @@ CORE PRINCIPLES:
 8. Include 10-15min buffer/transition blocks between different activity types
 9. Morning Routine should include the user's habit stacks
 10. NEVER overlap with fixed commitments
-11. Make it REALISTIC — no more than 3-4 hours of deep focused work
-12. Include downtime/free blocks — humans need rest
-13. Wind-down routine before sleep
+11. NEVER schedule ANYTHING within 30 minutes before or after a fixed commitment — this is travel/transition time. Leave those slots EMPTY.
+12. Make it REALISTIC — no more than 3-4 hours of deep focused work
+13. Include downtime/free blocks — humans need rest
+14. Wind-down routine before sleep
+15. MAX 1 body/exercise block per day for busy professionals. MAX 2 for fitness-focused users.
+16. MAX 3-5 goal blocks per day — SPREAD goals across the WEEK. Today should not try to cover ALL goals.
+17. Do NOT pack the day — leave breathing room between blocks
+18. FLOW STATE: NEVER schedule two goals of the SAME PILLAR consecutively. You MUST alternate pillars (e.g., MIND -> BODY -> CRAFT) or insert a BREAK/BUFFER to maintain flow.
+19. ZERO OVERLAP: NEVER allow multiple blocks to exist at the exact same start_time. Every block MUST have a distinct, non-overlapping time slot.
+20. CHECKLIST SYNC: For every 'goal' block you schedule, you MUST examine its provided 'AI Strategy' to generate a realistic 2-3 item 'checklist'. Extract the most immediate actionable steps from the strategy.
 
 BLOCK TYPES (use these exactly):
 - "routine" → Morning/Evening routines
@@ -170,7 +177,11 @@ IMPORTANT:
 - Include ALL time from ${wakeTime} to ${windDownTime}
 - For goal blocks, use the exact goal ID from the list above
 - Morning Routine checklist should include habit stacks from above
-- Generate a COMPLETE schedule — no gaps`;
+- Generate a COMPLETE schedule — no gaps
+- RESPECT the 30 minute buffer around fixed commitments — NO blocks within 30 minutes before or after!
+- MAX 1 body/exercise block (2 if user is fitness-focused)
+- MAX 5 goal blocks — spread goals across the week, not all today
+- Do NOT overschedule — quality over quantity`;
 
             // 4. Call AI
             const response = await callAI<{ blocks: any[]; summary: string; philosophy: string }>({
@@ -200,32 +211,114 @@ IMPORTANT:
                 philosophy = fb.philosophy;
             }
 
-            // 5. Clean and validate blocks — resolve goal IDs
+            // 5. Clean and validate blocks — resolve goal IDs + enforce constraints
             const goalMap = new Map(ctx.goals.map(g => [g.id, g]));
             const goalsByTitle = new Map(ctx.goals.map(g => [g.title.toLowerCase(), g]));
+
+            // Helper: time string to minutes
+            const timeToMinutes = (t: string) => {
+                const [h, m] = t.split(':').map(Number);
+                return (h || 0) * 60 + (m || 0);
+            };
+
+            // Build commitment exclusion zones (commitment time ± 30 min buffer)
+            const dayOfWeek = new Date(targetDate + 'T12:00:00').getDay();
+            const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
+            const commitmentZones = ctx.commitments
+                .filter((c: any) => !c.days_of_week || c.days_of_week.includes(isoDay))
+                .map((c: any) => ({
+                    start: timeToMinutes(c.start_time) - 30, // 30 min buffer before
+                    end: timeToMinutes(c.end_time) + 30, // 30 min buffer after
+                    title: c.title,
+                }));
 
             // Map AI block_types to DB-allowed values
             const normalizeBlockType = (type: string): string => {
                 const map: Record<string, string> = {
-                    'focus': 'goal',
-                    'body': 'goal',
-                    'mind': 'goal',
-                    'craft': 'goal',
-                    'task': 'flex',
-                    'break': 'buffer',
-                    'free': 'buffer',
-                    'transition': 'buffer',
-                    'exercise': 'goal',
-                    'work': 'goal',
-                    'deep_work': 'goal',
-                    'admin': 'flex',
-                    'personal': 'flex',
+                    'focus': 'goal', 'body': 'goal', 'mind': 'goal', 'craft': 'goal',
+                    'task': 'flex', 'break': 'buffer', 'free': 'buffer', 'transition': 'buffer',
+                    'exercise': 'goal', 'work': 'goal', 'deep_work': 'goal',
+                    'admin': 'flex', 'personal': 'flex',
                 };
-                // DB allows: anchor, goal, meal, buffer, routine, sleep, wind_down, flex
                 const allowed = ['anchor', 'goal', 'meal', 'buffer', 'routine', 'sleep', 'wind_down', 'flex'];
                 if (allowed.includes(type)) return type;
                 return map[type] || 'flex';
             };
+
+            const enforceFlowState = (dayBlocks: any[], commitments: any[]) => {
+                const minToTime = (m: number) => {
+                    const h = Math.floor(m / 60) % 24;
+                    const ms = m % 60;
+                    return `${h.toString().padStart(2, '0')}:${ms.toString().padStart(2, '0')}`;
+                };
+
+                // Sort blocks chronologically
+                dayBlocks.sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
+
+                // Get commitments for this date for buffer checking
+                const dayCommitments = commitments.filter((c: any) => (c.days_of_week || []).includes(isoDay));
+
+                let processedDay: any[] = [];
+                let lastPillar: string | null = null;
+                let lastEndTime = 0;
+
+                for (let i = 0; i < dayBlocks.length; i++) {
+                    let b = { ...dayBlocks[i] };
+                    let bStart = timeToMinutes(b.start_time);
+                    let duration = timeToMinutes(b.end_time) - bStart;
+
+                    // 1. Force Alternate Pillars (Insert Buffer if needed)
+                    if (b.block_type === 'goal' && b.pillar) {
+                        if (b.pillar === lastPillar) {
+                            // Inject a 15-min buffer block
+                            const bufferStart = Math.max(lastEndTime, bStart - 15);
+                            processedDay.push({
+                                date: b.date,
+                                start_time: minToTime(bufferStart),
+                                end_time: minToTime(bufferStart + 15),
+                                title: 'Flow Transition',
+                                block_type: 'buffer',
+                            });
+                            lastEndTime = bufferStart + 15;
+                            bStart = Math.max(bStart, lastEndTime);
+                        }
+                        lastPillar = b.pillar;
+                    } else if (b.block_type !== 'buffer') {
+                        lastPillar = null; // Reset pillar constraint if we hit a meal/break/etc
+                    }
+
+                    // 2. Prevent Overlap with previous blocks
+                    if (bStart < lastEndTime) {
+                        bStart = lastEndTime; // Shift start time down
+                    }
+
+                    // 3. Prevent Overlap with Commitments (Anchor 30-min buffer)
+                    for (const cmt of dayCommitments) {
+                        const cStart = timeToMinutes(cmt.start_time);
+                        const cEnd = timeToMinutes(cmt.end_time);
+
+                        // If block falls within the commitment + 30m buffer zone, push it after
+                        if (bStart < cEnd + 30 && bStart + duration > cStart - 30) {
+                            bStart = cEnd + 30;
+                        }
+                    }
+
+                    // Apply shifted times
+                    b.start_time = minToTime(bStart);
+                    b.end_time = minToTime(bStart + duration);
+
+                    processedDay.push(b);
+                    lastEndTime = bStart + duration;
+                }
+
+                return processedDay;
+            };
+
+            // Determine body cap based on user profile
+            // If user has explicit body/fitness goals, allow 2 body blocks; otherwise cap at 1
+            const hasBodyGoals = ctx.goals.some((g: any) => g.pillar === 'body' || g.category === 'body');
+            const bodyGoalCount = ctx.goals.filter((g: any) => g.pillar === 'body' || g.category === 'body').length;
+            const maxBodyBlocks = bodyGoalCount >= 2 ? 2 : (hasBodyGoals ? 1 : 1);
 
             const cleanBlocks = blocks
                 .filter((b: any) => b.start_time && b.end_time)
@@ -253,8 +346,59 @@ IMPORTANT:
                         pillar: b.pillar || null,
                         status: 'planned',
                         checklist: Array.isArray(b.checklist) ? b.checklist : [],
+                        _original_type: b.block_type || 'flex', // Keep original for filtering
                     };
                 });
+
+            // --- Post-processing: Filter out commitment-overlapping blocks ---
+            const filteredBlocks = cleanBlocks.filter((b: any) => {
+                const bStart = timeToMinutes(b.start_time);
+                const bEnd = timeToMinutes(b.end_time);
+                for (const zone of commitmentZones) {
+                    if (bStart < zone.end && bEnd > zone.start) {
+                        console.log(`[GenerateToday] Removing block "${b.title}" (${b.start_time}-${b.end_time}) — overlaps commitment zone "${zone.title}"`);
+                        return false;
+                    }
+                }
+                return true;
+            });
+
+            // --- Post-processing: Cap body/exercise blocks ---
+            let bodyCount = 0;
+            const bodyCapBlocks = filteredBlocks.filter((b: any) => {
+                const origType = (b._original_type || '').toLowerCase();
+                const isBody = origType === 'body' || origType === 'exercise' ||
+                    (b.pillar === 'body') ||
+                    (b.title || '').toLowerCase().includes('exercise') ||
+                    (b.title || '').toLowerCase().includes('workout') ||
+                    (b.title || '').toLowerCase().includes('gym');
+                if (isBody) {
+                    bodyCount++;
+                    if (bodyCount > maxBodyBlocks) {
+                        console.log(`[GenerateToday] Removing excess body block "${b.title}" (cap: ${maxBodyBlocks})`);
+                        return false;
+                    }
+                }
+                return true;
+            });
+
+            // --- Post-processing: Cap goal blocks at 5 per day ---
+            let goalCount = 0;
+            const MAX_GOAL_BLOCKS = 5;
+            const cappedBlocks = bodyCapBlocks.filter((b: any) => {
+                if (b.block_type === 'goal') {
+                    goalCount++;
+                    if (goalCount > MAX_GOAL_BLOCKS) {
+                        console.log(`[GenerateToday] Removing excess goal block "${b.title}" (cap: ${MAX_GOAL_BLOCKS})`);
+                        return false;
+                    }
+                }
+                return true;
+            });
+
+            // Remove the internal _original_type field and enforce Flow State algorithm
+            const rawFinalBlocks = cappedBlocks.map(({ _original_type, ...rest }: any) => rest);
+            const finalBlocks = enforceFlowState(rawFinalBlocks, ctx.commitments);
 
             // 6. Return as a single option to auto-apply
             const option = {
@@ -263,7 +407,7 @@ IMPORTANT:
                 description: summary,
                 tradeoff: philosophy,
                 patch: {
-                    ops: cleanBlocks.map((b: any) => ({
+                    ops: finalBlocks.map((b: any) => ({
                         op: 'create_event' as const,
                         payload: b
                     })),

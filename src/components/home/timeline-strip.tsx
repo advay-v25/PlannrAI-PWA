@@ -1,11 +1,11 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Lock, Coffee, ArrowRight } from 'lucide-react';
+import { Lock, Clock, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 
 interface TimelineStripProps {
     blocks: any[];
@@ -13,88 +13,96 @@ interface TimelineStripProps {
 }
 
 export function TimelineStrip({ blocks, anchors = [] }: TimelineStripProps) {
-    const scrollRef = useRef<HTMLDivElement>(null);
-    const now = new Date();
+    const [currentTime, setCurrentTime] = useState(new Date().toTimeString().slice(0, 5));
 
-    // Sort blocks by time
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setCurrentTime(new Date().toTimeString().slice(0, 5));
+        }, 60000);
+        return () => clearInterval(interval);
+    }, []);
+
+    // Sort blocks chronologically
     const sorted = [...blocks].sort((a, b) => a.start_time.localeCompare(b.start_time));
 
-    // Calculate position of 'now' indicator
-    // This is a simplified version, ideally we map time to x-position
+    // Filter to show: the current block, and upcoming blocks. Hide old ones (except maybe the very last one missed)
+    const upcomingBlocks = sorted.filter(b => b.end_time > currentTime).slice(0, 4);
 
     return (
-        <div className="w-full space-y-3">
-            <div className="flex items-center justify-between px-1">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-white/40">Timeline</h3>
-                <Link href="/app/calendar" className="text-[10px] text-white/40 hover:text-white transition-colors">
-                    Open Calendar →
+        <div className="w-full rounded-3xl border border-white/5 bg-black/40 backdrop-blur-xl p-5 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-emerald-400" />
+                    <h3 className="text-sm font-bold text-white tracking-wide">Up Next</h3>
+                </div>
+                <Link href="/app/calendar" className="text-xs font-medium text-white/50 hover:text-white flex items-center gap-1 transition-colors bg-white/5 px-2.5 py-1 rounded-full">
+                    Open Calendar <ArrowRight className="w-3 h-3" />
                 </Link>
             </div>
 
-            <div
-                ref={scrollRef}
-                className="flex gap-3 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-none mask-fade-sides"
-            >
-                {/* Spacer for start */}
-                <div className="w-2 shrink-0" />
-
-                {sorted.length === 0 ? (
-                    <div className="flex h-16 items-center justify-center rounded-xl border border-dashed border-white/10 px-8 text-xs text-white/30">
-                        Nothing scheduled for the rest of the day.
+            <div className="relative space-y-3">
+                {upcomingBlocks.length === 0 ? (
+                    <div className="flex h-24 flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 text-center">
+                        <span className="text-xs text-white/40">Schedule is clear for the rest of the day.</span>
+                        <Link href="/app/calendar" className="text-[10px] mt-2 text-[var(--color-primary)]">Plan Tomorrow →</Link>
                     </div>
                 ) : (
-                    sorted.map((block) => {
-                        const isPast = block.end_time < now.toTimeString().slice(0, 5);
-                        const isCurrent = block.start_time <= now.toTimeString().slice(0, 5) && block.end_time > now.toTimeString().slice(0, 5);
+                    upcomingBlocks.map((block, index) => {
+                        const isCurrent = block.start_time <= currentTime && block.end_time > currentTime;
 
                         return (
-                            <Link
-                                key={block.id}
-                                href={`/app/calendar?date=${block.date}`}
-                                className="snap-start"
-                            >
+                            <Link key={block.id} href={`/app/calendar?date=${block.date}`} className="block">
                                 <motion.div
-                                    whileHover={{ scale: 1.02, y: -2 }}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: index * 0.05 }}
+                                    whileHover={{ scale: 1.01, x: 2 }}
                                     className={cn(
-                                        "relative flex h-24 w-40 shrink-0 flex-col justify-between rounded-2xl border p-3 transition-all",
+                                        "group relative flex items-stretch gap-3 rounded-2xl p-3 outline-none transition-all",
                                         isCurrent
-                                            ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 shadow-[0_0_20px_rgba(var(--color-primary-rgb),0.2)]"
-                                            : isPast
-                                                ? "border-white/5 bg-white/5 opacity-50 grayscale"
-                                                : "border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20"
+                                            ? "bg-[var(--color-primary)]/10 ring-1 ring-[var(--color-primary)]/30 backdrop-blur-md shadow-[0_0_20px_rgba(var(--color-primary-rgb),0.1)]"
+                                            : "hover:bg-white/[0.03] ring-1 ring-white/5 bg-black/20"
                                     )}
                                 >
-                                    <div className="flex justify-between items-start">
+                                    {/* Timeline Line & Indicator */}
+                                    <div className="flex flex-col items-center gap-1 min-w-[48px]">
                                         <span className={cn(
-                                            "text-[10px] font-mono",
-                                            isCurrent ? "text-[var(--color-primary)] font-bold" : "text-white/40"
+                                            "text-xs font-bold font-mono",
+                                            isCurrent ? "text-[var(--color-primary)]" : "text-white/50"
                                         )}>
-                                            {block.start_time.slice(0, 5)}
+                                            {format(new Date(`2000-01-01T${block.start_time}`), 'h:mm a')}
                                         </span>
-                                        {block.block_type === 'anchor' && <Lock className="h-3 w-3 text-white/20" />}
+                                        <div className="flex-1 w-[2px] rounded-full bg-white/5 relative">
+                                            {isCurrent && (
+                                                <div className="absolute top-0 w-[2px] bg-[var(--color-primary)] rounded-full animate-pulse h-full" />
+                                            )}
+                                        </div>
                                     </div>
 
-                                    <div>
-                                        <div className="text-xs font-medium text-white line-clamp-2 leading-tight">
-                                            {block.title}
+                                    {/* Content */}
+                                    <div className="flex-1 pb-1">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="flex flex-col">
+                                                <span className={cn(
+                                                    "text-sm font-semibold truncate",
+                                                    isCurrent ? "text-white" : "text-white/80"
+                                                )}>
+                                                    {block.title}
+                                                </span>
+                                                <span className="text-[10px] text-white/40 font-mono mt-0.5">
+                                                    {block.end_time.slice(0, 5)} {block.pillar ? `• ${block.pillar.toUpperCase()}` : ''}
+                                                </span>
+                                            </div>
+                                            {block.block_type === 'anchor' && (
+                                                <Lock className="w-3.5 h-3.5 text-white/20 shrink-0" />
+                                            )}
                                         </div>
-                                        {block.goal?.category && (
-                                            <div className={cn(
-                                                "mt-1 h-0.5 w-6 rounded-full",
-                                                block.goal.category === 'mind' ? 'bg-blue-400' :
-                                                    block.goal.category === 'body' ? 'bg-green-400' :
-                                                        block.goal.category === 'craft' ? 'bg-purple-400' : 'bg-white/20'
-                                            )} />
-                                        )}
                                     </div>
                                 </motion.div>
                             </Link>
                         );
                     })
                 )}
-
-                {/* Spacer for end */}
-                <div className="w-2 shrink-0" />
             </div>
         </div>
     );

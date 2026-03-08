@@ -11,6 +11,7 @@ const ApplyScheduleSchema = z.object({
     action: z.enum(['plan_week', 'optimize_day', 'manual']).default('manual'),
     variant_id: z.string().optional(),
     clear_week: z.boolean().default(false),
+    clear_date: z.string().optional(), // Clear only a single date (yyyy-MM-dd)
     week_start: z.string().optional(),
     patch: z.object({
         add: z.array(z.any()).optional(),
@@ -31,9 +32,9 @@ export const POST = secureApiRoute(
             return apiError(`Invalid input: ${validation.error.message}`, 400);
         }
 
-        const { action, patch, clear_week, week_start } = validation.data;
+        const { action, patch, clear_week, clear_date, week_start } = validation.data;
 
-        if (!patch.add?.length && !patch.update?.length && !patch.remove?.length && !clear_week) {
+        if (!patch.add?.length && !patch.update?.length && !patch.remove?.length && !clear_week && !clear_date) {
             return apiError('No changes to apply', 400);
         }
 
@@ -106,6 +107,28 @@ export const POST = secureApiRoute(
                 }
             }
 
+            // 2b. Clear single date if requested (for day regeneration)
+            if (clear_date) {
+                let deleteQuery = supabase
+                    .from('schedule_blocks')
+                    .delete({ count: 'exact' })
+                    .eq('user_id', userId)
+                    .eq('date', clear_date);
+
+                if (action === 'manual') {
+                    deleteQuery = deleteQuery.or('is_locked.is.null,is_locked.eq.false');
+                }
+
+                const { count: deletedCount, error: deleteError } = await deleteQuery;
+
+                if (deleteError) {
+                    console.error(`[ApplySchedule] Delete error for date ${clear_date}:`, deleteError);
+                } else {
+                    removed += deletedCount || 0;
+                    console.log(`[ApplySchedule] Cleared ${removed} blocks for date ${clear_date}`);
+                }
+            }
+
             // 3. Remove blocks
             if (patch.remove?.length) {
                 const { count } = await supabase
@@ -130,22 +153,63 @@ export const POST = secureApiRoute(
                 }
             }
 
-            // 5. Add blocks
+            // 5. Add blocks (filter out any that overlap with anchor commitments)
             if (patch.add?.length) {
-                const blocks = patch.add.map((b: any) => ({
+                // Fetch commitments to check for overlaps
+                const targetDates = [...new Set(patch.add.map((b: any) => b.date).filter(Boolean))];
+                let commitmentBlocks: any[] = [];
+                if (targetDates.length > 0) {
+                    const { data: cmts } = await supabase
+                        .from('commitments')
+                        .select('*')
+                        .eq('user_id', userId)
+                        .eq('is_active', true);
+                    commitmentBlocks = cmts || [];
+                }
+
+                const timeToMin = (t: string) => {
+                    const [h, m] = t.split(':').map(Number);
+                    return (h || 0) * 60 + (m || 0);
+                };
+
+                // Filter out blocks that overlap with commitments
+                const filteredBlocks = patch.add.filter((b: any) => {
+                    if (!b.start_time || !b.end_time || !b.date) return true;
+                    const bStart = timeToMin(b.start_time);
+                    const bEnd = timeToMin(b.end_time);
+                    const dayOfWeek = new Date(b.date + 'T12:00:00').getDay();
+                    const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
+
+                    for (const cmt of commitmentBlocks) {
+                        if (cmt.days_of_week && !cmt.days_of_week.includes(isoDay)) continue;
+                        const cStart = timeToMin(cmt.start_time);
+                        const cEnd = timeToMin(cmt.end_time);
+                        if (bStart < cEnd + 30 && bEnd > cStart - 30) return false; // overlaps or within 30 min buffer
+                    }
+                    return true;
+                });
+
+                const blocks = filteredBlocks.map((b: any) => ({
                     ...b,
                     user_id: userId,
                     status: b.status || 'planned',
                     block_type: normalizeBlockType(b.block_type || 'flex'),
                 }));
 
-                const { data, error } = await supabase
-                    .from('schedule_blocks')
-                    .insert(blocks)
-                    .select('id');
+                if (blocks.length > 0) {
+                    const { data, error } = await supabase
+                        .from('schedule_blocks')
+                        .insert(blocks)
+                        .select('id');
 
-                if (!error) added = data?.length || 0;
-                else console.error('[ApplySchedule] Insert failed:', error);
+                    if (!error) added = data?.length || 0;
+                    else console.error('[ApplySchedule] Insert failed:', error);
+                }
+
+                const skipped = patch.add.length - filteredBlocks.length;
+                if (skipped > 0) {
+                    console.log(`[ApplySchedule] Skipped ${skipped} blocks that overlapped with commitments`);
+                }
             }
 
             console.log(`[ApplySchedule] +${added} ~${updated} -${removed}`);

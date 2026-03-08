@@ -105,16 +105,18 @@ export default function CalendarPage() {
     }, [blocks, selectedDate, isLoading, todayStr]);
 
     // --- Generate Today's Schedule ---
-    const handleGenerateToday = async () => {
+    const handleGenerateToday = async (targetDateOverride?: string) => {
         if (isGeneratingToday) return;
         setIsGeneratingToday(true);
+
+        // Use override if provided, otherwise use today's LOCAL date
+        const targetDate = targetDateOverride || format(new Date(), 'yyyy-MM-dd');
         showToast('🤖 Planning your day...', 'info');
         try {
-            // Always force to ensure clean generation
             const res = await fetch('/api/calendar/generate-today', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ date: todayStr, force: true }),
+                body: JSON.stringify({ date: targetDate, force: true }),
             });
 
             if (!res.ok) {
@@ -137,13 +139,13 @@ export default function CalendarPage() {
                 .filter((o: any) => o.op === 'create_event' || o.op === 'create')
                 .map((o: any) => o.payload || o.event || {});
 
+            // Use clear_date (single day) instead of clear_week (7 days)
             const applyRes = await fetch('/api/calendar/apply-schedule', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    action: 'plan_week',
-                    clear_week: true,
-                    week_start: todayStr,
+                    action: 'optimize_day',
+                    clear_date: targetDate,
                     patch: { add: addBlocks },
                 }),
             });
@@ -260,7 +262,7 @@ export default function CalendarPage() {
                     </h1>
                 </div>
 
-                {/* Right: Actions — clean dropdown */}
+                {/* Right: Actions — structurally flat matching reference */}
                 <div className="flex items-center gap-2 relative">
                     {/* Undo (conditional) */}
                     <AnimatePresence>
@@ -270,7 +272,7 @@ export default function CalendarPage() {
                                 animate={{ scale: 1, opacity: 1 }}
                                 exit={{ scale: 0, opacity: 0 }}
                                 onClick={undoLastCalendarAction}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold
                                 bg-orange-500/10 border border-orange-500/20 text-orange-400
                                 hover:bg-orange-500/20 transition-all"
                             >
@@ -279,15 +281,43 @@ export default function CalendarPage() {
                         )}
                     </AnimatePresence>
 
-                    {/* Primary: Generate Today (prominent when no schedule) */}
-                    {!hasScheduleToday && (
+                    {/* Refresh Icon */}
+                    <button
+                        onClick={() => refresh()}
+                        title="Refresh Schedule"
+                        className="p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors border border-transparent hover:border-white/10"
+                    >
+                        <RotateCcw className="w-4 h-4" />
+                    </button>
+
+                    {/* Optimize Day */}
+                    <button
+                        onClick={() => setShowOptimizerModal(true)}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold
+                        bg-white/5 border border-white/10 text-white/80
+                        hover:bg-white/10 hover:text-white transition-all"
+                    >
+                        <Zap className="w-4 h-4 text-emerald-400" /> <span className="hidden sm:inline">Optimize Day</span>
+                    </button>
+
+                    {/* Plan Week */}
+                    <button
+                        onClick={() => setShowPlanWeekModal(true)}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold
+                        bg-white/5 border border-white/10 text-white/80
+                        hover:bg-white/10 hover:text-white transition-all"
+                    >
+                        <Layout className="w-4 h-4 text-indigo-400" /> <span className="hidden sm:inline">Plan Week</span>
+                    </button>
+
+                    {/* Primary Button: New Block or Generate */}
+                    {!hasScheduleToday ? (
                         <button
-                            onClick={() => handleGenerateToday()}
+                            onClick={() => handleGenerateToday(todayStr)}
                             disabled={isGeneratingToday}
-                            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold
-                            bg-gradient-to-r from-violet-600 to-indigo-600 text-white
-                            hover:from-violet-500 hover:to-indigo-500
-                            disabled:opacity-50 disabled:cursor-wait transition-all shadow-lg shadow-violet-500/20"
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold
+                            bg-white text-black hover:bg-gray-200
+                            disabled:opacity-50 disabled:cursor-wait transition-all shadow-md"
                         >
                             {isGeneratingToday ? (
                                 <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Planning...</>
@@ -295,69 +325,15 @@ export default function CalendarPage() {
                                 <><Sparkles className="w-3.5 h-3.5" /> Plan Today</>
                             )}
                         </button>
-                    )}
-
-                    {/* Actions Menu */}
-                    <div className="relative">
+                    ) : (
                         <button
-                            onClick={() => setShowActionsMenu(!showActionsMenu)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
-                            bg-white/5 border border-white/10 text-white/60
-                            hover:bg-white/10 hover:text-white transition-all"
+                            onClick={() => { setAddModalDefaults({}); setShowAddModal(true); }}
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold
+                            bg-white text-black hover:bg-gray-200 transition-all shadow-md"
                         >
-                            <MoreHorizontal className="w-4 h-4" />
+                            <Plus className="w-4 h-4" /> New Block
                         </button>
-
-                        <AnimatePresence>
-                            {showActionsMenu && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: -8, scale: 0.95 }}
-                                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                                    exit={{ opacity: 0, y: -8, scale: 0.95 }}
-                                    transition={{ duration: 0.15 }}
-                                    className="absolute right-0 top-full mt-2 w-52 rounded-xl bg-zinc-900/95 border border-white/10
-                                    shadow-2xl backdrop-blur-xl z-50 overflow-hidden"
-                                >
-                                    <div className="p-1.5 space-y-0.5">
-                                        <button
-                                            onClick={() => { handleGenerateToday(); }}
-                                            disabled={isGeneratingToday}
-                                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium
-                                            text-white/80 hover:bg-white/10 transition-colors text-left"
-                                        >
-                                            <Sparkles className="w-4 h-4 text-violet-400" />
-                                            {hasScheduleToday ? 'Regenerate Today' : 'Plan Today'}
-                                        </button>
-                                        <button
-                                            onClick={() => { setShowOptimizerModal(true); setShowActionsMenu(false); }}
-                                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium
-                                            text-white/80 hover:bg-white/10 transition-colors text-left"
-                                        >
-                                            <Zap className="w-4 h-4 text-emerald-400" />
-                                            Optimize Day
-                                        </button>
-                                        <button
-                                            onClick={() => { setShowPlanWeekModal(true); setShowActionsMenu(false); }}
-                                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium
-                                            text-white/80 hover:bg-white/10 transition-colors text-left"
-                                        >
-                                            <Layout className="w-4 h-4 text-indigo-400" />
-                                            Plan Week
-                                        </button>
-                                        <div className="border-t border-white/5 my-1" />
-                                        <button
-                                            onClick={() => { setAddModalDefaults({}); setShowAddModal(true); setShowActionsMenu(false); }}
-                                            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-xs font-medium
-                                            text-white/80 hover:bg-white/10 transition-colors text-left"
-                                        >
-                                            <Plus className="w-4 h-4 text-white/40" />
-                                            Add Block
-                                        </button>
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
+                    )}
                 </div>
             </div>
 
@@ -411,7 +387,7 @@ export default function CalendarPage() {
                     Let AI plan your entire day — from morning routine to wind-down — based on your goals.
                 </p>
                 <button
-                    onClick={() => handleGenerateToday()}
+                    onClick={() => handleGenerateToday(todayStr)}
                     disabled={isGeneratingToday}
                     className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold mx-auto
                         bg-gradient-to-r from-violet-600 to-indigo-600 text-white

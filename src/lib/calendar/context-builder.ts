@@ -29,6 +29,7 @@ export interface CalendarContext {
         weekly_target_minutes: number;
         energy_demand: string;
         is_active: boolean;
+        ai_strategy?: any;
     }>;
 
     commitments: Array<{
@@ -126,7 +127,7 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
 
         // 2. Active Goals
         db.from('goals')
-            .select('id, title, pillar, category, importance, minutes_per_day, days_per_week, energy_demand, status')
+            .select('id, title, pillar, category, importance, minutes_per_day, days_per_week, energy_demand, status, ai_strategy')
             .eq('user_id', userId)
             .eq('status', 'active')
             .limit(20),
@@ -193,6 +194,7 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
         weekly_target_minutes: (g.minutes_per_day || 60) * (g.days_per_week || 5),
         energy_demand: g.energy_demand || 'medium',
         is_active: true,
+        ai_strategy: g.ai_strategy,
     }));
 
     const commitments = (commitmentsRes.data || []).map((c: any) => ({

@@ -102,14 +102,28 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                         className="border-t border-[var(--glass-border)] bg-[var(--glass-bg-subtle)]"
                     >
                         <div className="p-5 space-y-6">
-                            {/* Title Input */}
-                            <div className="space-y-1">
-                                <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Goal Title</label>
-                                <GlassInput
-                                    value={goal.title}
-                                    onChange={(e) => onUpdate(goal.id, { title: e.target.value })}
-                                    className="font-medium bg-[var(--glass-bg)] border-transparent focus:border-[var(--color-primary)] focus:bg-[var(--glass-bg-hover)]"
-                                />
+                            {/* Title & Category Input */}
+                            <div className="grid grid-cols-3 gap-4">
+                                <div className="space-y-1 col-span-2">
+                                    <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Goal Title</label>
+                                    <GlassInput
+                                        value={goal.title}
+                                        onChange={(e) => onUpdate(goal.id, { title: e.target.value })}
+                                        className="font-medium bg-[var(--glass-bg)] border-transparent focus:border-[var(--color-primary)] focus:bg-[var(--glass-bg-hover)]"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Pillar</label>
+                                    <select
+                                        value={goal.category || 'mind'}
+                                        onChange={(e) => onUpdate(goal.id, { category: e.target.value as any })}
+                                        className="w-full h-10 px-3 rounded-xl bg-[var(--glass-bg)] border border-transparent focus:border-[var(--color-primary)] focus:bg-[var(--glass-bg-hover)] text-sm font-medium outline-none appearance-none cursor-pointer"
+                                    >
+                                        <option value="mind">Mind</option>
+                                        <option value="body">Body</option>
+                                        <option value="craft">Craft</option>
+                                    </select>
+                                </div>
                             </div>
 
                             {/* Key Stats Sliders */}
