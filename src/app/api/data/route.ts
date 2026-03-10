@@ -21,7 +21,7 @@ export const GET = secureApiRoute(
             supabase.from('goals').select('*').eq('user_id', context.userId),
             supabase.from('schedule_blocks').select('*').eq('user_id', context.userId),
             supabase.from('brain_dump_entries').select('id, raw_text, created_at').eq('user_id', context.userId),
-            supabase.from('coach_threads').select('*').eq('user_id', context.userId),
+            supabase.from('coach_conversations').select('*').eq('user_id', context.userId),
             supabase.from('coach_messages').select('*').eq('user_id', context.userId),
             supabase.from('memory_facts').select('*').eq('user_id', context.userId),
             supabase.from('weekly_reviews').select('*').eq('user_id', context.userId),
@@ -69,7 +69,7 @@ export const DELETE = secureApiRoute(
         // Phase 1: Leaf tables (no dependencies)
         const leafTables = [
             'weekly_reviews',
-            'coach_messages',     // must come before coach_threads (FK)
+            'coach_messages',     // must come before coach_conversations (FK)
             'memory_facts',
             'behavior_signals',
             'ai_proposals',
@@ -89,7 +89,7 @@ export const DELETE = secureApiRoute(
 
         // Phase 2: Parent tables (after their children are gone)
         const parentTables = [
-            'coach_threads',
+            'coach_conversations',
             'schedule_blocks',
             'habit_stacks',
             'commitments',

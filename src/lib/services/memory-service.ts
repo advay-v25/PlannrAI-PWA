@@ -5,17 +5,17 @@ import { apiClient } from '@/lib/api-client';
 
 // -- Schema Types (matching 20260210210000_phase4_memory.sql) --
 
-export interface CoachThread {
+export interface CoachConversation {
     id: string;
     user_id: string;
-    title: string;
+    initial_intent: string;
     created_at: string;
-    updated_at: string;
+    last_message_at: string;
 }
 
 export interface CoachMessage {
     id: string;
-    thread_id: string;
+    conversation_id: string;
     user_id: string;
     role: 'user' | 'assistant' | 'system';
     content: string; // JSON string for assistant, text for user
@@ -48,12 +48,12 @@ export class MemoryService {
     /**
      * Creates a new Coach Thread.
      */
-    static async createThread(userId: string, title: string = 'New Session'): Promise<CoachThread | null> {
+    static async createThread(userId: string, title: string = 'New Session'): Promise<CoachConversation | null> {
         const supabase = await createClient();
         try {
             const { data, error } = await supabase
-                .from('coach_threads')
-                .insert({ user_id: userId, title })
+                .from('coach_conversations')
+                .insert({ user_id: userId, initial_intent: title })
                 .select()
                 .single();
             if (error) throw error;
@@ -67,14 +67,14 @@ export class MemoryService {
     /**
      * Get the latest active conversation thread.
      */
-    static async getLatestConversation(userId: string, context: string = 'coach'): Promise<CoachThread | null> {
+    static async getLatestConversation(userId: string, context: string = 'coach'): Promise<CoachConversation | null> {
         const supabase = await createClient();
         try {
             const { data } = await supabase
-                .from('coach_threads')
+                .from('coach_conversations')
                 .select('*')
                 .eq('user_id', userId)
-                .order('updated_at', { ascending: false })
+                .order('last_message_at', { ascending: false })
                 .limit(1)
                 .single();
             return data;
@@ -99,7 +99,7 @@ export class MemoryService {
             const { data, error } = await supabase
                 .from('coach_messages')
                 .insert({
-                    thread_id: threadId,
+                    conversation_id: threadId,
                     user_id: userId,
                     role,
                     content
@@ -110,7 +110,7 @@ export class MemoryService {
             if (error) throw error;
 
             // Update thread timestamp
-            await supabase.from('coach_threads').update({ updated_at: new Date().toISOString() }).eq('id', threadId);
+            await supabase.from('coach_conversations').update({ last_message_at: new Date().toISOString() }).eq('id', threadId);
 
             if (triggerExtraction && role === 'user') {
                 // Fire and forget fact extraction

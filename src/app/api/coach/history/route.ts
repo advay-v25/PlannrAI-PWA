@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { undoLastPatch } from '@/lib/coach/patch-executor';
 
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
     try {
         const cookieStore = await cookies();
         const supabase = createServerClient(
@@ -27,36 +26,42 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const body = await request.json();
-        const { version_id } = body;
+        const { data: conversation } = await supabase
+            .from('coach_conversations')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('status', 'active')
+            .order('last_message_at', { ascending: false })
+            .limit(1)
+            .single();
 
-        if (!version_id) {
-            return NextResponse.json(
-                { success: false, error: 'version_id is required' },
-                { status: 400 }
-            );
-        }
-
-        const result = await undoLastPatch(user.id, version_id);
-
-        if (!result.success) {
+        if (!conversation) {
             return NextResponse.json({
-                success: false,
-                error: result.error || 'Undo failed',
-            }, { status: 500 });
+                success: true,
+                conversation_id: null,
+                messages: [],
+            });
         }
+
+        const { data: messages } = await supabase
+            .from('coach_messages')
+            .select('id, role, content, mode, options, selected_option_id, patch_version_id, created_at')
+            .eq('conversation_id', conversation.id)
+            .order('created_at', { ascending: true })
+            .limit(15);
 
         return NextResponse.json({
             success: true,
-            message: 'Changes undone successfully',
+            conversation_id: conversation.id,
+            messages: messages || [],
         });
 
     } catch (error) {
-        console.error('[Coach Undo] Error:', error);
+        console.error('[Coach History] Error:', error);
 
         return NextResponse.json({
             success: false,
-            error: 'Failed to undo changes',
+            error: 'Failed to fetch history',
         }, { status: 500 });
     }
 }

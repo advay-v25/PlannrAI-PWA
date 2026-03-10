@@ -65,8 +65,8 @@ export class ScoringEngine {
         }
 
         // 4. Preferred Windows (Goal Specific)
-        if (goal.preferred_windows && goal.preferred_windows.length > 0) {
-            const isInWindow = goal.preferred_windows.some(w => this.isTimeInWindow(slotStart, w));
+        if (goal.preferred_windows && Array.isArray(goal.preferred_windows) && goal.preferred_windows.length > 0) {
+            const isInWindow = goal.preferred_windows.some((w: any) => this.isTimeInWindow(slotStart, w as string));
             if (isInWindow) score += 30;
             else score -= 10;
         }

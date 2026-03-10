@@ -53,11 +53,12 @@ export async function buildCoachContext(userId: string, supabase: SupabaseClient
             .eq('user_id', userId)
             .single(),
 
-        // 6. Active Thread & History
-        supabase.from('coach_threads')
+        // 6. Active Conversation & History
+        supabase.from('coach_conversations')
             .select('id, coach_messages(role, content, created_at)')
             .eq('user_id', userId)
-            .order('updated_at', { ascending: false })
+            .eq('status', 'active')
+            .order('last_message_at', { ascending: false })
             .limit(1)
             .single(),
 
@@ -79,10 +80,11 @@ export async function buildCoachContext(userId: string, supabase: SupabaseClient
     // Wait, I am adding a 6th element to Promise.all.
     // Let me rewrite the destructuring to be safe.
 
-    const activeThread = (await supabase.from('coach_threads')
+    const activeThread = (await supabase.from('coach_conversations')
         .select('id, coach_messages(role, content, created_at)')
         .eq('user_id', userId)
-        .order('updated_at', { ascending: false })
+        .eq('status', 'active')
+        .order('last_message_at', { ascending: false })
         .limit(1)
         .maybeSingle()).data;
 
@@ -110,41 +112,40 @@ export async function saveCoachMessage(
     role: 'user' | 'assistant' | 'system',
     content: string,
     supabase: SupabaseClient,
-    content_json?: any
+    aiData?: any
 ) {
-    // 1. Find or Create today's Thread? 
-    // For simplicity, let's just use a single "Main" thread or create new one daily?
-    // "Coach" usually is a continuous thread. Let's find the most recent active thread.
-
-    // Check for existing thread
-    const { data: threads } = await supabase
-        .from('coach_threads')
+    // 1. Find or Create today's Active Conversation
+    const { data: convs } = await supabase
+        .from('coach_conversations')
         .select('id')
         .eq('user_id', userId)
-        .order('updated_at', { ascending: false })
+        .eq('status', 'active')
+        .order('last_message_at', { ascending: false })
         .limit(1);
 
-    let threadId;
-    if (threads && threads.length > 0) {
-        threadId = threads[0].id;
+    let conversationId;
+    if (convs && convs.length > 0) {
+        conversationId = convs[0].id;
     } else {
-        const { data: newThread } = await supabase
-            .from('coach_threads')
-            .insert({ user_id: userId, title: 'General Coaching' })
+        const { data: newConv } = await supabase
+            .from('coach_conversations')
+            .insert({ user_id: userId, initial_intent: 'general', primary_topic: 'general' })
             .select()
             .single();
-        threadId = newThread.id;
+        conversationId = newConv.id;
     }
 
     // 2. Insert Message
     await supabase.from('coach_messages').insert({
-        thread_id: threadId,
+        conversation_id: conversationId,
         user_id: userId,
         role,
         content,
-        content_json
+        mode: aiData?.mode || null,
+        options: aiData?.options ? aiData.options : null,
+        intent: aiData?.summary || null
     });
 
-    // 3. Touch Thread
-    await supabase.from('coach_threads').update({ updated_at: new Date().toISOString() }).eq('id', threadId);
+    // 3. Touch Conversation
+    await supabase.from('coach_conversations').update({ last_message_at: new Date().toISOString() }).eq('id', conversationId);
 }

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { undoLastPatch } from '@/lib/coach/patch-executor';
 
 export async function POST(request: NextRequest) {
     try {
@@ -28,35 +27,32 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { version_id } = body;
+        const { suggestion_id } = body;
 
-        if (!version_id) {
+        if (!suggestion_id) {
             return NextResponse.json(
-                { success: false, error: 'version_id is required' },
+                { success: false, error: 'suggestion_id is required' },
                 { status: 400 }
             );
         }
 
-        const result = await undoLastPatch(user.id, version_id);
-
-        if (!result.success) {
-            return NextResponse.json({
-                success: false,
-                error: result.error || 'Undo failed',
-            }, { status: 500 });
-        }
+        await supabase
+            .from('coach_proactive_log')
+            .update({ dismissed_at: new Date().toISOString() })
+            .eq('id', suggestion_id)
+            .eq('user_id', user.id);
 
         return NextResponse.json({
             success: true,
-            message: 'Changes undone successfully',
+            message: 'Suggestion dismissed',
         });
 
     } catch (error) {
-        console.error('[Coach Undo] Error:', error);
+        console.error('[Coach Dismiss] Error:', error);
 
         return NextResponse.json({
             success: false,
-            error: 'Failed to undo changes',
+            error: 'Failed to dismiss suggestion',
         }, { status: 500 });
     }
 }

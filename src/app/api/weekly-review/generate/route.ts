@@ -47,11 +47,11 @@ export const POST = secureApiRoute(
                 .eq('user_id', userId)
                 .gte('created_at', `${week_start}T00:00:00Z`)
                 .lte('created_at', `${week_end}T23:59:59Z`),
-            supabase.from('coach_threads')
+            supabase.from('coach_conversations')
                 .select('id, coach_messages(role, content, created_at)')
                 .eq('user_id', userId)
-                .gte('updated_at', `${week_start}T00:00:00Z`)
-                .lte('updated_at', `${week_end}T23:59:59Z`)
+                .gte('last_message_at', `${week_start}T00:00:00Z`)
+                .lte('last_message_at', `${week_end}T23:59:59Z`)
         ]);
 
         const blocks = blocksRes.data || [];

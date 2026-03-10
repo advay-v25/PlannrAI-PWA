@@ -111,6 +111,8 @@ ${clipped}
         const ok = schema.safeParse(json);
         if (ok.success) return ok.data;
 
+        console.error('[Zod Validation Failed] Original LLM Payload Invalid:', JSON.stringify(ok.error?.issues, null, 2));
+
         // Schema repair pass (cheap)
         const repaired = await this.schemaRepair(text, schemaHint, model, signal);
         const ok2 = schema.safeParse(repaired);

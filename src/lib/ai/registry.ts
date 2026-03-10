@@ -24,14 +24,15 @@ export type AILimits = {
 // 1. Coach — Super Intelligence Performance Coach
 export const CoachOutputSchema = z.object({
   mode: z.enum(['execute', 'propose', 'ask', 'refuse']),
-  thinking: z.array(z.string().max(100)).max(4).optional().describe('Reasoning chain — show your work'),
+  thinking: z.array(z.string().max(300)).max(6).optional().describe('Reasoning chain — show your work'),
   summary: z.string().max(300),
   message: z.string().optional(),
-  context_used: z.array(z.string().max(100)).max(4).optional().describe('What data points you actually used'),
+  context_used: z.array(z.string().max(300)).max(6).optional().describe('What data points you actually used'),
   options: z.array(z.object({
     id: z.string(),
     title: z.string().max(40),
     impact: z.string().max(80),
+    tradeoff: z.string().max(100).optional(),
     effort: z.enum(['low', 'medium', 'high']).optional(),
     time_impact_mins: z.number().optional().describe('Net minutes freed or used'),
     patch: PatchSchema

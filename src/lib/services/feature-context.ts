@@ -97,10 +97,11 @@ export async function buildFeatureContext(
     // 5. Chat History (optional)
     let chatHistoryPromise = Promise.resolve({ data: null });
     if (includeChatHistory) {
-        chatHistoryPromise = supabase.from('coach_threads')
+        chatHistoryPromise = supabase.from('coach_conversations')
             .select('id, coach_messages(role, content, created_at)')
             .eq('user_id', userId)
-            .order('updated_at', { ascending: false })
+            .eq('status', 'active')
+            .order('last_message_at', { ascending: false })
             .limit(1)
             .maybeSingle() as any;
     }

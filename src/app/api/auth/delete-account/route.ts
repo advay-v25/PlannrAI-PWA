@@ -36,7 +36,7 @@ export async function POST(request: Request) {
 
         const tables = [
             'brain_dump_entries',
-            'coach_threads',
+            'coach_conversations',
             'coach_messages',
             'memory_facts',
             'schedule_blocks',
