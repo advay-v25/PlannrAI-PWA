@@ -126,7 +126,7 @@ BLOCK TYPES (use these exactly):
 
 Return valid JSON only.`;
 
-            const userPrompt = `PLAN ${ctx.user.first_name}'s ${dayName}
+            const userPrompt = `PLAN ${ctx.user.first_name}'s ${dayName} (${targetDate})
 
 ━━━ TIME WINDOW ━━━
 Wake: ${wakeTime}

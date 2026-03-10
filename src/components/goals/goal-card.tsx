@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Sparkles,
@@ -28,6 +28,17 @@ interface GoalCardProps {
 
 export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor }: GoalCardProps) {
     const [isExpanded, setIsExpanded] = useState(false);
+
+    // Local buffering for inputs to prevent API spam on every keystroke/pixel drag
+    const [localTitle, setLocalTitle] = useState(goal.title || '');
+    const [localWeeklyMins, setLocalWeeklyMins] = useState(goal.weekly_target_minutes || 0);
+
+    // Sync local state if external goal prop changes
+    useEffect(() => {
+        setLocalTitle(goal.title || '');
+        setLocalWeeklyMins(goal.weekly_target_minutes || 0);
+    }, [goal.title, goal.weekly_target_minutes]);
+
     const isPaused = goal.status === 'paused';
 
     return (
@@ -107,8 +118,13 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                                 <div className="space-y-1 col-span-2">
                                     <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Goal Title</label>
                                     <GlassInput
-                                        value={goal.title}
-                                        onChange={(e) => onUpdate(goal.id, { title: e.target.value })}
+                                        value={localTitle}
+                                        onChange={(e) => setLocalTitle(e.target.value)}
+                                        onBlur={() => {
+                                            if (localTitle !== goal.title) {
+                                                onUpdate(goal.id, { title: localTitle });
+                                            }
+                                        }}
                                         className="font-medium bg-[var(--glass-bg)] border-transparent focus:border-[var(--color-primary)] focus:bg-[var(--glass-bg-hover)]"
                                     />
                                 </div>
@@ -132,12 +148,22 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                                 <div className="space-y-2">
                                     <div className="flex justify-between">
                                         <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Weekly Target</label>
-                                        <span className="text-xs font-mono font-bold text-[var(--color-primary)]">{goal.weekly_target_minutes || 0}m/wk</span>
+                                        <span className="text-xs font-mono font-bold text-[var(--color-primary)]">{localWeeklyMins}m/wk</span>
                                     </div>
                                     <input
                                         type="range" min={30} max={1440} step={30}
-                                        value={goal.weekly_target_minutes || 0}
-                                        onChange={(e) => onUpdate(goal.id, { weekly_target_minutes: Number(e.target.value) })}
+                                        value={localWeeklyMins}
+                                        onChange={(e) => setLocalWeeklyMins(Number(e.target.value))}
+                                        onMouseUp={() => {
+                                            if (localWeeklyMins !== goal.weekly_target_minutes) {
+                                                onUpdate(goal.id, { weekly_target_minutes: localWeeklyMins });
+                                            }
+                                        }}
+                                        onTouchEnd={() => {
+                                            if (localWeeklyMins !== goal.weekly_target_minutes) {
+                                                onUpdate(goal.id, { weekly_target_minutes: localWeeklyMins });
+                                            }
+                                        }}
                                         className="w-full accent-[var(--color-primary)] h-1.5 bg-[var(--glass-border)] rounded-lg appearance-none cursor-pointer"
                                     />
                                     <div className="flex justify-between text-[10px] text-[var(--text-tertiary)]">

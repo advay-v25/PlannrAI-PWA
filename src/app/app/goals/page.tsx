@@ -146,7 +146,10 @@ export default function GoalsPage() {
             {/* Modals */}
             <AnimatePresence>
                 {isAdding && (
-                    <AddGoalModal onClose={() => setIsAdding(false)} />
+                    <AddGoalModal
+                        onClose={() => setIsAdding(false)}
+                        onSuccess={() => fetchGoals()}
+                    />
                 )}
                 {selectedGoalForStrategy && (
                     <GoalStrategyWizard

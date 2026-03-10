@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { format, addDays, startOfWeek, isSameDay, differenceInMinutes } from 'date-fns';
-import { DndContext, useDraggable, useDroppable, DragEndEvent } from '@dnd-kit/core';
+import { DndContext, useDraggable, useDroppable, DragEndEvent, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
 import { Lock, Check, X, Plus } from 'lucide-react';
 import { calculateLayout, LayoutBlock } from '@/lib/calendar-layout';
@@ -111,8 +111,16 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
         }
     };
 
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 5, // minimum drag distance before turning into a drag, preserves onClick
+            },
+        })
+    );
+
     return (
-        <DndContext onDragEnd={handleDragEnd}>
+        <DndContext onDragEnd={handleDragEnd} sensors={sensors}>
             <div className="h-full overflow-y-auto relative no-scrollbar" ref={gridRef}>
 
                 {/* Day Headers */}

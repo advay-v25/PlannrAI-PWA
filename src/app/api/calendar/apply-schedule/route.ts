@@ -197,13 +197,20 @@ export const POST = secureApiRoute(
                 }));
 
                 if (blocks.length > 0) {
+                    // DETAILED LOGGING FOR DEBUGGING
+                    console.log(`[ApplySchedule] Attempting to insert ${blocks.length} blocks...`, JSON.stringify(blocks[0], null, 2));
+
                     const { data, error } = await supabase
                         .from('schedule_blocks')
                         .insert(blocks)
                         .select('id');
 
-                    if (!error) added = data?.length || 0;
-                    else console.error('[ApplySchedule] Insert failed:', error);
+                    if (!error) {
+                        added = data?.length || 0;
+                        console.log(`[ApplySchedule] Successfully inserted ${added} blocks.`);
+                    } else {
+                        console.error('[ApplySchedule] Insert failed. Error details:', JSON.stringify(error, null, 2));
+                    }
                 }
 
                 const skipped = patch.add.length - filteredBlocks.length;
@@ -212,7 +219,7 @@ export const POST = secureApiRoute(
                 }
             }
 
-            console.log(`[ApplySchedule] +${added} ~${updated} -${removed}`);
+            console.log(`[ApplySchedule] Transaction Complete: +${added} ~${updated} -${removed} | Version: ${versionId}`);
 
             return apiSuccess({
                 added,
