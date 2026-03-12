@@ -127,7 +127,8 @@ function formatDate(date: string): string {
     return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-function truncate(str: string, maxLength: number): string {
+function truncate(str: string | null | undefined, maxLength: number): string {
+    if (!str) return '';
     if (str.length <= maxLength) return str;
     return str.substring(0, maxLength - 3) + '...';
 }

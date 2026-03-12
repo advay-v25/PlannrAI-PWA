@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
             role: 'assistant',
             content: response.summary,
             intent: response.mode === 'clarify' ? 'clarification_needed' : undefined,
-            mode: response.mode,
+            mode: response.mode === 'inform' ? 'acknowledge' : response.mode,
             options: response.options || null,
             created_at: new Date().toISOString(),
         });
