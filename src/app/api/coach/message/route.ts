@@ -139,10 +139,22 @@ export async function POST(request: NextRequest) {
 
     } catch (error) {
         console.error('[Coach] Message error:', error);
+        
+        let errorMessage = 'Failed to process message. Please try again.';
+        let errorDetails = undefined;
+        
+        if (error instanceof Error) {
+            errorMessage = error.message;
+            errorDetails = error.stack;
+            console.error('[Coach] Stack trace:', error.stack);
+        } else {
+            console.error('[Coach] Unknown error object:', JSON.stringify(error, null, 2));
+        }
 
         return NextResponse.json({
             success: false,
-            error: 'Failed to process message. Please try again.',
+            error: errorMessage,
+            details: errorDetails
         }, { status: 500 });
     }
 }
