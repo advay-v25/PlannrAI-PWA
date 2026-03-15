@@ -1,6 +1,7 @@
 'use client';
 
-import { CoachMessage } from '@/hooks/useCoach';
+import { CoachMessage } from '@/hooks/use-coach';
+
 
 interface CoachMessageBubbleProps {
     message: CoachMessage;

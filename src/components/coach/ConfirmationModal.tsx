@@ -1,6 +1,8 @@
 'use client';
 
-import { CoachOption } from '@/hooks/useCoach';
+import { useCoach } from '@/hooks/use-coach';
+import { CoachOption } from '@/types/coach-v4';
+
 
 interface ConfirmationModalProps {
     option: CoachOption;
@@ -54,32 +56,33 @@ export function ConfirmationModal({
                         </div>
                     )}
 
-                    {/* Preview Summary */}
+            {/* Preview Summary */}
                     <div className="border rounded-lg p-3">
                         <p className="text-sm font-medium mb-2">Changes:</p>
                         <div className="flex space-x-4 text-sm">
-                            {option.preview.blocks_added > 0 && (
+                            {option.preview && option.preview.blocks_added > 0 && (
                                 <span className="text-green-600">
                                     ✓ {option.preview.blocks_added} block(s) added
                                 </span>
                             )}
-                            {option.preview.blocks_modified > 0 && (
+                            {option.preview && option.preview.blocks_modified > 0 && (
                                 <span className="text-yellow-600">
                                     ✎ {option.preview.blocks_modified} block(s) modified
                                 </span>
                             )}
-                            {option.preview.blocks_removed > 0 && (
+                            {option.preview && option.preview.blocks_removed > 0 && (
                                 <span className="text-red-600">
                                     ✕ {option.preview.blocks_removed} block(s) removed
                                 </span>
                             )}
                         </div>
-                        {option.preview.affected_dates.length > 0 && (
+                        {option.preview && option.preview.affected_dates.length > 0 && (
                             <p className="text-xs text-gray-500 mt-2">
                                 Affects: {option.preview.affected_dates.join(', ')}
                             </p>
                         )}
                     </div>
+
                 </div>
 
                 {/* Actions */}

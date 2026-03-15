@@ -2,20 +2,65 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Profile, Goal, Commitment } from '@/types/database';
 
+export interface OnboardingGoal {
+    title: string;
+    pillar: 'mind' | 'body' | 'craft';
+    current_minutes_per_day: number;
+    target_minutes_per_day: number;
+    preferred_time_of_day: 'morning' | 'afternoon' | 'evening' | 'flexible';
+    importance: 'low' | 'medium' | 'high';
+}
+
+export interface OnboardingCommitment {
+    title: string;
+    start_time: string;
+    end_time: string;
+    days_of_week: number[];
+}
+
+export type FailureMode =
+    | 'unexpected_meetings'
+    | 'low_afternoon_energy'
+    | 'social_commitments'
+    | 'procrastination'
+    | 'overcommitting'
+    | 'no_buffer_time'
+    | 'distractions'
+    | 'underestimating_time'
+    | 'sleep_deprivation'
+    | 'none';
+
 export interface OnboardingData {
+    // Step 1: Identity
     full_name: string;
     timezone: string;
+
+    // Step 2: Daily Rhythm
     sleep_start: string;
     sleep_end: string;
     wind_down_mins: number;
-    commitments: Partial<Commitment>[];
-    meals_per_day: number;
+    meals_per_day: 2 | 3;
+    meal_timing: 'early' | 'normal' | 'late';
+    default_buffer_duration: number;
+
+    // Step 3: Anchors
+    commitments: OnboardingCommitment[];
+
+    // Step 4: Goals
+    goals: OnboardingGoal[];
+
+    // Step 5: Failure Modes
+    failure_modes: FailureMode[];
+
+    // Step 6: Generation
+    selected_variant_id: string | null;
+
+    // Legacy compat (kept for API)
+    meals_per_day_num?: number;
     meal_windows: Record<string, any>;
-    goals: Partial<Goal>[];
     peak_windows: any[];
     low_windows: any[];
     work_style: string | null;
-    selected_variant_id: string | null;
     energy_level?: string;
     stress_level?: string;
     body_preferences?: Record<string, any>;
@@ -69,23 +114,31 @@ const defaultOnboardingData: OnboardingData = {
     full_name: '',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
 
-    // Step 2: Life Snapshot
-    sleep_start: '22:00',
+    // Step 2: Daily Rhythm
+    sleep_start: '23:00',
     sleep_end: '07:00',
-    wind_down_mins: 45,
-    commitments: [],
+    wind_down_mins: 30,
     meals_per_day: 3,
-    meal_windows: {},
-    // Step 3: Goals
+    meal_timing: 'normal',
+    default_buffer_duration: 10,
+
+    // Step 3: Anchors
+    commitments: [],
+
+    // Step 4: Goals
     goals: [],
 
-    // Step 4: Energy Patterns
+    // Step 5: Failure Modes
+    failure_modes: [],
+
+    // Step 6: Options
+    selected_variant_id: null,
+
+    // Legacy compat
+    meal_windows: {},
     peak_windows: [],
     low_windows: [],
     work_style: null,
-
-    // Step 5: Options
-    selected_variant_id: null
 };
 
 export const useOnboardingStore = create<OnboardingState>()(

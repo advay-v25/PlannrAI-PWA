@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { executePatch } from '@/lib/coach/patch-executor';
+import { PatchService } from '@/lib/services/patch-service';
+
 
 export const maxDuration = 15;
 
@@ -81,35 +82,40 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        const result = await executePatch(
+        // Normalize the Coach's SchedulePatch format to CalendarPatch format for PatchService
+        const normalizedPatch = normalizePatchForService(patch);
+
+        const result = await PatchService.applyPatch(
             user.id,
-            patch,
-            option_id,
-            conversation_id
+            normalizedPatch,
+            supabase,
+            'coach'
         );
 
         if (!result.success) {
             return NextResponse.json({
                 success: false,
-                error: result.error,
-                conflict: result.conflict,
-                updated_options: result.updated_options,
+                error: result.errors?.join(', ') || 'Failed to apply patch',
             }, { status: 409 });
         }
 
-        await supabase
-            .from('coach_conversations')
-            .update({
-                actions_taken: supabase.rpc('increment', { x: 1 }),
-            })
-            .eq('id', conversation_id);
+        if (result.undo_token) {
+            await PatchService.recordCoachAction(
+                user.id,
+                conversation_id,
+                option_id,
+                result.undo_token,
+                supabase
+            );
+        }
 
         return NextResponse.json({
             success: true,
-            version_id: result.version_id,
-            applied_operations: result.applied_operations,
+            undo_token: result.undo_token,
+            applied_operations: result.changes,
             message: 'Changes applied successfully',
         });
+
 
     } catch (error) {
         console.error('[Coach Apply] Error:', error);
@@ -119,4 +125,79 @@ export async function POST(request: NextRequest) {
             error: 'Failed to apply changes',
         }, { status: 500 });
     }
+}
+
+/**
+ * Normalize Coach SchedulePatch format to PatchService Patch format.
+ * Coach response-generator uses: { operations: [{ type: "create_block", data: {...} }] }
+ * PatchService expects:          { ops: [{ op: "create_event", event: {...} }] }
+ */
+function normalizePatchForService(patch: any): any {
+    // If it already has ops[], it's likely already in PatchService format
+    if (patch.ops && Array.isArray(patch.ops)) {
+        return patch;
+    }
+
+    // Convert from Coach format (operations[]) to PatchService format (ops[])
+    const operations = patch.operations || [];
+    const ops = operations.map((operation: any) => {
+        const opType = operation.type || operation.op;
+
+        switch (opType) {
+            case 'create_block':
+            case 'create':
+                return {
+                    op: 'create_event' as const,
+                    payload: {
+                        date: operation.data?.date || operation.date,
+                        start_time: operation.data?.start_time || operation.start_time,
+                        end_time: operation.data?.end_time || operation.end_time,
+                        title: operation.data?.title || operation.data?.context || operation.title || 'New Block',
+                        block_type: operation.data?.block_type || operation.block_type || 'flex',
+                        goal_id: operation.data?.goal_id || null,
+                        pillar: operation.data?.pillar || null,
+                        status: 'planned',
+                        checklist: operation.data?.checklist || [],
+                    },
+                };
+            case 'move_block':
+            case 'move':
+                return {
+                    op: 'move_event' as const,
+                    event_id: operation.block_id || operation.event_id,
+                    to_start: operation.new_start || operation.to_start,
+                    to_end: operation.new_end || operation.to_end,
+                    date: operation.new_date || operation.date,
+                };
+            case 'update_block':
+            case 'update':
+                return {
+                    op: 'update_event' as const,
+                    event_id: operation.block_id || operation.event_id,
+                    fields: operation.changes || operation.fields || {},
+                };
+            case 'delete_block':
+            case 'delete':
+                return {
+                    op: 'delete_event' as const,
+                    event_id: operation.block_id || operation.event_id,
+                };
+            case 'update_goal':
+                return {
+                    op: 'update_goal' as const,
+                    goal_id: operation.goal_id,
+                    fields: operation.changes || operation.fields || {},
+                };
+            default:
+                console.warn('[Coach Apply] Unknown operation type:', opType);
+                return operation;
+        }
+    });
+
+    return {
+        ops,
+        undoable: patch.undoable !== false,
+        reason: patch.reason || 'Coach action',
+        scope: patch.scope || 'day',
+    };
 }

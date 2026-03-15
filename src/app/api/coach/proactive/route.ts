@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { checkProactiveTriggers } from '@/lib/coach/proactive-checker';
 
 export async function GET(request: NextRequest) {
     try {
@@ -27,19 +26,57 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        const { data: canShow } = await supabase.rpc('can_show_proactive_suggestion', {
-            p_user_id: user.id
+        // Check proactive trigger: look at today's schedule for anomalies
+        const today = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        const currentHour = now.getHours();
+
+        const { data: todayBlocks } = await supabase
+            .from('schedule_blocks')
+            .select('id, title, status, start_time, end_time, block_type')
+            .eq('user_id', user.id)
+            .eq('date', today);
+
+        const blocks = todayBlocks || [];
+        const missedBlocks = blocks.filter((b: any) => {
+            if (b.status !== 'planned') return false;
+            const endHour = parseInt((b.end_time || '00:00').split(':')[0]);
+            return endHour < currentHour;
         });
 
-        if (canShow === false) { // Assuming RPC returns a boolean, we handle false explicit
-            return NextResponse.json({
-                success: true,
-                has_suggestion: false,
-                reason: 'Daily limit reached',
-            });
-        }
+        const completedBlocks = blocks.filter((b: any) => b.status === 'completed');
 
-        const suggestion = await checkProactiveTriggers(user.id, supabase);
+        // Generate a proactive suggestion based on schedule state
+        let suggestion = null;
+
+        if (missedBlocks.length >= 3) {
+            suggestion = {
+                id: 'missed-blocks',
+                trigger_type: 'missed_blocks',
+                title: `${missedBlocks.length} blocks missed today`,
+                message: `You've missed ${missedBlocks.length} scheduled blocks today. Want me to help you adapt the rest of your day?`,
+                action_label: 'Adjust Day',
+                priority: 'high',
+            };
+        } else if (blocks.length === 0 && currentHour >= 8) {
+            suggestion = {
+                id: 'no-schedule',
+                trigger_type: 'empty_day',
+                title: 'No schedule for today',
+                message: 'Your day is unplanned. Want me to build a schedule based on your goals?',
+                action_label: 'Plan Today',
+                priority: 'medium',
+            };
+        } else if (completedBlocks.length > 0 && completedBlocks.length === blocks.length) {
+            suggestion = {
+                id: 'all-done',
+                trigger_type: 'all_complete',
+                title: 'You\'ve completed everything!',
+                message: 'You\'ve finished all your planned blocks. Want to add something productive to the rest of your day?',
+                action_label: 'Add More',
+                priority: 'low',
+            };
+        }
 
         if (!suggestion) {
             return NextResponse.json({
@@ -48,32 +85,18 @@ export async function GET(request: NextRequest) {
             });
         }
 
-        await supabase.from('coach_proactive_log').insert({
-            user_id: user.id,
-            trigger_type: suggestion.trigger_type,
-            trigger_data: suggestion.trigger_data,
-            shown_at: new Date().toISOString(),
-        });
-
         return NextResponse.json({
             success: true,
             has_suggestion: true,
-            suggestion: {
-                id: suggestion.id,
-                trigger_type: suggestion.trigger_type,
-                title: suggestion.title,
-                message: suggestion.message,
-                action_label: suggestion.action_label,
-                priority: suggestion.priority,
-            },
+            suggestion,
         });
 
     } catch (error) {
         console.error('[Coach Proactive] Error:', error);
-
+        // Always return success with no suggestion on error — never 500 to the user
         return NextResponse.json({
-            success: false,
-            error: 'Failed to check proactive suggestions',
-        }, { status: 500 });
+            success: true,
+            has_suggestion: false,
+        });
     }
 }

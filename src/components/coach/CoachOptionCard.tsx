@@ -1,6 +1,7 @@
 'use client';
 
-import { CoachOption } from '@/hooks/useCoach';
+import { CoachOption } from '@/types/coach-v4';
+
 
 interface CoachOptionCardProps {
     option: CoachOption;
@@ -57,7 +58,7 @@ export function CoachOptionCard({
             )}
 
             {/* Preview Stats (compact in minimal mode) */}
-            {!minimalMode && (
+            {!minimalMode && option.preview && (
                 <div className="mt-3 flex space-x-4 text-xs text-gray-500">
                     {option.preview.blocks_added > 0 && (
                         <span className="text-green-600">+{option.preview.blocks_added} added</span>
@@ -70,6 +71,7 @@ export function CoachOptionCard({
                     )}
                 </div>
             )}
+
 
             {/* Apply Button */}
             <button

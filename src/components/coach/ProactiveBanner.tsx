@@ -1,6 +1,7 @@
 'use client';
 
-import { ProactiveSuggestion } from '@/hooks/useCoach';
+import { ProactiveSuggestion } from '@/types/coach-v4';
+
 
 interface ProactiveBannerProps {
     suggestion: ProactiveSuggestion;

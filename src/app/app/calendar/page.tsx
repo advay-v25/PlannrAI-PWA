@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { useCalendar } from '@/hooks/use-calendar';
 import { CalendarLayout } from '@/components/calendar/calendar-layout';
 import { apiClient } from '@/lib/api-client';
+import Link from 'next/link';
+
 import { cn } from '@/lib/utils';
 
 import { WeekGrid } from '@/components/calendar/week-grid';
@@ -14,8 +16,9 @@ import { format, startOfWeek, addDays, addWeeks, subWeeks, isSameDay } from 'dat
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     ChevronLeft, ChevronRight, Plus, Zap, Layout,
-    RotateCcw, Loader2, Calendar, Sparkles, MoreHorizontal
+    RotateCcw, Loader2, Calendar, Sparkles, MoreHorizontal, MessageSquare
 } from 'lucide-react';
+
 
 import { ConflictModal } from '@/components/calendar/conflict-modal';
 import { PlanWeekModal } from '@/components/calendar/plan-week-modal';
@@ -309,6 +312,17 @@ export default function CalendarPage() {
                     >
                         <Layout className="w-4 h-4 text-indigo-400" /> <span className="hidden sm:inline">Plan Week</span>
                     </button>
+
+                    {/* Ask Donna */}
+                    <Link
+                        href="/app/coach?context=calendar"
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold
+                        bg-violet-500/10 border border-violet-500/20 text-violet-400
+                        hover:bg-violet-500/20 hover:text-violet-300 transition-all"
+                    >
+                        <MessageSquare className="w-4 h-4" /> <span className="hidden sm:inline">Ask Donna</span>
+                    </Link>
+
 
                     {/* Primary Button: New Block or Generate */}
                     {!hasScheduleToday ? (

@@ -1,7 +1,10 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
-import { useCoach, CoachMessage, CoachOption } from '@/hooks/useCoach';
+import { useState, FormEvent, useRef, useEffect } from 'react';
+
+import { useCoach, CoachMessage } from '@/hooks/use-coach';
+import { CoachOption } from '@/types/coach-v4';
+
 import { CoachOptionCard } from './CoachOptionCard';
 import { CoachMessageBubble } from './CoachMessageBubble';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -21,8 +24,16 @@ export function CoachChat({ onCalendarUpdate }: CoachChatProps) {
         applyOption,
         undo,
         clearError,
-        messagesEndRef,
     } = useCoach();
+
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Scroll to bottom when messages change
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
+
+
 
     const [input, setInput] = useState('');
     const [pendingOption, setPendingOption] = useState<CoachOption | null>(null);
@@ -53,7 +64,11 @@ export function CoachChat({ onCalendarUpdate }: CoachChatProps) {
 
     // Apply option and refresh calendar
     const applyAndRefresh = async (option: CoachOption) => {
-        const success = await applyOption(option);
+        // Find the assistant message that contains this option
+        const parentMessage = messages.find(m => m.options?.some(o => o.id === option.id));
+        if (!parentMessage) return;
+
+        const success = await applyOption(parentMessage.id, option.id);
 
         if (success) {
             onCalendarUpdate?.();
@@ -61,6 +76,7 @@ export function CoachChat({ onCalendarUpdate }: CoachChatProps) {
             setPendingOption(null);
         }
     };
+
 
     // Handle undo
     const handleUndo = async () => {

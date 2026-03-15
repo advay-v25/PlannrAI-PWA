@@ -2,7 +2,8 @@
 
 import { create } from 'zustand';
 import { apiClient } from '@/lib/api-client';
-import type { CoachResponse, CoachOption, CoachQuestion, CoachRefusal } from '@/types/coach-v4';
+import type { CoachResponse, CoachOption, CoachQuestion, CoachRefusal, ProactiveSuggestion } from '@/types/coach-v4';
+
 
 export interface CoachMessage {
     id: string;
@@ -16,37 +17,58 @@ export interface CoachMessage {
     refusal?: CoachRefusal;
     suggestedActions?: string[];
     isApplying?: boolean;
-    appliedOptionId?: string;
+    selected_option_id?: string; // Match UI expectation
     undoToken?: string | null;
 }
+
 
 interface CoachState {
     messages: CoachMessage[];
     isLoading: boolean;
+    error: string | null;
+    minimalMode: boolean;
+    canUndo: boolean;
     lastUndoToken: string | null;
     suggestedActions: string[];
     hasLoadedProactive: boolean;
+    proactiveSuggestion: ProactiveSuggestion | null; 
+
+    checkingProactive: boolean;
     sendMessage: (text: string) => Promise<void>;
-    applyOption: (messageId: string, optionId: string) => Promise<void>;
-    undoLastAction: () => Promise<void>;
-    undoByToken: (token: string) => Promise<void>;
+
+    applyOption: (messageId: string, optionId: string) => Promise<boolean>;
+    undo: () => Promise<boolean>;
+    clearError: () => void;
     loadProactiveInsight: () => Promise<void>;
+    dismissProactive: () => Promise<void>;
+    actOnProactive: () => void;
 }
 
 export const useCoach = create<CoachState>((set, get) => ({
     messages: [],
     isLoading: false,
+    error: null,
+    minimalMode: false,
+    canUndo: false,
     lastUndoToken: null,
     suggestedActions: [],
     hasLoadedProactive: false,
+    proactiveSuggestion: null,
+    checkingProactive: false,
+
 
     sendMessage: async (text: string) => {
+
         const userMsg: CoachMessage = {
             id: crypto.randomUUID(),
             role: 'user',
             content: text
         };
-        set(state => ({ messages: [...state.messages, userMsg], isLoading: true }));
+        set(state => ({ 
+            messages: [...state.messages, userMsg], 
+            isLoading: true,
+            error: null 
+        }));
 
         try {
             const res = await apiClient.post<CoachResponse>('/api/coach/message', {
@@ -70,19 +92,17 @@ export const useCoach = create<CoachState>((set, get) => ({
             set(state => ({
                 messages: [...state.messages, assistantMsg],
                 isLoading: false,
-                suggestedActions: res.suggested_actions || state.suggestedActions
+                minimalMode: res.mode === 'ask' || (res.thinking?.length === 0), // Heuristic or add to schema
+                suggestedActions: res.suggested_actions || state.suggestedActions,
+                canUndo: !!res.undo_token,
+                lastUndoToken: res.undo_token || state.lastUndoToken
             }));
-        } catch (error) {
+        } catch (error: any) {
             console.error("Coach Error", error);
             set(state => ({
-                messages: [...state.messages, {
-                    id: crypto.randomUUID(),
-                    role: 'assistant',
-                    content: "Connection issue. Give me a second and try again.",
-                    mode: 'refuse',
-                    refusal: { reason: "Connection issue. Try again in a moment." }
-                }],
-                isLoading: false
+                messages: state.messages.filter(m => m.id !== userMsg.id),
+                isLoading: false,
+                error: error.message || "Connection issue. Please try again."
             }));
         }
     },
@@ -91,12 +111,14 @@ export const useCoach = create<CoachState>((set, get) => ({
         const { messages } = get();
         const msg = messages.find(m => m.id === messageId);
         const option = msg?.options?.find(o => o.id === optionId);
-        if (!option) return;
+        if (!option) return false;
+
 
         set(state => ({
             messages: state.messages.map(m =>
                 m.id === messageId ? { ...m, isApplying: true } : m
-            )
+            ),
+            error: null
         }));
 
         try {
@@ -108,55 +130,65 @@ export const useCoach = create<CoachState>((set, get) => ({
             set(state => ({
                 messages: state.messages.map(m =>
                     m.id === messageId
-                        ? { ...m, isApplying: false, appliedOptionId: optionId, undoToken: res.undo_token }
+                        ? { ...m, isApplying: false, selected_option_id: optionId, undoToken: res.undo_token }
                         : m
                 ),
-                lastUndoToken: res.undo_token
+                lastUndoToken: res.undo_token,
+                canUndo: !!res.undo_token
             }));
 
             if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('calendar-refresh'));
             }
-        } catch (error) {
+            return true;
+        } catch (error: any) {
             console.error("Apply Failed", error);
             set(state => ({
                 messages: state.messages.map(m =>
                     m.id === messageId ? { ...m, isApplying: false } : m
-                )
+                ),
+                error: error.message || "Failed to apply changes."
             }));
+            return false;
         }
     },
 
-    undoLastAction: async () => {
+    undo: async (): Promise<boolean> => {
         const { lastUndoToken } = get();
-        if (!lastUndoToken) return;
-        await get().undoByToken(lastUndoToken);
-    },
-
-    undoByToken: async (token: string) => {
+        if (!lastUndoToken) return false;
+        
+        set({ isLoading: true, error: null });
         try {
-            await apiClient.post('/api/coach/undo', { undo_token: token });
+            await apiClient.post('/api/coach/undo', { undo_token: lastUndoToken });
 
             set(state => ({
                 messages: state.messages.map(m =>
-                    m.undoToken === token
-                        ? { ...m, appliedOptionId: undefined, undoToken: null }
+                    m.undoToken === lastUndoToken
+                        ? { ...m, selected_option_id: undefined, undoToken: null }
                         : m
                 ),
-                lastUndoToken: state.lastUndoToken === token ? null : state.lastUndoToken
+                lastUndoToken: null,
+                canUndo: false,
+                isLoading: false
             }));
 
             if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('calendar-refresh'));
             }
-        } catch (error) {
+            return true;
+        } catch (error: any) {
             console.error("Undo Failed", error);
+            set({ isLoading: false, error: error.message || "Undo failed." });
+            return false;
         }
     },
 
+
+    clearError: () => set({ error: null }),
+
     loadProactiveInsight: async () => {
         if (get().hasLoadedProactive) return;
-        set({ hasLoadedProactive: true, isLoading: true });
+        set({ hasLoadedProactive: true, isLoading: true, error: null });
 
         try {
             const res = await apiClient.post<CoachResponse>('/api/coach/message', {
@@ -180,11 +212,34 @@ export const useCoach = create<CoachState>((set, get) => ({
             set(state => ({
                 messages: [insightMsg],
                 isLoading: false,
-                suggestedActions: res.suggested_actions || []
+                suggestedActions: res.suggested_actions || [],
+                canUndo: !!res.undo_token,
+                lastUndoToken: res.undo_token || state.lastUndoToken
             }));
-        } catch (error) {
+        } catch (error: any) {
             console.error("Proactive insight failed", error);
             set({ isLoading: false });
         }
+    },
+
+    dismissProactive: async () => {
+        const { proactiveSuggestion } = get();
+        if (!proactiveSuggestion) return;
+        try {
+            await apiClient.post('/api/coach/dismiss', { suggestion_id: proactiveSuggestion.id });
+            set({ proactiveSuggestion: null });
+        } catch (e) {
+            console.error("Failed to dismiss proactive", e);
+            set({ proactiveSuggestion: null });
+        }
+    },
+
+    actOnProactive: () => {
+        const { proactiveSuggestion, sendMessage } = get();
+        if (!proactiveSuggestion) return;
+        sendMessage(proactiveSuggestion.action_label);
+        set({ proactiveSuggestion: null });
     }
 }));
+
+

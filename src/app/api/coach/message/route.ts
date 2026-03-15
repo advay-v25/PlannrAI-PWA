@@ -103,7 +103,8 @@ export async function POST(request: NextRequest) {
         const response = await generateCoachResponse(
             message,
             conversationHistory,
-            context
+            context,
+            supabase
         );
 
         await supabase.from('coach_messages').insert({

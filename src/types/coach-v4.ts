@@ -26,18 +26,33 @@ export interface CalendarPatchOp {
 export interface CalendarPatch {
     ops: CalendarPatchOp[];
     undoable?: boolean;
+    requires_confirmation?: boolean;
     scope?: 'day' | 'week';
     reason?: string;
 }
 
+
 export interface CoachOption {
     id: string;
     title: string;
+    description?: string;
     impact: string;
+    tradeoff?: {
+        warning: string;
+        severity: 'info' | 'caution' | 'warning';
+    };
     effort?: 'low' | 'medium' | 'high';
     time_impact_mins?: number;
     patch: CalendarPatch;
+    preview?: {
+        blocks_added: number;
+        blocks_modified: number;
+        blocks_removed: number;
+        affected_dates: string[];
+    };
+    recommended?: boolean;
 }
+
 
 export interface CoachQuestion {
     prompt: string;
@@ -50,7 +65,17 @@ export interface CoachRefusal {
     next_best?: string;
 }
 
+export interface ProactiveSuggestion {
+    id: string;
+    title: string;
+    message: string;
+    priority: 'high' | 'medium' | 'low';
+    action_label: string;
+    trigger_type?: string;
+}
+
 export interface CoachResponse {
+
     mode: CoachMode;
     thinking?: string[];
     summary: string;

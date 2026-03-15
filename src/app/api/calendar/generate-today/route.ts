@@ -83,11 +83,35 @@ export const POST = secureApiRoute(
                 ? existingBlocks.map((b: any) => `  - ${b.start_time}–${b.end_time}: ${b.title} [${b.status}]`).join('\n')
                 : '  (Clean slate — plan the entire day)';
 
-            const energyLevel = ctx.performance.last_7_days_completion_rate > 70
-                ? 'High (user has been consistent — plan a full day)'
-                : ctx.performance.last_7_days_completion_rate > 40
-                    ? 'Moderate (plan a realistic day, don\'t overpack)'
-                    : 'Low (user is struggling — plan a lighter day with more breaks)';
+            // Bio-context from onboarding
+            const userEnergy = ctx.user.energy_level || 5;
+            const userStress = ctx.user.stress_level || 3;
+            const chronotype = ctx.user.chronotype || 'bear';
+            const mealsPerDay = ctx.user.meals_per_day || 3;
+            const mealWindows = ctx.user.meal_windows || {};
+
+            // Compute energy level from both profile and performance
+            const perfRate = ctx.performance.last_7_days_completion_rate;
+            let energyLevel: string;
+            if (userEnergy >= 7 && perfRate > 70) {
+                energyLevel = 'High (user has good energy and is consistent — plan a productive day)';
+            } else if (userEnergy >= 4 && perfRate > 40) {
+                energyLevel = 'Moderate (plan a realistic day, don\'t overpack)';
+            } else if (userStress >= 7) {
+                energyLevel = 'Low-Stressed (user is stressed — plan a LIGHTER day with extra breaks and breathing room)';
+            } else {
+                energyLevel = 'Low (user is struggling — plan a gentle day with few goals and lots of rest)';
+            }
+
+            // Chronotype-specific scheduling rules
+            const chronotypeRules = chronotype === 'early_bird' || chronotype === 'lark'
+                ? 'User is an EARLY BIRD: schedule deep work EARLY (7am-11am). Lighter tasks in afternoon.'
+                : chronotype === 'night_owl' || chronotype === 'owl'
+                    ? 'User is a NIGHT OWL: schedule deep work LATE (11am-3pm, 4pm-8pm). Light mornings.'
+                    : chronotype === 'wolf'
+                        ? 'User is a WOLF: peak productivity LATE (1pm-8pm). Easy mornings.'
+                        : 'User is a BEAR (default): deep work MID-MORNING (9am-12pm). Standard schedule.';
+
 
             // 3. Construct the AI prompt
             const systemPrompt = `You are PlannrAI's Day Architect. Your job is to create the perfect daily schedule that helps ${ctx.user.first_name} achieve their goals while maintaining flow state and balance.
@@ -124,7 +148,17 @@ BLOCK TYPES (use these exactly):
 - "craft" → Creative/professional skill work
 - "task" → Admin, errands, misc tasks
 
+BIO-CONTEXT:
+- ${chronotypeRules}
+- User energy: ${userEnergy}/10, Stress: ${userStress}/10
+- Plan density should match energy level. HIGH stress = MORE breaks, FEWER goal blocks.
+- Meals per day: ${mealsPerDay}
+${mealWindows?.breakfast ? `- Breakfast window: ${mealWindows.breakfast.start}–${mealWindows.breakfast.end}` : ''}
+${mealWindows?.lunch ? `- Lunch window: ${mealWindows.lunch.start}–${mealWindows.lunch.end}` : ''}
+${mealWindows?.dinner ? `- Dinner window: ${mealWindows.dinner.start}–${mealWindows.dinner.end}` : ''}
+
 Return valid JSON only.`;
+
 
             const userPrompt = `PLAN ${ctx.user.first_name}'s ${dayName} (${targetDate})
 

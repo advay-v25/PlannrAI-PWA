@@ -16,7 +16,15 @@ export interface CalendarContext {
         sleep_start: string;
         sleep_end: string;
         wind_down_mins: number;
+        energy_level: number;
+        stress_level: number;
+        meals_per_day: number;
+        meal_windows: any;
+        body_preferences: any;
+        bio_data: any;
+        chronotype: string;
     };
+
 
     goals: Array<{
         id: string;
@@ -121,9 +129,10 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
     const [profileRes, goalsRes, commitmentsRes, habitStacksRes, todayBlocksRes, weekBlocksRes, perfBlocksRes] = await Promise.all([
         // 1. Profile
         db.from('profiles')
-            .select('id, first_name, sleep_start, sleep_end, wind_down_mins')
+            .select('id, first_name, sleep_start, sleep_end, wind_down_mins, energy_level, stress_level, meals_per_day, meal_windows, body_preferences, bio_data')
             .eq('id', userId)
             .maybeSingle(),
+
 
         // 2. Active Goals
         db.from('goals')
@@ -252,7 +261,19 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
             sleep_start: profile.sleep_start || '23:00',
             sleep_end: profile.sleep_end || '07:00',
             wind_down_mins: profile.wind_down_mins || 30,
+            energy_level: profile.energy_level || 5,
+            stress_level: profile.stress_level || 3,
+            meals_per_day: profile.meals_per_day || 3,
+            meal_windows: profile.meal_windows || {
+                breakfast: { start: '07:00', end: '10:00' },
+                lunch: { start: '12:00', end: '15:00' },
+                dinner: { start: '18:30', end: '21:30' },
+            },
+            body_preferences: profile.body_preferences || {},
+            bio_data: profile.bio_data || {},
+            chronotype: (profile.body_preferences as any)?.chronotype || 'bear',
         },
+
         goals,
         commitments,
         habitStacks,

@@ -1,17 +1,28 @@
 'use client';
 
-import { CoachChat } from '@/components/coach/CoachChat';
+import { Suspense } from 'react';
+import { CoachChat } from '@/components/coach/coach-chat';
 import { ProactiveBanner } from '@/components/coach/ProactiveBanner';
-import { useCoach } from '@/hooks/useCoach';
+import { useCoach } from '@/hooks/use-coach';
+import { useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 
-export default function CoachPage() {
+function CoachPageInner() {
     const router = useRouter();
-    const { proactiveSuggestion, actOnProactive, dismissProactive } = useCoach();
+    const searchParams = useSearchParams();
+    const context = searchParams.get('context');
+    const { messages, sendMessage, proactiveSuggestion, actOnProactive, dismissProactive } = useCoach();
+    const initialized = useRef(false);
+
+    useEffect(() => {
+        if (context === 'calendar' && messages.length === 0 && !initialized.current) {
+            initialized.current = true;
+            sendMessage("I'm looking at my calendar and need some help.");
+        }
+    }, [context, messages.length, sendMessage]);
 
     const handleCalendarUpdate = () => {
-        // Refresh calendar data
-        // This could trigger a revalidation or redirect
         router.refresh();
     };
 
@@ -41,8 +52,16 @@ export default function CoachPage() {
 
             {/* Chat Area */}
             <div className="flex-1 overflow-hidden">
-                <CoachChat onCalendarUpdate={handleCalendarUpdate} />
+                <CoachChat onClose={() => router.push('/app')} />
             </div>
         </div>
+    );
+}
+
+export default function CoachPage() {
+    return (
+        <Suspense fallback={<div className="flex items-center justify-center h-screen text-[var(--text-tertiary)]">Loading coach...</div>}>
+            <CoachPageInner />
+        </Suspense>
     );
 }

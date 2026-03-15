@@ -35,6 +35,18 @@ export interface BrainDumpOption {
     title: string;
     impact: string;
     patch: any;
+    recommended?: boolean;
+    emotional_fit?: 'gentle' | 'moderate' | 'aggressive';
+    actions?: {
+        calendar_changes?: {
+            blocks_to_add: number;
+            blocks_to_move: number;
+            blocks_to_remove: number;
+            time_freed: number;
+        };
+        goal_suggestions?: string[];
+        other_suggestions?: string[];
+    };
 }
 
 export interface BrainDumpQuestion {
@@ -43,9 +55,33 @@ export interface BrainDumpQuestion {
     choices?: string[];
 }
 
+export interface BrainDumpValidation {
+    acknowledgment: string;
+    reflection: string;
+}
+
+export interface OrganizedSection {
+    title: string;
+    items: string[];
+    suggestion: string;
+}
+
+export interface BrainDumpEscalations {
+    coach?: string;
+    goals?: string;
+    settings?: string;
+}
+
 export interface BrainDumpResponse {
     mode: string;
     summary: string;
+    validation?: BrainDumpValidation;
+    organized?: {
+        immediate_actions?: OrganizedSection;
+        ideas_to_save?: OrganizedSection;
+        emotional_notes?: OrganizedSection;
+        schedule_adjustments?: OrganizedSection;
+    };
     extracted: {
         summary?: string;
         items: BrainDumpItem[];
@@ -54,6 +90,7 @@ export interface BrainDumpResponse {
     };
     options: BrainDumpOption[];
     question?: BrainDumpQuestion;
+    escalations?: BrainDumpEscalations;
 }
 
 interface BrainDumpState {
@@ -66,18 +103,22 @@ interface BrainDumpState {
     signals: BrainDumpSignals | null;
     options: BrainDumpOption[];
     question: BrainDumpQuestion | null;
+    validation: BrainDumpValidation | null;
+    organized: BrainDumpResponse['organized'] | null;
+    escalations: BrainDumpEscalations | null;
     appliedOptionId: string | null;
     lastUndoToken: string | null;
     dumpId: string | null;
     error: string | null;
     setInput: (text: string) => void;
     submitDump: () => Promise<void>;
+    submitTemplate: (templateId: string, extraText?: string) => Promise<void>;
     applyOption: (optionId: string) => Promise<void>;
     undoLastAction: () => Promise<void>;
     reset: () => void;
 }
 
-export const useBrainDump = create<BrainDumpState>((set, get) => ({
+const initialState = {
     input: '',
     isLoading: false,
     isApplying: false,
@@ -87,10 +128,17 @@ export const useBrainDump = create<BrainDumpState>((set, get) => ({
     signals: null,
     options: [],
     question: null,
+    validation: null,
+    organized: null,
+    escalations: null,
     appliedOptionId: null,
     lastUndoToken: null,
     dumpId: null,
     error: null,
+};
+
+export const useBrainDump = create<BrainDumpState>((set, get) => ({
+    ...initialState,
 
     setInput: (text: string) => set({ input: text }),
 
@@ -98,23 +146,12 @@ export const useBrainDump = create<BrainDumpState>((set, get) => ({
         const { input } = get();
         if (!input.trim()) return;
 
-        set({
-            isLoading: true,
-            response: null,
-            extractedItems: [],
-            constraints: [],
-            signals: null,
-            options: [],
-            question: null,
-            appliedOptionId: null,
-            lastUndoToken: null,
-            error: null
-        });
+        set({ ...initialState, input, isLoading: true });
 
         try {
             const res = await apiClient.post<BrainDumpResponse>('/api/brain-dump/submit', {
                 text: input,
-                date: new Date().toISOString()
+                date: new Date().toISOString(),
             });
 
             set({
@@ -124,13 +161,47 @@ export const useBrainDump = create<BrainDumpState>((set, get) => ({
                 signals: res.extracted?.signals || null,
                 options: res.options || [],
                 question: res.question || null,
-                isLoading: false
+                validation: res.validation || null,
+                organized: res.organized || null,
+                escalations: res.escalations || null,
+                isLoading: false,
             });
         } catch (error: any) {
             console.error("Brain Dump Error", error);
             set({
                 isLoading: false,
-                error: error.message || "Failed to process brain dump"
+                error: error.message || "Failed to process brain dump",
+            });
+        }
+    },
+
+    submitTemplate: async (templateId: string, extraText?: string) => {
+        set({ ...initialState, isLoading: true, input: extraText || '' });
+
+        try {
+            const res = await apiClient.post<BrainDumpResponse>('/api/brain-dump/submit', {
+                text: extraText || '',
+                template_triggered: templateId,
+                date: new Date().toISOString(),
+            });
+
+            set({
+                response: res,
+                extractedItems: res.extracted?.items || [],
+                constraints: res.extracted?.constraints || [],
+                signals: res.extracted?.signals || null,
+                options: res.options || [],
+                question: res.question || null,
+                validation: res.validation || null,
+                organized: res.organized || null,
+                escalations: res.escalations || null,
+                isLoading: false,
+            });
+        } catch (error: any) {
+            console.error("Brain Dump Template Error", error);
+            set({
+                isLoading: false,
+                error: error.message || "Failed to process template",
             });
         }
     },
@@ -148,14 +219,14 @@ export const useBrainDump = create<BrainDumpState>((set, get) => ({
                 {
                     patch: option.patch,
                     optionId,
-                    dumpId: (response as any)?.dumpId || 'current'
+                    dumpId: (response as any)?.dumpId || 'current',
                 }
             );
 
             set({
                 isApplying: false,
                 appliedOptionId: optionId,
-                lastUndoToken: res.undo_token
+                lastUndoToken: res.undo_token,
             });
 
             // Refresh calendar
@@ -166,7 +237,7 @@ export const useBrainDump = create<BrainDumpState>((set, get) => ({
             console.error("Apply Failed", error);
             set({
                 isApplying: false,
-                error: error.message || "Failed to apply option"
+                error: error.message || "Failed to apply option",
             });
         }
     },
@@ -179,10 +250,9 @@ export const useBrainDump = create<BrainDumpState>((set, get) => ({
             await apiClient.post('/api/coach/undo', { undo_token: lastUndoToken });
             set({
                 appliedOptionId: null,
-                lastUndoToken: null
+                lastUndoToken: null,
             });
 
-            // Refresh calendar
             if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('calendar-refresh'));
             }
@@ -192,19 +262,5 @@ export const useBrainDump = create<BrainDumpState>((set, get) => ({
         }
     },
 
-    reset: () => set({
-        input: '',
-        isLoading: false,
-        isApplying: false,
-        response: null,
-        extractedItems: [],
-        constraints: [],
-        signals: null,
-        options: [],
-        question: null,
-        appliedOptionId: null,
-        lastUndoToken: null,
-        dumpId: null,
-        error: null
-    })
+    reset: () => set(initialState),
 }));

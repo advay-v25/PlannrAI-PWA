@@ -36,7 +36,9 @@ export interface Patch {
     undoable?: boolean;
     reason?: string;
     scope?: 'day' | 'week';
+    snapshot_requested?: boolean;
 }
+
 
 export interface PatchResult {
     success: boolean;
@@ -74,13 +76,27 @@ export class PatchService {
             console.warn('[PatchService] Validation check failed, proceeding:', validateErr.message);
         }
 
-        // 1. Calculate Inverse Patch (BEFORE applying) — for undo support
+        // 1. Calculate Snapshot or Inverse Patch (BEFORE applying) — for undo support
         let inversePatch: any = { ops: [] };
+        let versionId: string | null = null;
+
+        // If scope is week or explicitly requested, take a full snapshot
+        if (patch.scope === 'week' || patch.snapshot_requested) {
+            try {
+                const snapshot = await this.createSnapshot(userId, patch, supabase);
+                versionId = snapshot.id;
+            } catch (snapErr: any) {
+                console.warn('[PatchService] Snapshot failed, falling back to inverse patch:', snapErr.message);
+            }
+        }
+
+        // Always attempt inverse patch as a secondary/granular fallback
         try {
             inversePatch = await this.calculateInversePatch(userId, patch, supabase);
         } catch (invErr: any) {
-            console.warn('[PatchService] Inverse patch calc failed (undo will be unavailable):', invErr.message);
+            console.warn('[PatchService] Inverse patch calc failed:', invErr.message);
         }
+
 
         // 2. Execute Operations
         for (const op of patch.ops) {
@@ -107,10 +123,12 @@ export class PatchService {
                         user_id: userId,
                         patch: patch as any,
                         inverse_patch: inversePatch as any,
+                        schedule_version_id: versionId,
                         applied: true,
                         source,
                         created_at: new Date().toISOString()
                     })
+
                     .select('id')
                     .single();
 
@@ -148,13 +166,19 @@ export class PatchService {
             return { success: false, changes: 0 };
         }
 
-        if (!run.applied) {
-            console.warn('[PatchService] Patch already undone');
-            return { success: false, changes: 0 };
+        if (run.schedule_version_id) {
+            // Priority 1: Full Snapshot Restore
+            console.log('[PatchService] Restoring from full snapshot:', run.schedule_version_id);
+            const success = await this.restoreFromSnapshot(userId, run.schedule_version_id, supabase);
+            if (success) {
+                await supabase.from('patch_runs').update({ applied: false }).eq('id', undoToken);
+                return { success: true, changes: -1 }; // -1 indicates full restore
+            }
         }
 
         const inverse = run.inverse_patch as Patch;
         let changes = 0;
+
 
         // 2. Apply Inverse
         for (const op of inverse.ops) {
@@ -174,6 +198,147 @@ export class PatchService {
 
         return { success: true, changes };
     }
+
+    /**
+     * Undo the most recent patch for a user
+     */
+    static async undoLast(userId: string, supabase: SupabaseClient): Promise<{ success: boolean; changes: number }> {
+        const { data: lastRun } = await supabase
+            .from('patch_runs')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('applied', true)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+        if (!lastRun) return { success: false, changes: 0 };
+        return this.undoPatch(userId, lastRun.id, supabase);
+    }
+
+    /**
+     * Record a coach action (increment conversation, update message)
+     */
+    static async recordCoachAction(
+        userId: string,
+        conversationId: string,
+        optionId: string,
+        patchRunId: string,
+        supabase: SupabaseClient
+    ) {
+        // 1. Update the message
+        await supabase
+            .from('coach_messages')
+            .update({
+                selected_option_id: optionId,
+                patch_version_id: patchRunId, // We use patchRunId as the undo token
+                patch_applied_at: new Date().toISOString()
+            })
+            .eq('conversation_id', conversationId)
+            .eq('role', 'assistant')
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+        // 2. Mark conversation as recently active (replaces non-existent increment_actions_taken RPC)
+        try {
+            await supabase
+                .from('coach_conversations')
+                .update({ updated_at: new Date().toISOString() })
+                .eq('id', conversationId);
+        } catch {
+            // Non-fatal
+        }
+    }
+
+
+    /**
+     * Create a full schedule snapshot in schedule_versions
+     */
+    private static async createSnapshot(userId: string, patch: Patch, supabase: SupabaseClient) {
+        // Find relevant dates from operations
+        const dates = new Set<string>();
+        patch.ops.forEach(op => {
+            if (op.date) dates.add(op.date);
+            if (op.payload?.date) dates.add(op.payload.date);
+            if (op.event?.date) dates.add(op.event.date);
+        });
+
+        const query = supabase
+            .from('schedule_blocks')
+            .select('*')
+            .eq('user_id', userId);
+
+        if (dates.size > 0 && dates.size < 10) {
+            query.in('date', Array.from(dates));
+        } else {
+            // Default to ±1 week if dates are vague or too many
+            const now = new Date();
+            const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            const end = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            query.gte('date', start).lte('date', end);
+        }
+
+        const { data: blocks } = await query;
+
+        const { data: version, error } = await supabase
+            .from('schedule_versions')
+            .insert({
+                user_id: userId,
+                week_start: new Date().toISOString().split('T')[0], // Placeholder
+                snapshot: blocks || [],
+                source: 'ai_optimize',
+                created_at: new Date().toISOString()
+            })
+            .select('id')
+            .single();
+
+        if (error) throw error;
+        return { id: version.id };
+    }
+
+    /**
+     * Restore schedule from a snapshot
+     */
+    private static async restoreFromSnapshot(userId: string, versionId: string, supabase: SupabaseClient): Promise<boolean> {
+        const { data: version } = await supabase
+            .from('schedule_versions')
+            .select('snapshot')
+            .eq('id', versionId)
+            .eq('user_id', userId)
+            .single();
+
+        if (!version) return false;
+
+        const snapshot = version.snapshot as any[];
+        const dates = Array.from(new Set(snapshot.map(b => b.date)));
+
+        if (dates.length > 0) {
+            // 1. Clear existing for those dates
+            await supabase
+                .from('schedule_blocks')
+                .delete()
+                .eq('user_id', userId)
+                .in('date', dates);
+        }
+
+        // 2. Insert snapshot (preserving IDs if possible, but careful with constraints)
+        // We'll insert without IDs to avoid PK conflicts if they were already deleted
+        const blocksToInsert = snapshot.map(b => {
+            const { created_at, updated_at, ...rest } = b;
+            return { ...rest, user_id: userId };
+        });
+
+        if (blocksToInsert.length > 0) {
+            const { error } = await supabase.from('schedule_blocks').insert(blocksToInsert);
+            if (error) {
+                console.error('[PatchService] Restore insert failed:', error);
+                return false;
+            }
+        }
+
+        return true;
+    }
+
 
     // --- Internal Op Execution ---
 

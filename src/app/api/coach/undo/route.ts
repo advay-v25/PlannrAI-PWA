@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { undoLastPatch } from '@/lib/coach/patch-executor';
+import { PatchService } from '@/lib/services/patch-service';
+
 
 export async function POST(request: NextRequest) {
     try {
@@ -28,21 +29,21 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { version_id } = body;
+        const { undo_token } = body;
 
-        if (!version_id) {
+        if (!undo_token) {
             return NextResponse.json(
-                { success: false, error: 'version_id is required' },
+                { success: false, error: 'undo_token is required' },
                 { status: 400 }
             );
         }
 
-        const result = await undoLastPatch(user.id, version_id);
+        const result = await PatchService.undoPatch(user.id, undo_token, supabase);
 
         if (!result.success) {
             return NextResponse.json({
                 success: false,
-                error: result.error || 'Undo failed',
+                error: 'Undo failed',
             }, { status: 500 });
         }
 
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest) {
             success: true,
             message: 'Changes undone successfully',
         });
+
 
     } catch (error) {
         console.error('[Coach Undo] Error:', error);
