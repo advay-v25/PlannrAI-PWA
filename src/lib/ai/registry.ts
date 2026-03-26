@@ -235,6 +235,7 @@ export interface ChannelDef<T = any> {
     model: string;
     temperature: number;
     maxTokens: number;
+    tier?: 'smart' | 'fast';
   };
   minOptions?: number;
   fallback: (input: string, context?: AIContext) => T;
@@ -252,7 +253,8 @@ export const ChannelRegistry: Record<string, ChannelDef> = {
     config: {
       model: 'llama-3.3-70b-versatile',
       temperature: 0.1,
-      maxTokens: 1500
+      maxTokens: 1500,
+      tier: 'smart'
     },
     minOptions: 1,
     fallback: () => ({
@@ -380,9 +382,10 @@ If mode="refuse", refusal is REQUIRED, options should be omitted.`.trim();
   brain_dump: {
     schema: BrainDumpOutputSchema,
     config: {
-      model: 'llama-3.3-70b-versatile', // Lower latency is better here
-      temperature: 0.2, // Need structured precision
-      maxTokens: 1000
+      model: 'llama-3.3-70b-versatile',
+      temperature: 0.2,
+      maxTokens: 1000,
+      tier: 'fast'
     },
     fallback: (input: string) => {
       const lines = input.split('\n').filter(l => l.trim().length > 0);
@@ -494,7 +497,7 @@ If mode="ask", question is REQUIRED, options can be omitted.`.trim();
 
   onboarding_plan: {
     schema: OnboardingPlanOutputSchema,
-    config: { model: "llama-3.3-70b-versatile", temperature: 0.2, maxTokens: 4000 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.2, maxTokens: 4000, tier: 'fast' },
     fallback: () => ({
       patch: { ops: [], undoable: false, reason: "Fallback" },
       summary: { bullets: ["Plan generation unavailable."] },
@@ -525,7 +528,8 @@ If mode="ask", question is REQUIRED, options can be omitted.`.trim();
     config: {
       model: 'llama-3.3-70b-versatile',
       temperature: 0.3,
-      maxTokens: 1000
+      maxTokens: 1000,
+      tier: 'fast'
     },
     fallback: () => ({
       stacks: [{
@@ -598,7 +602,7 @@ RULES:
 
   goal_strategy: {
     schema: GoalStrategyOutputSchema,
-    config: { model: "llama-3.3-70b-versatile", temperature: 0.4, maxTokens: 2000 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.4, maxTokens: 2000, tier: 'smart' },
     fallback: () => ({
       strategy_one_liner: "Strategy generation temporarily unavailable.",
       routine: { frequency: 'daily' as const, duration_mins: 30, steps: ["Review goal", "Take one action"], best_time: 'morning' as const },
@@ -667,7 +671,7 @@ RULES:
 
   weekly_review: {
     schema: WeeklyReviewOutputSchema,
-    config: { model: "llama-3.3-70b-versatile", temperature: 0.3, maxTokens: 2500 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.3, maxTokens: 2500, tier: 'smart' },
     fallback: () => ({
       reality: "AI Review temporarily unavailable.",
       patterns: [
@@ -750,7 +754,7 @@ OUTPUT FORMAT (Strict JSON, No Markdown):
 
   onboarding_architect: {
     schema: OnboardingArchitectSchema,
-    config: { model: "llama-3.3-70b-versatile", temperature: 0.4, maxTokens: 2000 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.4, maxTokens: 2000, tier: 'smart' },
     fallback: () => ({
       analysis: {
         chronotype_insight: "Analysis pending.",
@@ -805,7 +809,7 @@ OUTPUT FORMAT (Strict JSON, No Markdown):
 
   onboarding_insight: {
     schema: OnboardingInsightOutputSchema,
-    config: { model: 'llama-3.3-70b-versatile', temperature: 0.5, maxTokens: 250 },
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.5, maxTokens: 250, tier: 'fast' },
     fallback: () => ({
       insight: 'Calibration data received.',
       archetype_signal: 'Processing',
@@ -847,7 +851,7 @@ OUTPUT FORMAT (Strict JSON, No Markdown):
 
   proactive_thinker: {
     schema: ProactiveProposalSchema,
-    config: { model: 'llama-3.3-70b-versatile', temperature: 0.4, maxTokens: 800 },
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.4, maxTokens: 800, tier: 'fast' },
     fallback: () => ({ has_proposal: false }),
     systemPrompt: (ctx) => `
       You are the "Proactive Intelligence Layer" of Donna, the user's executive AI Chief of Staff.
@@ -886,7 +890,7 @@ OUTPUT FORMAT (Strict JSON, No Markdown):
 
   'calendar.optimize': {
     schema: DayOptimizationSchema,
-    config: { model: "llama-3.3-70b-versatile", temperature: 0.3, maxTokens: 1500 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.3, maxTokens: 1500, tier: 'smart' },
     fallback: () => ({
       analysis: {
         energy_state: "Unknown",
@@ -935,7 +939,7 @@ OUTPUT FORMAT (Strict JSON, No Markdown):
 
   'routines.generate': {
     schema: RoutineGenerationSchema,
-    config: { model: "llama-3.3-70b-versatile", temperature: 0.5, maxTokens: 1000 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.5, maxTokens: 1000, tier: 'fast' },
     fallback: () => ({
       routine_type: "break",
       name: "Quick Reset",
@@ -976,7 +980,7 @@ OUTPUT FORMAT (Strict JSON, No Markdown):
 
   'calendar_plan_week': {
     schema: CalendarPlanWeekSchema,
-    config: { model: "llama-3.3-70b-versatile", temperature: 0.4, maxTokens: 4000 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.4, maxTokens: 4000, tier: 'smart' },
     fallback: () => ({
       plan_summary: "Week planning temporarily unavailable.",
       options: [
@@ -1053,7 +1057,7 @@ Generate 10-25 blocks per option. Ensure 0% overlap with anchors and existing bl
 
   'calendar_optimize_day': {
     schema: DayOptimizationSchema,
-    config: { model: "llama-3.3-70b-versatile", temperature: 0.3, maxTokens: 2500 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.3, maxTokens: 2500, tier: 'smart' },
     fallback: () => ({
       analysis: {
         energy_state: "Unknown",
@@ -1145,7 +1149,7 @@ Scope all changes to TODAY (${ctx.date}) only, or deferring to tomorrow.`.trim()
 
   'conflict_resolution': {
     schema: ConflictResolutionSchema,
-    config: { model: "llama-3.3-70b-versatile", temperature: 0.3, maxTokens: 1000 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.3, maxTokens: 1000, tier: 'smart' },
     fallback: () => ({
       options: [{
         label: "Manual Fix",
@@ -1176,7 +1180,7 @@ Scope all changes to TODAY (${ctx.date}) only, or deferring to tomorrow.`.trim()
 
   goal_decomposition: {
     schema: GoalDecompositionSchema,
-    config: { model: "llama-3.3-70b-versatile", temperature: 0.4, maxTokens: 4000 },
+    config: { model: "llama-3.3-70b-versatile", temperature: 0.4, maxTokens: 4000, tier: 'smart' },
     fallback: () => ({
       channel: 'goal_decomposition',
       mode: 'propose',
@@ -1229,7 +1233,7 @@ Scope all changes to TODAY (${ctx.date}) only, or deferring to tomorrow.`.trim()
 
   daily_briefing: {
     schema: DailyBriefingOutputSchema,
-    config: { model: 'llama-3.3-70b-versatile', temperature: 0.6, maxTokens: 600 },
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.6, maxTokens: 600, tier: 'fast' },
     fallback: (input, ctx) => ({
       briefing: `Good morning.You have ${ctx?.schedule?.count || 0} blocks scheduled today.Stay focused.`,
       tone: 'focused' as const,
@@ -1265,7 +1269,7 @@ Scope all changes to TODAY (${ctx.date}) only, or deferring to tomorrow.`.trim()
 
   onboarding_life_snapshot: {
     schema: LifeSnapshotExtractionSchema,
-    config: { model: 'llama-3.3-70b-versatile', temperature: 0.1, maxTokens: 1000 },
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.1, maxTokens: 1000, tier: 'fast' },
     fallback: () => ({
       extracted: {
         wake_time: "07:00", sleep_time: "23:00", wind_down_start: "22:00", anchors: [],
@@ -1286,7 +1290,7 @@ ${BASE_RULES}
 
   onboarding_goal_discovery: {
     schema: GoalDiscoveryExtractionSchema,
-    config: { model: 'llama-3.3-70b-versatile', temperature: 0.2, maxTokens: 1000 },
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.2, maxTokens: 1000, tier: 'fast' },
     fallback: () => ({
       identified_goals: {}, missing_pillars: ['mind', 'body', 'craft'], clarification_needed: false, response_to_user: "Let's move on."
     }),
@@ -1301,7 +1305,7 @@ ${BASE_RULES}
 
   onboarding_schedule_gen: {
     schema: FirstScheduleGeneratorSchema,
-    config: { model: 'llama-3.3-70b-versatile', temperature: 0.2, maxTokens: 4000 },
+    config: { model: 'llama-3.3-70b-versatile', temperature: 0.2, maxTokens: 4000, tier: 'fast' },
     fallback: () => ({
       variants: [], recommendation: "Balanced variant", recommendation_reason: "Safe default"
     }),

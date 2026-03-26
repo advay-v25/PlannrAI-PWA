@@ -32,7 +32,7 @@ export function ProposedActionCard({ action, onApply, onDismiss }: ProposedActio
             });
 
             const data = await res.json();
-            if (data.success) {
+            if (data.ok || data.success) {
                 showToast(`✅ ${action.label} applied`, 'success');
                 onApply();
             } else {

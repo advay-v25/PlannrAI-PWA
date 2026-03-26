@@ -42,6 +42,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
     const [editStart, setEditStart] = useState('');
     const [editEnd, setEditEnd] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
+    const [confirmingDelete, setConfirmingDelete] = useState(false);
     const { stacks, completeStack } = useHabitStacksStore();
 
     if (!block) return null;
@@ -361,17 +362,27 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                 {/* Delete */}
                 <button
                     onClick={() => {
-                        const label = isAnchor ? 'anchor commitment' : 'block';
-                        const extra = isAnchor ? ' This will permanently remove it from ALL days.' : '';
-                        if (window.confirm(`Delete this ${label}?${extra}`)) {
+                        if (confirmingDelete) {
                             onAction('delete');
+                            setConfirmingDelete(false);
+                        } else {
+                            setConfirmingDelete(true);
+                            // Auto-reset after 3 seconds
+                            setTimeout(() => setConfirmingDelete(false), 3000);
                         }
                     }}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold
-                        text-red-500/50 hover:text-red-400 hover:bg-red-500/10 transition-all active:scale-95"
+                    className={cn(
+                        "w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95",
+                        confirmingDelete
+                            ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                            : "text-red-500/50 hover:text-red-400 hover:bg-red-500/10"
+                    )}
                 >
                     <Trash2 className="w-3.5 h-3.5" />
-                    {isAnchor ? 'Delete Anchor Permanently' : 'Delete Block'}
+                    {confirmingDelete
+                        ? (isAnchor ? 'Confirm — Remove From All Days' : 'Confirm Delete')
+                        : (isAnchor ? 'Delete Anchor Permanently' : 'Delete Block')
+                    }
                 </button>
 
                 {/* Anchor warning */}

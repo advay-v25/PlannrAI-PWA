@@ -19,6 +19,7 @@ const FAILURE_MODES: { id: FailureMode; label: string; description: string }[] =
 
 export function Step5FailureModes() {
     const { data, updateData } = useOnboardingStore();
+    const modes = data.failure_modes || [];
 
     const toggleFailureMode = (id: FailureMode) => {
         if (id === 'none') {
@@ -26,7 +27,7 @@ export function Step5FailureModes() {
             return;
         }
 
-        const current = data.failure_modes.filter(m => m !== 'none');
+        const current = modes.filter(m => m !== 'none');
         if (current.includes(id)) {
             updateData({ failure_modes: current.filter(m => m !== id) });
         } else {
@@ -39,13 +40,13 @@ export function Step5FailureModes() {
             <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="space-y-2 text-center"
+                className="space-y-3 text-center"
             >
                 <h2 className="text-3xl font-bold tracking-tight text-white font-mono uppercase">
                     PROTECTIVE <span className="text-[var(--color-primary)]">LAYERS</span>
                 </h2>
-                <p className="text-[var(--color-text-secondary)]">
-                    What usually derails your schedule?
+                <p className="text-[var(--color-text-secondary)] text-sm tracking-wide">
+                    What usually derails your ideal schedule?
                 </p>
             </motion.div>
 
@@ -53,32 +54,32 @@ export function Step5FailureModes() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.1 }}
-                className="w-full grid grid-cols-1 gap-3"
+                className="w-full grid grid-cols-1 gap-4"
             >
                 {FAILURE_MODES.map((mode) => {
-                    const isSelected = data.failure_modes.includes(mode.id);
+                    const isSelected = modes.includes(mode.id);
                     return (
                         <button
                             key={mode.id}
                             onClick={() => toggleFailureMode(mode.id)}
-                            className={`flex items-start gap-4 p-4 rounded-xl border transition-all text-left group ${
+                            className={`flex items-start gap-4 p-5 rounded-2xl border transition-all duration-300 text-left group backdrop-blur-md shadow-lg ${
                                 isSelected
-                                    ? 'bg-[var(--color-primary)]/10 border-[var(--color-primary)]/50 ring-1 ring-[var(--color-primary)]/20'
-                                    : 'bg-[var(--glass-surface)] border-[var(--glass-border)] hover:border-[var(--color-primary)]/30 hover:bg-[var(--bg-card-hover)]'
+                                    ? 'bg-white/10 border-white/40 shadow-[0_0_30px_rgba(255,255,255,0.05)] scale-[1.02]'
+                                    : 'bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/[0.07] hover:scale-[1.01]'
                             }`}
                         >
-                            <div className={`mt-1 flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                            <div className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded-md border flex items-center justify-center transition-all duration-300 shadow-inner ${
                                 isSelected 
-                                    ? 'bg-[var(--color-primary)] border-[var(--color-primary)]' 
-                                    : 'border-gray-600 group-hover:border-[var(--color-primary)]'
+                                    ? 'bg-white border-white scale-110' 
+                                    : 'border-white/30 group-hover:border-[var(--color-primary)]'
                             }`}>
-                                {isSelected && <div className="w-2.5 h-2.5 bg-black rounded-sm" />}
+                                {isSelected && <div className="w-2.5 h-2.5 bg-black rounded-sm shadow-sm" />}
                             </div>
                             <div>
-                                <div className={`font-bold transition-colors ${isSelected ? 'text-[var(--color-primary)]' : 'text-white'}`}>
+                                <div className={`font-semibold tracking-wide transition-colors duration-300 ${isSelected ? 'text-[var(--color-primary)]' : 'text-white'}`}>
                                     {mode.label}
                                 </div>
-                                <div className="text-xs text-[var(--color-text-tertiary)] mt-1">
+                                <div className="text-xs text-white/50 mt-1.5 font-medium leading-relaxed">
                                     {mode.description}
                                 </div>
                             </div>
@@ -86,10 +87,10 @@ export function Step5FailureModes() {
                     );
                 })}
 
-                <div className="mt-6 p-4 rounded-xl bg-blue-500/5 border border-blue-500/20 flex gap-3">
-                    <Info className="w-5 h-5 text-blue-400 mt-0.5" />
-                    <p className="text-xs text-blue-300 leading-relaxed font-mono">
-                        WE'LL USE THESE TO ADD PROTECTIVE BUFFERS, SUGGEST ENERGY-AWARE SLOTS, AND BUILD FLEXIBILITY WHERE YOU NEED IT MOST.
+                <div className="mt-8 p-5 rounded-2xl bg-white/5 border border-white/10 flex gap-4 items-start backdrop-blur-md shadow-lg">
+                    <Info className="w-5 h-5 text-[var(--color-primary)] mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-white/70 leading-relaxed font-mono tracking-wide uppercase">
+                        We use these points of failure to inject protective buffers and build adaptive flexibility directly into your generated week.
                     </p>
                 </div>
             </motion.div>

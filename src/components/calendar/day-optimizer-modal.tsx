@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
@@ -20,7 +20,7 @@ interface DayOptimizerProps {
     date: Date;
     onClose: () => void;
     onApply: (option: CalendarOption) => void;
-    optimizeDay: (focus?: string) => Promise<any>; // Actually returns { analysis, options, warnings }
+    optimizeDay: (focus?: string) => Promise<any>;
 }
 
 export function DayOptimizerModal({ date, onClose, onApply, optimizeDay }: DayOptimizerProps) {
@@ -28,12 +28,18 @@ export function DayOptimizerModal({ date, onClose, onApply, optimizeDay }: DayOp
     const [result, setResult] = useState<any>(null);
     const [selectedOption, setSelectedOption] = useState<CalendarOption | null>(null);
 
-    // Auto-start analysis
+    // Stable refs to avoid re-firing the effect when parent re-renders
+    const optimizeDayRef = useRef(optimizeDay);
+    const onCloseRef = useRef(onClose);
+    optimizeDayRef.current = optimizeDay;
+    onCloseRef.current = onClose;
+
+    // Auto-start analysis — runs ONCE on mount only
     useEffect(() => {
         let isMounted = true;
         const runOptimization = async () => {
             try {
-                const res = await optimizeDay();
+                const res = await optimizeDayRef.current();
                 if (isMounted && res) {
                     setResult(res);
                     if (res.options && res.options.length > 0) {
@@ -43,12 +49,12 @@ export function DayOptimizerModal({ date, onClose, onApply, optimizeDay }: DayOp
                 }
             } catch (err: any) {
                 console.error("Optimization failed", err);
-                if (isMounted) onClose();
+                if (isMounted) onCloseRef.current();
             }
         };
         runOptimization();
         return () => { isMounted = false; };
-    }, [optimizeDay, onClose]);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleApply = async () => {
         if (selectedOption) {

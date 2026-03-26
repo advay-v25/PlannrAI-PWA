@@ -34,35 +34,62 @@ export const GET = secureApiRoute(
         ]);
 
         const profile = profileRes.data || {};
-        const commitments = commitmentsRes.data || [];
+        const rawCommitments = commitmentsRes.data || [];
         const goals = goalsRes.data || [];
         const habits = habitsRes.data || [];
         const blocks = blocksRes.data || [];
         const inbox = inboxBlocks.data || [];
 
+        // --- Deduplicate commitments by title+start_time+end_time ---
+        // Onboarding or imports can create duplicate records with different UUIDs
+        const seenCmtKeys = new Set<string>();
+        const commitments = rawCommitments.filter((cmt: any) => {
+            const key = `${cmt.title}|${cmt.start_time}|${cmt.end_time}|${JSON.stringify(cmt.days_of_week || [])}`;
+            if (seenCmtKeys.has(key)) return false;
+            seenCmtKeys.add(key);
+            return true;
+        });
+
         // --- Generate Virtual Blocks for Commitments ---
+        // ONLY render anchors if the commitment has a valid days_of_week array
+        // that explicitly includes this day. Commitments with null/empty days_of_week
+        // are ignored (they are incomplete data).
         const virtualBlocks: any[] = [];
+        // Build a set of existing commitment_id+date combos to avoid duplicates
+        const existingCmtKeys = new Set(
+            blocks
+                .filter((b: any) => b.commitment_id)
+                .map((b: any) => `${b.commitment_id}-${b.date}`)
+        );
+
         for (let i = 0; i < days; i++) {
             const currentDate = addDays(startDate, i);
             const dateStr = format(currentDate, 'yyyy-MM-dd');
-            // getDay() is 0 (Sun) to 6 (Sat). We map it to 1-7 for consistency.
             let dayOfWeek = currentDate.getDay(); // 0 is Sunday
             const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
 
             commitments.forEach((cmt: any) => {
-                if (!cmt.days_of_week || cmt.days_of_week.includes(isoDay)) {
-                    virtualBlocks.push({
-                        id: `virt-cmt-${cmt.id}-${dateStr}`,
-                        user_id: cmt.user_id,
-                        title: cmt.title || 'Anchor',
-                        date: dateStr,
-                        start_time: cmt.start_time,
-                        end_time: cmt.end_time,
-                        block_type: 'anchor',
-                        status: 'planned',
-                        created_at: new Date().toISOString()
-                    });
-                }
+                // STRICT: only render if days_of_week is a non-empty array containing this day
+                if (!Array.isArray(cmt.days_of_week) || cmt.days_of_week.length === 0) return;
+                if (!cmt.days_of_week.includes(isoDay)) return;
+
+                // Skip if a real schedule_block already exists for this commitment+date
+                const key = `${cmt.id}-${dateStr}`;
+                if (existingCmtKeys.has(key)) return;
+
+                virtualBlocks.push({
+                    id: `virt-cmt-${cmt.id}-${dateStr}`,
+                    user_id: cmt.user_id,
+                    title: cmt.title || 'Anchor',
+                    date: dateStr,
+                    start_time: cmt.start_time,
+                    end_time: cmt.end_time,
+                    block_type: 'anchor',
+                    status: 'planned',
+                    is_locked: true,
+                    commitment_id: cmt.id,
+                    created_at: new Date().toISOString()
+                });
             });
         }
 

@@ -8,6 +8,7 @@ type ApiOptions = RequestInit & {
     skipAuth?: boolean;
     throwOnError?: boolean;
     clientMode?: 'default' | 'best_effort';
+    timeout?: number;
 };
 
 export class ApiError extends Error {
@@ -17,8 +18,8 @@ export class ApiError extends Error {
     }
 }
 
-const DEFAULT_TIMEOUT = 35000;
-const MAX_RETRIES = 2;
+const DEFAULT_TIMEOUT = 90000; // 90s — calendar AI needs 55s server + context building overhead
+const MAX_RETRIES = 1; // Only 1 retry to avoid cascading abort waits
 
 const getBaseUrl = () => {
     if (typeof window !== 'undefined') {
@@ -125,7 +126,8 @@ export const apiClient = {
 
             } catch (error: any) {
                 lastError = error;
-                const isRetryable = error.name === 'AbortError' || error.message.includes('Server Error') || error.message.includes('fetch');
+                const isRetryable = error.message.includes('Server Error') || error.message.includes('fetch');
+                // AbortError (timeout) is NOT retryable — the route is just slow, retrying wastes time
 
                 if (!isRetryable || attempt === MAX_RETRIES) {
                     if (throwOnError) {
@@ -241,10 +243,10 @@ export const apiClient = {
 
             // AI Features
             planWeek: (data: { start_date: string; mode: string; allow_weekend: boolean }) =>
-                this.post('/api/calendar/plan-week', data),
+                this.post('/api/calendar/plan-week', data, { timeout: 180000 }), // 3 minutes
 
             optimizeDay: (data: { date: string; focus?: string }) =>
-                this.post('/api/calendar/optimize-day', data),
+                this.post('/api/calendar/optimize-day', data, { timeout: 120000 }), // 2 minutes
 
             autoPlace: (data: { block_id: string; duration_minutes: number; target_date: string }) =>
                 this.post('/api/calendar/auto-place', data),

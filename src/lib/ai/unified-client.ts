@@ -16,6 +16,7 @@ export interface AICallOptions {
     maxTokens?: number;
     requireJSON?: boolean;
     timeout?: number;
+    calendarKey?: boolean; // Use dedicated CALENDAR_OPENROUTER_API_KEY
 }
 
 export interface AIResponse<T = any> {
@@ -54,6 +55,21 @@ function getOpenRouterConfig(model: string): ProviderConfig {
     };
 }
 
+function getCalendarOpenRouterConfig(model: string): ProviderConfig {
+    return {
+        name: 'openrouter',
+        url: 'https://openrouter.ai/api/v1/chat/completions',
+        model,
+        getHeaders: () => ({
+            'Authorization': `Bearer ${process.env.CALENDAR_OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'https://plannrai.com',
+            'X-Title': 'PlannrAI Calendar',
+        }),
+        supportsResponseFormat: false,
+    };
+}
+
 function getGroqConfig(model: string): ProviderConfig {
     return {
         name: 'groq',
@@ -68,12 +84,14 @@ function getGroqConfig(model: string): ProviderConfig {
 }
 
 // Map model tier → provider configs (primary, fallback)
+// Smart = complex reasoning (coach, goals, weekly review) → OpenRouter primary
+// Fast = simple extraction (brain dump, habits, briefings) → Groq primary
 function getProviderChain(tier: AIModel): [ProviderConfig, ProviderConfig] {
     switch (tier) {
         case 'smart':
             return [
-                getGroqConfig('llama-3.3-70b-versatile'),
                 getOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'),
+                getGroqConfig('llama-3.3-70b-versatile'),
             ];
         case 'fast':
             return [
@@ -162,7 +180,7 @@ async function callProvider<T>(
         body.response_format = { type: 'json_object' };
     }
 
-    const timeout = options.timeout ?? (options.model === 'fast' ? 25000 : 45000);
+    const timeout = options.timeout ?? (options.model === 'fast' ? 25000 : 55000);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
@@ -254,6 +272,18 @@ async function callProvider<T>(
  */
 export async function callAI<T = any>(options: AICallOptions): Promise<AIResponse<T>> {
     const tier = options.model ?? 'fast';
+
+    // Calendar-dedicated key: bypass normal provider chain
+    if (options.calendarKey) {
+        const calendarProvider = getCalendarOpenRouterConfig('meta-llama/llama-3.3-70b-instruct');
+        const result = await callProvider<T>(calendarProvider, options);
+        if (result.success) return result;
+        // Fall back to Groq if calendar key fails
+        console.log('\x1b[33m[AI →]\x1b[0m Calendar key failed, falling back to Groq...');
+        const groqFallback = getGroqConfig('llama-3.3-70b-versatile');
+        return callProvider<T>(groqFallback, options);
+    }
+
     const [primary, fallback] = getProviderChain(tier);
 
     // Try primary

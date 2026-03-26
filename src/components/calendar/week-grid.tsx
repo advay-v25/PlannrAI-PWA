@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { format, addDays, startOfWeek, isSameDay, differenceInMinutes } from 'date-fns';
 import { DndContext, useDraggable, useDroppable, DragEndEvent, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
-import { Lock, Check, X, Plus } from 'lucide-react';
+import { Lock, Check, Plus } from 'lucide-react';
 import { calculateLayout, LayoutBlock } from '@/lib/calendar-layout';
 import { motion } from 'framer-motion';
 
@@ -14,21 +14,22 @@ interface WeekGridProps {
     onBlockMove: (id: string, newDate: string, newStart: string, newEnd: string) => void;
     onBlockSelect: (block: any) => void;
     onCellClick?: (date: string, hour: number) => void;
+    viewMode?: 'day' | 'week';
 }
 
 const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 6am - 11pm
 const CELL_HEIGHT = 72;
 
-// Premium color mapping with glassmorphism effects
-const PILLAR_COLORS: Record<string, { bg: string; border: string; text: string; dot: string; styleClasses?: string }> = {
-    mind: { bg: 'bg-indigo-500/10', border: 'border-indigo-500/20', text: 'text-indigo-100', dot: 'bg-indigo-400', styleClasses: '' },
-    body: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', text: 'text-emerald-100', dot: 'bg-emerald-400', styleClasses: '' },
-    craft: { bg: 'bg-amber-500/10', border: 'border-amber-500/20', text: 'text-amber-100', dot: 'bg-amber-400', styleClasses: '' },
-    anchor: { bg: 'bg-zinc-800/40', border: 'border-white/[0.05]', text: 'text-zinc-300', dot: 'bg-zinc-500', styleClasses: 'bg-[url("/patterns/hatch.svg")] bg-repeat bg-black/20' },
-    meal: { bg: 'bg-slate-500/5', border: 'border-slate-500/20 border-dashed border', text: 'text-slate-400', dot: 'bg-slate-500' },
-    sleep: { bg: 'bg-black/40', border: 'border-white/[0.03]', text: 'text-white/30', dot: 'bg-white/10' },
-    break: { bg: 'bg-transparent', border: 'border-white/[0.03]', text: 'text-white/40', dot: 'bg-white/20' },
-    default: { bg: 'bg-blue-500/10', border: 'border-blue-500/20', text: 'text-blue-200', dot: 'bg-blue-400' }
+// Premium pastel colors matching reference images (black/orange theme)
+const PILLAR_COLORS: Record<string, { bg: string; border: string; text: string; dot: string }> = {
+    mind:    { bg: 'bg-sky-400/15',     border: 'border-sky-400/25',    text: 'text-sky-100',    dot: 'bg-sky-400' },
+    body:    { bg: 'bg-emerald-400/15', border: 'border-emerald-400/25', text: 'text-emerald-100', dot: 'bg-emerald-400' },
+    craft:   { bg: 'bg-amber-400/15',   border: 'border-amber-400/25',  text: 'text-amber-100',  dot: 'bg-amber-400' },
+    anchor:  { bg: 'bg-zinc-700/40',    border: 'border-zinc-500/20',   text: 'text-zinc-300',   dot: 'bg-zinc-500' },
+    meal:    { bg: 'bg-orange-400/10',   border: 'border-orange-400/20', text: 'text-orange-200', dot: 'bg-orange-400' },
+    sleep:   { bg: 'bg-black/40',       border: 'border-white/[0.03]',  text: 'text-white/30',   dot: 'bg-white/10' },
+    break:   { bg: 'bg-transparent',    border: 'border-white/[0.04]',  text: 'text-white/40',   dot: 'bg-white/20' },
+    default: { bg: 'bg-violet-400/12',  border: 'border-violet-400/20', text: 'text-violet-200', dot: 'bg-violet-400' },
 };
 
 function getBlockColors(block: any) {
@@ -40,16 +41,17 @@ function getBlockColors(block: any) {
     return PILLAR_COLORS[pillar] || PILLAR_COLORS.default;
 }
 
-// Status overlay
 const STATUS_STYLES: Record<string, string> = {
     done: 'opacity-60',
     missed: 'opacity-40',
-    cancelled: 'opacity-30 line-through',
+    cancelled: 'opacity-30',
 };
 
-export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick }: WeekGridProps) {
+export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick, viewMode = 'week' }: WeekGridProps) {
     const weekStart = startOfWeek(date, { weekStartsOn: 1 });
-    const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+    const days = viewMode === 'week'
+        ? Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+        : [date]; // Day view = single column
     const gridRef = useRef<HTMLDivElement>(null);
 
     // Current time marker
@@ -60,7 +62,7 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
         const updateTime = () => {
             const now = new Date();
             const minutes = now.getHours() * 60 + now.getMinutes();
-            setNowTop(((minutes - 6 * 60) / 60) * CELL_HEIGHT); // offset by start hour (6am)
+            setNowTop(((minutes - 6 * 60) / 60) * CELL_HEIGHT);
             const idx = days.findIndex(d => isSameDay(d, now));
             setNowDayIndex(idx);
         };
@@ -74,9 +76,9 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
         if (gridRef.current && nowTop > 0) {
             gridRef.current.scrollTo({ top: Math.max(0, nowTop - 200), behavior: 'smooth' });
         }
-    }, []);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Pre-compute layout per day (moved out of render loop to fix hooks violation)
+    // Pre-compute layout per day
     const dayLayouts = useMemo(() => {
         const layouts = new Map<number, Map<string, LayoutBlock>>();
         days.forEach((day, i) => {
@@ -92,10 +94,8 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
             const parts = (over.id as string).split('-');
             const dayIndex = parseInt(parts[1]);
             const hour = parseInt(parts[2]);
-
             const targetDate = format(days[dayIndex], 'yyyy-MM-dd');
             const targetStart = `${hour.toString().padStart(2, '0')}:00`;
-
             const block = blocks.find(b => b.id === active.id);
             if (block) {
                 const duration = differenceInMinutes(
@@ -105,18 +105,13 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                 const endDateObj = new Date(`2000-01-01T${targetStart}`);
                 endDateObj.setMinutes(endDateObj.getMinutes() + duration);
                 const targetEnd = format(endDateObj, 'HH:mm');
-
                 onBlockMove(active.id as string, targetDate, targetStart, targetEnd);
             }
         }
     };
 
     const sensors = useSensors(
-        useSensor(PointerSensor, {
-            activationConstraint: {
-                distance: 5, // minimum drag distance before turning into a drag, preserves onClick
-            },
-        })
+        useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
     );
 
     return (
@@ -124,43 +119,38 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
             <div className="h-full overflow-y-auto relative no-scrollbar" ref={gridRef}>
 
                 {/* Day Headers */}
-                <div className="sticky top-0 z-20 flex border-b border-white/[0.05] bg-black/99 backdrop-blur-2xl pt-2 pb-2">
-                    <div className="w-14 shrink-0 border-r border-white/[0.03]" />
+                <div className="sticky top-0 z-20 flex border-b border-white/[0.06] bg-black/95 backdrop-blur-xl">
+                    <div className="w-14 shrink-0 border-r border-white/[0.04]" />
                     {days.map((day, i) => {
                         const isToday = isSameDay(day, new Date());
                         const dayBlocks = blocks.filter(b => isSameDay(new Date(b.date), day));
                         const done = dayBlocks.filter(b => b.status === 'done').length;
                         return (
                             <div key={i} className={cn(
-                                "flex-1 min-w-[110px] text-center border-r border-white/[0.03] last:border-r-0 transition-colors flex flex-col items-center justify-center gap-1.5 relative",
+                                "flex-1 text-center py-3 border-r border-white/[0.04] last:border-r-0 transition-colors relative",
+                                viewMode === 'day' ? 'min-w-0' : 'min-w-[110px]'
                             )}>
-                                {/* Active Day Indicator background gradient */}
-                                {isToday && (
-                                    <div className="absolute inset-x-0 bottom-[-8px] top-full h-screen bg-white/[0.02] pointer-events-none -z-10" />
-                                )}
-
-                                <div className={cn("px-4 py-1.5 rounded-xl border flex flex-col items-center w-[72px]",
-                                    isToday ? "bg-white/10 border-white/20 shadow-md" : "border-transparent text-white/50"
-                                )}>
-                                    <div className={cn("text-[22px] font-bold leading-none tracking-tight", isToday ? "text-white" : "")}>
-                                        {format(day, 'd')}
-                                    </div>
-                                    <div className={cn("text-[9px] uppercase font-bold tracking-widest mt-1", isToday ? "text-white/80" : "text-white/30")}>
+                                <div className="flex flex-col items-center gap-1">
+                                    <div className={cn(
+                                        "text-[10px] uppercase font-bold tracking-widest",
+                                        isToday ? "text-orange-400" : "text-white/30"
+                                    )}>
                                         {format(day, 'EEE')}
                                     </div>
+                                    <div className={cn(
+                                        "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all",
+                                        isToday ? "bg-orange-500 text-black" : "text-white/70"
+                                    )}>
+                                        {format(day, 'd')}
+                                    </div>
+                                    {dayBlocks.length > 0 && (
+                                        <div className="text-[9px] text-white/30 font-mono">
+                                            <span className={done === dayBlocks.length ? "text-emerald-400/70" : ""}>
+                                                {done}/{dayBlocks.length}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
-
-                                {/* Teacher/Stats Row Replacement */}
-                                {dayBlocks.length > 0 ? (
-                                    <div className="text-[9px] text-white/40 font-mono flex items-center gap-1">
-                                        <div className={cn("w-1.5 h-1.5 rounded-full", done === dayBlocks.length ? "bg-emerald-500" : "bg-emerald-500/50")} />
-                                        <span className={done === dayBlocks.length ? "text-emerald-400/80" : ""}>{done}/{dayBlocks.length} DONE</span>
-                                    </div>
-                                ) : (
-                                    <div className="text-[9px] text-white/20 font-mono">
-                                        Open Day
-                                    </div>
-                                )}
                             </div>
                         );
                     })}
@@ -170,10 +160,11 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                 <div className="flex relative" style={{ minHeight: HOURS.length * CELL_HEIGHT }}>
 
                     {/* Time Column */}
-                    <div className="w-14 shrink-0 border-r border-white/[0.03]">
+                    <div className="w-14 shrink-0 border-r border-white/[0.04]">
                         {HOURS.map(h => (
-                            <div key={h} className="border-b border-white/5 text-[10px] text-white/20 text-right pr-2 pt-1 font-mono" style={{ height: CELL_HEIGHT }}>
-                                {h === 12 ? '12p' : h > 12 ? `${h - 12}p` : `${h}a`}
+                            <div key={h} className="border-b border-white/[0.03] text-[10px] text-white/20 text-right pr-2 pt-1 font-mono"
+                                style={{ height: CELL_HEIGHT }}>
+                                {h === 0 ? '12a' : h < 12 ? `${h}a` : h === 12 ? '12p' : `${h - 12}p`}
                             </div>
                         ))}
                     </div>
@@ -186,8 +177,9 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
 
                         return (
                             <div key={dayIndex} className={cn(
-                                "flex-1 min-w-[110px] border-r border-white/[0.03] last:border-r-0 relative",
-                                isToday && "bg-[var(--color-primary)]/[0.015]"
+                                "flex-1 border-r border-white/[0.04] last:border-r-0 relative",
+                                viewMode === 'day' ? 'min-w-0' : 'min-w-[110px]',
+                                isToday && "bg-orange-500/[0.02]"
                             )}>
                                 {/* Hour Droppables */}
                                 {HOURS.map(h => (
@@ -203,10 +195,9 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                                 {dayBlocks.map(block => {
                                     const layout = layoutMap.get(block.id);
                                     if (!layout) return null;
-                                    // Adjust layout top for the start-hour offset
                                     const adjustedLayout = {
                                         ...layout,
-                                        top: layout.top - (6 * CELL_HEIGHT) // offset since we start at 6am
+                                        top: layout.top - (6 * CELL_HEIGHT)
                                     };
                                     return (
                                         <BlockCard
@@ -214,21 +205,23 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                                             block={block}
                                             layout={adjustedLayout}
                                             onClick={() => onBlockSelect(block)}
+                                            isDayView={viewMode === 'day'}
                                         />
                                     );
                                 })}
 
-                                {/* Current Time Line */}
+                                {/* Current Time Line — orange */}
                                 {dayIndex === nowDayIndex && nowTop > 0 && (
                                     <div
-                                        className="absolute left-[-56px] right-0 z-30 pointer-events-none flex items-center pr-2"
+                                        className="absolute left-[-56px] right-0 z-30 pointer-events-none flex items-center"
                                         style={{ top: nowTop - 6 }}
                                     >
-                                        <div className="w-14 text-[10px] text-red-500 font-bold text-right pr-2 shrink-0">
-                                            {format(new Date(), 'HH:mm')} ►
+                                        <div className="w-14 text-[10px] text-orange-500 font-bold text-right pr-2 shrink-0">
+                                            {format(new Date(), 'HH:mm')}
                                         </div>
-                                        <div className="flex-1 relative">
-                                            <div className="h-[2px] bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.5)] w-full" />
+                                        <div className="flex-1 relative flex items-center">
+                                            <div className="w-2 h-2 rounded-full bg-orange-500 -ml-1 shrink-0" />
+                                            <div className="flex-1 h-[2px] bg-orange-500/80 shadow-[0_0_8px_rgba(249,115,22,0.5)]" />
                                         </div>
                                     </div>
                                 )}
@@ -242,21 +235,17 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
 }
 
 function DroppableHour({ dayIndex, hour, onClick }: { dayIndex: number; hour: number; onClick?: () => void }) {
-    const { setNodeRef, isOver } = useDroppable({
-        id: `cell-${dayIndex}-${hour}`,
-    });
-
+    const { setNodeRef, isOver } = useDroppable({ id: `cell-${dayIndex}-${hour}` });
     return (
         <div
             ref={setNodeRef}
             onClick={onClick}
             className={cn(
                 "border-b border-white/[0.03] transition-colors cursor-pointer group",
-                isOver ? "bg-[var(--color-primary)]/10" : "hover:bg-white/[0.01]"
+                isOver ? "bg-orange-500/10" : "hover:bg-white/[0.02]"
             )}
             style={{ height: CELL_HEIGHT }}
         >
-            {/* Plus icon on hover */}
             <div className="opacity-0 group-hover:opacity-100 flex items-center justify-center h-full transition-opacity">
                 <Plus className="w-3 h-3 text-white/15" />
             </div>
@@ -264,7 +253,7 @@ function DroppableHour({ dayIndex, hour, onClick }: { dayIndex: number; hour: nu
     );
 }
 
-function BlockCard({ block, layout, onClick }: { block: any; layout: LayoutBlock; onClick: () => void }) {
+function BlockCard({ block, layout, onClick, isDayView }: { block: any; layout: LayoutBlock; onClick: () => void; isDayView?: boolean }) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: block.id,
         disabled: block.is_locked || block.block_type === 'anchor' || block.block_type === 'sleep'
@@ -276,16 +265,16 @@ function BlockCard({ block, layout, onClick }: { block: any; layout: LayoutBlock
 
     const widthPercent = 100 / layout.totalCols;
     const leftPercent = widthPercent * layout.colIndex;
-    const gap = 2;
+    const gap = isDayView ? 4 : 2;
 
     const style: React.CSSProperties = transform ? {
         transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
         zIndex: 50,
-        width: '180px',
+        width: isDayView ? '300px' : '180px',
         height: `${layout.height}px`
     } : {
         top: `${layout.top}px`,
-        height: `${Math.max(layout.height, 24)}px`, // slightly larger min-height for text
+        height: `${Math.max(layout.height, 28)}px`,
         left: `calc(${leftPercent}% + ${gap}px)`,
         width: `calc(${widthPercent}% - ${gap * 2}px)`
     };
@@ -293,26 +282,27 @@ function BlockCard({ block, layout, onClick }: { block: any; layout: LayoutBlock
     return (
         <motion.div
             ref={setNodeRef}
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.97 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={transform ? { duration: 0 } : { type: 'spring', stiffness: 400, damping: 30 }}
             style={style}
             {...listeners}
             {...attributes}
-            onClick={(e) => { if (!isDragging) onClick(); }}
+            onClick={() => { if (!isDragging) onClick(); }}
             className={cn(
-                "absolute rounded-[6px] overflow-hidden cursor-pointer flex flex-col",
-                "hover:brightness-110 hover:shadow-xl hover:z-20 group ring-1",
-                isDragging ? "opacity-60 z-50 shadow-2xl ring-2 ring-white/30" : "ring-white/[0.05]",
-                colors.bg, colors.border, colors.styleClasses,
+                "absolute rounded-lg overflow-hidden cursor-pointer flex flex-col",
+                "hover:brightness-110 hover:shadow-xl hover:z-20 group border",
+                isDragging ? "opacity-60 z-50 shadow-2xl ring-2 ring-orange-400/50" : "",
+                colors.bg, colors.border,
                 STATUS_STYLES[block.status] || '',
                 "backdrop-blur-sm transition-shadow duration-300"
             )}
         >
-            <div className="p-2 h-full flex flex-col relative z-10">
+            <div className="p-2.5 h-full flex flex-col relative z-10">
                 <div className="flex items-start justify-between gap-1.5">
                     <span className={cn(
-                        "text-[12px] font-bold leading-tight tracking-tight truncate flex-1",
+                        "text-[12px] font-bold leading-tight tracking-tight flex-1",
+                        isDayView ? "text-[13px]" : "",
                         colors.text,
                         isMissed && "line-through opacity-70"
                     )}>
@@ -322,20 +312,21 @@ function BlockCard({ block, layout, onClick }: { block: any; layout: LayoutBlock
                     {block.block_type === 'anchor' && <Lock className="w-3 h-3 text-white/30 shrink-0" />}
                 </div>
 
-                {layout.height > 40 && (
-                    <div className={cn("text-[10px] leading-tight mt-1 opacity-80 line-clamp-2", colors.text)}>
-                        {block.meta?.description || "Planned block for today."}
+                {/* Time display — always show in day view, or when block is tall enough */}
+                {(isDayView || layout.height > 35) && (
+                    <div className={cn("text-[10px] font-mono mt-0.5 opacity-60", colors.text)}>
+                        {block.start_time?.slice(0, 5)} - {block.end_time?.slice(0, 5)}
                     </div>
                 )}
 
                 {layout.height > 60 && (
-                    <div className="mt-auto pt-1 flex items-center justify-between border-t border-white/5">
-                        <div className={cn("text-[9px] font-mono tracking-widest uppercase truncate max-w-[70%]", colors.text, "opacity-60")}>
-                            {block.pillar ? block.pillar : 'GENERAL'}
+                    <div className="mt-auto pt-1 flex items-center justify-between border-t border-white/[0.04]">
+                        <div className={cn("text-[9px] font-bold uppercase tracking-wider truncate", colors.text, "opacity-50")}>
+                            {block.pillar || block.block_type || 'general'}
                         </div>
-                        <div className={cn("text-[9px] font-mono", colors.text, "opacity-50")}>
-                            {layout.height > 80 ? `${block.start_time?.slice(0, 5)} - ${block.end_time?.slice(0, 5)}` : ''}
-                        </div>
+                        {isDone && (
+                            <div className="text-[9px] text-emerald-400/60 font-bold">DONE</div>
+                        )}
                     </div>
                 )}
             </div>

@@ -40,7 +40,7 @@ export function AIInsightCard({ onDismiss, className = '' }: AIInsightCardProps)
                 return;
             }
 
-            if (data.success && data.data?.insight) {
+            if ((data.ok || data.success) && data.data?.insight) {
                 setInsight(data.data.insight);
             } else {
                 setError('No insight available');

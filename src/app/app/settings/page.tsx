@@ -33,7 +33,6 @@ export default function SettingsPage() {
     const router = useRouter();
     const supabase = createClient();
 
-    const [activeSection, setActiveSection] = useState<SectionId>('account');
     const [profile, setProfile] = useState<any>(null);
     const [preferences, setPreferences] = useState<ProfilePreferences | null>(null);
     const [unsavedChanges, setUnsavedChanges] = useState<Partial<ProfilePreferences>>({});
@@ -85,11 +84,8 @@ export default function SettingsPage() {
     const handleSignOut = async () => {
         setIsSigningOut(true);
         try {
-            // Sign out on the client (clears local session state + cookies via Supabase SSR)
             await supabase.auth.signOut();
-            // Also call server route to clear SSR cookies
             await fetch('/api/auth/logout', { method: 'POST' });
-            // Force full page navigation (not client-side) so Next.js middleware re-checks auth
             window.location.href = '/login';
         } catch (err) {
             toast.error('Failed to sign out');
@@ -99,74 +95,44 @@ export default function SettingsPage() {
 
     if (loading) {
         return (
-            <div className="flex h-screen items-center justify-center gap-3 text-[var(--text-tertiary)]">
+            <div className="flex w-full h-[60vh] items-center justify-center gap-3 text-[var(--text-tertiary)] bg-[var(--color-bg-primary)]">
                 <Loader2 className="w-5 h-5 animate-spin" />
-                <span className="text-sm">Loading settings...</span>
+                <span className="text-sm font-medium tracking-wide">Loading Neural OS settings...</span>
             </div>
         );
     }
 
     return (
-        <div className="flex h-[calc(100vh-64px)] overflow-hidden">
-            {/* Sidebar */}
-            <aside className="w-56 border-r border-[var(--glass-border)] bg-[var(--glass-bg)]/30 p-4 hidden md:flex flex-col gap-1">
-                <h1 className="text-base font-semibold px-3 mb-4 text-[var(--text-primary)]">Settings</h1>
-
-                {SECTIONS.map(s => (
-                    <button
-                        key={s.id}
-                        onClick={() => setActiveSection(s.id)}
-                        className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left ${
-                            activeSection === s.id
-                                ? 'bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
-                                : s.id === 'danger'
-                                    ? 'text-[var(--color-error)]/50 hover:text-[var(--color-error)] hover:bg-[var(--color-error)]/5'
-                                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--glass-bg)]'
-                        }`}
-                    >
-                        <s.icon className="w-4 h-4 flex-shrink-0" />
-                        {s.label}
-                    </button>
-                ))}
-
-                <div className="mt-auto pt-4 border-t border-[var(--glass-border)]">
-                    <button
-                        onClick={handleSignOut}
-                        disabled={isSigningOut}
-                        className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium
-                            text-[var(--color-error)]/60 hover:text-[var(--color-error)] hover:bg-[var(--color-error)]/5
-                            disabled:opacity-40 transition-all"
-                    >
-                        {isSigningOut
-                            ? <Loader2 className="w-4 h-4 animate-spin" />
-                            : <LogOut className="w-4 h-4" />}
-                        {isSigningOut ? 'Signing out...' : 'Sign Out'}
-                    </button>
+        <div className="w-full min-h-full">
+            <div className="max-w-6xl mx-auto py-8">
+                <div className="mb-8">
+                    <h1 className="text-3xl font-bold tracking-tight text-[var(--text-primary)]">Settings</h1>
+                    <p className="text-[var(--text-tertiary)] mt-1">Manage your account, preferences, and AI engine.</p>
                 </div>
-            </aside>
 
-            {/* Main content */}
-            <main className="flex-1 overflow-y-auto">
-                <div className="max-w-2xl mx-auto px-4 md:px-8 py-6 space-y-6 pb-32">
-                    {activeSection === 'account' && (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    {/* Left Column: Account & Danger */}
+                    <div className="lg:col-span-4 space-y-8">
                         <AccountSection
                             profile={profile}
                             onSignOut={handleSignOut}
                             isSigningOut={isSigningOut}
                         />
-                    )}
-                    {activeSection === 'schedule' && preferences && (
-                        <CoreConstraints preferences={preferences} onChange={handleUpdate} />
-                    )}
-                    {activeSection === 'ai' && preferences && (
-                        <AIControls preferences={preferences} onChange={handleUpdate} />
-                    )}
-                    {activeSection === 'commitments' && (
-                        <CommitmentsManager />
-                    )}
-                    {activeSection === 'danger' && (
                         <DangerZone />
-                    )}
+                    </div>
+
+                    {/* Right Column: Constraints, Commitments, AI */}
+                    <div className="lg:col-span-8 flex flex-col gap-8">
+                        {preferences && (
+                            <>
+                                <CoreConstraints preferences={preferences} onChange={handleUpdate} />
+                                <div className="border border-[var(--glass-border)] bg-[var(--glass-bg)] p-6 rounded-2xl">
+                                    <CommitmentsManager />
+                                </div>
+                                <AIControls preferences={preferences} onChange={handleUpdate} />
+                            </>
+                        )}
+                    </div>
                 </div>
 
                 {/* Floating Save Bar */}
@@ -205,21 +171,7 @@ export default function SettingsPage() {
                         </motion.div>
                     )}
                 </AnimatePresence>
-
-                {/* Mobile sign-out */}
-                <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 border-t border-[var(--glass-border)] bg-[var(--glass-bg)]/90 backdrop-blur-xl">
-                    <button
-                        onClick={handleSignOut}
-                        disabled={isSigningOut}
-                        className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-semibold
-                            text-[var(--color-error)] bg-[var(--color-error)]/5 border border-[var(--color-error)]/15
-                            hover:bg-[var(--color-error)]/10 disabled:opacity-50 transition-all"
-                    >
-                        {isSigningOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
-                        {isSigningOut ? 'Signing out...' : 'Sign Out'}
-                    </button>
-                </div>
-            </main>
+            </div>
         </div>
     );
 }

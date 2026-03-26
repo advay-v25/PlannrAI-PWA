@@ -5,8 +5,6 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOnboardingStore } from '@/stores';
 import { createClient } from '@/lib/supabase/client';
-import { GlassCard } from '@/components/ui/glass-card';
-import { GlassButton } from '@/components/ui/glass-button';
 import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
 
 // New Step Components
@@ -53,15 +51,17 @@ export default function OnboardingPage() {
             });
 
             const result = await response.json();
-            if (!response.ok || !result.success) {
-                throw new Error(result.error || `API Error: ${response.status}`);
+            // result is an ApiEnvelope: { ok: true, data: {...}, error?: {...} }
+            if (!response.ok || !result.ok) {
+                const errorMsg = result.error?.message || result.error || `API Error: ${response.status}`;
+                throw new Error(errorMsg);
             }
 
             // Mark session as complete client-side too
             await supabase.auth.updateUser({ data: { onboarding_complete: true } });
 
             reset();
-            router.push('/app?setup=complete');
+            router.push('/app/calendar?setup=complete');
 
         } catch (err: any) {
             console.error('Onboarding finalization failed:', err);
@@ -73,7 +73,7 @@ export default function OnboardingPage() {
 
     const validateStep = () => {
         if (currentStepDef.id === 'identity' && !data.full_name) return false;
-        if (currentStepDef.id === 'goals' && data.goals.length === 0) return false;
+        if (currentStepDef.id === 'goals' && (!data.goals || data.goals.length === 0)) return false;
         // Other steps are optional or have defaults
         return true;
     };
@@ -93,93 +93,118 @@ export default function OnboardingPage() {
     };
 
     return (
-        <div className="min-h-screen relative flex flex-col items-center justify-center p-4 overflow-hidden bg-black text-white selection:bg-[var(--color-primary)] selection:text-white">
+        <div className="min-h-screen relative flex flex-col items-center justify-center p-4 overflow-hidden bg-[#050505] text-white selection:bg-white/30 selection:text-white font-[family-name:var(--font-geist-sans)]">
             
-            {/* Immersive Background */}
-            <div className="absolute inset-0 z-0">
-                <div className="absolute top-[-20%] left-[-10%] w-[70vw] h-[70vw] rounded-full bg-purple-900/20 blur-[120px]" />
-                <div className="absolute bottom-[-20%] right-[-10%] w-[60vw] h-[60vw] rounded-full bg-orange-900/20 blur-[100px]" />
-                <div className="absolute top-[40%] left-[50%] transform -translate-x-1/2 w-[50vw] h-[50vw] rounded-full bg-teal-900/10 blur-[150px]" />
-                <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-5" />
+            {/* Mesh Gradient Ambient Background */}
+            <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none flex items-center justify-center">
+                <div className="absolute w-[800px] h-[800px] rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.03)_0%,transparent_70%)] animate-pulse" style={{ animationDuration: '8s' }} />
+                <div className="absolute top-[-20%] left-[-10%] w-[60vw] h-[60vw] rounded-full bg-[radial-gradient(circle,rgba(120,119,198,0.15)_0%,transparent_60%)] blur-[100px]" />
+                <div className="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-[radial-gradient(circle,rgba(255,100,100,0.1)_0%,transparent_60%)] blur-[100px]" />
+                <div className="absolute inset-0 bg-[url('/noise.svg')] opacity-[0.015] mix-blend-overlay" />
             </div>
 
-            <div className="relative z-10 w-full max-w-2xl flex flex-col items-center">
+            <div className="relative z-10 w-full max-w-3xl flex flex-col items-center min-h-[700px] py-10">
 
                 {/* Minimalist Progress Header */}
-                <div className="w-full flex items-center justify-between mb-8 px-2 text-[10px] font-mono uppercase tracking-widest text-[var(--color-text-tertiary)] opacity-60">
-                    <span className="flex items-center gap-2">
-                        <span className="text-[var(--color-primary)]">CORE_SEQ</span> {currentStep + 1}/{STEPS.length}
-                    </span>
-                    <span className="flex gap-1">
-                        {STEPS.map((_, i) => (
-                            <div key={i} className={`w-3 h-0.5 rounded-full ${i <= currentStep ? 'bg-[var(--color-primary)]' : 'bg-white/10'}`} />
-                        ))}
-                    </span>
-                    <span>{currentStepDef.title}</span>
+                <div className="w-full flex justify-center mb-12 px-2">
+                    <div className="flex items-center justify-between w-full max-w-md bg-white/[0.03] border border-white/[0.08] px-6 py-3.5 rounded-full backdrop-blur-xl shadow-2xl">
+                        <span className="text-[10px] font-bold font-mono uppercase tracking-widest text-white/40 w-16 text-left">
+                            <span className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">S_{currentStep + 1}</span>/{STEPS.length}
+                        </span>
+                        
+                        <div className="flex gap-2">
+                            {STEPS.map((_, i) => (
+                                <div 
+                                    key={i} 
+                                    className={`h-1.5 rounded-full transition-all duration-700 ease-in-out ${
+                                        i === currentStep 
+                                            ? 'w-8 bg-white shadow-[0_0_12px_rgba(255,255,255,0.9)]' 
+                                            : i < currentStep 
+                                                ? 'w-4 bg-white/40' 
+                                                : 'w-2 bg-white/10'
+                                    }`} 
+                                />
+                            ))}
+                        </div>
+
+                        <span className="text-[10px] font-bold font-mono uppercase tracking-widest text-white/40 w-16 text-right truncate">
+                            {currentStepDef.title}
+                        </span>
+                    </div>
                 </div>
 
                 {/* Main Content Area */}
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={currentStep}
-                        initial={{ opacity: 0, scale: 0.98, y: 10 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 1.02, y: -10 }}
-                        transition={{ duration: 0.3, ease: "easeOut" }}
-                        className="w-full"
+                        initial={{ opacity: 0, scale: 0.96, y: 15, filter: 'blur(10px)' }}
+                        animate={{ opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
+                        exit={{ opacity: 0, scale: 1.04, y: -15, filter: 'blur(10px)' }}
+                        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                        className="w-full flex-grow flex flex-col items-center"
                     >
-                        <GlassCard variant="glow" padding="lg" className="w-full min-h-[500px] flex flex-col justify-start border-[var(--glass-border)]/30 backdrop-blur-3xl">
+                        <div className="w-full filter drop-shadow-2xl flex-grow flex flex-col justify-center">
                             {CurrentStepComponent && <CurrentStepComponent />}
 
-                            {error && (
-                                <motion.p
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    className="mt-6 text-xs text-red-500 text-center font-mono uppercase tracking-tighter"
-                                >
-                                    SYSTEM_ALERT: {error}
-                                </motion.p>
-                            )}
-                        </GlassCard>
+                            <AnimatePresence>
+                                {error && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                        className="mt-8 mx-auto self-center bg-red-500/10 border border-red-500/30 px-6 py-3 rounded-2xl backdrop-blur-md shadow-[0_0_20px_rgba(239,68,68,0.15)]"
+                                    >
+                                        <p className="text-[10px] text-red-400 text-center font-bold tracking-widest font-mono uppercase">
+                                            {error}
+                                        </p>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
                     </motion.div>
                 </AnimatePresence>
 
                 {/* Floating Navigation */}
-                <div className="flex items-center gap-6 mt-8 w-full justify-between max-w-md px-4">
+                <div className="flex items-center gap-6 mt-16 w-full justify-between max-w-lg px-6 fixed bottom-8 lg:relative border-t border-white/5 pt-8 backdrop-blur-md lg:backdrop-blur-none lg:border-t-0 lg:pt-0 pb-6 lg:pb-0 z-50">
                     <button
                         onClick={prevStep}
                         disabled={isFirstStep || isSaving}
                         className={`
-                            group flex items-center gap-2 text-xs font-bold transition-all font-mono tracking-widest
+                            group flex items-center gap-2 text-[10px] uppercase font-bold transition-all duration-300 font-mono tracking-widest px-4 py-3 rounded-xl border border-transparent hover:border-white/10 hover:bg-white/5
                             ${(isFirstStep || isSaving)
                                 ? 'opacity-0 pointer-events-none'
-                                : 'text-[var(--color-text-secondary)] hover:text-white'
+                                : 'text-white/40 hover:text-white'
                             }
                         `}
                     >
-                        <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
-                        <span>PREV_STEP</span>
+                        <ArrowLeft className="w-4 h-4 transition-transform duration-300 group-hover:-translate-x-1 border-[1.5px] rounded-full p-0.5" />
+                        <span>PREV</span>
                     </button>
 
-                    <GlassButton
+                    <button
                         onClick={handleNext}
-                        variant="primary"
                         disabled={isSaving}
-                        className="px-10 py-6 rounded-2xl text-base font-black font-mono shadow-[0_0_20px_rgba(var(--color-primary-rgb),0.3)] hover:scale-105 active:scale-95 transition-all"
+                        className="group relative px-10 py-4 md:py-5 rounded-full text-sm font-black tracking-widest uppercase text-black bg-white hover:scale-105 active:scale-95 transition-all duration-300 shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-[0_0_40px_rgba(255,255,255,0.4)] disabled:opacity-50 disabled:pointer-events-none overflow-hidden"
                     >
+                        {/* Shimmer effect */}
+                        <div className="absolute inset-0 block w-full h-full transform -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/50 to-transparent" />
+                        
                         {isSaving ? (
-                            <div className="flex items-center gap-2">
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                <span>INITIALIZING...</span>
+                            <div className="flex items-center justify-center gap-3 relative z-10 w-[140px]">
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                                <span className="font-mono text-xs">PROCESSING...</span>
                             </div>
                         ) : isLastStep ? (
-                            <span>ACTIVATE OS</span>
+                            <span className="relative z-10 px-4">ACTIVATE OS</span>
                         ) : (
-                            <span className="flex items-center gap-2 tracking-tighter">
-                                NEXT_SEQUENCE <ArrowRight className="w-4 h-4" />
+                            <span className="flex items-center justify-center gap-3 relative z-10 w-[140px]">
+                                <span>NEXT</span>
+                                <div className="bg-black/10 rounded-full p-1 transition-transform duration-300 group-hover:translate-x-1">
+                                    <ArrowRight className="w-4 h-4 ml-0.5" />
+                                </div>
                             </span>
                         )}
-                    </GlassButton>
+                    </button>
                 </div>
             </div>
         </div>

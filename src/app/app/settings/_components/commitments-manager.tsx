@@ -81,12 +81,14 @@ export default function CommitmentsManager() {
         }
         resetForm();
         loadCommitments();
+        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('calendar-refresh'));
     };
 
     const handleDelete = async (id: string) => {
         await supabase.from('commitments').update({ is_active: false }).eq('id', id);
         toast.success('Commitment removed');
         loadCommitments();
+        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('calendar-refresh'));
     };
 
     const startEdit = (c: Commitment) => {
@@ -94,7 +96,7 @@ export default function CommitmentsManager() {
         setTitle(c.title);
         setStartTime(c.start_time);
         setEndTime(c.end_time);
-        setDays(c.recurrence_days.map(d => {
+        setDays((c.recurrence_days || []).map(d => {
             const entry = Object.entries(DAY_MAP).find(([, v]) => v === d);
             return entry ? entry[0] : d;
         }));
@@ -215,7 +217,7 @@ export default function CommitmentsManager() {
                                 </div>
                                 <div className="mt-1.5 space-y-0.5">
                                     <p className="text-xs text-white/40">
-                                        {c.recurrence_days.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ')}
+                                        {(c.recurrence_days || []).map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ')}
                                     </p>
                                     <p className="text-xs text-white/40">
                                         {c.start_time} - {c.end_time}

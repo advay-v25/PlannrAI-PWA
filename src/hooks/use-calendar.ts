@@ -178,17 +178,17 @@ export function useCalendar() {
     const deleteBlock = async (id: string) => {
         // Check if this is a virtual anchor block
         if (id.startsWith('virt-cmt-')) {
-            // Extract the commitment ID: "virt-cmt-{commitmentId}-{date}"
-            const parts = id.replace('virt-cmt-', '').split('-');
-            // UUID is everything except the last part (date)
-            const commitmentId = parts.slice(0, -3).join('-');
-            // The date is the last three parts joined with -
-            // Actually the format is virt-cmt-{uuid}-{yyyy}-{mm}-{dd}
-            // UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (5 groups)
-            // So we need to extract properly
+            // Format: virt-cmt-{uuid}-{yyyy-mm-dd}
+            // UUID is 36 chars (8-4-4-4-12), date is 10 chars (yyyy-mm-dd)
+            // Use regex to extract reliably
+            const match = id.match(/^virt-cmt-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-(\d{4}-\d{2}-\d{2})$/);
+            if (match) {
+                const cmtId = match[1];
+                await deleteCommitment(cmtId);
+                return;
+            }
+            // Fallback: try extracting by slicing off the last 10 chars (date)
             const fullSuffix = id.replace('virt-cmt-', '');
-            // Find the date at the end (yyyy-mm-dd = 10 chars)
-            const dateStr = fullSuffix.slice(-10);
             const cmtId = fullSuffix.slice(0, -(10 + 1)); // -1 for the dash before date
             await deleteCommitment(cmtId);
             return;
@@ -264,10 +264,36 @@ export function useCalendar() {
     };
 
     // AI: Optimize Day
+    // When schedule is empty → auto-route to generate-today for a full plan
     const optimizeDay = async (focus?: string) => {
         setIsOptimizing(true);
         try {
             const dateStr = format(selectedDate, 'yyyy-MM-dd');
+
+            // If today has no blocks, generate a full plan instead of "optimizing" nothing
+            const todayBlocks = state.blocks.filter(b =>
+                b.date === dateStr && b.block_type !== 'anchor' && !b.id?.startsWith('virt-cmt-')
+            );
+
+            if (todayBlocks.length === 0) {
+                // Route to generate-today for a comprehensive plan
+                const res: any = await apiClient.post('/api/calendar/generate-today', {
+                    date: dateStr,
+                    force: true,
+                });
+                return {
+                    analysis: {
+                        energy_state: 'ready',
+                        schedule_health: 'empty — generating full plan',
+                        recommendation: 'Your day has been planned from scratch with AI',
+                    },
+                    options: res.options || [],
+                    warnings: res.warnings || [],
+                    note: res.plan_summary,
+                };
+            }
+
+            // Normal optimize (existing blocks)
             const res: any = await apiClient.schedule.optimizeDay({ date: dateStr, focus });
 
             return {
@@ -292,23 +318,41 @@ export function useCalendar() {
             const createOps = ops.filter((o: any) => o.op === 'create_event' || o.op === 'create');
             const addBlocks = createOps.map((o: any) => o.payload || o.event || {});
 
+            const updateOps = ops.filter((o: any) => o.op === 'update_event' || o.op === 'move_event');
+            const formattedUpdates = updateOps.map((o: any) => ({
+                id: o.event_id || o.block_id,
+                changes: o.fields || (o.to_start ? { start_time: o.to_start, end_time: o.to_end } : {})
+            }));
+
+            const deleteOps = ops.filter((o: any) => o.op === 'delete_event' || o.op === 'delete');
+            const removeIds = deleteOps.map((o: any) => o.event_id || o.block_id);
+
             // Determine affected date range
             const dates = [...new Set(addBlocks.map((b: any) => b.date).filter(Boolean))] as string[];
             const uniqueDates = dates.sort();
             const isSingleDay = uniqueDates.length <= 1;
 
+            // "today_schedule" is from generate-today. "balanced" / "momentum" / "recovery" are from plan-week.
+            const isFullReplacement = ['today_schedule', 'balanced', 'momentum', 'recovery'].includes(option.id);
+
             // For single-day operations, use clear_date; for multi-day, use clear_week
             const body: any = {
                 action: isSingleDay ? 'optimize_day' : 'plan_week',
                 variant_id: option.id,
-                patch: { add: addBlocks },
+                patch: { 
+                    add: addBlocks,
+                    update: formattedUpdates,
+                    remove: removeIds,
+                },
             };
 
-            if (isSingleDay) {
-                body.clear_date = uniqueDates[0] || format(selectedDate, 'yyyy-MM-dd');
-            } else {
-                body.clear_week = true;
-                body.week_start = uniqueDates[0] || format(startOfWeek(selectedDate, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+            if (isFullReplacement) {
+                if (isSingleDay) {
+                    body.clear_date = uniqueDates[0] || format(selectedDate, 'yyyy-MM-dd');
+                } else {
+                    body.clear_week = true;
+                    body.week_start = uniqueDates[0] || format(startOfWeek(selectedDate, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+                }
             }
 
             // Use apply-schedule endpoint

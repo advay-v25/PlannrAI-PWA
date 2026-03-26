@@ -70,7 +70,7 @@ export function HabitStackCard({ stack, instances = [], onComplete, onDelete }: 
         try {
             const result = await habitStacksApi.complete(stack.id);
 
-            if (result.success && result.data) {
+            if (result.ok || result.success) {
                 updateStack(stack.id, sanitizeStack(result.data.stack));
 
                 // Show celebration for new records
@@ -206,7 +206,7 @@ export function CreateHabitStack({ goalId, onCreated, onCancel }: CreateHabitSta
                 action_duration_mins: duration,
             });
 
-            if (result.success && result.data?.stack) {
+            if ((result.ok || result.success) && result.data?.stack) {
                 const s = sanitizeStack(result.data.stack);
                 addStack(s);
                 onCreated?.(s);
@@ -455,7 +455,7 @@ function CreateHabitStackWithAI({ onCreated, onCancel, todayBlocks = [], goals =
                 action_duration_mins: generatedStack.action_duration_mins ?? 5,
             });
 
-            if (result.success && result.data?.stack) {
+            if ((result.ok || result.success) && result.data?.stack) {
                 addStack(sanitizeStack(result.data.stack));
 
                 // 2. Apply calendar mutation if we have options
@@ -672,7 +672,7 @@ export function HabitStacksList({ todayBlocks = [], goals = [], onBlocksUpdated 
             try {
                 // Load Stacks
                 const result = await habitStacksApi.list();
-                if (result.success && result.data?.stacks) {
+                if ((result.ok || result.success) && result.data?.stacks) {
                     setStacks(result.data.stacks.map(sanitizeStack));
                 }
 

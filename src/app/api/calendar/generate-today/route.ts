@@ -3,7 +3,7 @@ import { buildCalendarContext } from '@/lib/calendar/context-builder';
 import { callAI } from '@/lib/ai/unified-client';
 import { format } from 'date-fns';
 
-export const maxDuration = 45;
+export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
 export const POST = secureApiRoute(
@@ -123,8 +123,8 @@ CORE PRINCIPLES:
 4. Schedule LIGHT/ADMIN blocks after lunch (1pm–3pm) when energy dips
 5. Schedule BODY/EXERCISE in late afternoon (4pm–6pm) for energy renewal
 6. Every block MUST have a concrete checklist of 2-4 specific action steps
-7. Include meals: Breakfast (~30min), Lunch (~45min), Dinner (~45min)
-8. Include 10-15min buffer/transition blocks between different activity types
+7. Include meals AT REALISTIC TIMES: Breakfast (~30m), Lunch (~45m around 12:30-13:30), Dinner (~45m around 18:30-19:30). DO NOT schedule Dinner early at 18:00.
+8. Include 10-15min 'Buffer' blocks between distinct activities (e.g. Work and Workout)
 9. Morning Routine should include the user's habit stacks
 10. NEVER overlap with fixed commitments
 11. NEVER schedule ANYTHING within 30 minutes before or after a fixed commitment — this is travel/transition time. Leave those slots EMPTY.
@@ -225,7 +225,8 @@ IMPORTANT:
                 temperature: 0.6,
                 maxTokens: 4000,
                 requireJSON: true,
-                timeout: 35000,
+                timeout: 55000,
+                calendarKey: true,
             });
 
             let blocks: any[];

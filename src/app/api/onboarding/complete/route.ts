@@ -59,7 +59,7 @@ export const POST = secureApiRoute(
 
         // 2. Insert Commitments (Anchors)
         if (commitments && commitments.length > 0) {
-            const { error: commitmentsError } = await supabase
+            const { error: commitmentsError, data: insertedComms } = await supabase
                 .from('commitments')
                 .insert(commitments.map((c: any) => ({
                     user_id: effectiveUserId,
@@ -68,10 +68,26 @@ export const POST = secureApiRoute(
                     end_time: c.end_time,
                     days_of_week: c.days_of_week,
                     is_active: true
-                })));
+                })))
+                .select();
 
             if (commitmentsError) {
                 console.error('Commitments insert failed:', commitmentsError);
+            } else if (insertedComms) {
+                try {
+                    const { AnchorService } = await import('@/lib/calendar/anchor-service');
+                    // Materialize for the next 21 days so the initial week generation sees them
+                    const startDate = new Date();
+                    const endDate = new Date(startDate);
+                    endDate.setDate(endDate.getDate() + 21);
+                    
+                    for (const comm of insertedComms) {
+                        await AnchorService.materialize(effectiveUserId, comm, startDate, endDate, supabase as any);
+                    }
+                    console.log(`Materialized ${insertedComms.length} commitments for user ${effectiveUserId}`);
+                } catch (matError) {
+                    console.error('Failed to materialize commitments:', matError);
+                }
             }
         }
 

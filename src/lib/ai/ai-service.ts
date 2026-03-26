@@ -5,7 +5,7 @@ import { JSONReliability } from '@/lib/ai/json-reliability';
 import { openRouterChat } from '@/lib/ai/openrouter-client';
 
 // --- Configuration ---
-const AI_TIMEOUT_MS = 30_000;
+const AI_TIMEOUT_MS = 45_000;
 const MAX_RETRIES = 1;
 const MAX_CONTEXT_CHARS = 30_000;
 
@@ -273,7 +273,7 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
             const aiResponse = await callAI<any>({
                 prompt: userMsg,
                 systemPrompt: systemMsg,
-                model: 'smart',
+                model: channelDef.config.tier || 'smart',
                 temperature: channelDef.config.temperature ?? 0.5,
                 maxTokens: channelDef.config.maxTokens ?? 4000,
                 requireJSON: false, // We handle JSON validation ourselves via JSONReliability

@@ -100,7 +100,7 @@ export function CoachChat({ onClose }: CoachChatProps) {
             });
 
             const data = await res.json();
-            if (data.success) {
+            if (data.ok || data.success) {
                 setAppliedOptionId(optionId);
                 setLastUndoToken(data.undo_token);
             }

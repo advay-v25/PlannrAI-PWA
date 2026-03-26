@@ -14,6 +14,7 @@ import {
 } from '@/lib/security/rate-limiter';
 import { logAuditEvent, logRateLimited, logSuspiciousActivity } from '@/lib/security/audit-logger';
 import { apiSuccess, apiError } from '@/lib/api/envelope';
+import { getSecurityHeaders, sanitizeError } from '@/lib/security/security-headers';
 
 export { apiSuccess, apiError };
 
@@ -63,8 +64,26 @@ export function secureApiRoute(
 
     return async (request: NextRequest): Promise<NextResponse> => {
         const ip = getClientIP(request);
+        const isDev = process.env.NODE_ENV === 'development';
         console.log(`[API HIT] ${request.method} ${request.nextUrl.pathname} ip=${ip}`);
 
+        // 0. CORS origin check (production only)
+        if (!isDev) {
+            const origin = request.headers.get('origin');
+            const allowedOrigins = [
+                process.env.NEXT_PUBLIC_APP_URL,
+                'https://plannrai.com',
+                'https://www.plannrai.com',
+            ].filter(Boolean);
+
+            if (origin && allowedOrigins.length > 0 && !allowedOrigins.includes(origin)) {
+                await logSuspiciousActivity(undefined, `Blocked cross-origin request from ${origin}`, request, {
+                    endpoint: request.url,
+                    origin,
+                });
+                return apiError('Forbidden', 403);
+            }
+        }
         try {
             // 1. Authentication check
             const supabase = await createClient();
@@ -134,7 +153,13 @@ export function secureApiRoute(
             // 5. Execute handler
             const response = await handler(context, body);
 
-            // 6. Log successful access
+            // 6. Apply security headers
+            const secHeaders = getSecurityHeaders();
+            for (const [key, value] of Object.entries(secHeaders)) {
+                response.headers.set(key, value);
+            }
+
+            // 7. Log successful access
             if (auditAction) {
                 await logAuditEvent({
                     userId: user?.id,
@@ -160,8 +185,10 @@ export function secureApiRoute(
                 error: error instanceof Error ? error.message : 'Unknown error',
             });
 
-            // TEMPORARY DEBUG: Expose internal errors
-            return apiError(`DEBUG ERROR: ${error instanceof Error ? error.message : 'Unknown error'}`, 500);
+            // Sanitize error for production — never expose internals
+            const safeMessage = sanitizeError(error, isDev);
+
+            return apiError(safeMessage, 500);
         }
     };
 }

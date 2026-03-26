@@ -25,8 +25,11 @@ const LIMITS = {
     // Per user limits
     user: { windowMs: 60 * 1000, maxRequests: 60 },     // 60 req/min per user
 
-    // AI endpoint limits (match Groq free tier)
-    ai: { windowMs: 60 * 1000, maxRequests: 25 },       // 25 req/min for AI
+    // AI endpoint limits (tightened to protect API keys)
+    ai: { windowMs: 60 * 1000, maxRequests: 15 },       // 15 req/min for AI
+
+    // AI burst protection (prevent rapid-fire abuse)
+    aiBurst: { windowMs: 10 * 1000, maxRequests: 5 },   // 5 req/10s for AI
 
     // Brain dump (less strict)
     brainDump: { windowMs: 60 * 1000, maxRequests: 10 },

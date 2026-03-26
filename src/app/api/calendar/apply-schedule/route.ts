@@ -194,6 +194,8 @@ export const POST = secureApiRoute(
                     user_id: userId,
                     status: b.status || 'planned',
                     block_type: normalizeBlockType(b.block_type || 'flex'),
+                    // Normalize pillar: lowercase and validate against DB constraint
+                    pillar: normalizePillar(b.pillar),
                 }));
 
                 if (blocks.length > 0) {
@@ -253,4 +255,13 @@ function normalizeBlockType(type: string): string {
     const allowed = ['anchor', 'goal', 'meal', 'buffer', 'routine', 'sleep', 'wind_down', 'flex'];
     if (allowed.includes(type)) return type;
     return map[type] || 'flex';
+}
+
+/** Normalizes pillar value to lowercase and validates against DB check constraint */
+function normalizePillar(pillar: string | null | undefined): string | null {
+    if (!pillar) return null;
+    const lower = pillar.toLowerCase();
+    const allowed = ['mind', 'body', 'craft', 'soul'];
+    if (allowed.includes(lower)) return lower;
+    return null; // Invalid pillar → null rather than failing the DB constraint
 }

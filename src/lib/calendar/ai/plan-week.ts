@@ -177,17 +177,18 @@ export async function generateWeekPlan(
 CRITICAL RULES:
 1. NEVER schedule during sleep hours (${context.user.sleep_start} to ${context.user.sleep_end})
 2. Wind-down starts at ${windDown} — NO work after this time
-3. NEVER schedule over existing commitments (they are LOCKED and FIXED)
-4. Include meals: Breakfast ~8:00 (30min), Lunch ~12:30 (45min), Dinner ~19:00 (45min)
-5. Add 15min buffers between different block types
-6. Distribute goals across Mon-Fri, don't cluster all on one day
-7. Weekend should be light or free
-8. Each goal block should be 30-90 minutes max
-9. All times in HH:MM format (24-hour)
-10. All dates in YYYY-MM-DD format
-11. FLOW STATE: NEVER schedule two goals of the SAME PILLAR consecutively. You MUST alternate pillars (e.g., MIND -> BODY -> CRAFT) or insert a BREAK/BUFFER to maintain flow.
-12. ZERO OVERLAP: NEVER allow multiple blocks to exist at the exact same start_time. Every block MUST have a distinct, non-overlapping time slot.
-13. CHECKLIST SYNC: For every 'goal' block you schedule, you MUST examine its provided 'AI Strategy' to generate a realistic 2-3 item 'checklist'. Extract the most immediate actionable steps from the strategy.
+3. DO NOT generate blocks for fixed commitments — they are managed separately as anchors and will appear automatically. Your job is to plan AROUND them, not recreate them.
+4. NEVER schedule over existing commitments — leave a 30-minute buffer before and after each commitment
+5. Include meals: Breakfast ~8:00 (30min), Lunch ~12:30 (45min), Dinner ~19:00 (45min)
+6. Add 15min buffers between different block types
+7. Distribute goals across Mon-Fri, don't cluster all on one day
+8. Weekend should be light or free
+9. Each goal block should be 30-90 minutes max
+10. All times in HH:MM format (24-hour)
+11. All dates in YYYY-MM-DD format
+12. FLOW STATE: NEVER schedule two goals of the SAME PILLAR consecutively. You MUST alternate pillars (e.g., MIND -> BODY -> CRAFT) or insert a BREAK/BUFFER to maintain flow.
+13. ZERO OVERLAP: NEVER allow multiple blocks to exist at the exact same start_time. Every block MUST have a distinct, non-overlapping time slot.
+14. CHECKLIST SYNC: For every 'goal' block you schedule, you MUST examine its provided 'AI Strategy' to generate a realistic 2-3 item 'checklist'. Extract the most immediate actionable steps from the strategy.
 
 You MUST return valid JSON with exactly 3 variants.`;
 
@@ -280,7 +281,8 @@ OUTPUT FORMAT (strict JSON):
         temperature: 0.8,
         maxTokens: 6000,
         requireJSON: true,
-        timeout: 30000,
+        timeout: 55000,
+        calendarKey: true,
     });
 
     if (!response.success || !response.data?.variants?.length) {
@@ -335,8 +337,32 @@ function cleanVariant(raw: any, ctx: CalendarContext, weekStart: string, index: 
             };
         });
 
+    // --- Filter out blocks that overlap with commitment time slots ---
+    // This is a safety net in case the AI generated commitment-like blocks
+    const commitmentOverlapFiltered = blocks.filter(b => {
+        const bStart = timeToMinutes(b.start_time);
+        const bEnd = timeToMinutes(b.end_time);
+        const dayOfWeek = new Date(b.date + 'T12:00:00').getDay();
+        const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
+
+        for (const cmt of ctx.commitments) {
+            if (!Array.isArray(cmt.days_of_week) || cmt.days_of_week.length === 0) continue;
+            if (!(cmt.days_of_week as any[]).includes(isoDay)) continue;
+
+            const cStart = timeToMinutes(cmt.start_time);
+            const cEnd = timeToMinutes(cmt.end_time);
+
+            // If block overlaps commitment (with 15 min buffer)
+            if (bStart < cEnd + 15 && bEnd > cStart - 15) {
+                console.log(`[PlanWeek] Removing AI block "${b.title}" (${b.start_time}-${b.end_time}) — overlaps commitment "${cmt.title}"`);
+                return false;
+            }
+        }
+        return true;
+    });
+
     // Enforce Flow State and Strict Overlaps
-    const flowBlocks = enforceFlowState(blocks, ctx.commitments);
+    const flowBlocks = enforceFlowState(commitmentOverlapFiltered, ctx.commitments);
 
     const totalMins = flowBlocks.reduce((sum, b) => {
         return sum + Math.max(0, timeToMinutes(b.end_time) - timeToMinutes(b.start_time));

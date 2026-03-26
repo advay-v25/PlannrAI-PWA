@@ -71,7 +71,7 @@ export async function optimizeDayAI(
 
     const goalsText = context.goals.length > 0
         ? context.goals.map(g =>
-            `  - ${g.title} (${g.pillar.toUpperCase()}, ${g.energy_demand} energy): ${g.minutes_per_day || 30}min/day, ID: ${g.id}`
+            `  - ${g.title} (${g.pillar.toUpperCase()}, ${g.energy_demand} energy): ${g.minutes_per_day || 30}min/day, ID: ${g.id}\n    AI Strategy: ${g.ai_strategy ? JSON.stringify(g.ai_strategy) : 'None'}`
         ).join('\n')
         : '  (No specific goals)';
 
@@ -98,8 +98,13 @@ CRITICAL RULES:
 3. Sleep starts at ${context.user.sleep_start} — everything must end before wind-down
 4. Generate exactly 2 optimization options. Each should be meaningfully different.
 5. You can use 'move_event' to shift blocks, 'delete_event' to cancel them, or 'create_event' to fill gaps.
-6. For 'create_event', payload must match: {"title":"...", "start_time":"HH:MM", "end_time":"HH:MM", "block_type":"focus|routine|meal", "goal_id":"...", "pillar":"..."}
-7. Use existing block IDs for move/delete operations
+6. For 'create_event', payload must match: {"title":"...", "start_time":"HH:MM", "end_time":"HH:MM", "block_type":"focus|routine|meal", "goal_id":"...", "pillar":"...", "checklist": [{"text": "Action item 1"}]}
+7. IMPORTANT REALISM RULES:
+   - Add 10-15 minute Buffer blocks between distinct activities (e.g. Work and Workout)
+   - Ensure Lunch is around 12:30-13:30 and Dinner is around 18:30-19:30. DO NOT schedule Dinner early at 18:00 or skip lunch
+   - If missing, generate 'Morning Routine' and 'Night Routine' blocks
+   - CHECKLIST SYNC: For every 'goal' block you create, you MUST examine its provided 'AI Strategy' to generate a realistic 2-3 item 'checklist'.
+8. Use existing block IDs for move/delete operations
 
 Return valid JSON only.`;
 
@@ -133,12 +138,12 @@ INSTRUCTIONS:
 ${focus === 'reduce_overwhelm' ? 'User feels overwhelmed. Remove non-essential blocks, add breaks. Do not schedule heavy goals.' :
             focus === 'maximize_output' ? 'User wants max productivity. Tighten schedule, fill gaps with focus blocks.' :
                 'Balance the schedule — ensure breaks, meals, and focus time are placed optimally until wind-down.'}
-Identify gaps in the schedule and CREATE routines (e.g., Afternoon Reset, Evening Routine), Meals, and Focus Blocks for the user's goals if they are missing.
+Identify gaps in the schedule and CREATE routines (e.g., Afternoon Reset, Night Routine), Meals (Lunch at 13:00, Dinner at 19:00), and Focus Blocks for the user's goals if they are missing. MUST add 15min 'Buffer' blocks between major activities.
 
 Generate 2 options:
 
-Option 1: "Realistic" — Keep essential blocks, defer or remove what won't fit, fill gaps with routines.
-Option 2: "Focused" — Prioritize the most important goals, simplify everything else, tightening gaps.
+Option 1: "Realistic" — Balanced plan with standard meal times and plenty of breaks.
+Option 2: "Focused" — Concentrated work/goals with minimal viable breaks.
 
 OUTPUT FORMAT (strict JSON):
 {
@@ -155,7 +160,7 @@ OUTPUT FORMAT (strict JSON):
       "tradeoff": "You'll miss the reading session but complete deep work",
       "ops": [
         {"op": "move_event", "event_id": "block-uuid", "to_start": "16:00", "to_end": "17:00"},
-        {"op": "create_event", "payload": {"title": "Evening Routine", "start_time": "19:00", "end_time": "20:00", "block_type": "routine", "goal_id": null, "pillar": null}},
+        {"op": "create_event", "payload": {"title": "Evening Routine", "start_time": "19:00", "end_time": "20:00", "block_type": "routine", "goal_id": null, "pillar": null, "checklist": [{"text": "Wind down"}]}},
         {"op": "delete_event", "event_id": "block-uuid"}
       ]
     }
@@ -169,7 +174,8 @@ OUTPUT FORMAT (strict JSON):
         temperature: 0.5,
         maxTokens: 4000,
         requireJSON: true,
-        timeout: 30000,
+        timeout: 55000,
+        calendarKey: true,
     });
 
     if (!response.success || !response.data) {

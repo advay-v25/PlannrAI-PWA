@@ -2,14 +2,15 @@ import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protect
 import { buildCalendarContext } from '@/lib/calendar/context-builder';
 import { optimizeDayAI } from '@/lib/calendar/ai/optimize-day';
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
 
 export const POST = secureApiRoute(
     async (context, body) => {
         try {
             const { userId, supabase } = context;
-            const { focus } = (body || {}) as { focus?: string };
+            const { focus, date } = (body || {}) as { focus?: string; date?: string };
+            const targetDate = date || new Date().toISOString().split('T')[0];
 
             // 1. Build context
             const calendarCtx = await buildCalendarContext(userId, supabase);
@@ -18,13 +19,19 @@ export const POST = secureApiRoute(
             const result = await optimizeDayAI(calendarCtx, focus);
 
             // 3. Convert options to frontend format (add patch wrapper)
+            // CRITICAL: inject target date into all create_event payloads
             const options = result.options.map(opt => ({
                 id: opt.id,
                 label: opt.label,
                 description: opt.description,
                 tradeoff: opt.tradeoff,
                 patch: {
-                    ops: opt.ops,
+                    ops: opt.ops.map(op => {
+                        if (op.op === 'create_event' && op.payload) {
+                            return { ...op, payload: { ...op.payload, date: targetDate } };
+                        }
+                        return op;
+                    }),
                     undoable: true,
                     reason: `Optimize Day: ${opt.label}`,
                 },
