@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Target, CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
 interface PrioritiesCardProps {
@@ -12,8 +13,13 @@ interface PrioritiesCardProps {
 
 export function PrioritiesCard({ priorities, tone }: PrioritiesCardProps) {
     const [checked, setChecked] = useState<Set<number>>(new Set());
+    const router = useRouter();
 
-    const toggleCheck = (index: number) => {
+    const handleClick = (index: number, text: string) => {
+        if (text.toLowerCase().includes('objective') || text.toLowerCase().includes('goal')) {
+            router.push('/app/goals');
+            return;
+        }
         setChecked(prev => {
             const next = new Set(prev);
             if (next.has(index)) next.delete(index);
@@ -59,7 +65,7 @@ export function PrioritiesCard({ priorities, tone }: PrioritiesCardProps) {
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.3 + i * 0.1 }}
-                        onClick={() => toggleCheck(i)}
+                        onClick={() => handleClick(i, priority)}
                         className={cn(
                             "w-full flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all",
                             checked.has(i)

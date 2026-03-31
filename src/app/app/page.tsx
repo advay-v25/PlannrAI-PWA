@@ -32,9 +32,10 @@ export default function HomePage() {
     const fetchHomeData = async () => {
         try {
             const today = new Date().toISOString().split('T')[0];
+            const timestamp = Date.now();
             const [summaryRes, stateRes] = await Promise.all([
-                fetch(`/api/home/summary?date=${today}`),
-                fetch(`/api/home/state?date=${today}`)
+                fetch(`/api/home/summary?date=${today}&t=${timestamp}`),
+                fetch(`/api/home/state?date=${today}&t=${timestamp}`)
             ]);
 
             if (summaryRes.ok) {

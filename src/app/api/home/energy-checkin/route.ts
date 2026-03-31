@@ -9,14 +9,34 @@ export const POST = secureApiRoute(
             return apiError('energy_level and emotional_state required', 400);
         }
 
-        const { error } = await supabase
+        const { data: existing } = await supabase
             .from('user_states')
-            .upsert({
-                user_id: userId,
-                energy_level: Math.min(5, Math.max(1, energy_level)),
-                emotional_state,
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'user_id' });
+            .select('id')
+            .eq('user_id', userId)
+            .maybeSingle();
+
+        let error;
+        if (existing?.id) {
+            const { error: updateErr } = await supabase
+                .from('user_states')
+                .update({
+                    energy_level: Math.min(5, Math.max(1, energy_level)),
+                    emotional_state,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', existing.id);
+            error = updateErr;
+        } else {
+            const { error: insertErr } = await supabase
+                .from('user_states')
+                .insert({
+                    user_id: userId,
+                    energy_level: Math.min(5, Math.max(1, energy_level)),
+                    emotional_state,
+                    updated_at: new Date().toISOString()
+                });
+            error = insertErr;
+        }
 
         if (error) {
             console.error('Energy checkin error:', error);

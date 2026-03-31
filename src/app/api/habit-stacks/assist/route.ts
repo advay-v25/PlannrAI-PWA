@@ -47,14 +47,12 @@ export const POST = secureApiRoute(
                     .from('habit_stacks')
                     .insert({
                         user_id: userId,
-                        name: stack.name,
                         trigger_habit: triggerStep,
                         action_habit: actionStep,
                         action_duration_mins: totalDuration,
-                        steps: stack.steps || [],
                         preferred_window: stack.schedule_hint?.time_of_day || 'morning',
-                        time_of_day: stack.schedule_hint?.time_of_day || 'morning',
                         enabled: true,
+                        is_active: true,
                         current_streak: 0,
                         longest_streak: 0
                     })

@@ -2,7 +2,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Sparkles, Play } from 'lucide-react';
+import { Sparkles, Play, RotateCcw } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 interface BriefingModuleProps {
@@ -49,6 +49,15 @@ export function BriefingModule({ briefing, isLoading, onGenerate }: BriefingModu
                         className="btn-ghost text-xs px-3 py-1.5 rounded-full hover:bg-white/10 transition-colors"
                     >
                         Generate
+                    </button>
+                )}
+                {briefing && !isLoading && (
+                    <button
+                        onClick={onGenerate}
+                        className="text-[10px] uppercase font-bold tracking-widest px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-colors flex items-center gap-1.5"
+                    >
+                        <RotateCcw className="w-3 h-3" />
+                        Refresh
                     </button>
                 )}
             </div>

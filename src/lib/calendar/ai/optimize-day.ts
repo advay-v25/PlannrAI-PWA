@@ -60,6 +60,22 @@ export async function optimizeDayAI(
     const currentMins = timeToMinutes(context.current.time);
     const windDown = calculateWindDown(context);
 
+    // ── Bio-Context ─────────────────────────────────────────────
+
+    const userEnergy = context.user.energy_level || 5;
+    const userStress = context.user.stress_level || 3;
+    const chronotype = context.user.chronotype || 'bear';
+    const mealsPerDay = context.user.meals_per_day || 3;
+    const mealWindows = context.user.meal_windows || {};
+
+    const chronotypeRules = chronotype === 'early_bird' || chronotype === 'lark'
+        ? 'EARLY BIRD: schedule deep work EARLY (7am-11am). Lighter tasks afternoon.'
+        : chronotype === 'night_owl' || chronotype === 'owl'
+            ? 'NIGHT OWL: schedule deep work LATE (11am-3pm, 4pm-8pm). Light mornings.'
+            : chronotype === 'wolf'
+                ? 'WOLF: peak productivity LATE (1pm-8pm). Easy mornings.'
+                : 'BEAR: deep work MID-MORNING (9am-12pm). Standard schedule.';
+
     // Filter to remaining blocks (not yet past, not done)
     const remainingBlocks = context.schedule.today.filter(b => {
         const blockStartMins = timeToMinutes(b.start_time);
@@ -105,6 +121,15 @@ CRITICAL RULES:
    - If missing, generate 'Morning Routine' and 'Night Routine' blocks
    - CHECKLIST SYNC: For every 'goal' block you create, you MUST examine its provided 'AI Strategy' to generate a realistic 2-3 item 'checklist'.
 8. Use existing block IDs for move/delete operations
+
+BIO-CONTEXT:
+- ${chronotypeRules}
+- User energy: ${userEnergy}/10, Stress: ${userStress}/10
+- Plan density should match energy level. HIGH stress = MORE breaks, FEWER goal blocks.
+- Meals per day: ${mealsPerDay}
+${(mealWindows as any)?.breakfast ? `- Breakfast window: ${(mealWindows as any).breakfast.start}–${(mealWindows as any).breakfast.end}` : ''}
+${(mealWindows as any)?.lunch ? `- Lunch window: ${(mealWindows as any).lunch.start}–${(mealWindows as any).lunch.end}` : ''}
+${(mealWindows as any)?.dinner ? `- Dinner window: ${(mealWindows as any).dinner.start}–${(mealWindows as any).dinner.end}` : ''}
 
 Return valid JSON only.`;
 
@@ -174,7 +199,7 @@ OUTPUT FORMAT (strict JSON):
         temperature: 0.5,
         maxTokens: 4000,
         requireJSON: true,
-        timeout: 55000,
+        timeout: 110000,
         calendarKey: true,
     });
 

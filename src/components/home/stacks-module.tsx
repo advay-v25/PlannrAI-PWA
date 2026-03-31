@@ -99,7 +99,7 @@ export function StacksModule({ stacks, onUpdate }: StacksModuleProps) {
                     className="flex items-center gap-1.5 rounded-full bg-white/5 px-3 py-1 text-[10px] font-bold text-white/60 transition-colors hover:bg-white/10 hover:text-white"
                 >
                     <Sparkles className="h-3 w-3" />
-                    {generating ? 'Thinking...' : 'Add Stack'}
+                    {generating ? 'Thinking...' : 'Create with AI'}
                 </button>
             </div>
 
@@ -145,7 +145,9 @@ function StackCard({ stack, onComplete, onDelete }: {
             ? "from-violet-500/10 to-indigo-500/5"
             : "from-cyan-500/10 to-teal-500/5";
 
-    const displayName = stack.name || (stack.trigger_habit ? `After ${stack.trigger_habit}...` : 'New Routine');
+    const rawTrigger = stack.trigger_habit || '';
+    const cleanTrigger = rawTrigger.toLowerCase().startsWith('after ') ? rawTrigger.slice(6) : rawTrigger;
+    const displayName = stack.name || (cleanTrigger ? `After ${cleanTrigger}...` : 'New Routine');
     const totalMinutes = stack.total_duration || stack.action_duration_mins || steps.reduce((sum: number, s: any) => sum + (s.minutes || 0), 0) || 5;
 
     const toggleStep = (idx: number) => {

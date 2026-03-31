@@ -37,8 +37,9 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
     const [energy, setEnergy] = useState<EnergyDemand>('medium');
     const [preferredTime, setPreferredTime] = useState<'morning' | 'afternoon' | 'evening' | 'any'>('any');
 
-    // AI Suggestions
+    // AI Suggestions & Loading State
     const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Debounce for AI suggestions
     useEffect(() => {
@@ -61,7 +62,8 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
     }, [title]);
 
     const handleSubmit = async () => {
-        if (!title.trim()) return;
+        if (!title.trim() || isSubmitting) return;
+        setIsSubmitting(true);
 
         const goalData = {
             title,
@@ -103,6 +105,8 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
         } catch (error) {
             console.error('Failed to create goal:', error);
             // Ideally show error toast here
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -243,10 +247,17 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
                         variant="primary"
                         className="w-full py-4 text-base"
                         onClick={handleSubmit}
-                        disabled={!title}
+                        disabled={!title || isSubmitting}
                     >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Goal
+                        {isSubmitting ? (
+                            <span className="flex items-center gap-2 text-white/70">
+                                <Sparkles className="w-4 h-4 animate-spin" /> Creating...
+                            </span>
+                        ) : (
+                            <>
+                                <Plus className="w-4 h-4 mr-2" /> Add Goal
+                            </>
+                        )}
                     </GlassButton>
                 </div>
             </motion.div>

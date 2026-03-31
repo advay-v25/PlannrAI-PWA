@@ -275,10 +275,12 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
 
     // Calendar-dedicated key: bypass normal provider chain
     if (options.calendarKey) {
-        const calendarProvider = getCalendarOpenRouterConfig('meta-llama/llama-3.3-70b-instruct');
+        // Switch to Claude 3.5 Sonnet for hyper-fast, highly precise JSON generation.
+        // This prevents the 60s Vercel Serverless Function Timeout that blocks Llama 3.3 70B.
+        const calendarProvider = getCalendarOpenRouterConfig('anthropic/claude-3.5-sonnet');
         const result = await callProvider<T>(calendarProvider, options);
         if (result.success) return result;
-        // Fall back to Groq if calendar key fails
+        // Fall back to Groq Llama 3.3 70B if calendar key fails
         console.log('\x1b[33m[AI →]\x1b[0m Calendar key failed, falling back to Groq...');
         const groqFallback = getGroqConfig('llama-3.3-70b-versatile');
         return callProvider<T>(groqFallback, options);

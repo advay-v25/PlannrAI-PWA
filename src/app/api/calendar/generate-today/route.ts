@@ -225,7 +225,7 @@ IMPORTANT:
                 temperature: 0.6,
                 maxTokens: 4000,
                 requireJSON: true,
-                timeout: 55000,
+                timeout: 110000,
                 calendarKey: true,
             });
 

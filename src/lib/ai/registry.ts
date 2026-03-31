@@ -117,7 +117,7 @@ export const HabitStackOutputSchema = z.object({
       time_of_day: z.enum(['morning', 'afternoon', 'evening'])
     }).optional()
   })),
-  donna_note: z.string().max(200).optional()
+  donna_note: z.string().max(500).optional()
 });
 
 // 5. Goal Strategy (Flat — no PatchSchema)
@@ -132,7 +132,7 @@ export const GoalStrategyOutputSchema = z.object({
   }),
   milestones: z.array(z.string().max(100)).min(2).max(5).describe('Clear checkpoints'),
   checklist: z.array(z.object({ text: z.string().max(100) })).min(1).max(8).describe('Actionable checklist items'),
-  donna_note: z.string().max(200).optional().describe('Encouraging note to the user')
+  donna_note: z.string().max(500).optional().describe('Encouraging note to the user')
 });
 
 // 6. Weekly Review
@@ -204,7 +204,7 @@ export const DailyBriefingOutputSchema = z.object({
 export const OnboardingInsightOutputSchema = z.object({
   insight: z.string().max(200).describe('Personalized observation based on the step data'),
   archetype_signal: z.string().max(60).describe('Short badge label e.g. Night Owl Detected, High Performer'),
-  donna_note: z.string().max(150).describe('Internal AI observation to build the personality profile'),
+  donna_note: z.string().max(500).describe('Internal AI observation to build the personality profile'),
   profile_update: z.object({
     chronotype: z.enum(['early_bird', 'night_owl', 'balanced']).optional(),
     productivity_archetype: z.string().max(40).optional(),
@@ -671,7 +671,7 @@ RULES:
 
   weekly_review: {
     schema: WeeklyReviewOutputSchema,
-    config: { model: "llama-3.3-70b-versatile", temperature: 0.3, maxTokens: 2500, tier: 'smart' },
+    config: { model: "anthropic/claude-3.5-sonnet", temperature: 0.3, maxTokens: 2500, tier: 'smart' },
     fallback: () => ({
       reality: "AI Review temporarily unavailable.",
       patterns: [

@@ -170,6 +170,22 @@ export async function generateWeekPlan(
     const weekEndDate = format(addDays(parseISO(weekStartDate), 6), 'yyyy-MM-dd');
     const windDown = calculateWindDown(context);
 
+    // ── Bio-Context ─────────────────────────────────────────────
+
+    const userEnergy = context.user.energy_level || 5;
+    const userStress = context.user.stress_level || 3;
+    const chronotype = context.user.chronotype || 'bear';
+    const mealsPerDay = context.user.meals_per_day || 3;
+    const mealWindows = context.user.meal_windows || {};
+
+    const chronotypeRules = chronotype === 'early_bird' || chronotype === 'lark'
+        ? 'EARLY BIRD: schedule deep work EARLY (7am-11am). Lighter tasks afternoon.'
+        : chronotype === 'night_owl' || chronotype === 'owl'
+            ? 'NIGHT OWL: schedule deep work LATE (11am-3pm, 4pm-8pm). Light mornings.'
+            : chronotype === 'wolf'
+                ? 'WOLF: peak productivity LATE (1pm-8pm). Easy mornings.'
+                : 'BEAR: deep work MID-MORNING (9am-12pm). Standard schedule.';
+
     // ── Build Prompt ────────────────────────────────────────────
 
     const systemPrompt = `You are PlannrAI's calendar scheduling AI. Generate realistic weekly schedules.
@@ -189,6 +205,15 @@ CRITICAL RULES:
 12. FLOW STATE: NEVER schedule two goals of the SAME PILLAR consecutively. You MUST alternate pillars (e.g., MIND -> BODY -> CRAFT) or insert a BREAK/BUFFER to maintain flow.
 13. ZERO OVERLAP: NEVER allow multiple blocks to exist at the exact same start_time. Every block MUST have a distinct, non-overlapping time slot.
 14. CHECKLIST SYNC: For every 'goal' block you schedule, you MUST examine its provided 'AI Strategy' to generate a realistic 2-3 item 'checklist'. Extract the most immediate actionable steps from the strategy.
+
+BIO-CONTEXT:
+- ${chronotypeRules}
+- User energy: ${userEnergy}/10, Stress: ${userStress}/10
+- Plan density should match energy level. HIGH stress = MORE breaks, FEWER goal blocks.
+- Meals per day: ${mealsPerDay}
+${(mealWindows as any)?.breakfast ? `- Breakfast window: ${(mealWindows as any).breakfast.start}–${(mealWindows as any).breakfast.end}` : ''}
+${(mealWindows as any)?.lunch ? `- Lunch window: ${(mealWindows as any).lunch.start}–${(mealWindows as any).lunch.end}` : ''}
+${(mealWindows as any)?.dinner ? `- Dinner window: ${(mealWindows as any).dinner.start}–${(mealWindows as any).dinner.end}` : ''}
 
 You MUST return valid JSON with exactly 3 variants.`;
 
@@ -281,7 +306,7 @@ OUTPUT FORMAT (strict JSON):
         temperature: 0.8,
         maxTokens: 6000,
         requireJSON: true,
-        timeout: 55000,
+        timeout: 150000,
         calendarKey: true,
     });
 
