@@ -5,7 +5,7 @@ export const POST = secureApiRoute(
         const { userId, supabase } = context;
         const { energy_level, emotional_state } = body as { energy_level: number; emotional_state: string };
 
-        if (!energy_level || !emotional_state) {
+        if (energy_level == null || !emotional_state) {
             return apiError('energy_level and emotional_state required', 400);
         }
 

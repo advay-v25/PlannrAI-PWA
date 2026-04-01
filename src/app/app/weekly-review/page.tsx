@@ -103,12 +103,25 @@ export default function WeeklyReviewPage() {
         finally { setIsLoading(false); }
     };
 
+    const [genPhase, setGenPhase] = useState('');
+
     const handleGenerate = async () => {
         setIsGenerating(true);
+        setGenPhase('Gathering your data...');
         try {
+            // Phase animation for better UX feedback
+            const phaseTimer = setTimeout(() => setGenPhase('Analyzing patterns...'), 4000);
+            const phaseTimer2 = setTimeout(() => setGenPhase('Building your review...'), 10000);
+            const phaseTimer3 = setTimeout(() => setGenPhase('Almost there...'), 20000);
+
             const res: any = await apiClient.post<any>('/api/weekly-review/generate', {
                 week_start: weekStartStr, week_end: weekEndStr
-            });
+            }, { timeout: 120000 }); // 2-minute timeout for Claude analysis
+
+            clearTimeout(phaseTimer);
+            clearTimeout(phaseTimer2);
+            clearTimeout(phaseTimer3);
+
             setMetrics(res.metrics || {});
             setDayBreakdown(res.dayBreakdown || {});
             setReview({
@@ -122,8 +135,11 @@ export default function WeeklyReviewPage() {
             setCurrentStep(0);
         } catch (e) {
             console.error(e);
-            showToast('Failed to generate review', 'error');
-        } finally { setIsGenerating(false); }
+            showToast('Failed to generate review. Please try again.', 'error');
+        } finally {
+            setIsGenerating(false);
+            setGenPhase('');
+        }
     };
 
     const handleApplyLever = async () => {
@@ -216,7 +232,7 @@ export default function WeeklyReviewPage() {
                             hover:brightness-110 active:scale-[0.98] transition-all"
                     >
                         {isGenerating ? (
-                            <><Loader2 className="w-4 h-4 animate-spin" /> Crunching Data...</>
+                            <><Loader2 className="w-4 h-4 animate-spin" /> {genPhase || 'Crunching Data...'}</>
                         ) : (
                             <><Zap className="w-4 h-4" /> Start Review</>
                         )}

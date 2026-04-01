@@ -270,6 +270,8 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
 
         try {
             const { callAI } = await import('@/lib/ai/unified-client');
+            // Route channels configured with anthropic/ model through the calendar key (Claude 3.5 Sonnet)
+            const useClaudeRoute = channelDef.config.model?.startsWith('anthropic/');
             const aiResponse = await callAI<any>({
                 prompt: userMsg,
                 systemPrompt: systemMsg,
@@ -278,6 +280,7 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
                 maxTokens: channelDef.config.maxTokens ?? 4000,
                 requireJSON: false, // We handle JSON validation ourselves via JSONReliability
                 timeout: AI_TIMEOUT_MS,
+                calendarKey: useClaudeRoute,
             });
 
             if (aiResponse.success && aiResponse.raw) {

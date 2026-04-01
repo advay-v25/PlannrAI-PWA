@@ -11,6 +11,7 @@ import { InsightsCard } from '@/components/home/insights-card';
 import { PrioritiesCard } from '@/components/home/priorities-card';
 import { EnergyCheckin } from '@/components/home/energy-checkin';
 import { AIProfileBadge } from '@/components/home/ai-profile-badge';
+import { apiClient } from '@/lib/api-client';
 import { format } from 'date-fns';
 import { Settings } from 'lucide-react';
 import Link from 'next/link';
@@ -93,13 +94,9 @@ export default function HomePage() {
 
     const handleEnergyCheckin = async (energy: number, mood: string) => {
         try {
-            await fetch('/api/home/energy-checkin', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    energy_level: energy,
-                    emotional_state: mood
-                })
+            await apiClient.post('/api/home/energy-checkin', {
+                energy_level: energy,
+                emotional_state: mood
             });
             // Update local data immediately
             setData((prev: any) => prev ? {
