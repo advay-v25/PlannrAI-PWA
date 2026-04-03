@@ -332,8 +332,8 @@ export function useCalendar() {
             const uniqueDates = dates.sort();
             const isSingleDay = uniqueDates.length <= 1;
 
-            // "today_schedule" is from generate-today. "balanced" / "momentum" / "recovery" are from plan-week.
-            const isFullReplacement = ['today_schedule', 'balanced', 'momentum', 'recovery'].includes(option.id);
+            // "today_schedule" is from generate-today. Plan-week variants are: balanced/front-loaded/sustainable/fallback
+            const isFullReplacement = ['today_schedule', 'balanced', 'front-loaded', 'sustainable', 'fallback', 'momentum', 'recovery'].includes(option.id);
 
             // For single-day operations, use clear_date; for multi-day, use clear_week
             const body: any = {

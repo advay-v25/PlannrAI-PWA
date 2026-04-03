@@ -131,22 +131,25 @@ CORE PRINCIPLES:
 12. Make it REALISTIC — no more than 3-4 hours of deep focused work
 13. Include downtime/free blocks — humans need rest
 14. Wind-down routine before sleep
-15. MAX 1 body/exercise block per day for busy professionals. MAX 2 for fitness-focused users.
-16. MAX 3-5 goal blocks per day — SPREAD goals across the WEEK. Today should not try to cover ALL goals.
-17. Do NOT pack the day — leave breathing room between blocks
-18. FLOW STATE: NEVER schedule two goals of the SAME PILLAR consecutively. You MUST alternate pillars (e.g., MIND -> BODY -> CRAFT) or insert a BREAK/BUFFER to maintain flow.
-19. ZERO OVERLAP: NEVER allow multiple blocks to exist at the exact same start_time. Every block MUST have a distinct, non-overlapping time slot.
-20. CHECKLIST SYNC: For every 'goal' block you schedule, you MUST examine its provided 'AI Strategy' to generate a realistic 2-3 item 'checklist'. Extract the most immediate actionable steps from the strategy.
+15. ZERO OVERLAP: NEVER allow multiple blocks to exist at the exact same start_time. Every block MUST have a distinct, non-overlapping time slot.
+16. CHECKLIST SYNC: For every 'goal' block you schedule, you MUST examine its provided 'AI Strategy' to generate a realistic 2-3 item 'checklist'. Extract the most immediate actionable steps from the strategy.
+
+🚨 DYNAMIC PILLAR DISTRIBUTION (CRITICAL — READ CAREFULLY):
+- Do NOT generate exactly one block per pillar. The number of blocks per pillar depends ENTIRELY on the user's actual goals and their time allocations.
+- Example: If a user has 3 mind goals (60min each), 1 body goal (45min), and 1 craft goal (30min), you should schedule 3 MIND blocks, 1 BODY block, and 1 CRAFT block.
+- Example: If a user has 2 craft goals and no body goals, schedule 2 CRAFT blocks and 0 BODY blocks.
+- The ONLY constraint is total time — fill the available hours smartly based on the user's energy, goals, and weekly targets.
+- You CAN schedule multiple blocks of the same pillar. Just try to alternate them with other pillars or buffer/break blocks for cognitive variety.
+- Do NOT invent generic blocks like "Mind Boost" or "Creative Flow" unless the user has no goals. Schedule the user's ACTUAL goals by name and ID.
 
 BLOCK TYPES (use these exactly):
+- "goal" → Any block tied to a user goal (use pillar field for mind/body/craft/soul)
 - "routine" → Morning/Evening routines
-- "focus" → Deep work, goal-focused blocks
-- "body" → Exercise, walks, stretching
 - "meal" → Breakfast, Lunch, Dinner, Snack
-- "break" → Buffer, transition, free time
-- "mind" → Reading, meditation, learning
-- "craft" → Creative/professional skill work
-- "task" → Admin, errands, misc tasks
+- "buffer" → Buffer, transition, free time, breaks
+- "flex" → Admin, errands, misc tasks
+
+The "pillar" field (mind, body, craft, soul) tells us WHAT KIND of goal it is. The block_type should be "goal" for all goal-linked blocks.
 
 BIO-CONTEXT:
 - ${chronotypeRules}
@@ -191,7 +194,7 @@ ${existingText}
       "start_time": "HH:MM",
       "end_time": "HH:MM",
       "title": "Block Title",
-      "block_type": "routine|focus|body|meal|break|mind|craft|task",
+      "block_type": "goal|routine|meal|buffer|flex",
       "goal_id": "uuid-if-linked-to-goal-or-null",
       "pillar": "mind|body|craft|soul|null",
       "checklist": [
@@ -209,13 +212,21 @@ IMPORTANT:
 - Use 24-hour HH:MM format for all times
 - Each block should be 20-90 minutes
 - Include ALL time from ${wakeTime} to ${windDownTime}
-- For goal blocks, use the exact goal ID from the list above
+- For goal blocks, use the EXACT goal ID and EXACT goal title from the list above. Do NOT invent generic titles like "Mind Boost" — use the user's actual goal names.
 - Morning Routine checklist should include habit stacks from above
 - Generate a COMPLETE schedule — no gaps
 - RESPECT the 30 minute buffer around fixed commitments — NO blocks within 30 minutes before or after!
-- MAX 1 body/exercise block (2 if user is fitness-focused)
-- MAX 5 goal blocks — spread goals across the week, not all today
-- Do NOT overschedule — quality over quantity`;
+- Schedule goals based on their minutes_per_day target. If a goal needs 60min/day, schedule a 60min block.
+- You CAN schedule multiple blocks of the same pillar — the distribution depends on the user's actual goals.
+- Try to alternate pillars for cognitive variety, but don't force exactly 1 of each.
+- Do NOT overschedule — quality over quantity, but fill the day realistically.
+
+🚨 SCHEDULING AROUND COMMITMENTS:
+- If the user has a large commitment (e.g., "Work" 09:00-17:00), you MUST still fill the MORNING window (wake to commitment start - 30min) and EVENING window (commitment end + 30min to wind-down) with goal blocks, meals, routines, and buffers.
+- Example with Work 09:00-17:00: Morning Routine (07:00), Breakfast (07:30), Goal 1 (08:00-08:30), then after work: Buffer (17:30), Goal 2 (17:45-18:30), Dinner (19:00), Goal 3 (19:45-20:30), Evening Routine, Wind-down.
+- NEVER leave the morning or evening windows empty. These are prime goal-completion windows.
+- The user should see 3-8 blocks OUTSIDE of their fixed commitments.
+- Generate COMPLETE, FILLED schedules — not just Breakfast + 1 block.`;
 
             // 4. Call AI
             const response = await callAI<{ blocks: any[]; summary: string; philosophy: string }>({
@@ -223,7 +234,7 @@ IMPORTANT:
                 systemPrompt,
                 model: 'smart',
                 temperature: 0.6,
-                maxTokens: 4000,
+                maxTokens: 6000,
                 requireJSON: true,
                 timeout: 110000,
                 calendarKey: true,
@@ -294,7 +305,6 @@ IMPORTANT:
                 const dayCommitments = commitments.filter((c: any) => (c.days_of_week || []).includes(isoDay));
 
                 let processedDay: any[] = [];
-                let lastPillar: string | null = null;
                 let lastEndTime = 0;
 
                 for (let i = 0; i < dayBlocks.length; i++) {
@@ -302,37 +312,15 @@ IMPORTANT:
                     let bStart = timeToMinutes(b.start_time);
                     let duration = timeToMinutes(b.end_time) - bStart;
 
-                    // 1. Force Alternate Pillars (Insert Buffer if needed)
-                    if (b.block_type === 'goal' && b.pillar) {
-                        if (b.pillar === lastPillar) {
-                            // Inject a 15-min buffer block
-                            const bufferStart = Math.max(lastEndTime, bStart - 15);
-                            processedDay.push({
-                                date: b.date,
-                                start_time: minToTime(bufferStart),
-                                end_time: minToTime(bufferStart + 15),
-                                title: 'Flow Transition',
-                                block_type: 'buffer',
-                            });
-                            lastEndTime = bufferStart + 15;
-                            bStart = Math.max(bStart, lastEndTime);
-                        }
-                        lastPillar = b.pillar;
-                    } else if (b.block_type !== 'buffer') {
-                        lastPillar = null; // Reset pillar constraint if we hit a meal/break/etc
-                    }
-
-                    // 2. Prevent Overlap with previous blocks
+                    // 1. Prevent Overlap with previous blocks
                     if (bStart < lastEndTime) {
-                        bStart = lastEndTime; // Shift start time down
+                        bStart = lastEndTime;
                     }
 
-                    // 3. Prevent Overlap with Commitments (Anchor 30-min buffer)
+                    // 2. Prevent Overlap with Commitments (Anchor 30-min buffer)
                     for (const cmt of dayCommitments) {
                         const cStart = timeToMinutes(cmt.start_time);
                         const cEnd = timeToMinutes(cmt.end_time);
-
-                        // If block falls within the commitment + 30m buffer zone, push it after
                         if (bStart < cEnd + 30 && bStart + duration > cStart - 30) {
                             bStart = cEnd + 30;
                         }
@@ -348,12 +336,6 @@ IMPORTANT:
 
                 return processedDay;
             };
-
-            // Determine body cap based on user profile
-            // If user has explicit body/fitness goals, allow 2 body blocks; otherwise cap at 1
-            const hasBodyGoals = ctx.goals.some((g: any) => g.pillar === 'body' || g.category === 'body');
-            const bodyGoalCount = ctx.goals.filter((g: any) => g.pillar === 'body' || g.category === 'body').length;
-            const maxBodyBlocks = bodyGoalCount >= 2 ? 2 : (hasBodyGoals ? 1 : 1);
 
             const cleanBlocks = blocks
                 .filter((b: any) => b.start_time && b.end_time)
@@ -381,7 +363,6 @@ IMPORTANT:
                         pillar: b.pillar || null,
                         status: 'planned',
                         checklist: Array.isArray(b.checklist) ? b.checklist : [],
-                        _original_type: b.block_type || 'flex', // Keep original for filtering
                     };
                 });
 
@@ -398,42 +379,8 @@ IMPORTANT:
                 return true;
             });
 
-            // --- Post-processing: Cap body/exercise blocks ---
-            let bodyCount = 0;
-            const bodyCapBlocks = filteredBlocks.filter((b: any) => {
-                const origType = (b._original_type || '').toLowerCase();
-                const isBody = origType === 'body' || origType === 'exercise' ||
-                    (b.pillar === 'body') ||
-                    (b.title || '').toLowerCase().includes('exercise') ||
-                    (b.title || '').toLowerCase().includes('workout') ||
-                    (b.title || '').toLowerCase().includes('gym');
-                if (isBody) {
-                    bodyCount++;
-                    if (bodyCount > maxBodyBlocks) {
-                        console.log(`[GenerateToday] Removing excess body block "${b.title}" (cap: ${maxBodyBlocks})`);
-                        return false;
-                    }
-                }
-                return true;
-            });
-
-            // --- Post-processing: Cap goal blocks at 5 per day ---
-            let goalCount = 0;
-            const MAX_GOAL_BLOCKS = 5;
-            const cappedBlocks = bodyCapBlocks.filter((b: any) => {
-                if (b.block_type === 'goal') {
-                    goalCount++;
-                    if (goalCount > MAX_GOAL_BLOCKS) {
-                        console.log(`[GenerateToday] Removing excess goal block "${b.title}" (cap: ${MAX_GOAL_BLOCKS})`);
-                        return false;
-                    }
-                }
-                return true;
-            });
-
-            // Remove the internal _original_type field and enforce Flow State algorithm
-            const rawFinalBlocks = cappedBlocks.map(({ _original_type, ...rest }: any) => rest);
-            const finalBlocks = enforceFlowState(rawFinalBlocks, ctx.commitments);
+            // --- Post-processing: Enforce zero-overlap and commitment buffers ---
+            const finalBlocks = enforceFlowState(filteredBlocks, ctx.commitments);
 
             // 6. Return as a single option to auto-apply
             const option = {
@@ -484,7 +431,56 @@ function generateFallbackDay(
     const blocks: any[] = [];
     const wakeMins = timeToMinutes(wakeTime);
     const windDownMins = timeToMinutes(windDownTime);
+
+    // Build commitment exclusion zones for this date
+    const dayOfWeek = new Date(date + 'T12:00:00').getDay();
+    const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
+    const dayCommitments = (ctx.commitments || [])
+        .filter((c: any) => !c.days_of_week || c.days_of_week.includes(isoDay))
+        .sort((a: any, b: any) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
+
+    // Build available time windows (wake to wind-down, excluding commitments with 15min buffer)
+    const windows: Array<{ start: number; end: number }> = [];
     let cursor = wakeMins;
+
+    for (const cmt of dayCommitments) {
+        const cmtStart = timeToMinutes(cmt.start_time) - 15;
+        const cmtEnd = timeToMinutes(cmt.end_time) + 15;
+        if (cursor < cmtStart) {
+            windows.push({ start: cursor, end: cmtStart });
+        }
+        cursor = Math.max(cursor, cmtEnd);
+    }
+    if (cursor < windDownMins) {
+        windows.push({ start: cursor, end: windDownMins });
+    }
+
+    // Place blocks function with window awareness
+    let windowIdx = 0;
+    let windowCursor = windows.length > 0 ? windows[0].start : wakeMins;
+
+    const placeBlock = (title: string, type: string, durationMin: number, extra?: any) => {
+        if (windowIdx >= windows.length) return false;
+        const win = windows[windowIdx];
+
+        if (windowCursor + durationMin > win.end) {
+            windowIdx++;
+            if (windowIdx >= windows.length) return false;
+            windowCursor = windows[windowIdx].start;
+            if (windowCursor + durationMin > windows[windowIdx].end) return false;
+        }
+
+        blocks.push({
+            date,
+            start_time: minutesToTime(windowCursor),
+            end_time: minutesToTime(windowCursor + durationMin),
+            title,
+            block_type: type,
+            ...extra,
+        });
+        windowCursor += durationMin + 10;
+        return true;
+    };
 
     // Morning Routine (with habit stacks)
     const morningChecklist = [
@@ -497,117 +493,57 @@ function generateFallbackDay(
             morningChecklist.push({ text: `${h.action_habit} (${h.action_duration_mins}min)` });
         });
     }
-    blocks.push({
-        date, start_time: minutesToTime(cursor), end_time: minutesToTime(cursor + 30),
-        title: 'Morning Routine', block_type: 'routine',
-        checklist: morningChecklist,
-    });
-    cursor += 40;
+    placeBlock('Morning Routine', 'routine', 30, { checklist: morningChecklist });
 
     // Breakfast
-    blocks.push({
-        date, start_time: minutesToTime(cursor), end_time: minutesToTime(cursor + 30),
-        title: 'Breakfast', block_type: 'meal',
-        checklist: [{ text: 'Prepare and eat a healthy breakfast' }],
-    });
-    cursor += 40;
+    placeBlock('Breakfast', 'meal', 30, { checklist: [{ text: 'Prepare and eat a healthy breakfast' }] });
 
-    // High-energy goal blocks (morning)
+    // Sort goals: high-energy first (for morning), lower-energy later
     const highEnergyGoals = ctx.goals.filter((g: any) => g.energy_demand === 'high' || g.pillar === 'craft');
     const otherGoals = ctx.goals.filter((g: any) => g.energy_demand !== 'high' && g.pillar !== 'craft');
+    const sortedGoals = [...highEnergyGoals, ...otherGoals];
 
-    for (const goal of highEnergyGoals.slice(0, 2)) {
-        if (cursor >= 12 * 60) break;
-        const dur = Math.min(goal.minutes_per_day || 60, 90);
-        blocks.push({
-            date, start_time: minutesToTime(cursor), end_time: minutesToTime(cursor + dur),
-            title: goal.title, block_type: 'goal', goal_id: goal.id, pillar: goal.pillar,
+    // Place morning goals (before first commitment)
+    for (const goal of sortedGoals.slice(0, 2)) {
+        const dur = Math.min(goal.minutes_per_day || 45, 60);
+        placeBlock(goal.title, 'goal', dur, {
+            goal_id: goal.id,
+            pillar: goal.pillar,
             checklist: [
                 { text: `Focus on ${goal.title} — main task` },
                 { text: 'Review progress at end' },
             ],
         });
-        cursor += dur + 15; // 15min buffer
     }
 
-    // Remaining morning goals
-    for (const goal of otherGoals.slice(0, 1)) {
-        if (cursor >= 12 * 60 + 30) break;
-        const dur = Math.min(goal.minutes_per_day || 45, 60);
-        blocks.push({
-            date, start_time: minutesToTime(cursor), end_time: minutesToTime(cursor + dur),
-            title: goal.title, block_type: 'goal', goal_id: goal.id, pillar: goal.pillar,
+    // After commitments: place remaining goals in evening window
+    // Skip to the evening window if we're currently in a commitment zone
+    const eveningGoals = sortedGoals.slice(2, 5);
+
+    for (const goal of eveningGoals) {
+        const dur = Math.min(goal.minutes_per_day || 30, 45);
+        placeBlock(goal.title, 'goal', dur, {
+            goal_id: goal.id,
+            pillar: goal.pillar,
             checklist: [{ text: `Work on ${goal.title}` }],
         });
-        cursor += dur + 10;
-    }
-
-    // Lunch
-    const lunchStart = Math.max(cursor, 12 * 60 + 30);
-    blocks.push({
-        date, start_time: minutesToTime(lunchStart), end_time: minutesToTime(lunchStart + 45),
-        title: 'Lunch', block_type: 'meal',
-        checklist: [{ text: 'Eat lunch and take a proper break' }],
-    });
-    cursor = lunchStart + 60;
-
-    // Afternoon: lighter goals/tasks
-    for (const goal of otherGoals.slice(1, 3)) {
-        if (cursor >= 17 * 60) break;
-        const dur = Math.min(goal.minutes_per_day || 45, 60);
-        blocks.push({
-            date, start_time: minutesToTime(cursor), end_time: minutesToTime(cursor + dur),
-            title: goal.title, block_type: 'goal', goal_id: goal.id, pillar: goal.pillar,
-            checklist: [{ text: `Work on ${goal.title}` }],
-        });
-        cursor += dur + 15;
-    }
-
-    // Exercise (if no body goals already)
-    if (!ctx.goals.some((g: any) => g.pillar === 'body') && cursor < 17 * 60 + 30) {
-        const exStart = Math.max(cursor, 16 * 60 + 30);
-        blocks.push({
-            date, start_time: minutesToTime(exStart), end_time: minutesToTime(exStart + 45),
-            title: 'Exercise / Walk', block_type: 'goal',
-            checklist: [{ text: 'Warm up for 5 minutes' }, { text: 'Main workout / walk' }, { text: 'Cool down and stretch' }],
-        });
-        cursor = exStart + 60;
-    }
-
-    // Free Time
-    if (cursor < 18 * 60 + 30) {
-        blocks.push({
-            date, start_time: minutesToTime(cursor), end_time: minutesToTime(cursor + 45),
-            title: 'Free Time', block_type: 'buffer',
-            checklist: [{ text: 'Relax, hobby, or social time' }],
-        });
-        cursor += 60;
     }
 
     // Dinner
-    const dinnerStart = Math.max(cursor, 19 * 60);
-    if (dinnerStart < windDownMins - 60) {
-        blocks.push({
-            date, start_time: minutesToTime(dinnerStart), end_time: minutesToTime(dinnerStart + 45),
-            title: 'Dinner', block_type: 'meal',
-            checklist: [{ text: 'Prepare and eat dinner' }],
-        });
-        cursor = dinnerStart + 60;
-    }
+    placeBlock('Dinner', 'meal', 45, { checklist: [{ text: 'Prepare and eat dinner' }] });
 
-    // Evening wind-down
-    if (cursor < windDownMins) {
-        blocks.push({
-            date, start_time: minutesToTime(cursor), end_time: minutesToTime(Math.min(cursor + 60, windDownMins)),
-            title: 'Evening Free Time', block_type: 'buffer',
-            checklist: [{ text: 'Reading, journaling, or leisure' }],
-        });
-    }
+    // Evening free time
+    placeBlock('Free Time', 'buffer', 30, {
+        checklist: [{ text: 'Relax, hobby, or social time' }],
+    });
 
     // Wind Down
     blocks.push({
-        date, start_time: windDownTime, end_time: minutesToTime(timeToMinutes(windDownTime) + 30),
-        title: 'Wind Down', block_type: 'routine',
+        date,
+        start_time: windDownTime,
+        end_time: minutesToTime(timeToMinutes(windDownTime) + 30),
+        title: 'Wind Down',
+        block_type: 'routine',
         checklist: [{ text: 'No screens' }, { text: 'Reflect on the day' }, { text: 'Prepare for tomorrow' }],
     });
 
@@ -617,3 +553,4 @@ function generateFallbackDay(
         philosophy: 'A balanced day structure focused on flow and recovery.',
     };
 }
+

@@ -40,8 +40,8 @@ export default function GoalsPage() {
     ];
 
     // Capacity Logic Helpers
-    const isOverload = (capacity?.percentage || 0) > 100;
-    const isCritical = (capacity?.percentage || 0) > 120;
+    const isOverload = (capacity?.load_percentage || 0) > 100;
+    const isCritical = (capacity?.load_percentage || 0) > 120;
 
     return (
         <div className="pb-24 space-y-8">
@@ -68,7 +68,7 @@ export default function GoalsPage() {
                             <span className="text-xs uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Daily Load</span>
                             <div className="flex items-baseline gap-1">
                                 <span className="text-4xl font-mono font-bold text-[var(--text-primary)]">
-                                    {capacity?.totalGoalMinutes || 0}
+                                    {capacity?.used_minutes || 0}
                                 </span>
                                 <span className="text-sm text-[var(--text-secondary)]">min</span>
                             </div>
@@ -76,7 +76,7 @@ export default function GoalsPage() {
 
                         <div className="text-right">
                             <span className={`text-2xl font-bold ${isCritical ? 'text-red-400' : isOverload ? 'text-amber-400' : 'text-green-400'}`}>
-                                {capacity?.percentage || 0}%
+                                {capacity?.load_percentage || 0}%
                             </span>
                             <p className="text-[10px] uppercase text-[var(--text-tertiary)] tracking-wider">of Available Energy</p>
                         </div>
@@ -86,7 +86,7 @@ export default function GoalsPage() {
                     <div className="h-2 w-full bg-[var(--glass-border)] rounded-full overflow-hidden">
                         <motion.div
                             initial={{ width: 0 }}
-                            animate={{ width: `${Math.min(capacity?.percentage || 0, 100)}%` }}
+                            animate={{ width: `${Math.min(capacity?.load_percentage || 0, 100)}%` }}
                             className={`h-full ${isCritical ? 'bg-red-500' : isOverload ? 'bg-amber-500' : 'bg-green-500'}`}
                             transition={{ duration: 1, ease: 'easeOut' }}
                         />

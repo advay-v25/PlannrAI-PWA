@@ -2,9 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useUserStore, useGoalsStore, useDailyLogStore } from '@/stores';
 import { useToast } from '@/components/ui/toast';
-import { checkInterventionsAction } from '@/app/actions/interventions';
 import { getOptimizationContextAction } from '@/app/actions/intelligence';
-import type { ScheduleBlock, InterventionLog, Goal } from '@/types/database';
+import type { ScheduleBlock, Goal } from '@/types/database';
 import type { OptimizationContext } from '@/lib/intelligence/context-engine';
 import type { AnticipationSignal } from '@/lib/intelligence/anticipation-service';
 
@@ -19,7 +18,6 @@ export function useHomeManager() {
 
     const [isLoading, setIsLoading] = useState(true);
     const [todayBlocks, setTodayBlocks] = useState<ScheduleBlockWithGoal[]>([]);
-    const [activeIntervention, setActiveIntervention] = useState<InterventionLog | null>(null);
     const [anticipationSignal, setAnticipationSignal] = useState<AnticipationSignal | null>(null);
     const [intelContext, setIntelContext] = useState<OptimizationContext | null>(null);
     const [isSyncingIntel, setIsSyncingIntel] = useState(false);
@@ -72,9 +70,7 @@ export function useHomeManager() {
                 });
             }
 
-            // 5. Interventions
-            const nudge = await checkInterventionsAction(user.id);
-            if (nudge) setActiveIntervention(nudge);
+            // 5. Interventions (Removed)
 
             // 6. Anticipation
             try {
@@ -187,8 +183,6 @@ export function useHomeManager() {
         todayLog,
         todayBlocks,
         isLoading,
-        activeIntervention,
-        setActiveIntervention,
         anticipationSignal,
         intelContext,
         isSyncingIntel,

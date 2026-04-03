@@ -69,7 +69,7 @@ function normalizeBlockType(type: string): string {
     return map[type] || 'flex';
 }
 
-/** Enforces strict flow state rules: zero overlaps and alternating pillars. */
+/** Enforces strict overlap rules: zero overlaps with other blocks and commitments. */
 function enforceFlowState(blocks: PlanBlock[], commitments: any[]): PlanBlock[] {
     const timeToMin = (t: string) => {
         const [h, m] = t.split(':').map(Number);
@@ -91,18 +91,17 @@ function enforceFlowState(blocks: PlanBlock[], commitments: any[]): PlanBlock[] 
 
     const finalBlocks: PlanBlock[] = [];
 
-    // Process day by day to fix flow
+    // Process day by day to fix overlaps
     for (const [date, dayBlocks] of Object.entries(blocksByDate)) {
         // Sort blocks chronologically
         dayBlocks.sort((a, b) => timeToMin(a.start_time) - timeToMin(b.start_time));
 
-        // Get commitments for this date for buffer checking
+        // Get commitments for this date
         const dayOfWeek = new Date(date + 'T12:00:00').getDay();
         const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
         const dayCommitments = commitments.filter(c => (c.days_of_week || []).includes(isoDay));
 
         let processedDay: PlanBlock[] = [];
-        let lastPillar: string | null = null;
         let lastEndTime = 0;
 
         for (let i = 0; i < dayBlocks.length; i++) {
@@ -110,37 +109,15 @@ function enforceFlowState(blocks: PlanBlock[], commitments: any[]): PlanBlock[] 
             let bStart = timeToMin(b.start_time);
             let duration = timeToMin(b.end_time) - bStart;
 
-            // 1. Force Alternate Pillars (Insert Buffer if needed)
-            if (b.block_type === 'goal' && b.pillar) {
-                if (b.pillar === lastPillar) {
-                    // Inject a 15-min buffer block
-                    const bufferStart = Math.max(lastEndTime, bStart - 15);
-                    processedDay.push({
-                        date: b.date,
-                        start_time: minToTime(bufferStart),
-                        end_time: minToTime(bufferStart + 15),
-                        title: 'Flow Transition',
-                        block_type: 'buffer',
-                    });
-                    lastEndTime = bufferStart + 15;
-                    bStart = Math.max(bStart, lastEndTime);
-                }
-                lastPillar = b.pillar;
-            } else if (b.block_type !== 'buffer') {
-                lastPillar = null; // Reset pillar constraint if we hit a meal/break/etc
-            }
-
-            // 2. Prevent Overlap with previous blocks
+            // 1. Prevent Overlap with previous blocks
             if (bStart < lastEndTime) {
-                bStart = lastEndTime; // Shift start time down
+                bStart = lastEndTime;
             }
 
-            // 3. Prevent Overlap with Commitments (Anchor 30-min buffer)
+            // 2. Prevent Overlap with Commitments (Anchor 30-min buffer)
             for (const cmt of dayCommitments) {
                 const cStart = timeToMin(cmt.start_time);
                 const cEnd = timeToMin(cmt.end_time);
-
-                // If block falls within the commitment + 30m buffer zone, push it after
                 if (bStart < cEnd + 30 && bStart + duration > cStart - 30) {
                     bStart = cEnd + 30;
                 }
@@ -202,9 +179,17 @@ CRITICAL RULES:
 9. Each goal block should be 30-90 minutes max
 10. All times in HH:MM format (24-hour)
 11. All dates in YYYY-MM-DD format
-12. FLOW STATE: NEVER schedule two goals of the SAME PILLAR consecutively. You MUST alternate pillars (e.g., MIND -> BODY -> CRAFT) or insert a BREAK/BUFFER to maintain flow.
-13. ZERO OVERLAP: NEVER allow multiple blocks to exist at the exact same start_time. Every block MUST have a distinct, non-overlapping time slot.
-14. CHECKLIST SYNC: For every 'goal' block you schedule, you MUST examine its provided 'AI Strategy' to generate a realistic 2-3 item 'checklist'. Extract the most immediate actionable steps from the strategy.
+12. ZERO OVERLAP: NEVER allow multiple blocks to exist at the exact same start_time. Every block MUST have a distinct, non-overlapping time slot.
+13. CHECKLIST SYNC: For every 'goal' block you schedule, you MUST examine its provided 'AI Strategy' to generate a realistic 2-3 item 'checklist'. Extract the most immediate actionable steps from the strategy.
+
+🚨 DYNAMIC PILLAR DISTRIBUTION (CRITICAL — READ CAREFULLY):
+- The number of blocks per pillar depends ENTIRELY on the user's actual goals and their weekly time targets.
+- If a user has 3 MIND goals and 1 BODY goal, schedule 3 mind blocks and 1 body block per day (or distribute proportionally across the week).
+- If a user has 2 CRAFT goals and no BODY goals, schedule 2 craft blocks and 0 body blocks.
+- Do NOT force exactly one block per pillar. The distribution is driven by the user's goal list.
+- You CAN schedule multiple blocks of the same pillar on the same day. Just alternate with breaks/meals for cognitive variety when possible.
+- Schedule the user's ACTUAL goals by name and ID. Do NOT invent generic blocks like "Mind Boost" or "Creative Flow".
+- Use block_type "goal" for all goal-linked blocks, and the "pillar" field (mind/body/craft/soul) for classification.
 
 BIO-CONTEXT:
 - ${chronotypeRules}
@@ -263,10 +248,19 @@ ${context.capacity.is_overcommitted ? '⚠️ OVERCOMMITTED — reduce goal time
 PERFORMANCE: ${context.performance.last_7_days_completion_rate}% completion last 7 days (${context.performance.completed_blocks_last_7}/${context.performance.total_blocks_last_7} blocks)
 ${context.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — make schedule lighter and more achievable' : ''}
 
+🚨 SCHEDULING AROUND COMMITMENTS:
+- If the user has a large commitment (e.g., "Work" 09:00-17:00), you MUST still fill the MORNING window (wake to commitment start - 30min) and EVENING window (commitment end + 30min to wind-down) with goal blocks, meals, routines, and buffers.
+- Example with Work 09:00-17:00: Morning Routine (07:00), Breakfast (07:30), Goal 1 (08:00-08:30), then after work: Buffer (17:30), Goal 2 (17:45-18:30), Dinner (19:00), Goal 3 (19:45-20:30), Evening Routine, Wind-down.
+- NEVER leave the morning or evening windows empty. These are prime goal-completion windows.
+- Each weekday should have 3-8 goal/activity blocks OUTSIDE of fixed commitments.
+- Generate COMPLETE, FILLED schedules — not just Breakfast + 1 block.
+
 Generate 3 variants:
-1. "Balanced" — even Mon-Fri spread
+1. "Balanced" — even Mon-Fri spread, proportional blocks per goal
 2. "Front-Loaded" — heavy Mon-Wed, light Thu-Fri
 3. "Sustainable" — ${context.capacity.is_overcommitted || context.performance.last_7_days_completion_rate < 60 ? 'reduced load, recovery focus' : 'optimized based on patterns'}
+
+IMPORTANT: Use the EXACT goal names and IDs from the list above. Do NOT create generic blocks like "Mind Boost" — always reference the actual goal.
 
 OUTPUT FORMAT (strict JSON):
 {
@@ -281,9 +275,9 @@ OUTPUT FORMAT (strict JSON):
           "date": "${weekStartDate}",
           "start_time": "09:00",
           "end_time": "10:00",
-          "title": "Deep work: [goal name]",
-          "block_type": "focus",
-          "goal_id": "goal-uuid-or-null",
+          "title": "[Exact Goal Name from list above]",
+          "block_type": "goal",
+          "goal_id": "goal-uuid-from-list",
           "pillar": "craft",
           "checklist": [{"text": "First action step"}, {"text": "Second concrete step"}]
         }
@@ -303,10 +297,10 @@ OUTPUT FORMAT (strict JSON):
         prompt: userPrompt,
         systemPrompt,
         model: 'smart',
-        temperature: 0.8,
+        temperature: 0.7,
         maxTokens: 6000,
         requireJSON: true,
-        timeout: 150000,
+        timeout: 180000,
         calendarKey: true,
     });
 
@@ -362,8 +356,8 @@ function cleanVariant(raw: any, ctx: CalendarContext, weekStart: string, index: 
             };
         });
 
-    // --- Filter out blocks that overlap with commitment time slots ---
-    // This is a safety net in case the AI generated commitment-like blocks
+    // --- Filter out blocks that DIRECTLY overlap with commitment time slots ---
+    // Note: The AI prompt already instructs 30-min buffers. This filter catches true overlaps only.
     const commitmentOverlapFiltered = blocks.filter(b => {
         const bStart = timeToMinutes(b.start_time);
         const bEnd = timeToMinutes(b.end_time);
@@ -377,9 +371,9 @@ function cleanVariant(raw: any, ctx: CalendarContext, weekStart: string, index: 
             const cStart = timeToMinutes(cmt.start_time);
             const cEnd = timeToMinutes(cmt.end_time);
 
-            // If block overlaps commitment (with 15 min buffer)
-            if (bStart < cEnd + 15 && bEnd > cStart - 15) {
-                console.log(`[PlanWeek] Removing AI block "${b.title}" (${b.start_time}-${b.end_time}) — overlaps commitment "${cmt.title}"`);
+            // Strict overlap: block starts before commitment ends AND ends after commitment starts
+            if (bStart < cEnd && bEnd > cStart) {
+                console.log(`[PlanWeek] Removing AI block "${b.title}" (${b.start_time}-${b.end_time}) — overlaps commitment "${cmt.title}" (${cmt.start_time}-${cmt.end_time})`);
                 return false;
             }
         }
@@ -413,63 +407,132 @@ function cleanVariant(raw: any, ctx: CalendarContext, weekStart: string, index: 
 
 function generateFallbackSchedule(ctx: CalendarContext, weekStart: string): WeekPlanVariant[] {
     const blocks: PlanBlock[] = [];
-    const wakeHour = Math.ceil(timeToMinutes(ctx.user.sleep_end || '07:00') / 60);
+    const wakeMin = timeToMinutes(ctx.user.sleep_end || '07:00');
+    const windDownMin = timeToMinutes(calculateWindDown(ctx));
 
-    // Generate simple blocks Mon-Fri
+    // Build commitment exclusion zones per ISO day (1=Mon ... 7=Sun)
+    const commitmentsByDay = new Map<number, Array<{ start: number; end: number; title: string }>>();
+    for (const cmt of ctx.commitments) {
+        const days = ((cmt.days_of_week || []) as any[]).map(Number);
+        for (const d of days) {
+            if (!commitmentsByDay.has(d)) commitmentsByDay.set(d, []);
+            commitmentsByDay.get(d)!.push({
+                start: timeToMinutes(cmt.start_time),
+                end: timeToMinutes(cmt.end_time),
+                title: cmt.title,
+            });
+        }
+    }
+
+    // Distribute goals across days in round-robin (3 goals per day)
+    const goalsPerDay = 3;
+
     for (let day = 0; day < 5; day++) {
         const date = format(addDays(parseISO(weekStart), day), 'yyyy-MM-dd');
-        let currentHour = wakeHour + 1; // Start 1 hour after wake
+        const dayOfWeek = new Date(date + 'T12:00:00').getDay();
+        const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
 
-        // Breakfast
-        blocks.push({
-            date,
-            start_time: minutesToTime(wakeHour * 60),
-            end_time: minutesToTime(wakeHour * 60 + 30),
-            title: 'Breakfast',
-            block_type: 'meal',
-        });
+        // Get commitments for this day
+        const dayCommitments = (commitmentsByDay.get(isoDay) || []).sort((a, b) => a.start - b.start);
 
-        // Goal blocks (distribute across days)
-        for (const goal of ctx.goals) {
-            if (currentHour >= 18) break; // Stop before evening
+        // Build available windows (wake to wind-down, excluding commitments with 15min buffer)
+        const windows: Array<{ start: number; end: number }> = [];
+        let cursor = wakeMin;
 
-            const durationMins = Math.min(goal.minutes_per_day || 60, 90);
-            blocks.push({
-                date,
-                start_time: minutesToTime(currentHour * 60),
-                end_time: minutesToTime(currentHour * 60 + durationMins),
-                title: goal.title,
-                block_type: 'goal',
-                goal_id: goal.id,
-                pillar: goal.pillar,
-            });
-            currentHour += Math.ceil(durationMins / 60) + 0.25; // +15min buffer
+        for (const cmt of dayCommitments) {
+            const bufferStart = cmt.start - 15;
+            const bufferEnd = cmt.end + 15;
+            if (cursor < bufferStart) {
+                windows.push({ start: cursor, end: bufferStart });
+            }
+            cursor = Math.max(cursor, bufferEnd);
+        }
+        if (cursor < windDownMin) {
+            windows.push({ start: cursor, end: windDownMin });
         }
 
-        // Lunch
-        blocks.push({
-            date,
-            start_time: '12:30',
-            end_time: '13:15',
-            title: 'Lunch',
-            block_type: 'meal',
-        });
+        // Place blocks in available windows
+        let windowIdx = 0;
+        let windowCursor = windows.length > 0 ? windows[0].start : wakeMin;
+
+        const placeBlock = (title: string, type: string, durationMin: number, goalId?: string, pillar?: string) => {
+            if (windowIdx >= windows.length) return false;
+            const win = windows[windowIdx];
+            
+            if (windowCursor + durationMin > win.end) {
+                // Move to next window
+                windowIdx++;
+                if (windowIdx >= windows.length) return false;
+                windowCursor = windows[windowIdx].start;
+                if (windowCursor + durationMin > windows[windowIdx].end) return false;
+            }
+
+            blocks.push({
+                date,
+                start_time: minutesToTime(windowCursor),
+                end_time: minutesToTime(windowCursor + durationMin),
+                title,
+                block_type: type,
+                goal_id: goalId,
+                pillar: pillar,
+            });
+            windowCursor += durationMin + 10; // 10min buffer between blocks
+            return true;
+        };
+
+        // Morning Routine
+        placeBlock('Morning Routine', 'routine', 15);
+        
+        // Breakfast
+        placeBlock('Breakfast', 'meal', 30);
+
+        // Select goals for this day (round-robin distribution)
+        const dayGoals = [];
+        for (let i = 0; i < goalsPerDay && i < ctx.goals.length; i++) {
+            const goalIdx = (day * goalsPerDay + i) % ctx.goals.length;
+            dayGoals.push(ctx.goals[goalIdx]);
+        }
+
+        // Place morning goals (before any commitment)
+        for (const goal of dayGoals.slice(0, 1)) {
+            const duration = Math.min(goal.minutes_per_day || 30, 45);
+            placeBlock(goal.title, 'goal', duration, goal.id, goal.pillar);
+        }
+
+        // Lunch (try to place around 12:00-13:00)
+        // Find the window that contains lunch time
+        for (let wi = 0; wi < windows.length; wi++) {
+            if (windows[wi].start <= 720 && windows[wi].end >= 765) {
+                // Can place lunch here
+                blocks.push({
+                    date,
+                    start_time: '12:00',
+                    end_time: '12:45',
+                    title: 'Lunch',
+                    block_type: 'meal',
+                });
+                break;
+            }
+        }
+
+        // Place afternoon/evening goals after commitments
+        for (const goal of dayGoals.slice(1)) {
+            const duration = Math.min(goal.minutes_per_day || 30, 45);
+            placeBlock(goal.title, 'goal', duration, goal.id, goal.pillar);
+        }
 
         // Dinner
-        blocks.push({
-            date,
-            start_time: '19:00',
-            end_time: '19:45',
-            title: 'Dinner',
-            block_type: 'meal',
-        });
+        placeBlock('Dinner', 'meal', 45);
+
+        // Evening Routine
+        placeBlock('Evening Routine', 'routine', 15);
     }
 
     return [{
         id: 'fallback',
         label: 'Basic Schedule',
-        description: 'Simple distribution of your goals across the weekdays.',
-        philosophy: 'When AI is unavailable, a simple consistent schedule keeps you on track.',
+        description: 'Commitment-aware schedule with your goals distributed across the week.',
+        philosophy: 'A consistent schedule that respects your commitments keeps you on track.',
         blocks,
         stats: {
             total_blocks: blocks.length,

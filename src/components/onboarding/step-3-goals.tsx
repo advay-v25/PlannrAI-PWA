@@ -8,10 +8,12 @@ import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
 import { AddGoalModal } from '@/components/goals/add-goal-modal';
 import { Target, Brain, Dumbbell, Rocket, Plus, X, Check, Sparkles, Zap, Flame, Briefcase } from 'lucide-react';
-import type { GoalCategory, GoalImportance } from '@/types/database';
+
+export type GoalCategory = 'mind' | 'body' | 'craft';
+export type GoalImportance = 'low' | 'medium' | 'high';
 
 // Preset goals organized by category
-const PRESET_GOALS = {
+const PRESET_GOALS: Record<GoalCategory, Array<{ title: string; emoji: string }>> = {
     mind: [
         { title: 'Learn a language', emoji: '🗣️' },
         { title: 'Meditation', emoji: '🧘' },

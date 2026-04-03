@@ -114,13 +114,15 @@ CRITICAL RULES:
 3. Sleep starts at ${context.user.sleep_start} — everything must end before wind-down
 4. Generate exactly 2 optimization options. Each should be meaningfully different.
 5. You can use 'move_event' to shift blocks, 'delete_event' to cancel them, or 'create_event' to fill gaps.
-6. For 'create_event', payload must match: {"title":"...", "start_time":"HH:MM", "end_time":"HH:MM", "block_type":"focus|routine|meal", "goal_id":"...", "pillar":"...", "checklist": [{"text": "Action item 1"}]}
+6. For 'create_event', payload must match: {"title":"...", "start_time":"HH:MM", "end_time":"HH:MM", "block_type":"goal|routine|meal|buffer|flex", "goal_id":"...", "pillar":"...", "checklist": [{"text": "Action item 1"}]}
 7. IMPORTANT REALISM RULES:
    - Add 10-15 minute Buffer blocks between distinct activities (e.g. Work and Workout)
    - Ensure Lunch is around 12:30-13:30 and Dinner is around 18:30-19:30. DO NOT schedule Dinner early at 18:00 or skip lunch
    - If missing, generate 'Morning Routine' and 'Night Routine' blocks
    - CHECKLIST SYNC: For every 'goal' block you create, you MUST examine its provided 'AI Strategy' to generate a realistic 2-3 item 'checklist'.
 8. Use existing block IDs for move/delete operations
+9. DYNAMIC PILLAR DISTRIBUTION: The number of goal blocks per pillar depends on the user's actual goals. If they have 3 mind goals, create 3 mind blocks. Do NOT force exactly one of each pillar.
+10. Use the user's ACTUAL goal names and IDs. Do NOT invent generic blocks like "Mind Boost".
 
 BIO-CONTEXT:
 - ${chronotypeRules}

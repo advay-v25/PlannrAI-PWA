@@ -172,7 +172,9 @@ export const POST = secureApiRoute(
                     return (h || 0) * 60 + (m || 0);
                 };
 
-                // Filter out blocks that overlap with commitments
+                // Filter out blocks that DIRECTLY overlap with commitments (strict overlap, no buffer).
+                // Note: The AI prompts and plan-week/generate-today post-processing already enforce 
+                // 15-30 min buffers. This filter is a safety net for true overlaps only.
                 const filteredBlocks = patch.add.filter((b: any) => {
                     if (!b.start_time || !b.end_time || !b.date) return true;
                     const bStart = timeToMin(b.start_time);
@@ -184,7 +186,11 @@ export const POST = secureApiRoute(
                         if (cmt.days_of_week && !cmt.days_of_week.includes(isoDay)) continue;
                         const cStart = timeToMin(cmt.start_time);
                         const cEnd = timeToMin(cmt.end_time);
-                        if (bStart < cEnd + 30 && bEnd > cStart - 30) return false; // overlaps or within 30 min buffer
+                        // Strict overlap: block starts before commitment ends AND ends after commitment starts
+                        if (bStart < cEnd && bEnd > cStart) {
+                            console.log(`[ApplySchedule] Filtering "${b.title}" (${b.start_time}-${b.end_time}) — overlaps commitment "${cmt.title}" (${cmt.start_time}-${cmt.end_time})`);
+                            return false;
+                        }
                     }
                     return true;
                 });

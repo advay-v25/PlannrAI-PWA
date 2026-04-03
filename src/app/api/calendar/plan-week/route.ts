@@ -59,6 +59,7 @@ export const POST = secureApiRoute(
                             goal_id: b.goal_id || null,
                             pillar: b.pillar || null,
                             status: 'planned',
+                            checklist: b.checklist || null,
                         }
                     })),
                     undoable: true,

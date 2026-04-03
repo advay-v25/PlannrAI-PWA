@@ -19,9 +19,9 @@ export function Step5Body() {
     const prefs = data.body_preferences || { activity_types: [], preferred_time: 'morning', duration_mins: 30 };
 
     const toggleActivity = (id: string) => {
-        const current = prefs.activity_types;
+        const current = prefs.activity_types as string[];
         const updated = current.includes(id)
-            ? current.filter(t => t !== id)
+            ? current.filter((t: string) => t !== id)
             : [...current, id];
 
         updateData({

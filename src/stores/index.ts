@@ -16,6 +16,7 @@ export interface OnboardingCommitment {
     start_time: string;
     end_time: string;
     days_of_week: number[];
+    is_active?: boolean;
 }
 
 export type FailureMode =
@@ -39,7 +40,7 @@ export interface OnboardingData {
     sleep_start: string;
     sleep_end: string;
     wind_down_mins: number;
-    meals_per_day: 2 | 3;
+    meals_per_day: number;
     meal_timing: 'early' | 'normal' | 'late';
     default_buffer_duration: number;
 
@@ -49,11 +50,18 @@ export interface OnboardingData {
     // Step 4: Goals
     goals: OnboardingGoal[];
 
-    // Step 5: Failure Modes
+    // Step 5: Failure Modes & Permissions
     failure_modes: FailureMode[];
+    ai_can_suggest?: boolean;
+    ai_can_analyze?: boolean;
+    ai_can_draft?: boolean;
 
     // Step 6: Generation
     selected_variant_id: string | null;
+
+    // Step 7: Scan
+    scan_skipped?: boolean;
+    bio_scan_url?: string;
 
     // Legacy compat (kept for API)
     meals_per_day_num?: number;
@@ -61,8 +69,8 @@ export interface OnboardingData {
     peak_windows: any[];
     low_windows: any[];
     work_style: string | null;
-    energy_level?: string;
-    stress_level?: string;
+    energy_level?: number;
+    stress_level?: number;
     body_preferences?: Record<string, any>;
     buffer_config?: Record<string, any>;
     ai_profile?: Record<string, any>;

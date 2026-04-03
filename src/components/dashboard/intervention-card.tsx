@@ -7,8 +7,14 @@ import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
 import { Sparkles, X, ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import type { InterventionLog } from '@/types/database';
 import { createClient } from '@/lib/supabase/client';
+
+export interface InterventionLog {
+    id: string;
+    type: string;
+    message: string;
+    status: string;
+}
 
 interface InterventionCardProps {
     intervention: InterventionLog;

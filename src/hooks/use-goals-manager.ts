@@ -2,8 +2,14 @@ import { useState, useMemo } from 'react';
 import { useGoalsStore, useUserStore } from '@/stores'; // Assuming these exist
 import { apiClient } from '@/lib/api-client';
 import { useToast } from '@/components/ui/toast';
-import type { Goal, GoalCapacity } from '@/types/database';
-// import { calculateGoalCapacity } from '@/lib/capacity'; // Removed - Server side now
+import type { Goal } from '@/types/database';
+
+export interface GoalCapacity {
+    total_minutes: number;
+    used_minutes: number;
+    available_minutes: number;
+    load_percentage: number;
+}
 
 export function useGoalsManager() {
     const { goals, setGoals, addGoal, updateGoal: updateStoreGoal, removeGoal, setLoading } = useGoalsStore();
