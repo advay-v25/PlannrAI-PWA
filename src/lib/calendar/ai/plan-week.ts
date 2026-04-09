@@ -163,6 +163,43 @@ export async function generateWeekPlan(
                 ? 'WOLF: peak productivity LATE (1pm-8pm). Easy mornings.'
                 : 'BEAR: deep work MID-MORNING (9am-12pm). Standard schedule.';
 
+    // ── Pre-compute Fixed Bio-Rhythms (Sleep & Meals) ───────────
+    const bioTemplates = [];
+    bioTemplates.push({ title: 'Sleep', block_type: 'sleep', start: '00:00', end: context.user.sleep_end || '07:00' });
+    bioTemplates.push({ title: 'Sleep', block_type: 'sleep', start: context.user.sleep_start || '22:30', end: '23:59' });
+    
+    if (mealsPerDay >= 1) bioTemplates.push({ title: 'Breakfast', block_type: 'meal', start: (mealWindows as any)?.breakfast?.start || '08:00', end: (mealWindows as any)?.breakfast?.end || '08:30' });
+    if (mealsPerDay >= 2) bioTemplates.push({ title: 'Lunch', block_type: 'meal', start: (mealWindows as any)?.lunch?.start || '12:30', end: (mealWindows as any)?.lunch?.end || '13:15' });
+    if (mealsPerDay >= 3) bioTemplates.push({ title: 'Dinner', block_type: 'meal', start: (mealWindows as any)?.dinner?.start || '19:00', end: (mealWindows as any)?.dinner?.end || '20:00' });
+
+    // Tell the AI to avoid these slots by adding them to commitments
+    context.commitments = [
+        ...context.commitments,
+        ...bioTemplates.map((b, i) => ({
+            id: `bio-routine-${i}`,
+            title: b.title,
+            start_time: b.start,
+            end_time: b.end,
+            days_of_week: ['1','2','3','4','5','6','7'],
+            is_active: true
+        }))
+    ];
+
+    // Generate concrete blocks for the UI
+    const globalBioBlocks: PlanBlock[] = [];
+    for (let i = 0; i < 7; i++) {
+        const currentDate = format(addDays(parseISO(weekStartDate), i), 'yyyy-MM-dd');
+        for (const tmpl of bioTemplates) {
+            globalBioBlocks.push({
+                date: currentDate,
+                start_time: tmpl.start,
+                end_time: tmpl.end,
+                title: tmpl.title,
+                block_type: tmpl.block_type
+            });
+        }
+    }
+
     // ── Build Prompt ────────────────────────────────────────────
 
     const systemPrompt = `You are PlannrAI's calendar scheduling AI. Generate realistic weekly schedules.
@@ -172,7 +209,6 @@ CRITICAL RULES:
 2. Wind-down starts at ${windDown} — NO work after this time
 3. DO NOT generate blocks for fixed commitments — they are managed separately as anchors and will appear automatically. Your job is to plan AROUND them, not recreate them.
 4. NEVER schedule over existing commitments — leave a 30-minute buffer before and after each commitment
-5. Include meals: Breakfast ~8:00 (30min), Lunch ~12:30 (45min), Dinner ~19:00 (45min)
 6. Add 15min buffers between different block types
 7. Distribute goals across Mon-Fri, don't cluster all on one day
 8. Weekend should be light or free
@@ -313,14 +349,14 @@ OUTPUT FORMAT (strict JSON):
 
     const variants: WeekPlanVariant[] = response.data.variants
         .slice(0, 3)
-        .map((v: any, i: number) => cleanVariant(v, context, weekStartDate, i));
+        .map((v: any, i: number) => cleanVariant(v, context, weekStartDate, i, globalBioBlocks));
 
     return variants;
 }
 
 // ── Validate Variant ─────────────────────────────────────────────
 
-function cleanVariant(raw: any, ctx: CalendarContext, weekStart: string, index: number): WeekPlanVariant {
+function cleanVariant(raw: any, ctx: CalendarContext, weekStart: string, index: number, globalBioBlocks: PlanBlock[] = []): WeekPlanVariant {
     const defaults = ['balanced', 'front-loaded', 'sustainable'];
     const labels = ['Balanced Week', 'Front-Loaded', 'Sustainable'];
 
@@ -357,7 +393,6 @@ function cleanVariant(raw: any, ctx: CalendarContext, weekStart: string, index: 
         });
 
     // --- Filter out blocks that DIRECTLY overlap with commitment time slots ---
-    // Note: The AI prompt already instructs 30-min buffers. This filter catches true overlaps only.
     const commitmentOverlapFiltered = blocks.filter(b => {
         const bStart = timeToMinutes(b.start_time);
         const bEnd = timeToMinutes(b.end_time);
@@ -371,9 +406,7 @@ function cleanVariant(raw: any, ctx: CalendarContext, weekStart: string, index: 
             const cStart = timeToMinutes(cmt.start_time);
             const cEnd = timeToMinutes(cmt.end_time);
 
-            // Strict overlap: block starts before commitment ends AND ends after commitment starts
             if (bStart < cEnd && bEnd > cStart) {
-                console.log(`[PlanWeek] Removing AI block "${b.title}" (${b.start_time}-${b.end_time}) — overlaps commitment "${cmt.title}" (${cmt.start_time}-${cmt.end_time})`);
                 return false;
             }
         }
@@ -382,21 +415,24 @@ function cleanVariant(raw: any, ctx: CalendarContext, weekStart: string, index: 
 
     // Enforce Flow State and Strict Overlaps
     const flowBlocks = enforceFlowState(commitmentOverlapFiltered, ctx.commitments);
+    
+    // Inject the exact Bio Rhythm Blocks for this variant, effectively returning them to the calendar directly
+    const finalBlocks = [...globalBioBlocks, ...flowBlocks];
 
-    const totalMins = flowBlocks.reduce((sum, b) => {
+    const totalMins = finalBlocks.reduce((sum, b) => {
         return sum + Math.max(0, timeToMinutes(b.end_time) - timeToMinutes(b.start_time));
     }, 0);
 
-    const uniqueDays = new Set(flowBlocks.map(b => b.date));
+    const uniqueDays = new Set(finalBlocks.map(b => b.date));
 
     return {
         id: raw.id || defaults[index] || `variant_${index}`,
         label: raw.label || labels[index] || `Option ${index + 1}`,
         description: raw.description || 'AI-generated schedule variant',
         philosophy: raw.philosophy || 'Optimized for your goals and energy.',
-        blocks: flowBlocks,
+        blocks: finalBlocks,
         stats: {
-            total_blocks: flowBlocks.length,
+            total_blocks: finalBlocks.length,
             total_hours: Math.round(totalMins / 60 * 10) / 10,
             days_with_work: uniqueDays.size,
         },

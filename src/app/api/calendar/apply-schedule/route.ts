@@ -85,7 +85,6 @@ export const POST = secureApiRoute(
 
                 console.log(`[ApplySchedule] Found ${toDelete?.length || 0} blocks in range ${week_start} to ${endDate}`);
 
-                // Delete with no lock filter for plan actions
                 let deleteQuery = supabase
                     .from('schedule_blocks')
                     .delete({ count: 'exact' })
@@ -95,6 +94,10 @@ export const POST = secureApiRoute(
 
                 if (action === 'manual') {
                     deleteQuery = deleteQuery.or('is_locked.is.null,is_locked.eq.false');
+                } else {
+                    // AI Re-planning must NEVER delete Anchors or user-locked chunks
+                    deleteQuery = deleteQuery.or('is_locked.is.null,is_locked.eq.false')
+                                             .neq('block_type', 'anchor');
                 }
 
                 const { count: deletedCount, error: deleteError } = await deleteQuery;
@@ -117,6 +120,9 @@ export const POST = secureApiRoute(
 
                 if (action === 'manual') {
                     deleteQuery = deleteQuery.or('is_locked.is.null,is_locked.eq.false');
+                } else {
+                    deleteQuery = deleteQuery.or('is_locked.is.null,is_locked.eq.false')
+                                             .neq('block_type', 'anchor');
                 }
 
                 const { count: deletedCount, error: deleteError } = await deleteQuery;
