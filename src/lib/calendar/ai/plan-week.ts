@@ -7,6 +7,12 @@
 import { callAI } from '@/lib/ai/unified-client';
 import type { CalendarContext, ScheduleBlock } from '@/lib/calendar/context-builder';
 import { addDays, format, parseISO } from 'date-fns';
+import {
+    computeDayPhases,
+    buildFlowPromptFragment,
+    buildBehaviorInsights,
+    buildGoalProgressFragment,
+} from '@/lib/calendar/flow-protocol';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -200,32 +206,44 @@ export async function generateWeekPlan(
         }
     }
 
+    // ── Compute Flow-State Phases ────────────────────────────────
+    const wakeMins = timeToMinutes(context.user.sleep_end || '07:00');
+    const sleepMins = timeToMinutes(context.user.sleep_start || '23:00');
+    const phases = computeDayPhases(wakeMins, sleepMins, chronotype);
+    const flowFragment = buildFlowPromptFragment(phases, context);
+    const behaviorFragment = buildBehaviorInsights(context);
+    const progressFragment = buildGoalProgressFragment(context);
+
     // ── Build Prompt ────────────────────────────────────────────
 
-    const systemPrompt = `You are PlannrAI's calendar scheduling AI. Generate realistic weekly schedules.
+    const systemPrompt = `You are PlannrAI's Week Architect — an expert in chronobiology, flow state management, and high-performance scheduling. Generate realistic weekly schedules optimized for sustained human performance.
 
 CRITICAL RULES:
 1. NEVER schedule during sleep hours (${context.user.sleep_start} to ${context.user.sleep_end})
 2. Wind-down starts at ${windDown} — NO work after this time
-3. DO NOT generate blocks for fixed commitments — they are managed separately as anchors and will appear automatically. Your job is to plan AROUND them, not recreate them.
-4. NEVER schedule over existing commitments — leave a 30-minute buffer before and after each commitment
-6. Add 15min buffers between different block types
-7. Distribute goals across Mon-Fri, don't cluster all on one day
-8. Weekend should be light or free
-9. Each goal block should be 30-90 minutes max
-10. All times in HH:MM format (24-hour)
-11. All dates in YYYY-MM-DD format
-12. ZERO OVERLAP: NEVER allow multiple blocks to exist at the exact same start_time. Every block MUST have a distinct, non-overlapping time slot.
-13. CHECKLIST SYNC: For every 'goal' block you schedule, you MUST examine its provided 'AI Strategy' to generate a realistic 2-3 item 'checklist'. Extract the most immediate actionable steps from the strategy.
+3. DO NOT generate blocks for fixed commitments — they are managed separately as anchors. Plan AROUND them.
+4. NEVER schedule over existing commitments — leave a 30-minute buffer before and after
+5. ZERO OVERLAP: Every block MUST have a distinct, non-overlapping time slot
+6. CHECKLIST SYNC: For every 'goal' block, generate a realistic 2-3 item checklist with concrete action steps
 
-🚨 DYNAMIC PILLAR DISTRIBUTION (CRITICAL — READ CAREFULLY):
-- The number of blocks per pillar depends ENTIRELY on the user's actual goals and their weekly time targets.
-- If a user has 3 MIND goals and 1 BODY goal, schedule 3 mind blocks and 1 body block per day (or distribute proportionally across the week).
-- If a user has 2 CRAFT goals and no BODY goals, schedule 2 craft blocks and 0 body blocks.
-- Do NOT force exactly one block per pillar. The distribution is driven by the user's goal list.
-- You CAN schedule multiple blocks of the same pillar on the same day. Just alternate with breaks/meals for cognitive variety when possible.
-- Schedule the user's ACTUAL goals by name and ID. Do NOT invent generic blocks like "Mind Boost" or "Creative Flow".
-- Use block_type "goal" for all goal-linked blocks, and the "pillar" field (mind/body/craft/soul) for classification.
+FLOW-STATE ARCHITECTURE (apply to EVERY day):
+- Each day follows the user's energy arc (Ramp-Up → Peak → Trough → Rebound → Wind-Down)
+- Deep work blocks: 60-90min MAX, followed by 15-20min Active Recovery
+- Max 3-4 deep work cycles per day (180-360 min total)
+- Morning (ramp-up): routine, breakfast, light prep — NO deep work
+- Peak: highest-energy goal blocks (deep focus)
+- Trough (post-lunch): lunch, admin, light tasks
+- Rebound: creative work, moderate goals, exercise
+- Wind-down: dinner, light review, evening routine
+- 15min transition buffers between different types of work
+
+🧠 PILLAR DISTRIBUTION — DYNAMIC, NOT FORMULAIC:
+- The number of blocks per pillar depends on the user's ACTUAL goals and weekly targets
+- Use WEEKLY PROGRESS data to prioritize goals that are behind schedule
+- Schedule the user's EXACT goal names and IDs — NEVER invent generic blocks
+- Use block_type "goal" for all goal-linked blocks with the "pillar" field for classification
+
+BLOCK TYPES: "goal", "routine", "meal", "buffer", "flex"
 
 BIO-CONTEXT:
 - ${chronotypeRules}
@@ -296,8 +314,10 @@ Generate 3 variants:
 2. "Front-Loaded" — heavy Mon-Wed, light Thu-Fri
 3. "Sustainable" — ${context.capacity.is_overcommitted || context.performance.last_7_days_completion_rate < 60 ? 'reduced load, recovery focus' : 'optimized based on patterns'}
 
-IMPORTANT: Use the EXACT goal names and IDs from the list above. Do NOT create generic blocks like "Mind Boost" — always reference the actual goal.
-
+IMPORTANT: Use the EXACT goal names and IDs from the list above. Do NOT create generic blocks like "Mind Boost".
+${flowFragment}
+${behaviorFragment}
+${progressFragment}
 OUTPUT FORMAT (strict JSON):
 {
   "variants": [

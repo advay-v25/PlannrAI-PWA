@@ -81,6 +81,43 @@ export interface CalendarContext {
         time: string;
         day_of_week: string;
     };
+
+    // ── New: Behavioral Intelligence ─────────────────────────────
+
+    coachLearnings: Array<{
+        learning: string;
+        category: string;
+        confidence: number;
+    }>;
+
+    behaviorPatterns: {
+        preferred_windows: Record<string, string[]>;
+        completion_rates: Record<string, number>;
+        avoidance_data: Record<string, string[]>;
+        density_tolerance: number;
+    } | null;
+
+    dailyEnergyState: {
+        energy_level: number;
+        emotional_state: string;
+    } | null;
+
+    recentBrainDumps: Array<{
+        content: string;
+        category: string;
+        status: string;
+    }>;
+
+    goalProgress: Array<{
+        goal_id: string;
+        goal_title: string;
+        pillar: string;
+        weekly_target_minutes: number;
+        completed_minutes_this_week: number;
+        remaining_minutes: number;
+        days_remaining_in_week: number;
+        daily_target_today: number;
+    }>;
 }
 
 export interface ScheduleBlock {
@@ -126,7 +163,7 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
 
     // ── Parallel Fetch ───────────────────────────────────────────
 
-    const [profileRes, goalsRes, commitmentsRes, habitStacksRes, todayBlocksRes, weekBlocksRes, perfBlocksRes] = await Promise.all([
+    const [profileRes, goalsRes, commitmentsRes, habitStacksRes, todayBlocksRes, weekBlocksRes, perfBlocksRes, coachLearningsRes, behaviorPatternsRes, energyStateRes, brainDumpItemsRes] = await Promise.all([
         // 1. Profile
         db.from('profiles')
             .select('id, first_name, sleep_start, sleep_end, wind_down_mins, energy_level, stress_level, meals_per_day, meal_windows, body_preferences, bio_data')
@@ -155,7 +192,7 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
             .eq('enabled', true)
             .limit(30),
 
-        // 4. Today's Blocks
+        // 5. Today's Blocks
         db.from('schedule_blocks')
             .select('id, date, start_time, end_time, title, status, block_type, goal_id, is_fixed, commitment_id, pillar')
             .eq('user_id', userId)
@@ -163,7 +200,7 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
             .neq('status', 'cancelled')
             .order('start_time'),
 
-        // 5. This Week's Blocks
+        // 6. This Week's Blocks
         db.from('schedule_blocks')
             .select('id, date, start_time, end_time, title, status, block_type, goal_id, is_fixed, commitment_id, pillar')
             .eq('user_id', userId)
@@ -173,13 +210,40 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
             .order('start_time')
             .limit(200),
 
-        // 6. Performance (last 7 days blocks)
+        // 7. Performance (last 7 days blocks)
         db.from('schedule_blocks')
             .select('id, status')
             .eq('user_id', userId)
             .gte('date', sevenDaysAgo)
             .lte('date', todayStr)
             .neq('status', 'cancelled'),
+
+        // 8. Coach Learnings (behavioral intelligence)
+        db.from('coach_learnings')
+            .select('learning, category, confidence_score')
+            .eq('user_id', userId)
+            .order('confidence_score', { ascending: false })
+            .limit(10),
+
+        // 9. Behavior Patterns (scheduling intelligence)
+        db.from('behavior_patterns')
+            .select('preferred_windows, completion_rates, avoidance_data, density_tolerance')
+            .eq('user_id', userId)
+            .maybeSingle(),
+
+        // 10. Today's Energy Check-in
+        db.from('user_states')
+            .select('energy_level, emotional_state')
+            .eq('user_id', userId)
+            .maybeSingle(),
+
+        // 11. Pending Brain Dump Items
+        db.from('brain_dump_items')
+            .select('content, category, status')
+            .eq('user_id', userId)
+            .in('status', ['pending', 'extracted'])
+            .order('created_at', { ascending: false })
+            .limit(10),
     ]);
 
     // ── Process Results ──────────────────────────────────────────
@@ -252,6 +316,73 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
     const totalBlocks = allPerfBlocks.length;
     const completionRate = totalBlocks > 0 ? (completedBlocks.length / totalBlocks) * 100 : 0;
 
+    // ── New: Process behavioral intelligence ─────────────────────
+
+    const coachLearnings = (coachLearningsRes.data || []).map((l: any) => ({
+        learning: l.learning || '',
+        category: l.category || 'general',
+        confidence: l.confidence_score || 0.5,
+    }));
+
+    const behaviorPatternsRaw = behaviorPatternsRes.data;
+    const behaviorPatterns = behaviorPatternsRaw ? {
+        preferred_windows: (behaviorPatternsRaw.preferred_windows as any) || {},
+        completion_rates: (behaviorPatternsRaw.completion_rates as any) || {},
+        avoidance_data: (behaviorPatternsRaw.avoidance_data as any) || {},
+        density_tolerance: (behaviorPatternsRaw.density_tolerance as any) || 8,
+    } : null;
+
+    const energyStateRaw = energyStateRes.data;
+    const dailyEnergyState = energyStateRaw ? {
+        energy_level: energyStateRaw.energy_level || 3,
+        emotional_state: energyStateRaw.emotional_state || 'neutral',
+    } : null;
+
+    const recentBrainDumps = (brainDumpItemsRes.data || []).map((b: any) => ({
+        content: b.content || '',
+        category: b.category || 'task',
+        status: b.status || 'pending',
+    }));
+
+    // ── New: Goal Progress (weekly tracking) ─────────────────────
+
+    const completedWeekBlocks = weekBlocks.filter((b: any) =>
+        (b.status === 'done' || b.status === 'completed') && b.goal_id
+    );
+
+    // Sum completed minutes per goal this week
+    const completedMinutesByGoal = new Map<string, number>();
+    for (const block of completedWeekBlocks) {
+        if (!block.goal_id) continue;
+        const startMins = timeToMinutes(block.start_time);
+        const endMins = timeToMinutes(block.end_time);
+        const duration = Math.max(0, endMins - startMins);
+        completedMinutesByGoal.set(
+            block.goal_id,
+            (completedMinutesByGoal.get(block.goal_id) || 0) + duration
+        );
+    }
+
+    // Calculate days remaining in the week (Mon=1 start)
+    const todayDow = now.getDay(); // 0=Sun
+    const daysRemainingInWeek = todayDow === 0 ? 0 : 7 - todayDow; // Sun=0 remaining, Mon=6, etc.
+
+    const goalProgress = goals.map((g: any) => {
+        const completed = completedMinutesByGoal.get(g.id) || 0;
+        const remaining = Math.max(0, g.weekly_target_minutes - completed);
+        const daysLeft = Math.max(1, daysRemainingInWeek); // at least 1 to avoid div/0
+        return {
+            goal_id: g.id,
+            goal_title: g.title,
+            pillar: g.pillar,
+            weekly_target_minutes: g.weekly_target_minutes,
+            completed_minutes_this_week: completed,
+            remaining_minutes: remaining,
+            days_remaining_in_week: daysRemainingInWeek,
+            daily_target_today: Math.ceil(remaining / daysLeft),
+        };
+    });
+
     // ── Build Context ────────────────────────────────────────────
 
     return {
@@ -298,6 +429,13 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
             time: format(now, 'HH:mm'),
             day_of_week: getDayOfWeek(now),
         },
+
+        // ── Behavioral Intelligence ──────────────────────────────
+        coachLearnings,
+        behaviorPatterns,
+        dailyEnergyState,
+        recentBrainDumps,
+        goalProgress,
     };
 }
 

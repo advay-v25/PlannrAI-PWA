@@ -6,6 +6,12 @@
 
 import { callAI } from '@/lib/ai/unified-client';
 import type { CalendarContext, ScheduleBlock } from '@/lib/calendar/context-builder';
+import {
+    computeDayPhases,
+    buildFlowPromptFragment,
+    buildBehaviorInsights,
+    buildGoalProgressFragment,
+} from '@/lib/calendar/flow-protocol';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -76,6 +82,14 @@ export async function optimizeDayAI(
                 ? 'WOLF: peak productivity LATE (1pm-8pm). Easy mornings.'
                 : 'BEAR: deep work MID-MORNING (9am-12pm). Standard schedule.';
 
+    // Compute flow-state phases and behavioral context
+    const wakeMins = timeToMinutes(context.user.sleep_end || '07:00');
+    const sleepMins = timeToMinutes(context.user.sleep_start || '23:00');
+    const phases = computeDayPhases(wakeMins, sleepMins, chronotype);
+    const flowFragment = buildFlowPromptFragment(phases, context);
+    const behaviorFragment = buildBehaviorInsights(context);
+    const progressFragment = buildGoalProgressFragment(context);
+
     // Filter to remaining blocks (not yet past, not done)
     const remainingBlocks = context.schedule.today.filter(b => {
         const blockStartMins = timeToMinutes(b.start_time);
@@ -106,7 +120,7 @@ export async function optimizeDayAI(
         ).join('\n')
         : '  (No habit stacks)';
 
-    const systemPrompt = `You are PlannrAI's schedule optimizer. Analyze the remaining day and suggest adjustments.
+    const systemPrompt = `You are PlannrAI's schedule optimizer — an expert in flow state management and energy-aware scheduling. Analyze the remaining day and suggest adjustments that respect the user's energy arc.
 
 CRITICAL RULES:
 1. NEVER move or delete FIXED blocks (is_fixed=true or has commitment_id)
@@ -115,14 +129,14 @@ CRITICAL RULES:
 4. Generate exactly 2 optimization options. Each should be meaningfully different.
 5. You can use 'move_event' to shift blocks, 'delete_event' to cancel them, or 'create_event' to fill gaps.
 6. For 'create_event', payload must match: {"title":"...", "start_time":"HH:MM", "end_time":"HH:MM", "block_type":"goal|routine|meal|buffer|flex", "goal_id":"...", "pillar":"...", "checklist": [{"text": "Action item 1"}]}
-7. IMPORTANT REALISM RULES:
-   - Add 10-15 minute Buffer blocks between distinct activities (e.g. Work and Workout)
-   - Ensure Lunch is around 12:30-13:30 and Dinner is around 18:30-19:30. DO NOT schedule Dinner early at 18:00 or skip lunch
-   - If missing, generate 'Morning Routine' and 'Night Routine' blocks
-   - CHECKLIST SYNC: For every 'goal' block you create, you MUST examine its provided 'AI Strategy' to generate a realistic 2-3 item 'checklist'.
+7. FLOW-STATE RULES:
+   - Follow the Energy Arc: don't move high-energy blocks into trough/wind-down phases
+   - After deep work (60-90min), ensure a 15min Active Recovery block exists
+   - 10-15 minute transition buffers between different activities
+   - If user's energy is low, suggest removing blocks, not adding them
+   - CHECKLIST SYNC: For every 'goal' block you create, generate a realistic 2-3 item checklist
 8. Use existing block IDs for move/delete operations
-9. DYNAMIC PILLAR DISTRIBUTION: The number of goal blocks per pillar depends on the user's actual goals. If they have 3 mind goals, create 3 mind blocks. Do NOT force exactly one of each pillar.
-10. Use the user's ACTUAL goal names and IDs. Do NOT invent generic blocks like "Mind Boost".
+9. Use the user's ACTUAL goal names and IDs. Do NOT invent generic blocks.
 
 BIO-CONTEXT:
 - ${chronotypeRules}
@@ -132,7 +146,8 @@ BIO-CONTEXT:
 ${(mealWindows as any)?.breakfast ? `- Breakfast window: ${(mealWindows as any).breakfast.start}–${(mealWindows as any).breakfast.end}` : ''}
 ${(mealWindows as any)?.lunch ? `- Lunch window: ${(mealWindows as any).lunch.start}–${(mealWindows as any).lunch.end}` : ''}
 ${(mealWindows as any)?.dinner ? `- Dinner window: ${(mealWindows as any).dinner.start}–${(mealWindows as any).dinner.end}` : ''}
-
+${flowFragment}
+${behaviorFragment}
 Return valid JSON only.`;
 
     const blocksText = remainingBlocks.map(b =>
@@ -165,8 +180,8 @@ INSTRUCTIONS:
 ${focus === 'reduce_overwhelm' ? 'User feels overwhelmed. Remove non-essential blocks, add breaks. Do not schedule heavy goals.' :
             focus === 'maximize_output' ? 'User wants max productivity. Tighten schedule, fill gaps with focus blocks.' :
                 'Balance the schedule — ensure breaks, meals, and focus time are placed optimally until wind-down.'}
-Identify gaps in the schedule and CREATE routines (e.g., Afternoon Reset, Night Routine), Meals (Lunch at 13:00, Dinner at 19:00), and Focus Blocks for the user's goals if they are missing. MUST add 15min 'Buffer' blocks between major activities.
-
+Identify gaps in the schedule and CREATE routines, Meals, and Focus Blocks for the user's goals if missing. Follow the ENERGY ARC — place deep work in peak/rebound phases, light work in trough/wind-down.
+${progressFragment}
 Generate 2 options:
 
 Option 1: "Realistic" — Balanced plan with standard meal times and plenty of breaks.

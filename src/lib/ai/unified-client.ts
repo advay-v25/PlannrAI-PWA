@@ -86,27 +86,30 @@ function getGroqConfig(model: string): ProviderConfig {
 // Map model tier → provider configs (primary, fallback)
 // Smart = complex reasoning (coach, goals, weekly review) → OpenRouter primary
 // Fast = simple extraction (brain dump, habits, briefings) → Groq primary
-function getProviderChain(tier: AIModel): [ProviderConfig, ProviderConfig] {
+function getProviderChain(options: AICallOptions): [ProviderConfig, ProviderConfig] {
+    const tier = options.model || 'fast';
+    const getPrimaryOpenRouterConfig = options.calendarKey ? getCalendarOpenRouterConfig : getOpenRouterConfig;
+
     switch (tier) {
         case 'smart':
             return [
-                getOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'),
+                getPrimaryOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'),
                 getGroqConfig('llama-3.3-70b-versatile'),
             ];
         case 'fast':
             return [
                 getGroqConfig('llama-3.3-70b-versatile'),
-                getOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'),
+                getPrimaryOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'),
             ];
         case 'creative':
             return [
-                getOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'),
+                getPrimaryOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'),
                 getGroqConfig('llama-3.3-70b-versatile'),
             ];
         default:
             return [
                 getGroqConfig('llama-3.3-70b-versatile'),
-                getOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'),
+                getPrimaryOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'),
             ];
     }
 }

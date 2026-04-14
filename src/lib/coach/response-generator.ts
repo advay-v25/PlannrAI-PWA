@@ -3,6 +3,11 @@ import { CoachContext } from '@/lib/coach/context-builder';
 import { buildCalendarContext, CalendarContext } from '@/lib/calendar/context-builder';
 import { callAI } from '@/lib/ai/unified-client';
 import { format } from 'date-fns';
+import {
+    computeDayPhases,
+    buildFlowPromptFragment,
+    buildGoalProgressFragment
+} from '@/lib/calendar/flow-protocol';
 
 // ============ RESPONSE SCHEMA ============
 
@@ -205,13 +210,21 @@ function buildScheduleContextForAI(
         ).join('\n')
         : '  (No fixed commitments)';
 
-    // Enrich with calendar context data if available
     let bioContext = '';
+    let flowContext = '';
+
     if (calCtx) {
         const energyDesc = calCtx.user.energy_level >= 7 ? 'HIGH energy' :
             calCtx.user.energy_level >= 4 ? 'MODERATE energy' : 'LOW energy';
         const stressDesc = calCtx.user.stress_level >= 7 ? 'HIGH stress' :
             calCtx.user.stress_level >= 4 ? 'MODERATE stress' : 'LOW stress';
+
+        const wakeMins = timeToMinutes(calCtx.user.sleep_end || '07:00');
+        const sleepMins = timeToMinutes(calCtx.user.sleep_start || '23:00');
+        const phases = computeDayPhases(wakeMins, sleepMins, (calCtx.user.chronotype || 'bear') as any);
+        flowContext = buildFlowPromptFragment(phases, calCtx);
+        const progressContext = buildGoalProgressFragment(calCtx);
+        flowContext += '\n' + progressContext;
 
         bioContext = `
 ━━━ BIO-CONTEXT ━━━
@@ -256,7 +269,9 @@ ${goalsText}
 ${commitmentsText}
 
 ━━━ LEARNED PREFERENCES ━━━
-${prefsText}`;
+${prefsText}
+
+${flowContext}`;
 }
 
 // Intent categories
@@ -295,7 +310,7 @@ async function generateAIScheduleResponse(
 ): Promise<CoachResponse> {
     const scheduleContext = buildScheduleContextForAI(coachCtx, calCtx);
 
-    const systemPrompt = `You are Donna, PlannrAI's AI scheduling coach. You have NATIVE OVERRIDE capability for the user's entire calendar.
+const systemPrompt = `You are Donna, PlannrAI's AI scheduling coach. You have NATIVE OVERRIDE capability for the user's entire calendar.
 
 RULES:
 1. YOU ARE FULLY EMPOWERED to create, reorder, delete, and wipe schedule blocks using PATCH OPERATIONS. NEVER say "I can't do that" or ask the user to do it manually.
@@ -304,14 +319,14 @@ RULES:
 4. NEVER modify LOCKED commitments (use their actual ID and leave them alone).
 5. All times in 24-hour HH:MM format
 6. All dates in YYYY-MM-DD format
-7. Be empathetic but take decisive action.
-8. If the user is overwhelmed/low-energy, DELETE or RESCHEDULE blocks aggressively using 'move_block' or 'delete_block' operations.
-9. When moving blocks, use the block's EXACT ID from the schedule provided below.
-10. When creating blocks, set realistic durations (20-90 min) and appropriate block_types.
-11. Block types: goal, meal, buffer, routine, flex, anchor
-12. Respect sleep hours (${coachCtx.user.sleep_end} wake → ${coachCtx.user.sleep_start} sleep)
+7. OVERLAP PREVENTION: NEVER create overlapping blocks. You MUST actively scan the provided schedule and find an empty gap of free time that fits the duration. 
+8. RESPECT SLEEP: Never schedule anything during sleep hours (${coachCtx.user.sleep_end} wake → ${coachCtx.user.sleep_start} sleep).
+9. If the user is overwhelmed/low-energy, DELETE or RESCHEDULE blocks aggressively using 'move_block' or 'delete_block' operations.
+10. When moving blocks, use the block's EXACT ID from the schedule provided below.
+11. When creating blocks, set realistic durations (20-90 min) and appropriate block_types.
+12. Block types: goal, meal, buffer, routine, flex, anchor
 13. Include a "checklist" array with 2-3 action items for new goal blocks.
-14. For "reschedule" or "re-plan" requests, generate massive PATCH arrays doing it entirely for them (dozens of create/move/delete operations).
+14. FLOW STATE: Use the provided Energy Phases to place deep work in the PEAK phase and light work in the TROUGH phase.
 15. Mark one option as "recommended": true
 
 PATCH OPERATION TYPES:
