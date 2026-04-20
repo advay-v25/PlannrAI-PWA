@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useUserStore, useGoalsStore, useDailyLogStore } from '@/stores';
 import { useToast } from '@/components/ui/toast';
@@ -10,7 +10,7 @@ import type { AnticipationSignal } from '@/lib/intelligence/anticipation-service
 export type ScheduleBlockWithGoal = ScheduleBlock & { goal?: Goal };
 
 export function useHomeManager() {
-    const supabase = createClient();
+    const supabase = useMemo(() => createClient(), []);
     const { profile, setProfile, updateProfile } = useUserStore();
     const { goals, setGoals } = useGoalsStore();
     const { todayLog, setTodayLog } = useDailyLogStore();

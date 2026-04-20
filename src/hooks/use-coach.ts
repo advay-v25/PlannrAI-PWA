@@ -76,27 +76,39 @@ export const useCoach = create<CoachState>((set, get) => ({
                 date: new Date().toISOString()
             });
 
+            // Extract the actual response data from the carrier object
+            const coachRes = (res as any).response || res;
+
             const assistantMsg: CoachMessage = {
                 id: crypto.randomUUID(),
                 role: 'assistant',
-                content: res.summary || '',
-                mode: res.mode,
-                thinking: res.thinking,
-                contextUsed: res.context_used,
-                options: res.options,
-                question: res.question,
-                refusal: res.refusal,
-                suggestedActions: res.suggested_actions
+                content: coachRes.summary || '',
+                mode: coachRes.mode,
+                thinking: coachRes.thinking,
+                contextUsed: coachRes.context_used,
+                options: coachRes.options,
+                question: coachRes.question,
+                refusal: coachRes.refusal,
+                suggestedActions: coachRes.suggested_actions
             };
 
             set(state => ({
                 messages: [...state.messages, assistantMsg],
                 isLoading: false,
-                minimalMode: res.mode === 'ask' || (res.thinking?.length === 0), // Heuristic or add to schema
-                suggestedActions: res.suggested_actions || state.suggestedActions,
-                canUndo: !!res.undo_token,
-                lastUndoToken: res.undo_token || state.lastUndoToken
+                minimalMode: coachRes.mode === 'ask' || (coachRes.thinking?.length === 0),
+                suggestedActions: coachRes.suggested_actions || state.suggestedActions,
+                canUndo: !!coachRes.undo_token,
+                lastUndoToken: coachRes.undo_token || state.lastUndoToken
             }));
+
+            // AUTO-EXECUTION: If mode is 'execute' and there is a recommended option, apply it immediately
+            if (coachRes.mode === 'execute' && coachRes.options?.length) {
+                const recommended = coachRes.options.find((o: any) => o.recommended) || coachRes.options[0];
+                if (recommended) {
+                    console.log('[Coach] Auto-executing directive:', recommended.title);
+                    get().applyOption(assistantMsg.id, recommended.id);
+                }
+            }
         } catch (error: any) {
             console.error("Coach Error", error);
             set(state => ({

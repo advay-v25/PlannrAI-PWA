@@ -33,8 +33,6 @@ export function CoachChat({ onCalendarUpdate }: CoachChatProps) {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-
-
     const [input, setInput] = useState('');
     const [pendingOption, setPendingOption] = useState<CoachOption | null>(null);
     const [showPreview, setShowPreview] = useState(false);
@@ -77,7 +75,6 @@ export function CoachChat({ onCalendarUpdate }: CoachChatProps) {
         }
     };
 
-
     // Handle undo
     const handleUndo = async () => {
         const success = await undo();
@@ -86,56 +83,59 @@ export function CoachChat({ onCalendarUpdate }: CoachChatProps) {
         }
     };
 
-    // Get last assistant message for options display
-    const lastAssistantMessage = messages.filter(m => m.role === 'assistant').pop();
-    const hasActiveOptions = lastAssistantMessage?.options &&
-        !lastAssistantMessage.selected_option_id &&
-        lastAssistantMessage.options.length > 0;
-
     return (
-        <div className="flex flex-col h-full">
-            {/* Minimal Mode Badge */}
-            {minimalMode && (
-                <div className="bg-blue-50 border-b border-blue-100 px-4 py-2">
-                    <span className="text-sm text-blue-700 font-medium">
-                        🌙 Minimal Mode - Showing fewer, simpler options
+        <div className="flex flex-col h-full glass relative overflow-hidden bg-bg-secondary/40">
+            {/* Mesh Background Overlay (Subtle) */}
+            <div className="absolute inset-0 z-0 opacity-20 pointer-events-none bg-mesh-gradient"></div>
+
+            {/* Header / Mode Indicator */}
+            <div className="z-10 px-6 py-4 flex justify-between items-center border-b border-white/5 backdrop-blur-md">
+                <div className="flex flex-col">
+                    <span className="text-xs font-bold text-primary tracking-widest uppercase">
+                        Neural Coach
+                    </span>
+                    <span className="text-[10px] text-foreground/50 uppercase tracking-tighter">
+                        v4.2 · Strategic Override Active
                     </span>
                 </div>
-            )}
+                {minimalMode && (
+                    <div className="flex items-center space-x-2 bg-primary/10 px-2 py-1 rounded-full border border-primary/20">
+                        <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></div>
+                        <span className="text-[10px] font-bold text-primary uppercase">Minimal IQ</span>
+                    </div>
+                )}
+            </div>
 
             {/* Error Banner */}
             {error && (
-                <div className="bg-red-50 border-b border-red-100 px-4 py-2 flex justify-between items-center">
-                    <span className="text-sm text-red-700">{error}</span>
-                    <button
-                        onClick={clearError}
-                        className="text-red-500 hover:text-red-700"
-                    >
-                        ×
-                    </button>
+                <div className="z-10 bg-red-500/10 border-b border-red-500/20 px-4 py-2 flex justify-between items-center backdrop-blur-md animate-slide-up">
+                    <span className="text-xs text-red-400 font-medium">{error}</span>
+                    <button onClick={clearError} className="text-red-400/50 hover:text-red-400">×</button>
                 </div>
             )}
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="z-10 flex-1 overflow-y-auto p-4 space-y-6 scrollbar-hide">
                 {messages.length === 0 && !isLoading && (
-                    <div className="text-center text-gray-500 mt-8">
-                        <p className="text-lg font-medium mb-2">How can I help?</p>
-                        <p className="text-sm">
-                            Try: "I'm busy at 4pm" or "I'm exhausted" or "What should I do now?"
+                    <div className="text-center text-gray-500 mt-12 animate-fade-in">
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-primary to-mind/50 mx-auto mb-6 flex items-center justify-center shadow-glow">
+                             <span className="text-white text-2xl">⚡️</span>
+                        </div>
+                        <p className="text-lg font-semibold text-foreground mb-2">How shall we architect today?</p>
+                        <p className="text-xs text-secondary max-w-[240px] mx-auto italic">
+                            "I'm overwhelmed," or "Protect my focus today."
                         </p>
                     </div>
                 )}
 
                 {messages.map((message, index) => (
-                    <div key={message.id || index}>
+                    <div key={message.id || index} className="space-y-4">
                         <CoachMessageBubble message={message} />
 
-                        {/* Show options for assistant messages */}
+                        {/* Options UI */}
                         {message.role === 'assistant' && message.options && message.options.length > 0 && (
-                            <div className="mt-3 space-y-2">
+                            <div className="mt-4 flex flex-col space-y-3 animate-slide-up">
                                 {!message.selected_option_id ? (
-                                    // Options not yet selected
                                     message.options.map(option => (
                                         <CoachOptionCard
                                             key={option.id}
@@ -146,9 +146,14 @@ export function CoachChat({ onCalendarUpdate }: CoachChatProps) {
                                         />
                                     ))
                                 ) : (
-                                    // Option was selected - show confirmation
-                                    <div className="bg-green-50 text-green-700 p-3 rounded-lg text-sm">
-                                        ✓ Applied: {message.options.find(o => o.id === message.selected_option_id)?.title}
+                                    <div className="mx-4 p-3 rounded-xl bg-primary/5 border border-primary/20 flex items-center space-x-3">
+                                        <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-[10px] text-white">✓</div>
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-bold text-primary uppercase">Strategically Applied</span>
+                                            <span className="text-sm text-foreground/80">
+                                                {message.options.find(o => o.id === message.selected_option_id)?.title}
+                                            </span>
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -156,62 +161,69 @@ export function CoachChat({ onCalendarUpdate }: CoachChatProps) {
                     </div>
                 ))}
 
-                {/* Loading indicator */}
+                {/* Loading State */}
                 {isLoading && (
-                    <div className="flex items-center space-x-2 text-gray-500">
-                        <div className="animate-pulse">●</div>
-                        <div className="animate-pulse delay-100">●</div>
-                        <div className="animate-pulse delay-200">●</div>
+                    <div className="flex items-center space-x-2 pl-4 animate-fade-in">
+                        <div className="flex space-x-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-glow"></div>
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse delay-75 shadow-glow"></div>
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse delay-150 shadow-glow"></div>
+                        </div>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-primary/50">Analyzing Neural Load</span>
                     </div>
                 )}
 
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Undo Button */}
+            {/* Undo Action */}
             {canUndo && !isLoading && (
-                <div className="px-4 py-2 border-t bg-gray-50">
+                <div className="z-10 px-6 py-2 border-t border-white/5 bg-black/20 backdrop-blur-sm animate-fade-in">
                     <button
                         onClick={handleUndo}
-                        className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+                        className="text-[10px] font-bold text-primary hover:text-primary-hover uppercase tracking-widest flex items-center"
                     >
-                        ↩️ Undo last change
+                        Revert Last Protocol ↩
                     </button>
                 </div>
             )}
 
-            {/* Input Area */}
-            <form onSubmit={handleSubmit} className="p-4 border-t">
-                <div className="flex space-x-2">
+            {/* Input - Neural Control Bar */}
+            <form onSubmit={handleSubmit} className="z-10 p-6 border-t border-white/5 bg-bg-secondary/80 backdrop-blur-xl">
+                <div className="flex items-center space-x-3">
                     <input
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        placeholder="Tell me what you need..."
+                        placeholder="Define strategy..."
                         disabled={isLoading}
-                        className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                        className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all placeholder:text-foreground/20 text-foreground"
                     />
                     <button
                         type="submit"
                         disabled={isLoading || !input.trim()}
-                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center shadow-glow hover:shadow-glow-intense active:scale-95 transition-all text-white disabled:opacity-30 disabled:grayscale"
                     >
-                        Send
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                        </svg>
                     </button>
                 </div>
             </form>
 
-            {/* Confirmation Modal */}
+            {/* Confirmation Modal Overlay */}
             {showPreview && pendingOption && (
-                <ConfirmationModal
-                    option={pendingOption}
-                    onConfirm={() => applyAndRefresh(pendingOption)}
-                    onCancel={() => {
-                        setShowPreview(false);
-                        setPendingOption(null);
-                    }}
-                    isLoading={isLoading}
-                />
+                <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-md">
+                   <ConfirmationModal
+                        option={pendingOption}
+                        onConfirm={() => applyAndRefresh(pendingOption)}
+                        onCancel={() => {
+                            setShowPreview(false);
+                            setPendingOption(null);
+                        }}
+                        isLoading={isLoading}
+                    />
+                </div>
             )}
         </div>
     );

@@ -11,14 +11,23 @@ export function CoachMessageBubble({ message }: CoachMessageBubbleProps) {
     const isUser = message.role === 'user';
 
     return (
-        <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+        <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} animate-fade-in`}>
             <div
-                className={`max-w-[80%] px-4 py-2 rounded-lg ${isUser
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100 text-gray-800'
+                className={`max-w-[85%] px-4 py-3 rounded-2xl shadow-sm ${isUser
+                        ? 'bg-primary text-white ml-12 rounded-tr-none'
+                        : 'glass border-l-2 border-l-primary/50 text-foreground mr-12 rounded-tl-none'
                     }`}
             >
-                <p className="text-sm">{message.content}</p>
+                <div className="flex flex-col space-y-1">
+                    {!isUser && (
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-primary/80 mb-1">
+                            Donna · Strategic Lead
+                        </span>
+                    )}
+                    <p className="text-sm leading-relaxed font-regular">
+                        {message.content}
+                    </p>
+                </div>
             </div>
         </div>
     );

@@ -16,10 +16,10 @@ export async function GET(request: Request) {
             const { data: { user } } = await supabase.auth.getUser();
 
             if (user) {
-                // Log successful login
-                await logAuthEvent('login_success', user.id, request, {
+                // Log successful login (non-blocking)
+                logAuthEvent('login_success', user.id, request, {
                     provider: user.app_metadata?.provider || 'email',
-                });
+                }).catch(err => console.error('Failed to log auth event:', err));
 
                 // Check if profile exists
                 const { data: profile, error: profileError } = await supabase

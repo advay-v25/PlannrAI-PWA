@@ -91,7 +91,6 @@ export async function buildCoachContext(
         commitmentsRes,
         todayBlocksRes,
         tomorrowBlocksRes,
-        weekBlocksRes,
         energyRes,
         preferencesRes,
         missedBlocksRes
@@ -109,23 +108,15 @@ export async function buildCoachContext(
             .eq('is_active', true),
 
         supabase.from('schedule_blocks')
-            .select('*')
+            .select('id, date, start_time, end_time, title, context, block_type, status, goal_id')
             .eq('user_id', userId)
             .eq('date', today)
             .order('start_time'),
 
         supabase.from('schedule_blocks')
-            .select('*')
+            .select('id, date, start_time, end_time, title, context, block_type, status, goal_id')
             .eq('user_id', userId)
             .eq('date', tomorrow)
-            .order('start_time'),
-
-        supabase.from('schedule_blocks')
-            .select('*')
-            .eq('user_id', userId)
-            .gte('date', weekStart)
-            .lte('date', weekEnd)
-            .order('date')
             .order('start_time'),
 
         supabase.from('energy_checkins')
@@ -153,7 +144,6 @@ export async function buildCoachContext(
     const commitments = commitmentsRes.data || [];
     const todayBlocks = todayBlocksRes.data || [];
     const tomorrowBlocks = tomorrowBlocksRes.data || [];
-    const weekBlocks = weekBlocksRes.data || [];
     const lastEnergy = energyRes.data;
     const preferences = preferencesRes.data || [];
     const missedCount = missedBlocksRes.count || 0;
@@ -180,7 +170,7 @@ export async function buildCoachContext(
         schedule: {
             today: todayWithLocks,
             tomorrow: tomorrowWithLocks,
-            this_week: weekBlocks,
+            this_week: [], // Trimmed for performance/token budget
         },
         user_state: {
             is_minimal_mode: isMinimalMode,

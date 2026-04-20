@@ -50,11 +50,11 @@ export const POST = secureApiRoute(
                     items: mapOrganizedToItems(result.organized),
                     constraints: mapOrganizedToConstraints(result.organized),
                     signals: {
-                        energy: undefined,
-                        sentiment: undefined,
-                        overwhelm: undefined,
-                        motivation: undefined,
-                        stress: undefined,
+                        energy: result.signals?.energy,
+                        sentiment: result.signals?.sentiment,
+                        overwhelm: result.signals?.overwhelmed,
+                        stress: result.signals?.stress,
+                        motivation: undefined, // Not currently extracted
                     },
                 },
                 options: result.options.map(opt => ({

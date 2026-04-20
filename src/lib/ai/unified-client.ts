@@ -93,8 +93,8 @@ function getProviderChain(options: AICallOptions): [ProviderConfig, ProviderConf
     switch (tier) {
         case 'smart':
             return [
-                getPrimaryOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'),
                 getGroqConfig('llama-3.3-70b-versatile'),
+                getPrimaryOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'),
             ];
         case 'fast':
             return [
@@ -103,8 +103,8 @@ function getProviderChain(options: AICallOptions): [ProviderConfig, ProviderConf
             ];
         case 'creative':
             return [
-                getPrimaryOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'),
                 getGroqConfig('llama-3.3-70b-versatile'),
+                getPrimaryOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'),
             ];
         default:
             return [
@@ -183,7 +183,7 @@ async function callProvider<T>(
         body.response_format = { type: 'json_object' };
     }
 
-    const timeout = options.timeout ?? (options.model === 'fast' ? 25000 : 55000);
+    const timeout = options.timeout ?? (options.model === 'fast' ? 15000 : 25000);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
@@ -289,7 +289,7 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
         return callProvider<T>(groqFallback, options);
     }
 
-    const [primary, fallback] = getProviderChain(tier);
+    const [primary, fallback] = getProviderChain(options);
 
     // Try primary
     const primaryResult = await callProvider<T>(primary, options);

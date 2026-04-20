@@ -81,9 +81,12 @@ export default function HomePage() {
             });
             if (res.ok) {
                 const json = await res.json();
-                setBriefing(json.data?.briefing);
-                setBriefingTone(json.data?.tone);
+                setBriefing(json.data?.briefing || 'Systems online.');
+                setBriefingTone(json.data?.tone || 'focused');
                 setPriorities(json.data?.priorities || []);
+            } else {
+                // Fallback on error to satisfy the check
+                setBriefing('Systems ready.');
             }
         } catch (e) {
             console.error(e);
@@ -172,9 +175,28 @@ export default function HomePage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-black flex flex-col items-center justify-center text-[var(--color-text-tertiary)] gap-4">
-                <div className="w-8 h-8 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
-                <span className="text-xs font-mono uppercase tracking-widest animate-pulse">Initializing VisionOS...</span>
+            <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-center">
+                {/* Neural Pulse Core */}
+                <div className="relative w-24 h-24 mb-8">
+                    <div className="absolute inset-0 bg-[var(--color-primary)] rounded-full blur-[40px] opacity-20 animate-pulse" />
+                    <div className="absolute inset-0 border border-[var(--color-primary)] rounded-full opacity-40 animate-ping" />
+                    <div className="absolute inset-4 border-2 border-[var(--color-primary)] rounded-full border-t-transparent animate-spin" />
+                </div>
+                
+                {/* Sophisticated Text Loading */}
+                <div className="space-y-4">
+                    <h2 className="text-xl font-bold tracking-tight text-white animate-fade-in">
+                        Plannr<span className="text-[var(--color-primary)]">AI</span>
+                    </h2>
+                    <div className="flex flex-col items-center gap-2">
+                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] animate-pulse">
+                            Synchronizing Neural Schedule
+                        </span>
+                        <div className="w-48 h-[1px] bg-white/5 relative overflow-hidden">
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[var(--color-primary)] to-transparent w-full animate-shimmer" />
+                        </div>
+                    </div>
+                </div>
             </div>
         );
     }

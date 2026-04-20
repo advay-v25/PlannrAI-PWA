@@ -25,6 +25,11 @@ export enum CoachIntent {
     EXPLAIN_SCHEDULE = 'explain_schedule',   // "Why is my schedule so intense?"
     PROGRESS_CHECK = 'progress_check',       // "How's my week going?"
 
+    // ===== STRATEGIC INTENTS =====
+    DEEP_WORK_OPTIMIZE = 'deep_work_optimize', // "Protect my focus today"
+    ENERGY_OFFSET = 'energy_offset',       // "I'm tired, move deep work to tomorrow"
+    MINIMAL_OS = 'minimal_os',             // "Clear everything but the essentials"
+
     // ===== CLARIFICATION/META INTENTS =====
     CLARIFICATION_NEEDED = 'clarification_needed', // Ambiguous input
     UNDO_LAST = 'undo_last',                 // "Undo that change"
@@ -200,6 +205,28 @@ export const INTENT_EXAMPLES = {
         "I feel terrible",
     ],
 
+    [CoachIntent.DEEP_WORK_OPTIMIZE]: [
+        "Protect my focus today",
+        "Make sure I have deep work during my peak energy",
+        "Strategic focus for this morning",
+        "Clear distractions for the next 3 hours",
+        "Arrange my week for Craft pillar priority",
+    ],
+
+    [CoachIntent.ENERGY_OFFSET]: [
+        "I'm slumped, move my hard tasks later",
+        "Shift focus work to my peak energy phase",
+        "Too tired for deep work, give me something light",
+        "Move my meeting because I'm drained",
+    ],
+
+    [CoachIntent.MINIMAL_OS]: [
+        "Clear everything but the essentials",
+        "Wipe my day except for fixed meetings",
+        "I'm overwhelmed, just show me the must-dos",
+        "Minimalist schedule for today",
+    ],
+
     [CoachIntent.OUT_OF_SCOPE]: [
         "What's the weather?",
         "Tell me a joke",
@@ -243,23 +270,18 @@ ${Object.entries(INTENT_EXAMPLES).slice(0, 10).map(([intent, examples]) =>
     ).join('\n')}
 
 CLASSIFICATION RULES:
-1. Choose the PRIMARY intent that best matches
-2. If message contains 2 clear intents, identify SECONDARY intent
-3. If message is ambiguous, set primary_intent to "clarification_needed"
-4. Extract entities: times, dates, durations, block/goal references
-5. If user mentions a constraint ("busy at X"), extract it
-6. Confidence:
-   - 0.9-1.0: Very clear match
-   - 0.7-0.89: Good match
-   - 0.5-0.69: Uncertain, may need clarification
-   - < 0.5: Unclear, definitely need clarification
+1. Choose the PRIMARY intent that best matches.
+2. STRATEGIC BIAS: If the user mentions "focus", "peak", "energy", or "strategy", prioritize DEEP_WORK_OPTIMIZE or ENERGY_OFFSET.
+3. If message contains 2 clear intents, identify SECONDARY intent.
+4. If message is ambiguous, set primary_intent to "clarification_needed".
+5. Extract entities: times, dates, durations, block/goal references.
+6. Identify if the request asks for "Silent Intelligence" (proactive management) vs simple manual commands.
 
 SPECIAL CASES:
+- If "Protect my focus" -> DEEP_WORK_OPTIMIZE
+- If "Too tired for X" -> ENERGY_OFFSET
 - If "I'm busy at [time]" → BUSY_AT_TIME + extract constraint
-- If "I'm exhausted/tired" → ENERGY_LOW
-- If "I'm overwhelmed" → OVERWHELMED (not just ENERGY_LOW)
 - If "Move X to Y" → MOVE_BLOCK + extract entities
-- If off-topic → OUT_OF_SCOPE
 - If emotional venting without action request → GENERAL_CHAT
 
 OUTPUT (valid JSON only):

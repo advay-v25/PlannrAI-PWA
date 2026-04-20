@@ -23,6 +23,12 @@ export interface BrainDumpResponse {
         schedule_adjustments?: OrganizedSection;
     };
     options: BrainDumpOption[];
+    signals: {
+        energy?: number;
+        sentiment?: number;
+        stress?: number;
+        overwhelmed?: number;
+    };
     escalations?: {
         coach?: string;
         goals?: string;
@@ -137,6 +143,12 @@ style === 'directive' ? `- Brief emotional validation
       "recommended": true|false
     }
   ],
+  "signals": {
+    "energy": 0-100,
+    "sentiment": 0-100,
+    "stress": 0-100,
+    "overwhelmed": 0-100
+  },
   "escalations": {
     "coach": "Suggestion to talk to Coach (optional)",
     "goals": "Suggestion about goal adjustments (optional)",
@@ -158,7 +170,8 @@ style === 'directive' ? `- Brief emotional validation
 10. For "update" ops, include block id and only the fields being changed
 11. For "delete" ops, include only the block id
 12. Be concise — user is overwhelmed, don't add to it with walls of text
-13. Only return valid JSON — no markdown, no explanation outside JSON`;
+13. Extract emotional signals (energy, sentiment, stress, overwhelmed) accurately based on tone and content
+14. Only return valid JSON — no markdown, no explanation outside JSON`;
 }
 
 // ============ USER PROMPT BUILDER ============
@@ -291,6 +304,12 @@ function generateFallbackResponse(ctx: BrainDumpContext): BrainDumpResponse {
                 recommended: false,
             },
         ],
+        signals: {
+            energy: ctx.user_preferences.energy_level * 10,
+            stress: ctx.user_preferences.stress_level * 10,
+            sentiment: 50,
+            overwhelmed: ctx.user_preferences.stress_level > 7 ? 80 : 30
+        },
         escalations: {
             coach: "If this feeling persists, consider talking to Coach about your overall schedule intensity.",
         },

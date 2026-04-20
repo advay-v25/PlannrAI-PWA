@@ -310,48 +310,46 @@ async function generateAIScheduleResponse(
 ): Promise<CoachResponse> {
     const scheduleContext = buildScheduleContextForAI(coachCtx, calCtx);
 
-const systemPrompt = `You are Donna, PlannrAI's AI scheduling coach. You have NATIVE OVERRIDE capability for the user's entire calendar.
+const systemPrompt = `You are Donna, PlannrAI's Strategic Scheduling Architect. You don't just "assistant"—you manage the user's focus as their most precious resource.
 
-RULES:
-1. YOU ARE FULLY EMPOWERED to create, reorder, delete, and wipe schedule blocks using PATCH OPERATIONS. NEVER say "I can't do that" or ask the user to do it manually.
-2. Provide 2-3 aggressive, proactive options for the user to choose from.
-3. Each option MUST include concrete patch operations (create_block, move_block, update_block, delete_block) that fully execute the user's intent.
-4. NEVER modify LOCKED commitments (use their actual ID and leave them alone).
-5. All times in 24-hour HH:MM format
-6. All dates in YYYY-MM-DD format
-7. OVERLAP PREVENTION: NEVER create overlapping blocks. You MUST actively scan the provided schedule and find an empty gap of free time that fits the duration. 
-8. RESPECT SLEEP: Never schedule anything during sleep hours (${coachCtx.user.sleep_end} wake → ${coachCtx.user.sleep_start} sleep).
-9. If the user is overwhelmed/low-energy, DELETE or RESCHEDULE blocks aggressively using 'move_block' or 'delete_block' operations.
-10. When moving blocks, use the block's EXACT ID from the schedule provided below.
-11. When creating blocks, set realistic durations (20-90 min) and appropriate block_types.
-12. Block types: goal, meal, buffer, routine, flex, anchor
-13. Include a "checklist" array with 2-3 action items for new goal blocks.
-14. FLOW STATE: Use the provided Energy Phases to place deep work in the PEAK phase and light work in the TROUGH phase.
-15. Mark one option as "recommended": true
+STRATEGIC DIRECTIVES:
+1. FLOW STATE PROTECTION: Prioritize deep work blocks (90-120 min) during the user's PEAK energy phases.
+2. TROUGH MANAGEMENT: Place administrativia, meals, and low-cognitive tasks in TROUGH phases.
+3. BUFFERS: Proactively insert 15-30 min "Neural Buffers" after high-intensity blocks.
+4. AGGRESSIVE OPTIMIZATION: If the user is overwhelmed, don't just "ask"—actively propose clearing or deferring low-priority tasks.
+5. AUTO-EXECUTION VS PROPOSAL:
+   - SELECT "suggested_mode": "execute" ONLY for:
+     * Single block MOVE of < 60 minutes for a non-anchor block.
+     * Single block CREATION of a 'flex' or 'task' block.
+     * Status updates for existing blocks.
+   - SELECT "suggested_mode": "propose" ALWAYS for:
+     * ANY change involving 'anchor' blocks.
+     * Multi-block rescheduling (> 1 block moved/created).
+     * Any change spanning multiple days.
+     * Large-scale optimizations or deletions.
 
 PATCH OPERATION TYPES:
 - create_block: { type: "create_block", data: { date, start_time, end_time, title, context, block_type, goal_id?, pillar?, checklist? } }
-- move_block: { type: "move_block", block_id: "existing-id", new_start: "HH:MM", new_end: "HH:MM", new_date?: "YYYY-MM-DD" }
-- update_block: { type: "update_block", block_id: "existing-id", changes: { status?, title?, start_time?, end_time? } }
-- delete_block: { type: "delete_block", block_id: "existing-id" }
+- move_block: { type: "move_block", block_id: "existing-id", title: "Block Title", new_start: "HH:MM", new_end: "HH:MM", new_date?: "YYYY-MM-DD" }
+- update_block: { type: "update_block", block_id: "existing-id", title: "Block Title", changes: { status?, title?, start_time?, end_time? } }
+- delete_block: { type: "delete_block", block_id: "existing-id", title: "Block Title" }
 
 OUTPUT FORMAT (strict JSON):
 {
-  "summary": "Brief, empathetic 1-2 sentence response to the user",
+  "summary": "Donna's strategic reasoning (direct, insightful, high-EQ)",
+  "confidence_score": 0.0-1.0,
+  "suggested_mode": "propose" | "execute",
+  "strategic_insight": "A single sentence explaining WHY this optimization matters for their goals",
   "options": [
     {
       "id": "option_1",
       "title": "Short title",
       "description": "What this option does",
-      "impact": "Human-readable impact statement",
+      "impact": "Concrete positive outcome (e.g., 'Reclaims 2 hours of peak focus')",
       "tradeoff": { "warning": "Any downsides", "severity": "info|caution|warning" },
       "operations": [
         { "type": "create_block|move_block|update_block|delete_block", ... }
       ],
-      "blocks_added": 0,
-      "blocks_modified": 0,
-      "blocks_removed": 0,
-      "affected_dates": ["YYYY-MM-DD"],
       "recommended": true
     }
   ]
@@ -402,24 +400,40 @@ Generate 2-3 actionable options with concrete patch operations. Return valid JSO
         });
 
         if (response.success && response.data?.options?.length) {
+            // Determine the final mode: if AI is confident and recommends 'execute', we double-check complexity
+            const option = response.data.options[0];
+            const opCount = option.operations?.length || 0;
+            const hasAnchorMove = option.operations?.some(op => 
+                (op.type === 'move_block' || op.type === 'update_block') && 
+                (op as any).block_type === 'anchor'
+            );
+
+            // Simple = High confidence, suggested execute, small op count, no anchors
+            const isSimple = response.data.suggested_mode === 'execute' && 
+                             response.data.confidence_score > 0.9 && 
+                             opCount <= 1 && 
+                             !hasAnchorMove;
+
+            const aiMode = isSimple ? 'execute' : 'propose';
+
             const options: CoachOption[] = response.data.options.map((opt, i) => ({
                 id: opt.id || `option_${i}`,
                 title: opt.title,
                 description: opt.description,
-                impact: opt.impact,
+                impact: opt.impact || response.data.strategic_insight || "Optimizing your schedule",
                 tradeoff: opt.tradeoff ? {
                     warning: opt.tradeoff.warning,
                     severity: (opt.tradeoff.severity as 'info' | 'caution' | 'warning') || 'info',
                 } : undefined,
                 patch: {
                     operations: (opt.operations || []).map(normalizeOperation),
-                    requires_confirmation: false,
+                    requires_confirmation: aiMode === 'execute' ? false : true,
                 },
                 preview: {
-                    blocks_added: opt.blocks_added || 0,
-                    blocks_modified: opt.blocks_modified || 0,
-                    blocks_removed: opt.blocks_removed || 0,
-                    affected_dates: opt.affected_dates || [coachCtx.current.date],
+                    blocks_added: (opt as any).blocks_added || 0,
+                    blocks_modified: (opt as any).blocks_modified || 0,
+                    blocks_removed: (opt as any).blocks_removed || 0,
+                    affected_dates: (opt as any).affected_dates || [coachCtx.current.date],
                 },
                 recommended: opt.recommended || false,
             }));
@@ -432,7 +446,7 @@ Generate 2-3 actionable options with concrete patch operations. Return valid JSO
             return {
                 id: generateId(),
                 timestamp: new Date().toISOString(),
-                mode: 'propose',
+                mode: aiMode,
                 summary: response.data.summary || "Here are some options for you.",
                 options,
                 minimal_mode: coachCtx.user_state.is_minimal_mode,
@@ -480,6 +494,7 @@ function normalizeOperation(op: any): PatchOperation {
             return {
                 type: 'move_block',
                 block_id: op.block_id || op.event_id || op.id,
+                title: op.title || 'Block',
                 new_start: op.new_start || op.to_start || op.start_time,
                 new_end: op.new_end || op.to_end || op.end_time,
                 new_date: op.new_date || op.date,
@@ -498,6 +513,7 @@ function normalizeOperation(op: any): PatchOperation {
             return {
                 type: 'delete_block',
                 block_id: op.block_id || op.event_id || op.id,
+                title: op.title || 'Block',
             };
         case 'update_goal':
             return {

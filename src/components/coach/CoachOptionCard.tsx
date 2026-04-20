@@ -17,76 +17,121 @@ export function CoachOptionCard({
     minimalMode
 }: CoachOptionCardProps) {
     const severityColors = {
-        info: 'bg-blue-50 text-blue-700 border-blue-200',
-        caution: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-        warning: 'bg-red-50 text-red-700 border-red-200',
+        info: 'bg-primary/5 text-primary/80 border-primary/10',
+        caution: 'bg-yellow-500/5 text-yellow-500/80 border-yellow-500/10',
+        warning: 'bg-red-500/5 text-red-500/80 border-red-500/10',
     };
 
     return (
         <div
-            className={`border rounded-lg p-4 cursor-pointer transition-all hover:shadow-md ${option.recommended
-                    ? 'border-blue-300 bg-blue-50/50'
-                    : 'border-gray-200 hover:border-gray-300'
-                } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`glass-card glass-interactive group p-5 transition-all w-full relative ${option.recommended
+                    ? 'border-primary/40 bg-primary/5'
+                    : 'border-white/5 bg-white/5'
+                } ${disabled ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
             onClick={() => !disabled && onSelect()}
         >
-            {/* Title Row */}
-            <div className="flex justify-between items-start mb-2">
-                <div className="flex items-center">
-                    {option.recommended && (
-                        <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded mr-2">
-                            Recommended
-                        </span>
-                    )}
-                    <h4 className="font-medium text-gray-900">{option.title}</h4>
+            {/* Recommendation Glow */}
+            {option.recommended && (
+                <div className="absolute inset-0 bg-primary/5 blur-xl -z-10 animate-pulse"></div>
+            )}
+
+            <div className="flex flex-col space-y-3">
+                {/* Header */}
+                <div className="flex justify-between items-start">
+                    <div className="flex flex-col">
+                        {option.recommended && (
+                            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-primary mb-1">
+                                [ Neural Recommendation ]
+                            </span>
+                        )}
+                        <h4 className="text-sm font-bold text-foreground leading-tight tracking-tight group-hover:text-primary transition-colors">
+                            {option.title}
+                        </h4>
+                    </div>
                 </div>
+
+                {/* Description */}
+                <p className="text-xs text-foreground/60 leading-relaxed italic">
+                    "{option.description}"
+                </p>
+
+                {/* Impact Highlight */}
+                <div className="flex items-center space-x-2 py-2 border-y border-white/5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary shadow-glow"></div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-primary/90">
+                        {option.impact}
+                    </span>
+                </div>
+
+                {/* Detailed Plan Preview (The 'Plan View' for Big Edits) */}
+                {option.patch?.ops && option.patch.ops.length > 0 && (
+                    <div className="space-y-1.5 py-1">
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-foreground/30">Proposed Protocol</span>
+                        <div className="space-y-1">
+                            {option.patch.ops.slice(0, 4).map((op, idx) => {
+                                let label = '';
+                                const type = op.op;
+                                if (type.includes('create')) label = `Add: ${op.event?.title || op.title || 'New block'}`;
+                                else if (type.includes('move')) label = `Move: ${op.title || 'Block'} to ${op.to_start}`;
+                                else if (type.includes('delete')) label = `Cancel: ${op.title || 'Block'}`;
+                                else if (type.includes('update')) label = `Update: ${op.title || 'Block'}`;
+                                
+                                return (
+                                    <div key={idx} className="flex items-center space-x-2 text-[10px] text-foreground/70">
+                                        <span className="text-primary/60">•</span>
+                                        <span className="line-clamp-1">{label}</span>
+                                    </div>
+                                );
+                            })}
+                            {option.patch.ops.length > 4 && (
+                                <div className="text-[9px] text-foreground/40 pl-3">
+                                    + {option.patch.ops.length - 4} more operations
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Tradeoff Warning */}
+                {option.tradeoff && (
+                    <div className={`text-[10px] p-2 rounded-lg border backdrop-blur-sm ${severityColors[option.tradeoff.severity]}`}>
+                        <span className="font-bold">NOTICE:</span> {option.tradeoff.warning}
+                    </div>
+                )}
+
+                {/* Stats */}
+                {!minimalMode && option.preview && (
+                    <div className="flex space-x-4 opacity-50 group-hover:opacity-100 transition-opacity">
+                        <div className="flex flex-col">
+                            <span className="text-[9px] uppercase tracking-tighter text-foreground/40 font-bold">Scope</span>
+                            <span className="text-[10px] text-foreground font-medium">
+                                {option.preview.affected_dates.length} Day{option.preview.affected_dates.length > 1 ? 's' : ''}
+                            </span>
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-[9px] uppercase tracking-tighter text-foreground/40 font-bold">Ops</span>
+                            <span className="text-[10px] text-foreground font-medium">
+                                {option.preview.blocks_added + option.preview.blocks_modified + option.preview.blocks_removed} Changes
+                            </span>
+                        </div>
+                    </div>
+                )}
+
+                {/* Action Button */}
+                <button
+                    className={`nav-link w-full py-2.5 rounded-xl text-[11px] font-black uppercase tracking-[0.15em] transition-all flex items-center justify-center space-x-2 ${option.recommended
+                            ? 'bg-primary text-white shadow-glow'
+                            : 'bg-white/10 text-white/70 hover:bg-white/20'
+                        }`}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (!disabled) onSelect();
+                    }}
+                    disabled={disabled}
+                >
+                    <span>{disabled ? 'Applying Neural Protocol...' : option.tradeoff ? 'Review & Execute' : 'Execute Directive'}</span>
+                </button>
             </div>
-
-            {/* Description */}
-            <p className="text-sm text-gray-600 mb-2">{option.description}</p>
-
-            {/* Impact */}
-            <p className="text-sm text-gray-500 mb-2">
-                <span className="font-medium">Impact:</span> {option.impact}
-            </p>
-
-            {/* Tradeoff Warning */}
-            {option.tradeoff && (
-                <div className={`text-sm p-2 rounded border ${severityColors[option.tradeoff.severity]}`}>
-                    ⚠️ {option.tradeoff.warning}
-                </div>
-            )}
-
-            {/* Preview Stats (compact in minimal mode) */}
-            {!minimalMode && option.preview && (
-                <div className="mt-3 flex space-x-4 text-xs text-gray-500">
-                    {option.preview.blocks_added > 0 && (
-                        <span className="text-green-600">+{option.preview.blocks_added} added</span>
-                    )}
-                    {option.preview.blocks_modified > 0 && (
-                        <span className="text-yellow-600">~{option.preview.blocks_modified} modified</span>
-                    )}
-                    {option.preview.blocks_removed > 0 && (
-                        <span className="text-red-600">-{option.preview.blocks_removed} removed</span>
-                    )}
-                </div>
-            )}
-
-
-            {/* Apply Button */}
-            <button
-                className={`mt-3 w-full py-2 rounded text-sm font-medium transition-colors ${option.recommended
-                        ? 'bg-blue-500 text-white hover:bg-blue-600'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                onClick={(e) => {
-                    e.stopPropagation();
-                    if (!disabled) onSelect();
-                }}
-                disabled={disabled}
-            >
-                {disabled ? 'Applying...' : option.tradeoff ? 'Preview & Apply' : 'Apply'}
-            </button>
         </div>
     );
 }
