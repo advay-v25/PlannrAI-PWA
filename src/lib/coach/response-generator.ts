@@ -376,6 +376,9 @@ Generate 2-3 actionable options with concrete patch operations. Return valid JSO
     try {
         const response = await callAI<{
             summary: string;
+            confidence_score: number;
+            suggested_mode: 'execute' | 'propose';
+            strategic_insight?: string;
             options: Array<{
                 id: string;
                 title: string;
@@ -399,9 +402,11 @@ Generate 2-3 actionable options with concrete patch operations. Return valid JSO
             timeout: 25000,
         });
 
-        if (response.success && response.data?.options?.length) {
+        if (response.success && response.data && response.data.options?.length) {
+            const data = response.data;
+
             // Determine the final mode: if AI is confident and recommends 'execute', we double-check complexity
-            const option = response.data.options[0];
+            const option = data.options[0];
             const opCount = option.operations?.length || 0;
             const hasAnchorMove = option.operations?.some(op => 
                 (op.type === 'move_block' || op.type === 'update_block') && 
@@ -409,18 +414,18 @@ Generate 2-3 actionable options with concrete patch operations. Return valid JSO
             );
 
             // Simple = High confidence, suggested execute, small op count, no anchors
-            const isSimple = response.data.suggested_mode === 'execute' && 
-                             response.data.confidence_score > 0.9 && 
+            const isSimple = data.suggested_mode === 'execute' && 
+                             data.confidence_score > 0.9 && 
                              opCount <= 1 && 
                              !hasAnchorMove;
 
             const aiMode = isSimple ? 'execute' : 'propose';
 
-            const options: CoachOption[] = response.data.options.map((opt, i) => ({
+            const options: CoachOption[] = data.options.map((opt, i) => ({
                 id: opt.id || `option_${i}`,
                 title: opt.title,
                 description: opt.description,
-                impact: opt.impact || response.data.strategic_insight || "Optimizing your schedule",
+                impact: opt.impact || data.strategic_insight || "Optimizing your schedule",
                 tradeoff: opt.tradeoff ? {
                     warning: opt.tradeoff.warning,
                     severity: (opt.tradeoff.severity as 'info' | 'caution' | 'warning') || 'info',
@@ -447,7 +452,7 @@ Generate 2-3 actionable options with concrete patch operations. Return valid JSO
                 id: generateId(),
                 timestamp: new Date().toISOString(),
                 mode: aiMode,
-                summary: response.data.summary || "Here are some options for you.",
+                summary: data.summary || "Here are some options for you.",
                 options,
                 minimal_mode: coachCtx.user_state.is_minimal_mode,
                 conversation_context: { can_undo: false },
@@ -494,7 +499,6 @@ function normalizeOperation(op: any): PatchOperation {
             return {
                 type: 'move_block',
                 block_id: op.block_id || op.event_id || op.id,
-                title: op.title || 'Block',
                 new_start: op.new_start || op.to_start || op.start_time,
                 new_end: op.new_end || op.to_end || op.end_time,
                 new_date: op.new_date || op.date,
@@ -513,7 +517,6 @@ function normalizeOperation(op: any): PatchOperation {
             return {
                 type: 'delete_block',
                 block_id: op.block_id || op.event_id || op.id,
-                title: op.title || 'Block',
             };
         case 'update_goal':
             return {

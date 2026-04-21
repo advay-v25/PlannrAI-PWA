@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PlannrAI - Your Supportive Life Companion",
-  description: "A calm, supportive companion that absorbs mental chaos, helps you see what matters today, and protects your long-term goals.",
+  title: "PlannrAI - Build how you want to, adapt when you need to",
+  description: "Build how you want to, adapt when you need to",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "PlannrAI",
-    description: "Your calm, supportive companion for life",
+    description: "Build how you want to, adapt when you need to",
     type: "website",
   },
 };

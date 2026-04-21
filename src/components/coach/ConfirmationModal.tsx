@@ -18,17 +18,17 @@ export function ConfirmationModal({
     isLoading,
 }: ConfirmationModalProps) {
     const severityColors = {
-        info: 'border-blue-200 bg-blue-50',
-        caution: 'border-yellow-200 bg-yellow-50',
-        warning: 'border-red-200 bg-red-50',
+        info: 'border-[var(--color-primary)]/20 bg-[var(--color-primary)]/5 text-[var(--color-primary)]',
+        caution: 'border-[var(--color-warning)]/20 bg-[var(--color-warning)]/5 text-[var(--color-warning)]',
+        warning: 'border-[var(--color-error)]/20 bg-[var(--color-error)]/5 text-[var(--color-error)]',
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-[var(--color-bg-secondary)] border border-[var(--glass-border)] rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
                 {/* Header */}
-                <div className="px-6 py-4 border-b">
-                    <h3 className="text-lg font-semibold text-gray-900">
+                <div className="px-6 py-4 border-b border-[var(--glass-border)]">
+                    <h3 className="text-lg font-semibold text-[var(--text-primary)]">
                         Confirm Changes
                     </h3>
                 </div>
@@ -37,14 +37,14 @@ export function ConfirmationModal({
                 <div className="px-6 py-4 space-y-4">
                     {/* Option Summary */}
                     <div>
-                        <h4 className="font-medium text-gray-900">{option.title}</h4>
-                        <p className="text-sm text-gray-600 mt-1">{option.description}</p>
+                        <h4 className="font-medium text-[var(--text-primary)]">{option.title}</h4>
+                        <p className="text-sm text-[var(--text-secondary)] mt-1">{option.description}</p>
                     </div>
 
                     {/* Impact */}
-                    <div className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-sm">
-                            <span className="font-medium">Impact:</span> {option.impact}
+                    <div className="bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-lg p-3">
+                        <p className="text-sm text-[var(--text-secondary)]">
+                            <span className="font-medium text-[var(--text-primary)]">Impact:</span> {option.impact}
                         </p>
                     </div>
 
@@ -56,28 +56,28 @@ export function ConfirmationModal({
                         </div>
                     )}
 
-            {/* Preview Summary */}
-                    <div className="border rounded-lg p-3">
-                        <p className="text-sm font-medium mb-2">Changes:</p>
+                    {/* Preview Summary */}
+                    <div className="border border-[var(--glass-border)] rounded-lg p-3">
+                        <p className="text-sm font-medium mb-2 text-[var(--text-primary)]">Changes:</p>
                         <div className="flex space-x-4 text-sm">
                             {option.preview && option.preview.blocks_added > 0 && (
-                                <span className="text-green-600">
+                                <span className="text-[var(--color-success)]">
                                     ✓ {option.preview.blocks_added} block(s) added
                                 </span>
                             )}
                             {option.preview && option.preview.blocks_modified > 0 && (
-                                <span className="text-yellow-600">
+                                <span className="text-[var(--color-warning)]">
                                     ✎ {option.preview.blocks_modified} block(s) modified
                                 </span>
                             )}
                             {option.preview && option.preview.blocks_removed > 0 && (
-                                <span className="text-red-600">
+                                <span className="text-[var(--color-error)]">
                                     ✕ {option.preview.blocks_removed} block(s) removed
                                 </span>
                             )}
                         </div>
                         {option.preview && option.preview.affected_dates.length > 0 && (
-                            <p className="text-xs text-gray-500 mt-2">
+                            <p className="text-xs text-[var(--text-tertiary)] mt-2">
                                 Affects: {option.preview.affected_dates.join(', ')}
                             </p>
                         )}
@@ -86,18 +86,18 @@ export function ConfirmationModal({
                 </div>
 
                 {/* Actions */}
-                <div className="px-6 py-4 bg-gray-50 flex justify-end space-x-3">
+                <div className="px-6 py-4 bg-[var(--color-bg-primary)]/50 border-t border-[var(--glass-border)] flex justify-end space-x-3">
                     <button
                         onClick={onCancel}
                         disabled={isLoading}
-                        className="px-4 py-2 text-gray-700 hover:text-gray-900 disabled:opacity-50"
+                        className="px-4 py-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-50 transition-colors"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={onConfirm}
                         disabled={isLoading}
-                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+                        className="px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:brightness-110 disabled:opacity-50 transition-all font-medium"
                     >
                         {isLoading ? 'Applying...' : 'Confirm & Apply'}
                     </button>

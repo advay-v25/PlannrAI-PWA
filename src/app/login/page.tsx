@@ -35,6 +35,7 @@ export default function LoginPage() {
             if (error) throw error;
             setIsSent(true);
         } catch (err: any) {
+            console.error('[Auth Error - Magic Link]:', err);
             setError(err.message || 'Failed to send magic link');
         } finally {
             setIsLoading(false);
@@ -46,7 +47,7 @@ export default function LoginPage() {
         setError('');
 
         try {
-            const { error } = await supabase.auth.signInWithOAuth({
+            const { data, error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
                     redirectTo: `${window.location.origin}/auth/callback`,
@@ -54,7 +55,11 @@ export default function LoginPage() {
             });
 
             if (error) throw error;
+            if (data?.url) {
+                window.location.assign(data.url);
+            }
         } catch (err: any) {
+            console.error('[Auth Error - Google OAuth]:', err);
             setError(err.message || 'Failed to sign in with Google');
             setIsLoading(false);
         }
@@ -88,7 +93,7 @@ export default function LoginPage() {
                                 Welcome to PlannrAI
                             </h1>
                             <p className="text-[var(--color-text-secondary)] text-sm">
-                                Your calm, supportive companion for life
+                                Build how you want to, adapt when you need to
                             </p>
                         </div>
 

@@ -17,13 +17,14 @@ export interface CoachMessage {
     refusal?: CoachRefusal;
     suggestedActions?: string[];
     isApplying?: boolean;
-    selected_option_id?: string; // Match UI expectation
+    selected_option_id?: string;
     undoToken?: string | null;
 }
 
 
 interface CoachState {
     messages: CoachMessage[];
+    conversationId: string | null; // BUG 2 FIX: Track conversation_id
     isLoading: boolean;
     error: string | null;
     minimalMode: boolean;
@@ -44,8 +45,29 @@ interface CoachState {
     actOnProactive: () => void;
 }
 
+/**
+ * Extracts the CoachResponse from the API response,
+ * handling both envelope formats:
+ *   - { success, conversation_id, response: {...} }  (from /api/coach/message)
+ *   - { ok, data: {...} }  (if apiClient auto-unwraps)
+ *   - Direct CoachResponse  (if already unwrapped)
+ */
+function extractCoachResponse(raw: any): { response: any; conversationId?: string } {
+    // Format: { success, conversation_id, response }
+    if (raw?.response && typeof raw.response === 'object') {
+        return { response: raw.response, conversationId: raw.conversation_id };
+    }
+    // Already unwrapped CoachResponse (has summary/mode directly)
+    if (raw?.summary || raw?.mode) {
+        return { response: raw, conversationId: raw.conversation_id };
+    }
+    // Fallback
+    return { response: raw };
+}
+
 export const useCoach = create<CoachState>((set, get) => ({
     messages: [],
+    conversationId: null,
     isLoading: false,
     error: null,
     minimalMode: false,
@@ -71,13 +93,13 @@ export const useCoach = create<CoachState>((set, get) => ({
         }));
 
         try {
-            const res = await apiClient.post<CoachResponse>('/api/coach/message', {
+            const raw = await apiClient.post('/api/coach/message', {
                 message: text,
+                conversation_id: get().conversationId, // Send tracked conversation_id
                 date: new Date().toISOString()
             });
 
-            // Extract the actual response data from the carrier object
-            const coachRes = (res as any).response || res;
+            const { response: coachRes, conversationId } = extractCoachResponse(raw);
 
             const assistantMsg: CoachMessage = {
                 id: crypto.randomUUID(),
@@ -94,6 +116,7 @@ export const useCoach = create<CoachState>((set, get) => ({
 
             set(state => ({
                 messages: [...state.messages, assistantMsg],
+                conversationId: conversationId || state.conversationId, // Track it
                 isLoading: false,
                 minimalMode: coachRes.mode === 'ask' || (coachRes.thinking?.length === 0),
                 suggestedActions: coachRes.suggested_actions || state.suggestedActions,
@@ -120,7 +143,7 @@ export const useCoach = create<CoachState>((set, get) => ({
     },
 
     applyOption: async (messageId: string, optionId: string) => {
-        const { messages } = get();
+        const { messages, conversationId } = get();
         const msg = messages.find(m => m.id === messageId);
         const option = msg?.options?.find(o => o.id === optionId);
         if (!option) return false;
@@ -136,7 +159,11 @@ export const useCoach = create<CoachState>((set, get) => ({
         try {
             const res = await apiClient.post<{ success: boolean; undo_token: string | null; changes: number }>(
                 '/api/coach/apply',
-                { patch: option.patch, optionId }
+                { 
+                    patch: option.patch, 
+                    option_id: optionId,           // BUG 2 FIX: correct field name
+                    conversation_id: conversationId // BUG 2 FIX: include conversation_id
+                }
             );
 
             set(state => ({
@@ -203,30 +230,35 @@ export const useCoach = create<CoachState>((set, get) => ({
         set({ hasLoadedProactive: true, isLoading: true, error: null });
 
         try {
-            const res = await apiClient.post<CoachResponse>('/api/coach/message', {
+            const raw = await apiClient.post('/api/coach/message', {
                 message: "What should I focus on right now?",
+                conversation_id: get().conversationId,
                 date: new Date().toISOString(),
                 proactive: true
             });
 
+            // BUG 3 FIX: Use the same envelope extractor
+            const { response: coachRes, conversationId } = extractCoachResponse(raw);
+
             const insightMsg: CoachMessage = {
                 id: crypto.randomUUID(),
                 role: 'assistant',
-                content: res.summary || '',
-                mode: res.mode,
-                thinking: res.thinking,
-                contextUsed: res.context_used,
-                options: res.options,
-                question: res.question,
-                suggestedActions: res.suggested_actions
+                content: coachRes.summary || '',
+                mode: coachRes.mode,
+                thinking: coachRes.thinking,
+                contextUsed: coachRes.context_used,
+                options: coachRes.options,
+                question: coachRes.question,
+                suggestedActions: coachRes.suggested_actions
             };
 
             set(state => ({
                 messages: [insightMsg],
+                conversationId: conversationId || state.conversationId,
                 isLoading: false,
-                suggestedActions: res.suggested_actions || [],
-                canUndo: !!res.undo_token,
-                lastUndoToken: res.undo_token || state.lastUndoToken
+                suggestedActions: coachRes.suggested_actions || [],
+                canUndo: !!coachRes.undo_token,
+                lastUndoToken: coachRes.undo_token || state.lastUndoToken
             }));
         } catch (error: any) {
             console.error("Proactive insight failed", error);
@@ -253,5 +285,3 @@ export const useCoach = create<CoachState>((set, get) => ({
         set({ proactiveSuggestion: null });
     }
 }));
-
-

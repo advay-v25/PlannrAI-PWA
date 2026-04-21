@@ -98,8 +98,8 @@ function getProviderChain(options: AICallOptions): [ProviderConfig, ProviderConf
             ];
         case 'fast':
             return [
-                getGroqConfig('llama-3.3-70b-versatile'),
-                getPrimaryOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'),
+                getGroqConfig('llama-3.1-8b-instant'),
+                getPrimaryOpenRouterConfig('meta-llama/llama-3.1-8b-instruct'),
             ];
         case 'creative':
             return [
@@ -108,8 +108,8 @@ function getProviderChain(options: AICallOptions): [ProviderConfig, ProviderConf
             ];
         default:
             return [
-                getGroqConfig('llama-3.3-70b-versatile'),
-                getPrimaryOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'),
+                getGroqConfig('llama-3.1-8b-instant'),
+                getPrimaryOpenRouterConfig('meta-llama/llama-3.1-8b-instruct'),
             ];
     }
 }

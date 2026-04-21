@@ -34,19 +34,17 @@ export default function HomePage() {
         try {
             const today = new Date().toISOString().split('T')[0];
             const timestamp = Date.now();
-            const [summaryRes, stateRes] = await Promise.all([
-                fetch(`/api/home/summary?date=${today}&t=${timestamp}`),
-                fetch(`/api/home/state?date=${today}&t=${timestamp}`)
+            const [summaryData, stateData] = await Promise.all([
+                apiClient.get<any>(`/api/home/summary?date=${today}&t=${timestamp}`),
+                apiClient.get<any>(`/api/home/state?date=${today}&t=${timestamp}`)
             ]);
 
-            if (summaryRes.ok) {
-                const json = await summaryRes.json();
-                setData(json.data);
-                if (json.data.briefing) setBriefing(json.data.briefing);
+            if (summaryData) {
+                setData(summaryData);
+                if (summaryData.briefing) setBriefing(summaryData.briefing);
             }
-            if (stateRes.ok) {
-                const stateJson = await stateRes.json();
-                setStateData(stateJson.data);
+            if (stateData) {
+                setStateData(stateData);
             }
         } catch (e) {
             console.error(e);
@@ -61,10 +59,10 @@ export default function HomePage() {
 
     // Auto-fire briefing if missing and data loaded
     useEffect(() => {
-        if (!loading && data && !briefing && !briefingLoading && !briefingAttempted.current) {
+        if (!loading && data && !briefing && !briefingAttempted.current) {
             handleGenerateBriefing();
         }
-    }, [loading, data, briefing, briefingLoading]);
+    }, [loading, data, briefing]);
 
     const handleRefresh = () => {
         fetchHomeData();
@@ -74,22 +72,16 @@ export default function HomePage() {
         setBriefingLoading(true);
         briefingAttempted.current = true;
         try {
-            const res = await fetch('/api/narrative/briefing', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ date: new Date().toISOString().split('T')[0] })
+            const result = await apiClient.post<any>('/api/narrative/briefing', {
+                date: new Date().toISOString().split('T')[0]
             });
-            if (res.ok) {
-                const json = await res.json();
-                setBriefing(json.data?.briefing || 'Systems online.');
-                setBriefingTone(json.data?.tone || 'focused');
-                setPriorities(json.data?.priorities || []);
-            } else {
-                // Fallback on error to satisfy the check
-                setBriefing('Systems ready.');
-            }
+            
+            setBriefing(result?.briefing || 'Systems online.');
+            setBriefingTone(result?.tone || 'focused');
+            setPriorities(result?.priorities || []);
         } catch (e) {
             console.error(e);
+            setBriefing('Systems ready.');
         } finally {
             setBriefingLoading(false);
         }
@@ -97,7 +89,7 @@ export default function HomePage() {
 
     const handleEnergyCheckin = async (energy: number, mood: string) => {
         try {
-            await apiClient.post('/api/home/energy-checkin', {
+            await apiClient.post<any>('/api/home/energy-checkin', {
                 energy_level: energy,
                 emotional_state: mood
             });
@@ -119,19 +111,11 @@ export default function HomePage() {
         try {
             // 1. Call generate-today API (creates a full wake-to-sleep schedule)
             const today = new Date().toISOString().split('T')[0];
-            const planRes = await fetch('/api/calendar/generate-today', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ date: today })
+            const planData = await apiClient.post<any>('/api/calendar/generate-today', {
+                date: today
             });
 
-            if (!planRes.ok) {
-                const err = await planRes.json().catch(() => ({}));
-                throw new Error(err?.error?.message || 'Failed to generate plan');
-            }
-
-            const planData = await planRes.json();
-            const options = planData.data?.options || planData.options || [];
+            const options = planData?.options || [];
 
             if (options.length === 0) {
                 toast.error('AI could not generate a schedule. Try adding goals first.');
@@ -140,22 +124,13 @@ export default function HomePage() {
 
             // 2. Auto-apply the first option (balanced variant)
             const firstOption = options[0];
-            const applyRes = await fetch('/api/patch/apply', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    patch: firstOption.patch,
-                    source: 'generate_schedule',
-                    context: firstOption.id
-                })
+            const applyData = await apiClient.post<any>('/api/patch/apply', {
+                patch: firstOption.patch,
+                source: 'generate_schedule',
+                context: firstOption.id
             });
 
-            if (!applyRes.ok) {
-                throw new Error('Failed to apply schedule');
-            }
-
-            const applyData = await applyRes.json();
-            toast.success(`✅ Schedule created! ${applyData.data?.changes || ''} blocks added.`);
+            toast.success(`✅ Schedule created! ${applyData?.changes || ''} blocks added.`);
 
             // 3. Refresh home data to show new blocks
             await fetchHomeData();

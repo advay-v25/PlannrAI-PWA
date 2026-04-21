@@ -18,9 +18,9 @@ export async function applyLeverAction(action: LeverAction) {
     console.log(`[Lever] Applying action: ${action.type}`, action.payload);
 
     try {
-        const { CoachActionService } = await import('@/lib/coach/coach-actions');
+        const { PatchService } = await import('@/lib/services/patch-service');
 
-        // Normalize any action into a Patch format for CoachActionService
+        // Normalize any action into a Patch format for PatchService
         const patch: any = {
             ops: [],
             scope: 'week',
@@ -43,7 +43,7 @@ export async function applyLeverAction(action: LeverAction) {
         }
 
         if (patch.ops.length > 0) {
-            await CoachActionService.applyPatch(user.id, patch, supabase as any);
+            await PatchService.applyPatch(user.id, patch, supabase as any);
         }
 
         // Log to Memory (Fact)

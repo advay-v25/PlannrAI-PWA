@@ -21,7 +21,7 @@ export default function LandingPage() {
           </h1>
 
           <p className="text-xl md:text-2xl text-[var(--color-text-secondary)] mb-4 max-w-2xl mx-auto">
-            Your calm, supportive companion for life
+            Build how you want to, adapt when you need to
           </p>
 
           <p className="text-[var(--color-text-muted)] mb-8 max-w-xl mx-auto">

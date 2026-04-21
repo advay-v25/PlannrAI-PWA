@@ -112,7 +112,7 @@ export const POST = secureApiRoute(
 
         // 4. Trigger Initial Schedule Generation
         const { WeekOrchestrator } = await import('@/lib/calendar/week-orchestrator');
-        const { CoachActionService } = await import('@/lib/coach/coach-actions');
+        const { PatchService } = await import('@/lib/services/patch-service');
         
         const today = new Date().toISOString().split('T')[0];
         let blocksCreated = 0;
@@ -139,7 +139,7 @@ export const POST = secureApiRoute(
                     reason: 'Onboarding initial schedule generation',
                 };
 
-                await CoachActionService.applyPatch(effectiveUserId, calendarPatch, supabase as any);
+                await PatchService.applyPatch(effectiveUserId, calendarPatch, supabase as any);
                 blocksCreated = result.previewBlocks?.length || 0;
             }
         } catch (genError) {

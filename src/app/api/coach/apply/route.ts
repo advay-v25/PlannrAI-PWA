@@ -39,46 +39,50 @@ export async function POST(request: NextRequest) {
         const body: ApplyRequest = await request.json();
         const { conversation_id, option_id, patch } = body;
 
-        if (!conversation_id || !option_id || !patch) {
+        if (!option_id || !patch) {
             return NextResponse.json(
-                { success: false, error: 'Missing required fields' },
+                { success: false, error: 'Missing required fields (option_id, patch)' },
                 { status: 400 }
             );
         }
 
-        const { data: conversation } = await supabase
-            .from('coach_conversations')
-            .select('id')
-            .eq('id', conversation_id)
-            .eq('user_id', user.id)
-            .single();
+        // Validate conversation ownership if provided (optional for auto-execution)
+        if (conversation_id) {
+            const { data: conversation } = await supabase
+                .from('coach_conversations')
+                .select('id')
+                .eq('id', conversation_id)
+                .eq('user_id', user.id)
+                .single();
 
-        if (!conversation) {
-            return NextResponse.json(
-                { success: false, error: 'Conversation not found' },
-                { status: 404 }
-            );
-        }
+            if (!conversation) {
+                return NextResponse.json(
+                    { success: false, error: 'Conversation not found' },
+                    { status: 404 }
+                );
+            }
 
-        const { data: lastMessage } = await supabase
-            .from('coach_messages')
-            .select('created_at, options')
-            .eq('conversation_id', conversation_id)
-            .eq('role', 'assistant')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
+            // Also check option expiry within this conversation
+            const { data: lastMessage } = await supabase
+                .from('coach_messages')
+                .select('created_at, options')
+                .eq('conversation_id', conversation_id)
+                .eq('role', 'assistant')
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
 
-        if (lastMessage) {
-            const messageAge = Date.now() - new Date(lastMessage.created_at).getTime();
-            const tenMinutes = 10 * 60 * 1000;
+            if (lastMessage) {
+                const messageAge = Date.now() - new Date(lastMessage.created_at).getTime();
+                const tenMinutes = 10 * 60 * 1000;
 
-            if (messageAge > tenMinutes) {
-                return NextResponse.json({
-                    success: false,
-                    error: 'Options expired. Please ask again for fresh options.',
-                    expired: true,
-                }, { status: 400 });
+                if (messageAge > tenMinutes) {
+                    return NextResponse.json({
+                        success: false,
+                        error: 'Options expired. Please ask again for fresh options.',
+                        expired: true,
+                    }, { status: 400 });
+                }
             }
         }
 

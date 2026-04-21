@@ -75,18 +75,28 @@ export async function buildCoachContext(
     userId: string,
     supabase: any
 ): Promise<CoachContext> {
+    // 1. Fetch profile first to get the user's timezone
+    const profileRes = await supabase.from('profiles').select('*').eq('id', userId).single();
+    const profile = profileRes.data || {};
+    const timezone = profile.timezone || 'UTC';
+
+    // 2. Calculate dates and times relative to the user's timezone
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    const currentTime = now.toTimeString().slice(0, 5);
-    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
+    const timeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false });
+    
+    const today = dateFormatter.format(now);
+    const currentTime = timeFormatter.format(now);
+    
+    const tomorrowDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const tomorrow = dateFormatter.format(tomorrowDate);
 
-    // Get week boundaries
-    const weekStart = getWeekStart(now);
-    const weekEnd = getWeekEnd(now);
+    // Get week boundaries (can remain in general date sync, but best to align relative to the local date)
+    const weekStart = getWeekStart(new Date(today));
+    const weekEnd = getWeekEnd(new Date(today));
 
-    // Parallel fetch all data
+    // 3. Parallel fetch all remaining data using the localized dates
     const [
-        profileRes,
         goalsRes,
         commitmentsRes,
         todayBlocksRes,
@@ -95,8 +105,6 @@ export async function buildCoachContext(
         preferencesRes,
         missedBlocksRes
     ] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', userId).single(),
-
         supabase.from('goals')
             .select('id, title, pillar, weekly_target_minutes, current_streak_days, priority, is_active')
             .eq('user_id', userId)
@@ -131,12 +139,12 @@ export async function buildCoachContext(
             .eq('user_id', userId)
             .eq('is_active', true),
 
-        // Count missed blocks in last 24 hours
+        // Count missed blocks in last 24 hours (relative to local today)
         supabase.from('schedule_blocks')
             .select('id', { count: 'exact', head: true })
             .eq('user_id', userId)
             .eq('status', 'missed')
-            .gte('date', new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+            .gte('date', dateFormatter.format(new Date(now.getTime() - 24 * 60 * 60 * 1000)))
     ]);
 
     const profile = profileRes.data || {};

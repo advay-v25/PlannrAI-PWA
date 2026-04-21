@@ -1,4 +1,4 @@
-// @ts-nocheck
+// Removed @ts-nocheck
 'use client';
 
 import { useState } from 'react';
@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LayoutDashboard, Calendar, Brain, Activity, User, Sparkles, Menu, Target } from 'lucide-react';
-import { CoachChat } from '@/components/coach/coach-chat';
+import { CoachChat } from '@/components/coach/CoachChat';
 import { CommandMenu } from '@/components/ui/command-menu';
 import { cn } from '@/lib/utils';
 
