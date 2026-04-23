@@ -5,7 +5,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Calendar, Brain, Activity, User, Sparkles, Menu, Target, ListTodo, LineChart } from 'lucide-react';
+import { LayoutDashboard, Calendar, Brain, Activity, User, Sparkles, Menu, Target, ListTodo } from 'lucide-react';
 import { CoachChat } from '@/components/coach/CoachChat';
 import { CommandMenu } from '@/components/ui/command-menu';
 import { cn } from '@/lib/utils';
@@ -20,7 +20,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { href: '/app/tasks', icon: ListTodo, label: 'Tasks' },
         { href: '/app/calendar', icon: Calendar, label: 'Time' },
         { href: '/app/weekly-review', icon: Activity, label: 'Review' },
-        { href: '/app/analytics', icon: LineChart, label: 'Analytics' },
     ];
 
     return (

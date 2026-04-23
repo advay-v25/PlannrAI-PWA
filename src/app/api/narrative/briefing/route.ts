@@ -1,11 +1,11 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
-import { createClient } from '@/lib/supabase/server';
-import { executeAI } from '@/lib/ai/ai-service';
+import { groqChat } from '@/lib/ai/groq-client';
 
 export const POST = secureApiRoute(
-    async (context) => {
+    async (context, body) => {
         const { userId, supabase } = context;
-        const { date } = await context.request.json().catch(() => ({ date: new Date().toISOString().split('T')[0] }));
+        const { date } = (body as { date?: string }) || {};
+        const targetDate = date || new Date().toISOString().split('T')[0];
 
         // 1. Gather Context
         const [
@@ -15,11 +15,11 @@ export const POST = secureApiRoute(
             { data: goals }
         ] = await Promise.all([
             supabase.from('profiles').select('full_name, bio_data').eq('id', userId).single(),
-            supabase.from('user_states').select('*').eq('user_id', userId).single(),
+            supabase.from('user_states').select('*').eq('user_id', userId).maybeSingle(),
             supabase.from('schedule_blocks')
                 .select('*')
                 .eq('user_id', userId)
-                .eq('date', date)
+                .eq('date', targetDate)
                 .order('start_time'),
             supabase.from('goals').select('title, status').eq('user_id', userId).limit(3)
         ]);
@@ -30,34 +30,33 @@ export const POST = secureApiRoute(
         const firstName = (profile.full_name || 'User').split(' ')[0];
         const aiProfile = (profile as any).bio_data?.ai_profile || null;
 
-        // 2. Construct Prompt Payload
-        const promptPayload = {
-            user: {
-                name: firstName,
-                energy: userState?.energy_level || 3,
-                mood: userState?.emotional_state || 'neutral',
-                archetype: aiProfile?.archetype || null,
-                chronotype: aiProfile?.chronotype || null
-            },
-            schedule: {
-                count: blocks?.length || 0,
-                blocks: blocks?.map(b => `${b.start_time}-${b.end_time}: ${b.title} (${b.block_type})`).join('\n')
-            },
-            goals: goals?.map(g => g.title).join(', ')
-        };
-
-        // 3. Call AI Gateway
+        // 2. Generate briefing via Groq (fast, low-load)
         try {
-            const result = await executeAI(userId, {
-                channel: 'daily_briefing',
-                input: "Generate Command Briefing",
-                context: promptPayload
-            }) as any;
+            const scheduleText = blocks?.map((b: any) => `${b.start_time}-${b.end_time}: ${b.title} (${b.block_type})`).join('\n') || 'No blocks scheduled';
+            const goalsText = goals?.map((g: any) => g.title).join(', ') || 'None';
 
+            const result = await groqChat({
+                model: 'llama-3.1-8b-instant',
+                messages: [
+                    {
+                        role: 'system',
+                        content: `You are the AI briefing system for PlannrAI. Generate a short, punchy morning command briefing for ${firstName}. Be warm but direct. Max 2 sentences. Return JSON: {"briefing": "string", "tone": "focused|energized|calm|intense", "priorities": ["string"]}`
+                    },
+                    {
+                        role: 'user',
+                        content: `Date: ${targetDate}\nEnergy: ${userState?.energy_level || 3}/5\nMood: ${userState?.emotional_state || 'neutral'}\nArchetype: ${aiProfile?.archetype || 'unknown'}\nChronotype: ${aiProfile?.chronotype || 'unknown'}\n\nSchedule:\n${scheduleText}\n\nGoals: ${goalsText}`
+                    }
+                ],
+                temperature: 0.7,
+                max_tokens: 200,
+                userId
+            });
+
+            const parsed = JSON.parse(result);
             return apiSuccess({
-                briefing: result?.briefing || `Good morning, ${firstName}. Systems are online.`,
-                tone: result?.tone || 'focused',
-                priorities: result?.priorities || []
+                briefing: parsed.briefing || `Good morning, ${firstName}. Systems are online.`,
+                tone: parsed.tone || 'focused',
+                priorities: parsed.priorities || []
             });
 
         } catch (error: any) {
@@ -70,5 +69,5 @@ export const POST = secureApiRoute(
             });
         }
     },
-    { requireAuth: true, rateLimit: 'ai' }
+    { requireAuth: true, auditAction: 'narrative_briefing' }
 );

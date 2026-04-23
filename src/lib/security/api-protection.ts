@@ -76,7 +76,10 @@ export function secureApiRoute(
                 'https://www.plannrai.com',
             ].filter(Boolean);
 
-            if (origin && allowedOrigins.length > 0 && !allowedOrigins.includes(origin)) {
+            // Also allow any Vercel preview/branch deploy for this project
+            const isVercelPreview = origin && /^https:\/\/plannr-ai-pwa.*\.vercel\.app$/.test(origin);
+
+            if (origin && allowedOrigins.length > 0 && !allowedOrigins.includes(origin) && !isVercelPreview) {
                 await logSuspiciousActivity(undefined, `Blocked cross-origin request from ${origin}`, request, {
                     endpoint: request.url,
                     origin,

@@ -7,7 +7,7 @@ import { useToast } from '@/components/ui/toast';
 import {
     TrendingUp, TrendingDown, Check, Loader2, ArrowRight, ArrowLeft, Zap, Brain,
     RotateCcw, AlertTriangle, Target, BarChart3, Calendar, Clock, Flame,
-    MessageCircle, Sparkles, BookOpen, Shield, ChevronRight
+    MessageCircle, Sparkles, BookOpen, Shield, ChevronRight, PieChart, Trophy
 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, subWeeks } from 'date-fns';
 import { apiClient } from '@/lib/api-client';
@@ -29,8 +29,15 @@ interface WeeklyReviewData {
     lever: Lever; note: string; dayBreakdown?: Record<string, DayBreakdown>;
 }
 
-const STEPS = ['Score', 'Patterns', 'Reflect', 'Plan Next Week'] as const;
+const STEPS = ['Score', 'Patterns', 'Reflect', 'Plan Next Week', 'Insights'] as const;
 type Step = typeof STEPS[number];
+
+const PILLAR_COLORS: Record<string, string> = {
+    mind: '#818cf8', body: '#34d399', craft: '#f59e0b', anchor: '#f472b6', meal: '#a78bfa',
+};
+const PILLAR_LABELS: Record<string, string> = {
+    mind: 'Mind', body: 'Body', craft: 'Craft', anchor: 'Anchors', meal: 'Meals',
+};
 
 export default function WeeklyReviewPage() {
     const supabase = createClient();
@@ -53,6 +60,10 @@ export default function WeeklyReviewPage() {
     const [newRules, setNewRules] = useState<string[]>([]);
     const [ruleInput, setRuleInput] = useState('');
 
+    // Analytics / Insights state
+    const [analyticsData, setAnalyticsData] = useState<any>(null);
+    const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
     // Week logic
     const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
     const lastWeekStart = subWeeks(currentWeekStart, 1);
@@ -61,6 +72,17 @@ export default function WeeklyReviewPage() {
     const weekEndStr = format(lastWeekEnd, 'yyyy-MM-dd');
 
     useEffect(() => { checkExistingReview(); }, []);
+
+    // Fetch analytics when user reaches Insights step
+    useEffect(() => {
+        if (currentStep === 4 && !analyticsData && !analyticsLoading) {
+            setAnalyticsLoading(true);
+            apiClient.get<any>('/api/analytics/overview?days=14')
+                .then(setAnalyticsData)
+                .catch(e => console.error('Analytics load failed:', e))
+                .finally(() => setAnalyticsLoading(false));
+        }
+    }, [currentStep, analyticsData, analyticsLoading]);
 
     const checkExistingReview = async () => {
         try {
@@ -557,6 +579,128 @@ export default function WeeklyReviewPage() {
                             {review.note && (
                                 <div className="p-3 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] text-center">
                                     <p className="text-xs text-[var(--text-secondary)] italic">{review.note}</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* STEP 5: INSIGHTS */}
+                    {currentStep === 4 && (
+                        <div className="space-y-5">
+                            <div className="text-center py-4">
+                                <div className="w-12 h-12 mx-auto rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center mb-2">
+                                    <BarChart3 className="w-5 h-5 text-[var(--color-primary)]" />
+                                </div>
+                                <h2 className="text-lg font-bold">Insights</h2>
+                                <p className="text-xs text-[var(--text-secondary)]">Your patterns and trends (14 days)</p>
+                            </div>
+
+                            {analyticsLoading ? (
+                                <div className="flex justify-center py-12">
+                                    <Loader2 className="w-6 h-6 animate-spin text-[var(--color-primary)]" />
+                                </div>
+                            ) : analyticsData ? (
+                                <div className="space-y-5">
+                                    {/* Summary Stats */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <MetricCard icon={<Target className="w-4 h-4" />} label="Adherence" value={`${analyticsData.summary?.overall_adherence || 0}%`} color="var(--color-primary)" />
+                                        <MetricCard icon={<TrendingUp className="w-4 h-4" />} label="Completed" value={`${analyticsData.summary?.total_completed_hours || 0}h`} color="var(--color-success)" />
+                                        <MetricCard icon={<Flame className="w-4 h-4" />} label="Streak" value={`${analyticsData.summary?.current_streak || 0}`} color="var(--color-error)" />
+                                        <MetricCard icon={<Trophy className="w-4 h-4" />} label="Goals" value={`${analyticsData.summary?.goals_count || 0}`} color="var(--color-mind)" />
+                                    </div>
+
+                                    {/* Adherence Trend */}
+                                    {analyticsData.adherence_trend?.length > 0 && (() => {
+                                        const maxP = Math.max(...analyticsData.adherence_trend.map((d: any) => d.planned), 1);
+                                        return (
+                                            <div className="p-4 rounded-2xl bg-[var(--glass-bg)] border border-[var(--glass-border)]">
+                                                <div className="flex items-center gap-2 mb-4">
+                                                    <BarChart3 className="w-3.5 h-3.5 text-[var(--text-secondary)]" />
+                                                    <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">Daily Adherence</span>
+                                                </div>
+                                                <div className="h-32 flex items-end gap-[2px]">
+                                                    {analyticsData.adherence_trend.map((day: any, i: number) => {
+                                                        const pH = (day.planned / maxP) * 100;
+                                                        const cPct = day.planned > 0 ? (day.completed / day.planned) * 100 : 0;
+                                                        return (
+                                                            <div key={day.date} className="flex-1 flex flex-col items-center group relative" style={{ height: '100%' }}>
+                                                                <div className="w-full mt-auto relative rounded-t-sm overflow-hidden" style={{ height: `${pH}%`, minHeight: '2px' }}>
+                                                                    <div className="absolute inset-0 bg-white/10" />
+                                                                    <motion.div
+                                                                        initial={{ height: 0 }}
+                                                                        animate={{ height: `${cPct}%` }}
+                                                                        transition={{ duration: 0.5, delay: i * 0.02 }}
+                                                                        className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[var(--color-primary)] to-[var(--color-mind)] rounded-t-sm"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* Pillar Distribution */}
+                                    {analyticsData.pillar_distribution?.length > 0 && (() => {
+                                        const totalMin = analyticsData.pillar_distribution.reduce((s: number, p: any) => s + p.minutes, 0);
+                                        return (
+                                            <div className="p-4 rounded-2xl bg-[var(--glass-bg)] border border-[var(--glass-border)]">
+                                                <div className="flex items-center gap-2 mb-4">
+                                                    <PieChart className="w-3.5 h-3.5 text-[var(--text-secondary)]" />
+                                                    <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">Pillar Distribution</span>
+                                                </div>
+                                                <div className="space-y-2.5">
+                                                    {analyticsData.pillar_distribution.sort((a: any, b: any) => b.minutes - a.minutes).map((p: any) => {
+                                                        const pct = totalMin > 0 ? Math.round((p.minutes / totalMin) * 100) : 0;
+                                                        const color = PILLAR_COLORS[p.pillar] || '#6b7280';
+                                                        return (
+                                                            <div key={p.pillar}>
+                                                                <div className="flex items-center justify-between mb-1">
+                                                                    <span className="text-xs font-semibold text-[var(--text-primary)]">{PILLAR_LABELS[p.pillar] || p.pillar}</span>
+                                                                    <span className="text-[10px] text-[var(--text-tertiary)] font-mono">{Math.round(p.minutes / 60)}h {p.minutes % 60}m · {pct}%</span>
+                                                                </div>
+                                                                <div className="h-1.5 w-full bg-[var(--glass-border)] rounded-full overflow-hidden">
+                                                                    <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8 }} className="h-full rounded-full" style={{ backgroundColor: color }} />
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* Weekday Heatmap */}
+                                    {analyticsData.weekday_pattern?.length > 0 && (
+                                        <div className="p-4 rounded-2xl bg-[var(--glass-bg)] border border-[var(--glass-border)]">
+                                            <div className="flex items-center gap-2 mb-4">
+                                                <Calendar className="w-3.5 h-3.5 text-[var(--text-secondary)]" />
+                                                <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">Weekday Pattern</span>
+                                            </div>
+                                            <div className="grid grid-cols-7 gap-2">
+                                                {analyticsData.weekday_pattern.map((d: any) => {
+                                                    let bg = 'bg-white/5';
+                                                    if (d.adherence > 75) bg = 'bg-emerald-500/30';
+                                                    else if (d.adherence > 50) bg = 'bg-emerald-500/20';
+                                                    else if (d.adherence > 25) bg = 'bg-yellow-500/20';
+                                                    else if (d.adherence > 0) bg = 'bg-red-500/15';
+                                                    return (
+                                                        <div key={d.day} className="flex flex-col items-center gap-1.5">
+                                                            <span className="text-[10px] text-[var(--text-tertiary)] font-bold uppercase">{d.day}</span>
+                                                            <div className={`w-full aspect-square rounded-xl ${bg} flex items-center justify-center`}>
+                                                                <span className="text-[10px] font-bold text-[var(--text-secondary)]">{d.adherence}%</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-[var(--text-tertiary)] text-sm">
+                                    No analytics data available yet.
                                 </div>
                             )}
                         </div>
