@@ -15,12 +15,14 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
     ChevronLeft, ChevronRight, Plus, Zap, Layout,
     RotateCcw, Loader2, Calendar, Sparkles, MessageSquare,
-    Target, Clock, CheckCircle2, X
+    Target, Clock, CheckCircle2, X, Download
 } from 'lucide-react';
 
 import { ConflictModal } from '@/components/calendar/conflict-modal';
 import { PlanWeekModal } from '@/components/calendar/plan-week-modal';
 import { DayOptimizerModal } from '@/components/calendar/day-optimizer-modal';
+import { ActionCenter } from '@/components/todos/ActionCenter';
+import { ListChecks } from 'lucide-react';
 
 // ── Types ────────────────────────────────────────────────────────
 type ViewMode = 'day' | 'week';
@@ -177,6 +179,7 @@ function CalendarPageInner() {
     const [addModalDefaults, setAddModalDefaults] = useState<{ date?: string; hour?: number }>({});
     const [showPlanWeekModal, setShowPlanWeekModal] = useState(false);
     const [showOptimizerModal, setShowOptimizerModal] = useState(false);
+    const [showActionCenter, setShowActionCenter] = useState(true);
     const [isGeneratingToday, setIsGeneratingToday] = useState(false);
     const [autoPlanned, setAutoPlanned] = useState(false);
 
@@ -409,6 +412,27 @@ function CalendarPageInner() {
                             <Layout className="w-4 h-4" />
                         </button>
 
+                        {/* Export ICS */}
+                        <button
+                            onClick={() => {
+                                const dateStr = format(selectedDate, 'yyyy-MM-dd');
+                                window.open(`/api/calendar/export-ics?date=${dateStr}`, '_blank');
+                            }}
+                            title="Export to Apple/Google Calendar"
+                            className="p-2 rounded-lg text-white/40
+                            hover:bg-white/[0.06] hover:text-orange-400 transition-all">
+                            <Download className="w-4 h-4" />
+                        </button>
+
+                        <div className="w-px h-5 bg-white/[0.06] mx-1" />
+
+                        {/* Action Center Toggle */}
+                        <button onClick={() => setShowActionCenter(!showActionCenter)}
+                            title="Toggle Action Center"
+                            className={cn("p-2 rounded-lg transition-all", showActionCenter ? "bg-orange-500/10 text-orange-400" : "text-white/40 hover:bg-white/[0.06] hover:text-white")}>
+                            <ListChecks className="w-4 h-4" />
+                        </button>
+
                         {/* Add Task — minimal CTA */}
                         <button onClick={() => { setAddModalDefaults({}); setShowAddModal(true); }}
                             title="Add a new block"
@@ -488,8 +512,22 @@ function CalendarPageInner() {
                     />
                 </main>
 
+                {/* ── Action Center Panel (Split View) ───────────── */}
+                <AnimatePresence>
+                    {showActionCenter && (
+                        <motion.aside
+                            initial={{ width: 0, opacity: 0 }}
+                            animate={{ width: 320, opacity: 1 }}
+                            exit={{ width: 0, opacity: 0 }}
+                            className="flex flex-col shrink-0 border-l border-white/[0.06] bg-black z-20"
+                        >
+                            <ActionCenter />
+                        </motion.aside>
+                    )}
+                </AnimatePresence>
+
                 {/* ── Right Sidebar ──────────────────────────────── */}
-                <aside className="hidden lg:flex flex-col w-[280px] shrink-0 border-l border-white/[0.06] bg-black/40 overflow-y-auto no-scrollbar">
+                <aside className="hidden lg:flex flex-col w-[260px] shrink-0 border-l border-white/[0.06] bg-black/40 overflow-y-auto no-scrollbar">
                     <AnimatePresence mode="wait">
                         {selectedBlock ? (
                             <motion.div

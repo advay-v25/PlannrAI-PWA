@@ -1,12 +1,10 @@
 
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
-import { createClient } from '@/lib/supabase/server';
 import { ProfilePreferences } from '@/lib/types/settings';
 
 export const POST = secureApiRoute(
     async (context, body) => {
-        const supabase = await createClient();
-        const { userId } = context;
+        const { userId, supabase } = context;
         const patch = body as Partial<ProfilePreferences>;
 
         // 1. Remove protected fields if any

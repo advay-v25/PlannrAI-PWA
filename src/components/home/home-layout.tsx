@@ -13,6 +13,8 @@ export interface HomeLayoutProps {
     aiProfile?: React.ReactNode;
     realityIntake?: React.ReactNode;
     insights?: React.ReactNode;
+    todos?: React.ReactNode;
+    progressBars?: React.ReactNode;
 }
 
 export function HomeLayout({
@@ -25,7 +27,9 @@ export function HomeLayout({
     energyCheckin,
     aiProfile,
     realityIntake,
-    insights
+    insights,
+    todos,
+    progressBars
 }: HomeLayoutProps) {
     return (
         <div className="mx-auto max-w-6xl px-4 md:px-6 py-6 md:py-10 space-y-8 md:space-y-12 pb-32">
@@ -59,6 +63,13 @@ export function HomeLayout({
 
                 {/* Right Column (Secondary / Context) - 5 cols */}
                 <div className="md:col-span-5 space-y-6">
+                    {/* Progress Bars */}
+                    {progressBars && (
+                        <section>
+                            {progressBars}
+                        </section>
+                    )}
+
                     {/* Energy Check-in */}
                     {energyCheckin && (
                         <section>
@@ -75,6 +86,13 @@ export function HomeLayout({
                     {priorities && (
                         <section>
                             {priorities}
+                        </section>
+                    )}
+
+                    {/* Todos / Action Items */}
+                    {todos && (
+                        <section>
+                            {todos}
                         </section>
                     )}
 

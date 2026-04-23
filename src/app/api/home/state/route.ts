@@ -16,19 +16,6 @@ export type HomeState =
 export const GET = secureApiRoute(
     async (context) => {
         try {
-            // Use context.request (NextRequest) to read URL params
-            const dateStr = context.request.nextUrl.searchParams.get('date');
-
-            // Use provided date or server's local date
-            let today = new Date();
-            if (dateStr) {
-                today = new Date(dateStr);
-            }
-
-            const isoDate = today.toISOString().split('T')[0];
-            const now = new Date();
-            const currentTimeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-
             const supabase = context.supabase;
             const userId = context.userId;
 
@@ -36,18 +23,29 @@ export const GET = secureApiRoute(
                 return apiError('Unauthorized', 401);
             }
 
-            // 1. Fetch Profile for Boundaries (Sleep, Routines) — resilient
+            // 1. Fetch Profile for Boundaries (Sleep, Routines, Timezone) — resilient
             let profile: any = null;
             try {
                 const { data } = await supabase
                     .from('profiles')
-                    .select('sleep_start, sleep_end, wind_down_mins')
+                    .select('sleep_start, sleep_end, wind_down_mins, timezone')
                     .eq('id', userId)
                     .single();
                 profile = data;
             } catch (e) {
                 console.warn('[HomeState] Profile fetch failed:', e);
             }
+
+            // Use user's timezone for date/time calculations
+            const timezone = profile?.timezone || 'UTC';
+            const now = new Date();
+            const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
+            const timeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false });
+
+            // Use provided date param or the user's local date
+            const dateParam = context.request.nextUrl.searchParams.get('date');
+            const isoDate = dateParam || dateFormatter.format(now);
+            const currentTimeStr = timeFormatter.format(now);
 
             // 2. Fetch Today's Blocks — resilient
             let blocks: any[] = [];

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     User, LogOut, Trash2, AlertTriangle, Loader2,
-    Clock, Brain, Shield, Save, ChevronRight, Calendar
+    Clock, Brain, Shield, Save, ChevronRight, Calendar, Download, Bell
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { apiClient } from '@/lib/api-client';
@@ -118,6 +118,7 @@ export default function SettingsPage() {
                             onSignOut={handleSignOut}
                             isSigningOut={isSigningOut}
                         />
+                        <DataPrivacySection />
                         <DangerZone />
                     </div>
 
@@ -401,6 +402,116 @@ function DangerZone() {
                         </div>
                     </div>
                 )}
+            </div>
+        </div>
+    );
+}
+
+// ── Data & Privacy Section ────────────────────────────────────────
+
+function DataPrivacySection() {
+    const [isExporting, setIsExporting] = useState(false);
+    const [notifPermission, setNotifPermission] = useState<string>('default');
+    const [notifSupported, setNotifSupported] = useState(false);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+            setNotifSupported(true);
+            setNotifPermission(Notification.permission);
+        }
+    }, []);
+
+    const handleExport = async () => {
+        setIsExporting(true);
+        try {
+            window.open('/api/settings/export-data', '_blank');
+            toast.success('Download started');
+        } catch {
+            toast.error('Export failed');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const handleNotifToggle = async () => {
+        if (notifPermission === 'granted') {
+            toast.info('Notifications are already enabled. Manage them in your browser settings.');
+            return;
+        }
+        if (notifPermission === 'denied') {
+            toast.error('Notifications are blocked. Please enable them in your browser settings.');
+            return;
+        }
+        try {
+            const result = await Notification.requestPermission();
+            setNotifPermission(result);
+            if (result === 'granted') {
+                await navigator.serviceWorker.register('/sw.js');
+                toast.success('Notifications enabled! You\'ll be alerted when blocks start.');
+            } else {
+                toast.info('Notifications were not enabled.');
+            }
+        } catch {
+            toast.error('Failed to request notification permission');
+        }
+    };
+
+    return (
+        <div className="space-y-5">
+            <div>
+                <h2 className="text-lg font-semibold text-[var(--text-primary)]">Data & Privacy</h2>
+                <p className="text-sm text-[var(--text-tertiary)] mt-0.5">Your data, your control.</p>
+            </div>
+
+            <div className="rounded-2xl bg-[var(--glass-bg)] border border-[var(--glass-border)] divide-y divide-[var(--glass-border)]">
+                {/* Notifications */}
+                {notifSupported && (
+                    <div className="flex items-center justify-between px-5 py-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-purple-500/10 flex items-center justify-center">
+                                <Bell className="w-4 h-4 text-purple-400" />
+                            </div>
+                            <div>
+                                <p className="text-sm font-medium text-[var(--text-primary)]">Block Notifications</p>
+                                <p className="text-xs text-[var(--text-tertiary)]">Get notified when schedule blocks start</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={handleNotifToggle}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                notifPermission === 'granted'
+                                    ? 'bg-emerald-500/15 text-emerald-400'
+                                    : notifPermission === 'denied'
+                                    ? 'bg-red-500/15 text-red-400'
+                                    : 'bg-[var(--color-primary)]/15 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/25'
+                            }`}
+                        >
+                            {notifPermission === 'granted' ? 'Enabled' : notifPermission === 'denied' ? 'Blocked' : 'Enable'}
+                        </button>
+                    </div>
+                )}
+
+                {/* Export Data */}
+                <div className="flex items-center justify-between px-5 py-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                            <Download className="w-4 h-4 text-blue-400" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-medium text-[var(--text-primary)]">Export My Data</p>
+                            <p className="text-xs text-[var(--text-tertiary)]">Download all your data as JSON</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={handleExport}
+                        disabled={isExporting}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-500/15 text-blue-400
+                            hover:bg-blue-500/25 disabled:opacity-50 transition-all flex items-center gap-1.5"
+                    >
+                        {isExporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                        Download
+                    </button>
+                </div>
             </div>
         </div>
     );

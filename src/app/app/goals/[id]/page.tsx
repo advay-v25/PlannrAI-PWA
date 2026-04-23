@@ -9,7 +9,8 @@ import {
     Trophy,
     Activity,
     Calendar,
-    Target
+    Target,
+    Sparkles
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
@@ -111,7 +112,7 @@ export default function GoalDetailPage() {
                         <Activity className="w-6 h-6 text-green-400" />
                     </div>
                     <span className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Velocity</span>
-                    <span className="text-2xl font-black font-mono mt-1">+2.4<span className="text-sm font-sans text-[var(--text-tertiary)] font-normal">x</span></span>
+                    <span className="text-xl font-black font-mono mt-1 text-[var(--text-tertiary)]">TBD<span className="text-sm font-sans font-normal ml-1">v2.1</span></span>
                 </GlassCard>
 
                 {/* Weekly Target */}
@@ -181,5 +182,3 @@ export default function GoalDetailPage() {
     );
 }
 
-// Ensure Sparkles is imported
-import { Sparkles } from 'lucide-react';

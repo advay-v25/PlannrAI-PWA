@@ -11,6 +11,9 @@ import { InsightsCard } from '@/components/home/insights-card';
 import { PrioritiesCard } from '@/components/home/priorities-card';
 import { EnergyCheckin } from '@/components/home/energy-checkin';
 import { AIProfileBadge } from '@/components/home/ai-profile-badge';
+import { HomeTodos } from '@/components/home/home-todos';
+import { ProgressBars } from '@/components/home/progress-bars';
+import { NotificationScheduler } from '@/components/home/notification-scheduler';
 import { apiClient } from '@/lib/api-client';
 import { format } from 'date-fns';
 import { Settings } from 'lucide-react';
@@ -181,8 +184,8 @@ export default function HomePage() {
         schedule_blocks: [],
         anchors: [],
         habit_stacks: [],
-        tasks: [],
         metrics: { planned_min: 0, completed_min: 0, free_min: 1440 },
+        weekly_metrics: { planned_min: 0, completed_min: 0 },
         user_state: { energy_level: 5, emotional_state: 'neutral' },
         ai_profile: null,
         insight: { text: 'Welcome to PlannrAI', type: 'neutral' },
@@ -224,9 +227,14 @@ export default function HomePage() {
         </div>
     );
 
+    const today = new Date().toISOString().split('T')[0];
+
     return (
-        <HomeLayout
+        <>
+            <NotificationScheduler blocks={effectiveData.schedule_blocks} date={today} />
+            <HomeLayout
             header={header}
+            progressBars={<ProgressBars daily={effectiveData.metrics} weekly={effectiveData.weekly_metrics} />}
             nowCard={
                 <StateHero
                     state={effectiveState.state}
@@ -275,6 +283,7 @@ export default function HomePage() {
                     />
                 ) : undefined
             }
+            todos={<HomeTodos />}
             aiProfile={
                 effectiveData.ai_profile ? (
                     <AIProfileBadge aiProfile={effectiveData.ai_profile} />
@@ -292,6 +301,7 @@ export default function HomePage() {
                     onUpdate={handleRefresh}
                 />
             }
-        />
+            />
+        </>
     );
 }

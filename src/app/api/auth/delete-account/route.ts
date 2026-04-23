@@ -37,13 +37,16 @@ export async function POST(request: Request) {
         'coach_interactions',
         'memory_facts',
         'user_context',
-        'user_state',
+        'user_states',
         'weekly_reviews',
         'personal_rules',
         'profile_preferences',
         'habit_stacks',
         'habit_entries',
         'audit_logs',
+        'todos',
+        'todo_lists',
+        'energy_checkins',
     ];
 
     for (const table of userIdTables) {

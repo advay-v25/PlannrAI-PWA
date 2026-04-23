@@ -1,6 +1,5 @@
 
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
-import { createClient } from '@/lib/supabase/server';
 import { startOfDay, addDays, format, parseISO } from 'date-fns';
 
 export const GET = secureApiRoute(
@@ -16,7 +15,7 @@ export const GET = secureApiRoute(
         const startStr = format(startDate, 'yyyy-MM-dd');
         const endStr = format(endDate, 'yyyy-MM-dd');
 
-        const supabase = await createClient();
+        const { supabase } = context;
 
         // Parallel Fetch: Profile (not profile_preferences), Commitments, Goals, Habits, Blocks
         const [profileRes, commitmentsRes, goalsRes, habitsRes, blocksRes, inboxBlocks] = await Promise.all([

@@ -147,7 +147,7 @@ export async function buildCoachContext(
             .gte('date', dateFormatter.format(new Date(now.getTime() - 24 * 60 * 60 * 1000)))
     ]);
 
-    const profile = profileRes.data || {};
+
     const goals = goalsRes.data || [];
     const commitments = commitmentsRes.data || [];
     const todayBlocks = todayBlocksRes.data || [];

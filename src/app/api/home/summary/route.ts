@@ -1,12 +1,16 @@
 
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
-import { createClient } from '@/lib/supabase/server';
+import { startOfWeek, endOfWeek, format } from 'date-fns';
 
 export const GET = secureApiRoute(
     async (context) => {
         const { userId, supabase } = context;
         const { searchParams } = new URL(context.request.url);
         const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
+        
+        const todayDateObj = new Date(date);
+        const weekStartStr = format(startOfWeek(todayDateObj, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        const weekEndStr = format(endOfWeek(todayDateObj, { weekStartsOn: 1 }), 'yyyy-MM-dd');
 
         // Resilient parallel fetching — each query catches its own errors
         const safeQuery = async (fn: () => any, fallback: any): Promise<any> => {
@@ -23,7 +27,7 @@ export const GET = secureApiRoute(
             }
         };
 
-        const [profile, userState, blocks, anchors, goals, habitStacks, tasks] = await Promise.all([
+        const [profile, userState, blocks, anchors, goals, habitStacks, weeklyBlocks] = await Promise.all([
             safeQuery(() => supabase.from('profiles').select('*, bio_data').eq('id', userId).single(), null),
             safeQuery(() => supabase.from('user_states').select('*').eq('user_id', userId).single(), null),
             safeQuery(() => supabase.from('schedule_blocks')
@@ -34,7 +38,11 @@ export const GET = secureApiRoute(
             safeQuery(() => supabase.from('commitments').select('*').eq('user_id', userId), []),
             safeQuery(() => supabase.from('goals').select('id, title, pillar').eq('user_id', userId), []),
             safeQuery(() => supabase.from('habit_stacks').select('*').eq('user_id', userId).eq('enabled', true), []),
-            safeQuery(() => supabase.from('task_items').select('*').eq('user_id', userId).neq('status', 'done'), [])
+            safeQuery(() => supabase.from('schedule_blocks')
+                .select('*')
+                .eq('user_id', userId)
+                .gte('date', weekStartStr)
+                .lte('date', weekEndStr), [])
         ]);
 
         if (!profile) return apiError('Profile not found', 404);
@@ -60,6 +68,20 @@ export const GET = secureApiRoute(
 
             plannedMin += duration;
             if (b.status === 'done') completedMin += duration;
+        });
+
+        let weeklyPlannedMin = 0;
+        let weeklyCompletedMin = 0;
+        
+        const validWeeklyBlocks = (weeklyBlocks as any[])?.filter((b: any) => validTypes.includes(b.block_type)) || [];
+        validWeeklyBlocks.forEach((b: any) => {
+            const start = new Date(`${b.date}T${b.start_time}`);
+            const end = new Date(`${b.date}T${b.end_time}`);
+            let duration = (end.getTime() - start.getTime()) / 60000;
+            if (duration < 0) duration += 1440;
+            
+            weeklyPlannedMin += duration;
+            if (b.status === 'done') weeklyCompletedMin += duration;
         });
 
         const freeMin = 1440 - plannedMin; // Crude approx, refinement needed for "awake free time"
@@ -114,12 +136,15 @@ export const GET = secureApiRoute(
             anchors: anchors || [],
             meals: [], // TODO: If meals are schedule blocks, they are in 'blocks'. If separate, fetch.
             habit_stacks: habitStacks || [],
-            tasks: tasks || [],
             next_up: nextUpBlock ? { ...nextUpBlock, reason: nextUpReason } : null,
             metrics: {
                 planned_min: Math.round(plannedMin),
                 completed_min: Math.round(completedMin),
                 free_min: Math.round(freeMin)
+            },
+            weekly_metrics: {
+                planned_min: Math.round(weeklyPlannedMin),
+                completed_min: Math.round(weeklyCompletedMin)
             },
             ai_profile: (profile as any)?.bio_data?.ai_profile || null,
             insight
