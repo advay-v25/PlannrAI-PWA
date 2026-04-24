@@ -1,5 +1,5 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
-import { groqChat } from '@/lib/ai/groq-client';
+import { callAI } from '@/lib/ai/unified-client';
 
 export const POST = secureApiRoute(
     async (context, body) => {
@@ -30,33 +30,29 @@ export const POST = secureApiRoute(
         const firstName = (profile.full_name || 'User').split(' ')[0];
         const aiProfile = (profile as any).bio_data?.ai_profile || null;
 
-        // 2. Generate briefing via Groq (fast, low-load)
+        // 2. Generate briefing via callAI (resilient)
         try {
             const scheduleText = blocks?.map((b: any) => `${b.start_time}-${b.end_time}: ${b.title} (${b.block_type})`).join('\n') || 'No blocks scheduled';
             const goalsText = goals?.map((g: any) => g.title).join(', ') || 'None';
 
-            const result = await groqChat({
-                model: 'llama-3.1-8b-instant',
-                messages: [
-                    {
-                        role: 'system',
-                        content: `You are the AI briefing system for PlannrAI. Generate a short, punchy morning command briefing for ${firstName}. Be warm but direct. Max 2 sentences. Return JSON: {"briefing": "string", "tone": "focused|energized|calm|intense", "priorities": ["string"]}`
-                    },
-                    {
-                        role: 'user',
-                        content: `Date: ${targetDate}\nEnergy: ${userState?.energy_level || 3}/5\nMood: ${userState?.emotional_state || 'neutral'}\nArchetype: ${aiProfile?.archetype || 'unknown'}\nChronotype: ${aiProfile?.chronotype || 'unknown'}\n\nSchedule:\n${scheduleText}\n\nGoals: ${goalsText}`
-                    }
-                ],
-                temperature: 0.7,
-                max_tokens: 200,
-                userId
+            const response = await callAI<any>({
+                model: 'fast',
+                systemPrompt: `You are the AI briefing system for PlannrAI. Generate a short, punchy morning command briefing for ${firstName}. Be warm but direct. Max 2 sentences. Return JSON: {"briefing": "string", "tone": "focused|energized|calm|intense", "priorities": ["string"]}`,
+                prompt: `Date: ${targetDate}\nEnergy: ${userState?.energy_level || 3}/5\nMood: ${userState?.emotional_state || 'neutral'}\nArchetype: ${aiProfile?.archetype || 'unknown'}\nChronotype: ${aiProfile?.chronotype || 'unknown'}\n\nSchedule:\n${scheduleText}\n\nGoals: ${goalsText}`,
+                requireJSON: true,
+                userId: userId
             });
 
-            const parsed = JSON.parse(result);
+            if (!response.success || !response.data) {
+                throw new Error(response.error || "AI failed");
+            }
+
+            const parsed = response.data;
             return apiSuccess({
                 briefing: parsed.briefing || `Good morning, ${firstName}. Systems are online.`,
                 tone: parsed.tone || 'focused',
-                priorities: parsed.priorities || []
+                priorities: parsed.priorities || [],
+                provider: response.provider
             });
 
         } catch (error: any) {
@@ -65,7 +61,8 @@ export const POST = secureApiRoute(
             return apiSuccess({
                 briefing: `Good morning, ${firstName}. Systems are online. You have ${blocks?.length || 0} blocks scheduled today. Stay focused.`,
                 tone: 'focused',
-                priorities: []
+                priorities: [],
+                source: 'fallback'
             });
         }
     },

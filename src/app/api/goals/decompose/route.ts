@@ -1,7 +1,5 @@
-
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
-// Rebuild trigger 1
-import { executeAI } from '@/lib/ai/ai-service';
+import { callAI } from '@/lib/ai/unified-client';
 import { z } from 'zod';
 
 const RequestSchema = z.object({
@@ -21,23 +19,44 @@ export const POST = secureApiRoute(
         const { userId } = context;
 
         try {
-            // Execute AI with the goal decomposition channel
-            // logic is handled inside executeAI via the registry
-            const aiResponse = await executeAI(userId, {
-                channel: 'goal_decomposition',
-                input: `Title: ${goal_title}\nDescription: ${goal_description || 'None'}\nTimeline: ${timeline || 'Auto-detect'}`,
-                context: {}
+            const systemPrompt = `You are PlannrAI's Goal Architect. Your task is to break down a complex goal into logical, actionable sub-tasks and a clear roadmap.
+            Respond ONLY with valid JSON.`;
+
+            const prompt = `Decompose this goal:
+            Title: ${goal_title}
+            Description: ${goal_description || 'None'}
+            Timeline: ${timeline || 'Auto-detect'}
+            
+            Output JSON format:
+            {
+              "summary": "Overall approach",
+              "subtasks": [
+                { "title": "Subtask 1", "description": "Why/How", "duration_est": "30m" }
+              ],
+              "milestones": ["Milestone 1", "Milestone 2"],
+              "recommended_pillar": "mind|body|craft|soul"
+            }`;
+
+            const response = await callAI<any>({
+                model: 'smart',
+                systemPrompt,
+                prompt,
+                requireJSON: true,
+                userId: userId
             });
 
-            if (!aiResponse) {
-                return apiError('Failed to generate plan', 500);
+            if (!response.success || !response.data) {
+                throw new Error(response.error || 'Failed to generate plan');
             }
 
-            return apiSuccess(aiResponse);
-        } catch (e) {
+            return apiSuccess({
+                ...response.data,
+                provider: response.provider
+            });
+        } catch (e: any) {
             console.error('Goal Decomposition Error:', e);
-            return apiError('Internal error', 500);
+            return apiError(e.message || 'Internal error', 500);
         }
     },
-    { requireAuth: true, rateLimit: 'user' }
+    { requireAuth: true, rateLimit: 'user', auditAction: 'goal_decompose' }
 );

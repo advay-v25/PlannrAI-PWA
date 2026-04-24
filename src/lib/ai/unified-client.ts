@@ -17,6 +17,7 @@ export interface AICallOptions {
     requireJSON?: boolean;
     timeout?: number;
     calendarKey?: boolean; // Use dedicated CALENDAR_OPENROUTER_API_KEY
+    userId?: string; // Optional user ID for logging/auditing
 }
 
 export interface AIResponse<T = any> {
@@ -304,12 +305,20 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
         return fallbackResult;
     }
 
-    // Both failed
+    // Emergency Fallback: GPT-4o-Mini (Cheap & highly reliable)
+    console.log(`\x1b[35m[AI ALERT]\x1b[0m Both providers failed. Trying emergency fallback (GPT-4o-Mini)...`);
+    const emergencyProvider = getOpenRouterConfig('openai/gpt-4o-mini');
+    const emergencyResult = await callProvider<T>(emergencyProvider, options);
+    if (emergencyResult.success) {
+        return emergencyResult;
+    }
+
+    // All failed
     return {
         success: false,
-        error: `All providers failed. Primary: ${primaryResult.error}. Fallback: ${fallbackResult.error}`,
+        error: `All providers failed. Primary: ${primaryResult.error}. Fallback: ${fallbackResult.error}. Emergency: ${emergencyResult.error}`,
         provider: primary.name,
         model: primary.model,
-        latency_ms: primaryResult.latency_ms + fallbackResult.latency_ms,
+        latency_ms: primaryResult.latency_ms + fallbackResult.latency_ms + emergencyResult.latency_ms,
     };
 }

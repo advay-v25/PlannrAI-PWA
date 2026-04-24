@@ -28,7 +28,7 @@ export default function LoginPage() {
             const { error } = await supabase.auth.signInWithOtp({
                 email,
                 options: {
-                    emailRedirectTo: `${window.location.origin}/auth/callback`,
+                    emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/auth/callback`,
                 },
             });
 
@@ -36,7 +36,15 @@ export default function LoginPage() {
             setIsSent(true);
         } catch (err: any) {
             console.error('[Auth Error - Magic Link]:', err);
-            setError(err.message || 'Failed to send magic link');
+            
+            // Handle common Supabase SMTP limit error
+            if (err.message?.includes('Error sending magic link') || err.message?.includes('email provider')) {
+                setError('Email provider error. Ensure your SMTP settings (Sender Email, API Key) in Supabase match your Resend configuration.');
+            } else if (err.status === 429) {
+                setError('Rate limit reached. Please wait a few minutes or use Google Sign-In.');
+            } else {
+                setError(err.message || 'Failed to send magic link');
+            }
         } finally {
             setIsLoading(false);
         }
@@ -50,7 +58,7 @@ export default function LoginPage() {
             const { data, error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: `${window.location.origin}/auth/callback`,
+                    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/auth/callback`,
                 },
             });
 

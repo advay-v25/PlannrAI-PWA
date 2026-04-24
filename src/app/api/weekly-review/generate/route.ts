@@ -1,5 +1,5 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
-import { groqChat } from '@/lib/ai/groq-client';
+import { callAI } from '@/lib/ai/unified-client';
 
 export const maxDuration = 45;
 
@@ -10,7 +10,7 @@ export const POST = secureApiRoute(
 
         if (!week_start || !week_end) return apiError("Missing week range", 400);
 
-        // 1. Gather ALL relevant data for the week (resilient — if a table doesn't exist, we get empty)
+        // 1. Gather ALL relevant data for the week
         const [blocksRes, goalsRes] = await Promise.all([
             supabase.from('schedule_blocks')
                 .select('id, title, context, date, start_time, end_time, block_type, status, pillar, goal_id')
@@ -88,42 +88,41 @@ export const POST = secureApiRoute(
             `${g.title} (${g.category}, importance: ${g.importance})`
         )).join(', ');
 
-        // 4. Call AI via groqChat (lightweight, fast)
+        // 4. Call AI via callAI (resilient)
         try {
-            const result = await groqChat({
-                model: 'llama-3.1-8b-instant',
-                messages: [
-                    {
-                        role: 'system',
-                        content: `You are PlannrAI's weekly review analyst. Analyze the user's week and return JSON with:
-{
-  "reality": "2-3 sentence honest assessment of the week",
-  "patterns": [{"title": "pattern name", "evidence": "specific data-backed observation"}],
-  "lever": {"label": "one high-leverage change for next week", "explanation": "why this matters"},
-  "note": "one encouraging/motivating sentence"
-}
-Be data-driven. Reference specific numbers. Max 3 patterns. Be concise and actionable.`
-                    },
-                    {
-                        role: 'user',
-                        content: `Week: ${week_start} to ${week_end}
-Completion Rate: ${completionRate}%
-Planned: ${plannedMinutes}min | Actual: ${actualMinutes}min
-Blocks: ${totalBlocks} total, ${completedBlocks} done, ${cancelledBlocks} cancelled
-Top Pillar: ${topPillar} (${pillarMinutes[topPillar] || 0}min)
-Neglected: ${neglectedPillar} (${pillarMinutes[neglectedPillar] || 0}min)
-Goals: ${goalsSummary || 'None set'}
+            const systemPrompt = `You are PlannrAI's weekly review analyst. Analyze the user's week and return JSON.
+            Output JSON format:
+            {
+              "reality": "2-3 sentence honest assessment of the week",
+              "patterns": [{"title": "pattern name", "evidence": "specific data-backed observation"}],
+              "lever": {"label": "one high-leverage change for next week", "explanation": "why this matters"},
+              "note": "one encouraging/motivating sentence"
+            }`;
 
-Schedule:
-${blocksSummary || 'No blocks this week'}`
-                    }
-                ],
-                temperature: 0.5,
-                max_tokens: 800,
-                userId
+            const prompt = `Week: ${week_start} to ${week_end}
+            Completion Rate: ${completionRate}%
+            Planned: ${plannedMinutes}min | Actual: ${actualMinutes}min
+            Blocks: ${totalBlocks} total, ${completedBlocks} done, ${cancelledBlocks} cancelled
+            Top Pillar: ${topPillar} (${pillarMinutes[topPillar] || 0}min)
+            Neglected: ${neglectedPillar} (${pillarMinutes[neglectedPillar] || 0}min)
+            Goals: ${goalsSummary || 'None set'}
+            
+            Schedule:
+            ${blocksSummary || 'No blocks this week'}`;
+
+            const response = await callAI<any>({
+                model: 'fast',
+                systemPrompt,
+                prompt,
+                requireJSON: true,
+                userId: userId
             });
 
-            const parsed = JSON.parse(result);
+            if (!response.success || !response.data) {
+                throw new Error(response.error || "AI failed");
+            }
+
+            const parsed = response.data;
 
             return apiSuccess({
                 reality: parsed.reality || 'Review data processed.',
@@ -131,7 +130,8 @@ ${blocksSummary || 'No blocks this week'}`
                 lever: parsed.lever || { label: 'Review your goals', explanation: 'Start with reflection.' },
                 note: parsed.note || 'Keep building momentum.',
                 metrics,
-                dayBreakdown
+                dayBreakdown,
+                provider: response.provider
             });
 
         } catch (error: any) {
@@ -145,7 +145,8 @@ ${blocksSummary || 'No blocks this week'}`
                 lever: { label: "Focus on consistency", explanation: "Small daily wins compound over time." },
                 note: "Every week is a fresh start. Keep going.",
                 metrics,
-                dayBreakdown
+                dayBreakdown,
+                source: 'fallback'
             });
         }
     },

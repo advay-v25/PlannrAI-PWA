@@ -1,5 +1,5 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
-import { groqChat } from '@/lib/ai/groq-client';
+import { callAI } from '@/lib/ai/unified-client';
 
 export const POST = secureApiRoute(
     async (context, body) => {
@@ -29,29 +29,21 @@ export const POST = secureApiRoute(
                 inbox = newInbox;
             }
 
-            // Extract tasks from brain dump chaos using groqChat
-            const result = await groqChat({
-                model: 'llama-3.1-8b-instant',
+            // Extract tasks from brain dump chaos using callAI (with fallback)
+            const response = await callAI<{ tasks: Array<{ title: string }> }>({
+                model: 'fast',
                 temperature: 0.1,
-                messages: [
-                    {
-                        role: 'system',
-                        content: `You are an expert executive assistant. Extract ONLY the clear, actionable to-do items from the user's text. Ignore venting, background info, or passive statements unless they imply an action. Keep titles very concise (1-6 words). Respond ONLY with valid JSON in this format: { "tasks": [ { "title": "string" } ] }. If no tasks found, return { "tasks": [] }.`
-                    },
-                    {
-                        role: 'user',
-                        content: text
-                    }
-                ],
-                userId,
+                systemPrompt: `You are an expert executive assistant. Extract ONLY the clear, actionable to-do items from the user's text. Ignore venting, background info, or passive statements unless they imply an action. Keep titles very concise (1-6 words). Respond ONLY with valid JSON in this format: { "tasks": [ { "title": "string" } ] }. If no tasks found, return { "tasks": [] }.`,
+                prompt: text,
+                requireJSON: true,
+                userId: userId
             });
 
-            let parsed;
-            try {
-                parsed = JSON.parse(result);
-            } catch {
-                return apiSuccess({ inserted: 0, message: "No actionable tasks found." });
+            if (!response.success || !response.data) {
+                return apiSuccess({ inserted: 0, message: "No actionable tasks found or AI unavailable." });
             }
+
+            const parsed = response.data;
 
             if (!parsed.tasks || parsed.tasks.length === 0) {
                 return apiSuccess({ inserted: 0, message: "No actionable tasks found." });
@@ -78,7 +70,8 @@ export const POST = secureApiRoute(
             return apiSuccess({
                 inserted: parsed.tasks.length,
                 todos: insertedTodos,
-                message: `Added ${parsed.tasks.length} items to Inbox.`
+                message: `Added ${parsed.tasks.length} items to Inbox.`,
+                provider: response.provider
             });
 
         } catch (e: any) {
@@ -86,5 +79,5 @@ export const POST = secureApiRoute(
             return apiError(e.message, 500);
         }
     },
-    { requireAuth: true }
+    { requireAuth: true, auditAction: 'brain_dump_extract' }
 );

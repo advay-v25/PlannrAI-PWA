@@ -8,10 +8,12 @@ export async function GET(request: Request) {
     const next = searchParams.get('next') ?? '/app';
 
     if (code) {
+        console.log('[Auth Callback]: Exchanging code for session...');
         const supabase = await createClient();
         const { error } = await supabase.auth.exchangeCodeForSession(code);
 
         if (!error) {
+            console.log('[Auth Callback]: Session exchange successful');
             // Get the authenticated user
             const { data: { user } } = await supabase.auth.getUser();
 
@@ -48,6 +50,7 @@ export async function GET(request: Request) {
 
             return NextResponse.redirect(`${origin}${next}`);
         } else {
+            console.error('[Auth Callback Error]:', error.message);
             // Log failed auth
             await logAuthEvent('login_failed', undefined, request, {
                 error: error.message,
@@ -56,6 +59,7 @@ export async function GET(request: Request) {
         }
     }
 
+    console.warn('[Auth Callback]: No code found in URL');
     // Return to login if no code
     return NextResponse.redirect(`${origin}/login?error=no_code`);
 }

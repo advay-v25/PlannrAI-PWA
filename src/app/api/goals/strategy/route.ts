@@ -1,5 +1,5 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
-import { executeAI } from '@/lib/ai/ai-service';
+import { callAI } from '@/lib/ai/unified-client';
 
 export const maxDuration = 45;
 export const dynamic = 'force-dynamic';
@@ -27,35 +27,47 @@ export const POST = secureApiRoute(
         const totalCommitted = otherGoals.reduce((sum: number, g: any) => sum + (g.minutes_per_day || 0), 0);
         const availableMinutes = Math.max(0, 480 - totalCommitted); // ~8 hours productive time
 
-        // 2. Call AI
+        // 2. Call AI via callAI (with fallback)
         try {
-            const aiResponse = await executeAI(userId, {
-                channel: 'goal_strategy',
-                input: goal.title,
-                context: {
-                    goal: {
-                        id: goal.id,
-                        title: goal.title,
-                        description: goal.description || '',
-                        category: goal.category,
-                        current_commitment: `${goal.minutes_per_day || 30}m/day, ${goal.days_per_week || 3}d/week`,
-                        energy_demand: goal.energy_demand,
-                        notes: goal.notes || 'None'
-                    },
-                    capacity: {
-                        available_minutes_per_day: availableMinutes,
-                        other_goals: otherGoals.map((g: any) => `${g.title} (${g.minutes_per_day || 0}m/day)`)
-                    },
-                    profile: profileRes.data || {},
-                    existing_habits: habitsRes.data?.map((h: any) => h.name) || []
-                }
+            const systemPrompt = `You are PlannrAI's Expert Goal Strategist. Your mission is to decompose a high-level goal into a sustainable, science-backed routine.
+            Respond ONLY with valid JSON.`;
+
+            const prompt = `Goal: ${goal.title}
+            Description: ${goal.description || 'None'}
+            Category: ${goal.category}
+            Current Commitment: ${goal.minutes_per_day || 30}m/day, ${goal.days_per_week || 3}d/week
+            Energy Demand: ${goal.energy_demand}
+            
+            Capacity: ${availableMinutes} free minutes per day.
+            Other Goals: ${otherGoals.map((g: any) => g.title).join(', ')}
+            
+            Output JSON format:
+            {
+              "strategy_one_liner": "Concise high-level approach",
+              "routine": {
+                "frequency": "daily|weekly|custom",
+                "duration_mins": number,
+                "steps": ["Step 1", "Step 2"],
+                "best_time": "morning|afternoon|evening",
+                "notes": "Advice for success"
+              },
+              "milestones": ["Milestone 1", "Milestone 2"],
+              "checklist": [{"text": "Action item 1"}],
+              "donna_note": "A personal note from Donna the AI coach"
+            }`;
+
+            const response = await callAI<any>({
+                model: 'smart',
+                systemPrompt,
+                prompt,
+                requireJSON: true,
+                userId: userId
             });
 
-            // 3. Validate flat strategy response
-            const strategy = aiResponse?.strategy_one_liner ? aiResponse : null;
+            const strategy = response.success ? response.data : null;
 
             if (!strategy) {
-                throw new Error('AI returned invalid strategy structure');
+                throw new Error(response.error || 'AI returned invalid strategy structure');
             }
 
             // 4. Save directly to DB
@@ -70,10 +82,9 @@ export const POST = secureApiRoute(
 
             if (updateError) {
                 console.error('[GoalStrategy] DB update failed:', updateError);
-                // Still return the strategy even if DB save fails
             }
 
-            return apiSuccess({ strategy });
+            return apiSuccess({ strategy, provider: response.provider });
 
         } catch (error: any) {
             console.error('[GoalStrategy] AI Failed:', error);
@@ -92,14 +103,7 @@ export const POST = secureApiRoute(
                 donna_note: 'AI strategy generation failed — here\'s a solid starting plan.'
             };
 
-            // Save fallback too
-            await supabase
-                .from('goals')
-                .update({ ai_strategy: fallbackStrategy, updated_at: new Date().toISOString() })
-                .eq('id', goal_id)
-                .eq('user_id', userId);
-
-            return apiSuccess({ strategy: fallbackStrategy });
+            return apiSuccess({ strategy: fallbackStrategy, source: 'fallback' });
         }
     },
     { requireAuth: true, auditAction: 'goal_strategy_generate' }
