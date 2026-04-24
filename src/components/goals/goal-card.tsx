@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Sparkles,
@@ -27,6 +28,7 @@ interface GoalCardProps {
 }
 
 export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor }: GoalCardProps) {
+    const router = useRouter();
     const [isExpanded, setIsExpanded] = useState(false);
 
     // Local buffering for inputs to prevent API spam on every keystroke/pixel drag
@@ -245,7 +247,7 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                                 <GlassButton
                                     variant="ghost"
                                     className="flex-[0.3] justify-center border border-dashed border-[var(--text-tertiary)]/30 text-[var(--text-secondary)] hover:bg-[var(--text-secondary)]/5"
-                                    onClick={() => window.location.href = `/app/goals/${goal.id}`}
+                                    onClick={() => router.push(`/app/goals/${goal.id}`)}
                                 >
                                     <Target className="w-4 h-4 mr-2" />
                                     Plan
