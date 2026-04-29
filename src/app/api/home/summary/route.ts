@@ -128,13 +128,13 @@ export const GET = secureApiRoute(
                 emotional_state: userState?.emotional_state || 'neutral'
             },
             day_window: {
-                wake: '07:00', // TODO: Pull from preferences if stored, or infer
+                wake: profile.sleep_end || '07:00',
                 sleep_start: profile.sleep_start,
                 wind_down_min: profile.wind_down_mins
             },
             schedule_blocks: blocks || [],
             anchors: anchors || [],
-            meals: [], // TODO: If meals are schedule blocks, they are in 'blocks'. If separate, fetch.
+            meals: (blocks || []).filter((b: any) => b.block_type === 'meal'),
             habit_stacks: habitStacks || [],
             next_up: nextUpBlock ? { ...nextUpBlock, reason: nextUpReason } : null,
             metrics: {

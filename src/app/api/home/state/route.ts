@@ -11,7 +11,8 @@ export type HomeState =
     | 'BETWEEN_BLOCKS'
     | 'BEHIND_SCHEDULE'
     | 'AHEAD_OF_SCHEDULE'
-    | 'DAY_COMPLETE';
+    | 'DAY_COMPLETE'
+    | 'PLANNING_NEEDED';
 
 export const GET = secureApiRoute(
     async (context) => {
@@ -46,6 +47,10 @@ export const GET = secureApiRoute(
             const dateParam = context.request.nextUrl.searchParams.get('date');
             const isoDate = dateParam || dateFormatter.format(now);
             const currentTimeStr = timeFormatter.format(now);
+            
+            // Check if it's Friday (5), Saturday (6), or Sunday (0)
+            const dayOfWeek = new Date(isoDate).getDay();
+            const isWeekend = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0;
 
             // 2. Fetch Today's Blocks — resilient
             let blocks: any[] = [];
@@ -59,6 +64,30 @@ export const GET = secureApiRoute(
                 blocks = data || [];
             } catch (e) {
                 console.warn('[HomeState] Blocks fetch failed:', e);
+            }
+
+            // If weekend, check next week's blocks
+            let nextWeekNeedsPlanning = false;
+            if (isWeekend) {
+                try {
+                    const todayDateObj = new Date(isoDate);
+                    const nextMonday = new Date(todayDateObj);
+                    nextMonday.setDate(todayDateObj.getDate() + ((1 + 7 - todayDateObj.getDay()) % 7 || 7));
+                    const nextMondayStr = nextMonday.toISOString().split('T')[0];
+
+                    const { count } = await supabase
+                        .from('schedule_blocks')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('user_id', userId)
+                        .gte('date', nextMondayStr)
+                        .eq('block_type', 'goal'); // focus on actual AI generated goal blocks
+                    
+                    if (count === 0) {
+                        nextWeekNeedsPlanning = true;
+                    }
+                } catch (e) {
+                    console.warn('[HomeState] Next week check failed:', e);
+                }
             }
 
             // 3. Determine State Machine
@@ -128,8 +157,18 @@ export const GET = secureApiRoute(
                 'BEHIND_SCHEDULE': "Running behind. Want me to shift the rest of the day?",
                 'DAY_COMPLETE': "All done for today. Time to wind down.",
                 'NO_SCHEDULE': "No schedule for today. Plan your day or let AI generate one.",
-                'AHEAD_OF_SCHEDULE': "Ahead of schedule — nice! Take the win."
+                'AHEAD_OF_SCHEDULE': "Ahead of schedule — nice! Take the win.",
+                'PLANNING_NEEDED': "Next week is completely empty. Let AI generate your schedule now."
             };
+
+            // Override state if planning is needed for next week
+            if (nextWeekNeedsPlanning && currentState === 'NO_SCHEDULE') {
+                currentState = 'PLANNING_NEEDED';
+            } else if (nextWeekNeedsPlanning && currentState === 'DAY_COMPLETE') {
+                currentState = 'PLANNING_NEEDED';
+            } else if (nextWeekNeedsPlanning && currentState === 'MORNING_ROUTINE' && blocks.length === 0) {
+                currentState = 'PLANNING_NEEDED';
+            }
 
             return apiSuccess({
                 date: isoDate,

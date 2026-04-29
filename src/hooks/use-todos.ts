@@ -40,12 +40,14 @@ export function useTodos() {
         const { data } = await apiClient.post<any>('/api/todos', { action: 'create_list', title });
         if (data) {
             setLists(prev => [...prev, { ...data, todos: [] }]);
+            window.dispatchEvent(new CustomEvent('calendar-refresh'));
         }
     };
 
     const deleteList = async (listId: string) => {
         setLists(prev => prev.filter(l => l.id !== listId));
         await apiClient.post('/api/todos', { action: 'delete_list', listId });
+        window.dispatchEvent(new CustomEvent('calendar-refresh'));
     };
 
     const addTodo = async (listId: string, title: string) => {
@@ -57,6 +59,7 @@ export function useTodos() {
                 }
                 return l;
             }));
+            window.dispatchEvent(new CustomEvent('calendar-refresh'));
         }
     };
 
@@ -66,6 +69,7 @@ export function useTodos() {
             todos: l.todos.map(t => t.id === todoId ? { ...t, is_completed: isCompleted } : t)
         })));
         await apiClient.post('/api/todos', { action: 'toggle_todo', todoId, isCompleted });
+        window.dispatchEvent(new CustomEvent('calendar-refresh'));
     };
 
     const deleteTodo = async (todoId: string) => {
@@ -74,11 +78,13 @@ export function useTodos() {
             todos: l.todos.filter(t => t.id !== todoId)
         })));
         await apiClient.post('/api/todos', { action: 'delete_todo', todoId });
+        window.dispatchEvent(new CustomEvent('calendar-refresh'));
     };
 
     const dumpThoughts = async (text: string) => {
         await apiClient.post('/api/todos/dump', { text });
         await loadLists(); // refresh entirely to snag the ai-created ones
+        window.dispatchEvent(new CustomEvent('calendar-refresh'));
     };
 
     return {

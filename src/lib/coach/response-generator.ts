@@ -400,6 +400,7 @@ Generate 2-3 actionable options with concrete patch operations. Return valid JSO
             maxTokens: 4000,
             requireJSON: true,
             timeout: 25000,
+            useNvidia: true,
         });
 
         if (response.success && response.data && response.data.options?.length) {
@@ -685,6 +686,7 @@ Respond with helpful, data-driven information. Return valid JSON only.`;
             maxTokens: 1000,
             requireJSON: true,
             timeout: 15000,
+            useNvidia: true,
         });
 
         if (response.success && response.data?.summary) {

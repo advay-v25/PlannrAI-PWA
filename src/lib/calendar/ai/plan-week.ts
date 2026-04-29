@@ -169,14 +169,29 @@ export async function generateWeekPlan(
                 ? 'WOLF: peak productivity LATE (1pm-8pm). Easy mornings.'
                 : 'BEAR: deep work MID-MORNING (9am-12pm). Standard schedule.';
 
-    // ── Pre-compute Fixed Bio-Rhythms (Sleep & Meals) ───────────
     const bioTemplates = [];
     bioTemplates.push({ title: 'Sleep', block_type: 'sleep', start: '00:00', end: context.user.sleep_end || '07:00' });
     bioTemplates.push({ title: 'Sleep', block_type: 'sleep', start: context.user.sleep_start || '22:30', end: '23:59' });
+
+    // Use a helper to add 30-45 minutes to start time instead of taking the entire window
+    const safeAddMins = (hhmm: string, mins: number) => {
+        const [h, m] = hhmm.split(':').map(Number);
+        const total = (h * 60 + m + mins) % 1440;
+        return `${Math.floor(total / 60).toString().padStart(2, '0')}:${(total % 60).toString().padStart(2, '0')}`;
+    };
     
-    if (mealsPerDay >= 1) bioTemplates.push({ title: 'Breakfast', block_type: 'meal', start: (mealWindows as any)?.breakfast?.start || '08:00', end: (mealWindows as any)?.breakfast?.end || '08:30' });
-    if (mealsPerDay >= 2) bioTemplates.push({ title: 'Lunch', block_type: 'meal', start: (mealWindows as any)?.lunch?.start || '12:30', end: (mealWindows as any)?.lunch?.end || '13:15' });
-    if (mealsPerDay >= 3) bioTemplates.push({ title: 'Dinner', block_type: 'meal', start: (mealWindows as any)?.dinner?.start || '19:00', end: (mealWindows as any)?.dinner?.end || '20:00' });
+    if (mealsPerDay >= 1) {
+        const start = (mealWindows as any)?.breakfast?.start || '08:00';
+        bioTemplates.push({ title: 'Breakfast', block_type: 'meal', start, end: safeAddMins(start, 30) });
+    }
+    if (mealsPerDay >= 2) {
+        const start = (mealWindows as any)?.lunch?.start || '12:30';
+        bioTemplates.push({ title: 'Lunch', block_type: 'meal', start, end: safeAddMins(start, 45) });
+    }
+    if (mealsPerDay >= 3) {
+        const start = (mealWindows as any)?.dinner?.start || '19:00';
+        bioTemplates.push({ title: 'Dinner', block_type: 'meal', start, end: safeAddMins(start, 45) });
+    }
 
     // Tell the AI to avoid these slots by adding them to commitments
     context.commitments = [
@@ -239,7 +254,7 @@ FLOW-STATE ARCHITECTURE (apply to EVERY day):
 
 🧠 PILLAR DISTRIBUTION — DYNAMIC, NOT FORMULAIC:
 - The number of blocks per pillar depends on the user's ACTUAL goals and weekly targets
-- Use WEEKLY PROGRESS data to prioritize goals that are behind schedule
+- MUST INTERLEAVE PILLARS EVERY DAY: Do NOT schedule all 'mind' tasks on Monday and all 'body' tasks on Tuesday. Every day should ideally have a mix of 2-3 different pillars.
 - Schedule the user's EXACT goal names and IDs — NEVER invent generic blocks
 - Use block_type "goal" for all goal-linked blocks with the "pillar" field for classification
 
@@ -250,11 +265,11 @@ BIO-CONTEXT:
 - User energy: ${userEnergy}/10, Stress: ${userStress}/10
 - Plan density should match energy level. HIGH stress = MORE breaks, FEWER goal blocks.
 - Meals per day: ${mealsPerDay}
-${(mealWindows as any)?.breakfast ? `- Breakfast window: ${(mealWindows as any).breakfast.start}–${(mealWindows as any).breakfast.end}` : ''}
-${(mealWindows as any)?.lunch ? `- Lunch window: ${(mealWindows as any).lunch.start}–${(mealWindows as any).lunch.end}` : ''}
-${(mealWindows as any)?.dinner ? `- Dinner window: ${(mealWindows as any).dinner.start}–${(mealWindows as any).dinner.end}` : ''}
+${(mealWindows as any)?.breakfast ? `- Breakfast preferred window: ${(mealWindows as any).breakfast.start}–${(mealWindows as any).breakfast.end}` : ''}
+${(mealWindows as any)?.lunch ? `- Lunch preferred window: ${(mealWindows as any).lunch.start}–${(mealWindows as any).lunch.end}` : ''}
+${(mealWindows as any)?.dinner ? `- Dinner preferred window: ${(mealWindows as any).dinner.start}–${(mealWindows as any).dinner.end}` : ''}
 
-You MUST return valid JSON with exactly 3 variants.`;
+You MUST return valid JSON with exactly 1 to 3 variants (ensure at least 1) optimized for the requested PLANNING MODE.`;
 
     const goalsText = context.goals.length > 0
         ? context.goals.map(g =>
@@ -309,10 +324,10 @@ ${context.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION 
 - Each weekday should have 3-8 goal/activity blocks OUTSIDE of fixed commitments.
 - Generate COMPLETE, FILLED schedules — not just Breakfast + 1 block.
 
-Generate 3 variants:
-1. "Balanced" — even Mon-Fri spread, proportional blocks per goal
-2. "Front-Loaded" — heavy Mon-Wed, light Thu-Fri
-3. "Sustainable" — ${context.capacity.is_overcommitted || context.performance.last_7_days_completion_rate < 60 ? 'reduced load, recovery focus' : 'optimized based on patterns'}
+Generate up to 3 variants, but ALL variants MUST reflect the requested PLANNING MODE: ${mode.toUpperCase()}.
+If PLANNING MODE is BALANCED: Focus on consistency, mixing pillars, and steady progress.
+If PLANNING MODE is MOMENTUM: Focus on output, dense packing of high-energy blocks, and aggressive goal achievement.
+If PLANNING MODE is RECOVERY: Focus on light tasks, ample breaks, prioritizing body/recovery goals, and reduced overall load.
 
 IMPORTANT: Use the EXACT goal names and IDs from the list above. Do NOT create generic blocks like "Mind Boost".
 ${flowFragment}
@@ -357,7 +372,7 @@ OUTPUT FORMAT (strict JSON):
         maxTokens: 6000,
         requireJSON: true,
         timeout: 180000,
-        calendarKey: true,
+        useNvidia: true,
     });
 
     if (!response.success || !response.data?.variants?.length) {

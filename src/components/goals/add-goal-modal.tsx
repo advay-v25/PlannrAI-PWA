@@ -23,7 +23,7 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
     onClose: () => void,
     onSuccess?: () => void,
     onSave?: (goal: Record<string, unknown>) => void,
-    initialValues?: { title?: string, category?: GoalCategory }
+    initialValues?: Partial<any>
 }) {
     const supabase = createClient();
     const { addGoal } = useGoalsStore();
@@ -31,11 +31,11 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
     // Form State
     const [title, setTitle] = useState(initialValues?.title || '');
     const [category, setCategory] = useState<GoalCategory>(initialValues?.category || 'mind');
-    const [minutes, setMinutes] = useState(30);
-    const [daysPerWeek, setDaysPerWeek] = useState(7);
-    const [importance, setImportance] = useState<GoalImportance>('medium');
-    const [energy, setEnergy] = useState<EnergyDemand>('medium');
-    const [preferredTime, setPreferredTime] = useState<'morning' | 'afternoon' | 'evening' | 'any'>('any');
+    const [minutes, setMinutes] = useState(initialValues?.minutes_per_day || 30);
+    const [daysPerWeek, setDaysPerWeek] = useState(initialValues?.days_per_week || 7);
+    const [importance, setImportance] = useState<GoalImportance>(initialValues?.importance || 'medium');
+    const [energy, setEnergy] = useState<EnergyDemand>(initialValues?.energy_demand || 'medium');
+    const [preferredTime, setPreferredTime] = useState<'morning' | 'afternoon' | 'evening' | 'any'>(initialValues?.constraints?.preferred_time || 'any');
 
     // AI Suggestions & Loading State
     const [loadingSuggestions, setLoadingSuggestions] = useState(false);

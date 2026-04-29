@@ -16,7 +16,7 @@ export interface AICallOptions {
     maxTokens?: number;
     requireJSON?: boolean;
     timeout?: number;
-    calendarKey?: boolean; // Use dedicated CALENDAR_OPENROUTER_API_KEY
+    useNvidia?: boolean; // Use dedicated CALENDAR_NVIDIA_API_KEY for Coach & Calendar
     userId?: string; // Optional user ID for logging/auditing
 }
 
@@ -25,7 +25,7 @@ export interface AIResponse<T = any> {
     data?: T;
     raw?: string;
     error?: string;
-    provider: 'openrouter' | 'groq';
+    provider: 'openrouter' | 'groq' | 'nvidia';
     model: string;
     latency_ms: number;
     tokens_used?: number;
@@ -34,7 +34,7 @@ export interface AIResponse<T = any> {
 // ── Provider Config ──────────────────────────────────────────────
 
 interface ProviderConfig {
-    name: 'openrouter' | 'groq';
+    name: 'openrouter' | 'groq' | 'nvidia';
     url: string;
     model: string;
     getHeaders: () => Record<string, string>;
@@ -84,12 +84,25 @@ function getGroqConfig(model: string): ProviderConfig {
     };
 }
 
+function getNvidiaConfig(model: string): ProviderConfig {
+    return {
+        name: 'nvidia',
+        url: 'https://integrate.api.nvidia.com/v1/chat/completions',
+        model,
+        getHeaders: () => ({
+            'Authorization': `Bearer ${process.env.CALENDAR_NVIDIA_API_KEY || process.env.NVIDIA_API_KEY}`,
+            'Content-Type': 'application/json',
+        }),
+        supportsResponseFormat: true,
+    };
+}
+
 // Map model tier → provider configs (primary, fallback)
 // Smart = complex reasoning (coach, goals, weekly review) → OpenRouter primary
 // Fast = simple extraction (brain dump, habits, briefings) → Groq primary
 function getProviderChain(options: AICallOptions): [ProviderConfig, ProviderConfig] {
     const tier = options.model || 'fast';
-    const getPrimaryOpenRouterConfig = options.calendarKey ? getCalendarOpenRouterConfig : getOpenRouterConfig;
+    const getPrimaryOpenRouterConfig = options.useNvidia ? getCalendarOpenRouterConfig : getOpenRouterConfig;
 
     switch (tier) {
         case 'smart':
@@ -277,15 +290,15 @@ async function callProvider<T>(
 export async function callAI<T = any>(options: AICallOptions): Promise<AIResponse<T>> {
     const tier = options.model ?? 'fast';
 
-    // Calendar-dedicated key: bypass normal provider chain
-    if (options.calendarKey) {
-        // Switch to Claude 3.5 Sonnet for hyper-fast, highly precise JSON generation.
-        // This prevents the 60s Vercel Serverless Function Timeout that blocks Llama 3.3 70B.
-        const calendarProvider = getCalendarOpenRouterConfig('anthropic/claude-3.5-sonnet');
+    // Calendar-dedicated key: bypass normal provider chain and use Nvidia
+    if (options.useNvidia) {
+        console.log('\x1b[36m[AI ✨]\x1b[0m Using Nvidia API for Generation...');
+        const calendarProvider = getNvidiaConfig('meta/llama-3.1-70b-instruct');
         const result = await callProvider<T>(calendarProvider, options);
         if (result.success) return result;
-        // Fall back to Groq Llama 3.3 70B if calendar key fails
-        console.log('\x1b[33m[AI →]\x1b[0m Calendar key failed, falling back to Groq...');
+        
+        // Fall back to Groq Llama 3.3 70B if Nvidia fails
+        console.log('\x1b[33m[AI →]\x1b[0m Nvidia key failed, falling back to Groq...');
         const groqFallback = getGroqConfig('llama-3.3-70b-versatile');
         return callProvider<T>(groqFallback, options);
     }

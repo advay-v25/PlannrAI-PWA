@@ -217,7 +217,7 @@ OUTPUT FORMAT (strict JSON):
         maxTokens: 4000,
         requireJSON: true,
         timeout: 110000,
-        calendarKey: true,
+        useNvidia: true,
     });
 
     if (!response.success || !response.data) {

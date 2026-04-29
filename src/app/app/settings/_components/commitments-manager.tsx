@@ -11,12 +11,12 @@ interface Commitment {
     title: string;
     start_time: string;
     end_time: string;
-    recurrence_days: string[];
+    days_of_week: number[];
     is_active: boolean;
 }
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const DAY_MAP: Record<string, string> = { Mon: 'monday', Tue: 'tuesday', Wed: 'wednesday', Thu: 'thursday', Fri: 'friday', Sat: 'saturday', Sun: 'sunday' };
+const DAY_NUM_MAP: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 0 };
 
 export default function CommitmentsManager() {
     const supabase = createClient();
@@ -68,38 +68,51 @@ export default function CommitmentsManager() {
             title: title.trim(),
             start_time: startTime,
             end_time: endTime,
-            recurrence_days: days.map(d => DAY_MAP[d]),
+            days_of_week: days.map(d => DAY_NUM_MAP[d]),
             is_active: true
         };
 
+        let err = null;
         if (editId) {
-            await supabase.from('commitments').update(payload).eq('id', editId);
-            toast.success('Commitment updated');
+            const res = await supabase.from('commitments').update(payload).eq('id', editId);
+            err = res.error;
+            if (!err) toast.success('Commitment updated');
         } else {
-            await supabase.from('commitments').insert(payload);
-            toast.success('Commitment added');
+            const res = await supabase.from('commitments').insert(payload);
+            err = res.error;
+            if (!err) toast.success('Commitment added');
         }
+
+        if (err) {
+            toast.error(err.message || 'Failed to save commitment');
+            return;
+        }
+
         resetForm();
         loadCommitments();
         if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('calendar-refresh'));
     };
 
     const handleDelete = async (id: string) => {
-        await supabase.from('commitments').update({ is_active: false }).eq('id', id);
+        const { error } = await supabase.from('commitments').update({ is_active: false }).eq('id', id);
+        if (error) {
+            toast.error(error.message || 'Failed to remove commitment');
+            return;
+        }
         toast.success('Commitment removed');
         loadCommitments();
         if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('calendar-refresh'));
     };
 
-    const startEdit = (c: Commitment) => {
+    const startEdit = (c: any) => {
         setEditId(c.id);
         setTitle(c.title);
         setStartTime(c.start_time);
         setEndTime(c.end_time);
-        setDays((c.recurrence_days || []).map(d => {
-            const entry = Object.entries(DAY_MAP).find(([, v]) => v === d);
-            return entry ? entry[0] : d;
-        }));
+        setDays((c.days_of_week || []).map((d: number) => {
+            const entry = Object.entries(DAY_NUM_MAP).find(([, v]) => v === d);
+            return entry ? entry[0] : '';
+        }).filter(Boolean));
         setIsAdding(true);
     };
 
@@ -217,7 +230,10 @@ export default function CommitmentsManager() {
                                 </div>
                                 <div className="mt-1.5 space-y-0.5">
                                     <p className="text-xs text-white/40">
-                                        {(c.recurrence_days || []).map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ')}
+                                        {(c.days_of_week || []).map((d: number) => {
+                                            const entry = Object.entries(DAY_NUM_MAP).find(([, v]) => v === d);
+                                            return entry ? entry[0] : '';
+                                        }).filter(Boolean).join(', ')}
                                     </p>
                                     <p className="text-xs text-white/40">
                                         {c.start_time} - {c.end_time}

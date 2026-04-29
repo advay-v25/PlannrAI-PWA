@@ -15,13 +15,15 @@ import {
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
 import { useGoalsManager } from '@/hooks/use-goals-manager';
+import { AddGoalModal } from '@/components/goals/add-goal-modal';
 import type { Goal } from '@/types/database';
 
 export default function GoalDetailPage() {
     const params = useParams();
     const router = useRouter();
-    const { goals, fetchGoals } = useGoalsManager();
+    const { goals, fetchGoals, updateGoal } = useGoalsManager();
     const [goal, setGoal] = useState<Goal | null>(null);
+    const [isEditing, setIsEditing] = useState(false);
 
     useEffect(() => {
         if (!goals.length) {
@@ -64,27 +66,40 @@ export default function GoalDetailPage() {
     return (
         <div className="pb-24 space-y-8 animate-in fade-in duration-500">
             {/* 1. Header & Navigation */}
-            <header className="flex items-center gap-4">
-                <button
-                    onClick={() => router.back()}
-                    className="p-2 rounded-full hover:bg-[var(--glass-bg-hover)] text-[var(--text-secondary)] transition-colors"
-                >
-                    <ArrowLeft className="w-5 h-5" />
-                </button>
-                <div>
-                    <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">
-                        {goal.title}
-                    </h1>
-                    <div className="flex items-center gap-2 text-sm text-[var(--text-tertiary)] mt-1">
-                        <span className="capitalize">{goal.category}</span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                            <Zap className="w-3 h-3 text-orange-400" />
-                            Lvl {level}
-                        </span>
+            <header className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => router.back()}
+                        className="p-2 rounded-full hover:bg-[var(--glass-bg-hover)] text-[var(--text-secondary)] transition-colors"
+                    >
+                        <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <div>
+                        <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">
+                            {goal.title}
+                        </h1>
+                        <div className="flex items-center gap-2 text-sm text-[var(--text-tertiary)] mt-1">
+                            <span className="capitalize">{goal.category}</span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                                <Zap className="w-3 h-3 text-orange-400" />
+                                Lvl {level}
+                            </span>
+                        </div>
                     </div>
                 </div>
+                <GlassButton variant="ghost" onClick={() => setIsEditing(true)}>Edit</GlassButton>
             </header>
+
+            {isEditing && (
+                <AddGoalModal 
+                    onClose={() => setIsEditing(false)} 
+                    onSave={async (data) => {
+                        await updateGoal(goal.id, data);
+                    }} 
+                    initialValues={goal} 
+                />
+            )}
 
             {/* 2. Physics Dashboard (Momentum, Streak, Velocity) */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

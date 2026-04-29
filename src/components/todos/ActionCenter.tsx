@@ -8,30 +8,13 @@ import { cn } from '@/lib/utils';
 import { useToast } from '../ui/toast';
 
 export function ActionCenter() {
-    const { lists, isLoading, addList, deleteList, addTodo, toggleTodo, deleteTodo, dumpThoughts } = useTodos();
+    const { lists, isLoading, addList, deleteList, addTodo, toggleTodo, deleteTodo } = useTodos();
     const { showToast } = useToast();
-    
-    const [dumpText, setDumpText] = useState('');
-    const [isDumping, setIsDumping] = useState(false);
     
     const [newListTitle, setNewListTitle] = useState('');
     const [isAddingList, setIsAddingList] = useState(false);
     const [activeListId, setActiveListId] = useState<string | null>(null);
     const [newTaskTitle, setNewTaskTitle] = useState('');
-
-    const handleDump = async () => {
-        if (!dumpText.trim()) return;
-        setIsDumping(true);
-        try {
-            await dumpThoughts(dumpText);
-            setDumpText('');
-            showToast('Brain dump processed into Inbox', 'success');
-        } catch (e) {
-            showToast('Failed to process dump', 'error');
-        } finally {
-            setIsDumping(false);
-        }
-    };
 
     const handleAddList = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -60,28 +43,6 @@ export function ActionCenter() {
     return (
         <div className="flex flex-col h-full bg-zinc-950/40 p-4 gap-4 overflow-y-auto no-scrollbar">
             
-            {/* Brain Dump Capture */}
-            <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 flex flex-col gap-2">
-                <div className="flex items-center gap-2 text-white/60 mb-1">
-                    <Brain className="w-4 h-4 text-orange-400" />
-                    <span className="text-xs font-bold uppercase tracking-wider">Brain Dump</span>
-                </div>
-                <textarea 
-                    value={dumpText}
-                    onChange={(e) => setDumpText(e.target.value)}
-                    placeholder="Type anything on your mind. AI will classify and place it in your Inbox..."
-                    className="w-full bg-black/40 border border-white/[0.06] rounded-lg p-3 text-sm text-white resize-none h-24 focus:ring-1 focus:ring-orange-500/50 focus:outline-none"
-                />
-                <button 
-                    onClick={handleDump}
-                    disabled={isDumping || !dumpText.trim()}
-                    className="self-end px-4 py-1.5 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-black text-xs font-bold rounded-lg transition-colors flex items-center gap-2"
-                >
-                    {isDumping ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                    Process to Inbox
-                </button>
-            </div>
-
             {/* Lists Header */}
             <div className="flex items-center justify-between pt-2">
                 <h3 className="text-sm font-bold text-white/80">Your Lists</h3>

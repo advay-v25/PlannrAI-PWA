@@ -254,7 +254,7 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
                 maxTokens: 6000,
                 requireJSON: true,
                 timeout: 110000,
-                calendarKey: true,
+                useNvidia: true,
             });
 
             let blocks: any[];

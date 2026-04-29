@@ -280,7 +280,7 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
                 maxTokens: channelDef.config.maxTokens ?? 4000,
                 requireJSON: false, // We handle JSON validation ourselves via JSONReliability
                 timeout: AI_TIMEOUT_MS,
-                calendarKey: useClaudeRoute,
+                useNvidia: useClaudeRoute,
             });
 
             if (aiResponse.success && aiResponse.raw) {

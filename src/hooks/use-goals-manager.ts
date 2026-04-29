@@ -33,6 +33,7 @@ export function useGoalsManager() {
             const res = await apiClient.put<{ goal: Goal, scheduleChanged: boolean }>('/api/goals', { id, ...updates });
             // Refresh to get updated capacity if schedule changed or goal updated
             fetchGoals();
+            window.dispatchEvent(new CustomEvent('calendar-refresh'));
         } catch (error) {
             console.error('Failed to update goal:', error);
             showToast('Failed to save changes. Please try again.', 'error');
@@ -50,6 +51,7 @@ export function useGoalsManager() {
             await apiClient.delete('/api/goals', { id });
             showToast('🗑️ Goal deleted', 'info');
             fetchGoals(); // Refresh capacity
+            window.dispatchEvent(new CustomEvent('calendar-refresh'));
         } catch (error) {
             console.error('Failed to delete goal:', error);
             showToast('Failed to delete goal on server.', 'error');
@@ -63,6 +65,7 @@ export function useGoalsManager() {
                 addGoal(response.goal);
                 showToast('✅ Goal created successfully!', 'success');
                 fetchGoals(); // Refresh capacity
+                window.dispatchEvent(new CustomEvent('calendar-refresh'));
                 return response.goal;
             }
         } catch (error) {
