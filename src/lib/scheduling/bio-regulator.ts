@@ -95,7 +95,8 @@ export class BioRegulator {
         CONSTRAINTS: Work ${constraints.workStartHour}:00-${constraints.workEndHour}:00. Gaps: ${constraints.minGapMinutes}m.
         DIRECTION: Adjust schedule density to match this state.
         WHITESPACE: Leave 20% of available time as open gaps for flow and flexibility.
-        SPREAD: Do NOT over-pack single days. Aim for a sustainable weekly rhythm.
+        SPREAD: Spread goals throughout the day. Avoid clustering.
+        BODY PILLAR BUFFER: NEVER schedule 'body' pillar activities (exercise, physical work) within 2 HOURS after any meal (Breakfast, Lunch, Dinner).
         `;
     }
 }

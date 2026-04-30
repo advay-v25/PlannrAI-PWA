@@ -65,15 +65,18 @@ export class PatchService {
         let changes = 0;
 
         // 0. Pre-Flight Validation via Engine (Deterministic Check)
-        try {
-            const validation = await CalendarEngine.validatePatch(userId, patch, supabase);
-            if (!validation.valid) {
-                console.error(`[PatchService] Pre-flight validation failed:`, validation.errors);
-                return { success: false, undo_token: null, changes: 0, errors: validation.errors };
+        // Skip for coach patches — AI may generate approximate block IDs that fail lookup
+        if (source !== 'coach') {
+            try {
+                const validation = await CalendarEngine.validatePatch(userId, patch, supabase);
+                if (!validation.valid) {
+                    console.error(`[PatchService] Pre-flight validation failed:`, validation.errors);
+                    return { success: false, undo_token: null, changes: 0, errors: validation.errors };
+                }
+            } catch (validateErr: any) {
+                // Don't crash if validation itself fails — proceed with ops
+                console.warn('[PatchService] Validation check failed, proceeding:', validateErr.message);
             }
-        } catch (validateErr: any) {
-            // Don't crash if validation itself fails — proceed with ops
-            console.warn('[PatchService] Validation check failed, proceeding:', validateErr.message);
         }
 
         // 1. Calculate Snapshot or Inverse Patch (BEFORE applying) — for undo support
@@ -384,6 +387,16 @@ export class PatchService {
                 const id = op.event_id;
                 const fields = op.fields || op.payload;
                 if (!id) throw new Error('Update requires event_id');
+                // Protect meal blocks from being moved/modified
+                const { data: existing } = await supabase
+                    .from('schedule_blocks')
+                    .select('block_type')
+                    .eq('id', id)
+                    .eq('user_id', userId)
+                    .maybeSingle();
+                if (existing?.block_type === 'meal') {
+                    throw new Error('Cannot modify meal blocks — they are locked.');
+                }
                 const { error } = await supabase
                     .from('schedule_blocks')
                     .update(fields)
@@ -396,6 +409,16 @@ export class PatchService {
             case 'delete':
             case 'delete_event': {
                 if (!op.event_id) throw new Error('Delete requires event_id');
+                // Protect meal blocks from deletion
+                const { data: delTarget } = await supabase
+                    .from('schedule_blocks')
+                    .select('block_type')
+                    .eq('id', op.event_id)
+                    .eq('user_id', userId)
+                    .maybeSingle();
+                if (delTarget?.block_type === 'meal') {
+                    throw new Error('Cannot delete meal blocks — they are locked.');
+                }
                 const { error } = await supabase
                     .from('schedule_blocks')
                     .delete()

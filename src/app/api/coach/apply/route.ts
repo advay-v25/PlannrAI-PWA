@@ -89,6 +89,13 @@ export async function POST(request: NextRequest) {
         // Normalize the Coach's SchedulePatch format to CalendarPatch format for PatchService
         const normalizedPatch = normalizePatchForService(patch);
 
+        // Skip strict pre-flight validation for coach patches — AI may reference
+        // virtual or approximate block IDs that CalendarEngine.validatePatch rejects.
+        // PatchService will still handle individual op failures gracefully.
+        normalizedPatch.undoable = true;
+
+        console.log('[Coach Apply] Applying patch with', normalizedPatch.ops?.length || 0, 'operations');
+
         const result = await PatchService.applyPatch(
             user.id,
             normalizedPatch,
@@ -97,9 +104,11 @@ export async function POST(request: NextRequest) {
         );
 
         if (!result.success) {
+            console.error('[Coach Apply] Patch failed:', result.errors);
             return NextResponse.json({
                 success: false,
                 error: result.errors?.join(', ') || 'Failed to apply patch',
+                details: result.errors,
             }, { status: 409 });
         }
 
@@ -112,6 +121,8 @@ export async function POST(request: NextRequest) {
                 supabase
             );
         }
+
+        console.log('[Coach Apply] Success:', result.changes, 'changes applied');
 
         return NextResponse.json({
             success: true,

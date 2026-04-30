@@ -133,6 +133,20 @@ export const DELETE = secureApiRoute(
         }
 
         const supabase = await createClient();
+        
+        // 1. Delete associated materialized blocks (future only or all?)
+        // Let's delete all planned blocks associated with this anchor
+        const { error: blockError } = await supabase
+            .from('schedule_blocks')
+            .delete()
+            .eq('commitment_id', id)
+            .eq('status', 'planned');
+
+        if (blockError) {
+            console.warn("FAILED TO DELETE MATERIALIZED BLOCKS FOR ANCHOR", id, blockError);
+            // We continue anyway to delete the parent anchor
+        }
+
         const { error } = await supabase
             .from('commitments')
             .delete()

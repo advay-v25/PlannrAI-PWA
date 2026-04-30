@@ -25,7 +25,15 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
         applyOption,
         undo,
         clearError,
+        loadHistory
     } = useCoach();
+
+    // Load history on mount
+    useEffect(() => {
+        if (messages.length === 0) {
+            loadHistory();
+        }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -140,9 +148,29 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
                              <span className="text-white text-2xl">⚡️</span>
                         </div>
                         <p className="text-lg font-semibold text-foreground mb-2">How shall we architect today?</p>
-                        <p className="text-xs text-secondary max-w-[240px] mx-auto italic">
-                            "I'm overwhelmed," or "Protect my focus today."
+                        <p className="text-xs text-secondary max-w-[240px] mx-auto italic mb-6">
+                            &quot;I&apos;m overwhelmed,&quot; or &quot;Protect my focus today.&quot;
                         </p>
+                        
+                        {/* Proactive Quick-Action Chips */}
+                        <div className="flex flex-wrap justify-center gap-2 max-w-[300px] mx-auto">
+                            {[
+                                { label: "I'm overwhelmed", emoji: "😵‍💫" },
+                                { label: "Protect my focus", emoji: "🛡️" },
+                                { label: "Reschedule my day", emoji: "🔄" },
+                                { label: "What should I do next?", emoji: "🤔" },
+                                { label: "I need a break", emoji: "☕" },
+                                { label: "Review my week", emoji: "📊" },
+                            ].map(chip => (
+                                <button
+                                    key={chip.label}
+                                    onClick={() => { setInput(chip.label); }}
+                                    className="px-3 py-1.5 bg-white/[0.04] border border-white/[0.08] rounded-full text-xs text-foreground/60 hover:text-foreground hover:bg-white/[0.08] hover:border-primary/30 transition-all"
+                                >
+                                    {chip.emoji} {chip.label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 )}
 

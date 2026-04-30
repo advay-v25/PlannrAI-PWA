@@ -34,6 +34,8 @@ export function useGoalsManager() {
             // Refresh to get updated capacity if schedule changed or goal updated
             fetchGoals();
             window.dispatchEvent(new CustomEvent('calendar-refresh'));
+            
+            showToast('✅ Changes saved. Calendar updated.', 'success');
         } catch (error) {
             console.error('Failed to update goal:', error);
             showToast('Failed to save changes. Please try again.', 'error');
@@ -49,7 +51,7 @@ export function useGoalsManager() {
 
         try {
             await apiClient.delete('/api/goals', { id });
-            showToast('🗑️ Goal deleted', 'info');
+            showToast('🗑️ Goal deleted. Calendar updated.', 'info');
             fetchGoals(); // Refresh capacity
             window.dispatchEvent(new CustomEvent('calendar-refresh'));
         } catch (error) {
@@ -63,7 +65,7 @@ export function useGoalsManager() {
             const response = await apiClient.post<{ goal: Goal }>('/api/goals', goalData);
             if (response?.goal) {
                 addGoal(response.goal);
-                showToast('✅ Goal created successfully!', 'success');
+                showToast('✅ Goal created! Calendar updated.', 'success');
                 fetchGoals(); // Refresh capacity
                 window.dispatchEvent(new CustomEvent('calendar-refresh'));
                 return response.goal;

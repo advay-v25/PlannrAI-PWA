@@ -9,7 +9,7 @@ export const GET = secureApiRoute(
                 .from('todo_lists')
                 .select(`
                     id, title, color, created_at,
-                    todos (id, title, is_completed, assigned_block_id, created_at)
+                    todos (id, title, is_completed, assigned_block_id, due_date, priority, created_at)
                 `)
                 .eq('user_id', userId)
                 .order('created_at', { ascending: true });
@@ -26,7 +26,7 @@ export const GET = secureApiRoute(
 
 export const POST = secureApiRoute(
     async (context, body) => {
-        const { action, listId, todoId, title, isCompleted } = body as any;
+        const { action, listId, todoId, title, isCompleted, dueDate, priority } = body as any;
         const { userId, supabase } = context;
 
         try {
@@ -43,7 +43,14 @@ export const POST = secureApiRoute(
             if (action === 'create_todo') {
                 const { data, error } = await supabase
                     .from('todos')
-                    .insert({ user_id: userId, list_id: listId, title, is_completed: false })
+                    .insert({ 
+                        user_id: userId, 
+                        list_id: listId, 
+                        title, 
+                        is_completed: false,
+                        due_date: dueDate || null,
+                        priority: priority || 'medium'
+                    })
                     .select()
                     .single();
                 if (error) throw error;

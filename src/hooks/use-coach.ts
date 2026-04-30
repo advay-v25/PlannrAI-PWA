@@ -41,6 +41,7 @@ interface CoachState {
     undo: () => Promise<boolean>;
     clearError: () => void;
     loadProactiveInsight: () => Promise<void>;
+    loadHistory: () => Promise<void>;
     dismissProactive: () => Promise<void>;
     actOnProactive: () => void;
 }
@@ -146,8 +147,21 @@ export const useCoach = create<CoachState>((set, get) => ({
         const { messages, conversationId } = get();
         const msg = messages.find(m => m.id === messageId);
         const option = msg?.options?.find(o => o.id === optionId);
-        if (!option) return false;
+        if (!option) {
+            console.error('[Coach] Option not found:', optionId);
+            return false;
+        }
 
+        // Skip empty patches (e.g. "open calendar" option)
+        const ops = (option.patch as any)?.operations || (option.patch as any)?.ops || [];
+        if (ops.length === 0) {
+            set(state => ({
+                messages: state.messages.map(m =>
+                    m.id === messageId ? { ...m, selected_option_id: optionId } : m
+                ),
+            }));
+            return true;
+        }
 
         set(state => ({
             messages: state.messages.map(m =>
@@ -157,23 +171,28 @@ export const useCoach = create<CoachState>((set, get) => ({
         }));
 
         try {
-            const res = await apiClient.post<{ success: boolean; undo_token: string | null; changes: number }>(
+            const res = await apiClient.post<{ success: boolean; undo_token: string | null; applied_operations: number; error?: string }>(
                 '/api/coach/apply',
                 { 
                     patch: option.patch, 
-                    option_id: optionId,           // BUG 2 FIX: correct field name
-                    conversation_id: conversationId // BUG 2 FIX: include conversation_id
+                    option_id: optionId,
+                    conversation_id: conversationId
                 }
             );
+
+            // apiClient unwraps {ok, data} envelope — res is the inner data
+            if (res && res.success === false) {
+                throw new Error(res.error || 'Failed to apply changes');
+            }
 
             set(state => ({
                 messages: state.messages.map(m =>
                     m.id === messageId
-                        ? { ...m, isApplying: false, selected_option_id: optionId, undoToken: res.undo_token }
+                        ? { ...m, isApplying: false, selected_option_id: optionId, undoToken: res?.undo_token || null }
                         : m
                 ),
-                lastUndoToken: res.undo_token,
-                canUndo: !!res.undo_token
+                lastUndoToken: res?.undo_token || null,
+                canUndo: !!res?.undo_token
             }));
 
             if (typeof window !== 'undefined') {
@@ -181,12 +200,12 @@ export const useCoach = create<CoachState>((set, get) => ({
             }
             return true;
         } catch (error: any) {
-            console.error("Apply Failed", error);
+            console.error("[Coach Apply] Failed:", error);
             set(state => ({
                 messages: state.messages.map(m =>
                     m.id === messageId ? { ...m, isApplying: false } : m
                 ),
-                error: error.message || "Failed to apply changes."
+                error: error.message || "Failed to apply changes. Please try again."
             }));
             return false;
         }
@@ -222,6 +241,37 @@ export const useCoach = create<CoachState>((set, get) => ({
         }
     },
 
+
+    loadHistory: async () => {
+        set({ isLoading: true, error: null });
+        try {
+            const raw = await apiClient.get<any>('/api/coach/history');
+            
+            // Format: { success: true, conversation_id: "...", messages: [...] }
+            if (raw && raw.success) {
+                const formattedMessages: CoachMessage[] = (raw.messages || []).map((m: any) => ({
+                    id: m.id,
+                    role: m.role,
+                    content: m.content,
+                    mode: m.mode,
+                    options: m.options,
+                    selected_option_id: m.selected_option_id,
+                    created_at: m.created_at
+                }));
+
+                set({
+                    messages: formattedMessages,
+                    conversationId: raw.conversation_id,
+                    isLoading: false
+                });
+            } else {
+                set({ isLoading: false });
+            }
+        } catch (error: any) {
+            console.error("Failed to load coach history", error);
+            set({ isLoading: false });
+        }
+    },
 
     clearError: () => set({ error: null }),
 

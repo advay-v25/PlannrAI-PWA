@@ -193,6 +193,12 @@ export function useCalendar() {
             await deleteCommitment(cmtId);
             return;
         }
+        // Block deletion of meal blocks (they're locked like anchors)
+        const targetBlock = state.blocks.find(b => b.id === id);
+        if (targetBlock?.block_type === 'meal') {
+            showToast("Meal blocks are locked and can't be deleted", "error");
+            return;
+        }
 
         // Regular block deletion
         const originalBlocks = [...state.blocks];

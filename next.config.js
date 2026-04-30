@@ -1,4 +1,12 @@
 /** @type {import('next').NextConfig} */
+const withPWA = require('next-pwa')({
+    dest: 'public',
+    register: true,
+    skipWaiting: true,
+    disable: process.env.NODE_ENV === 'development',
+    runtimeCaching: [] // Use default caching
+});
+
 const nextConfig = {
     images: {
         domains: [],
@@ -10,8 +18,6 @@ const nextConfig = {
     },
     // Enable Turbopack with empty config for Next.js 16
     turbopack: {},
-    // PWA will be handled via service worker registration in app code
-    // PWA will be handled via service worker registration in app code
     typescript: {
         ignoreBuildErrors: true,
     },
@@ -26,4 +32,4 @@ const nextConfig = {
     },
 };
 
-module.exports = nextConfig;
+module.exports = withPWA(nextConfig);

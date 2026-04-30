@@ -65,6 +65,11 @@ export function StateHero({ state, currentTime, activeBlock, nextBlock, metrics,
                                             <div className="text-white font-medium">{nextBlock.title}</div>
                                             <div className="text-sm text-[var(--color-text-secondary)]">{nextBlock.start_time}</div>
                                         </div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => onAction('start_early')} className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-md text-xs font-bold text-white transition-colors">Start</button>
+                                            <button onClick={() => onAction('skip_next')} className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-md text-xs font-bold text-white/50 transition-colors">Skip</button>
+                                            <button onClick={() => onAction('reschedule_next')} className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-md text-xs font-bold text-white/50 transition-colors">Reschedule</button>
+                                        </div>
                                     </div>
                                 </GlassCard>
                             </div>
@@ -124,13 +129,29 @@ export function StateHero({ state, currentTime, activeBlock, nextBlock, metrics,
                         <p className="text-[var(--color-text-secondary)] text-sm max-w-sm mb-6">
                             Stand up. Breathe. Let the previous context dissolve before entering {nextBlock?.title || 'the next block'}.
                         </p>
-                        <GlassButton
-                            variant="ghost"
-                            className="bg-white/5 border border-white/10 hover:bg-white/10"
-                            onClick={() => onAction('start_early')}
-                        >
-                            <Play size={16} className="mr-2 text-[var(--color-green)]" /> Start Next Block Early
-                        </GlassButton>
+                        <div className="flex gap-3 justify-center w-full max-w-sm">
+                            <GlassButton
+                                variant="ghost"
+                                className="bg-white/5 border border-white/10 hover:bg-white/10 flex-1"
+                                onClick={() => onAction('start_early')}
+                            >
+                                <Play size={16} className="mr-2 text-[var(--color-green)]" /> Start
+                            </GlassButton>
+                            <GlassButton
+                                variant="ghost"
+                                className="bg-white/5 border border-white/10 hover:bg-white/10 flex-1"
+                                onClick={() => onAction('skip_next')}
+                            >
+                                Skip
+                            </GlassButton>
+                            <GlassButton
+                                variant="ghost"
+                                className="bg-white/5 border border-white/10 hover:bg-white/10 flex-1"
+                                onClick={() => onAction('reschedule_next')}
+                            >
+                                Reschedule
+                            </GlassButton>
+                        </div>
                     </div>
                 );
 

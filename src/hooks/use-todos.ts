@@ -6,6 +6,8 @@ export interface TodoItem {
     title: string;
     is_completed: boolean;
     assigned_block_id?: string | null;
+    due_date?: string | null;
+    priority?: 'low' | 'medium' | 'high';
 }
 
 export interface TodoList {
@@ -37,9 +39,9 @@ export function useTodos() {
     }, [loadLists]);
 
     const addList = async (title: string) => {
-        const { data } = await apiClient.post<any>('/api/todos', { action: 'create_list', title });
-        if (data) {
-            setLists(prev => [...prev, { ...data, todos: [] }]);
+        const data = await apiClient.post<any>('/api/todos', { action: 'create_list', title });
+        if (data && data.list) {
+            setLists(prev => [...prev, { ...data.list, todos: [] }]);
             window.dispatchEvent(new CustomEvent('calendar-refresh'));
         }
     };
@@ -50,12 +52,18 @@ export function useTodos() {
         window.dispatchEvent(new CustomEvent('calendar-refresh'));
     };
 
-    const addTodo = async (listId: string, title: string) => {
-        const { data } = await apiClient.post<any>('/api/todos', { action: 'create_todo', listId, title });
-        if (data) {
+    const addTodo = async (listId: string, title: string, dueDate?: string, priority?: string) => {
+        const data = await apiClient.post<any>('/api/todos', { 
+            action: 'create_todo', 
+            listId, 
+            title,
+            dueDate,
+            priority
+        });
+        if (data && data.todo) {
             setLists(prev => prev.map(l => {
                 if (l.id === listId) {
-                    return { ...l, todos: [...l.todos, data] };
+                    return { ...l, todos: [...l.todos, data.todo] };
                 }
                 return l;
             }));

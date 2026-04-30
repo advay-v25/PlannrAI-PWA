@@ -13,6 +13,7 @@ import { EnergyCheckin } from '@/components/home/energy-checkin';
 import { AIProfileBadge } from '@/components/home/ai-profile-badge';
 import { HomeTodos } from '@/components/home/home-todos';
 import { ProgressBars } from '@/components/home/progress-bars';
+import { PillarBalance } from '@/components/home/pillar-balance';
 import { NotificationScheduler } from '@/components/home/notification-scheduler';
 import { apiClient } from '@/lib/api-client';
 import { format } from 'date-fns';
@@ -108,47 +109,7 @@ export default function HomePage() {
     };
 
     const handleGenerateSchedule = async () => {
-        if (generating) return;
-        setGenerating(true);
-        toast.info('🤖 Generating your schedule...');
-        try {
-            // 1. Call generate-today API (creates a full wake-to-sleep schedule)
-            const today = new Date().toISOString().split('T')[0];
-            const planData = await apiClient.post<any>('/api/calendar/generate-today', {
-                date: today
-            });
-
-            const options = planData?.options || [];
-
-            if (options.length === 0) {
-                toast.error('AI could not generate a schedule. Try adding goals first.');
-                return;
-            }
-
-            // 2. Auto-apply the first option (balanced variant)
-            const firstOption = options[0];
-            const applyData = await apiClient.post<any>('/api/patch/apply', {
-                patch: firstOption.patch,
-                source: 'generate_schedule',
-                context: firstOption.id
-            });
-
-            toast.success(`✅ Schedule created! ${applyData?.changes || ''} blocks added.`);
-
-            // 3. Refresh home data to show new blocks
-            await fetchHomeData();
-
-            // 4. Notify calendar (if mounted) to refresh
-            if (typeof window !== 'undefined') {
-                window.dispatchEvent(new Event('calendar-refresh'));
-            }
-
-        } catch (e: any) {
-            console.error('Generate schedule failed:', e);
-            toast.error(e.message || 'Failed to generate schedule');
-        } finally {
-            setGenerating(false);
-        }
+        router.push('/app/calendar?action=optimize_day');
     };
 
     if (loading) {
@@ -232,9 +193,29 @@ export default function HomePage() {
     return (
         <>
             <NotificationScheduler blocks={effectiveData.schedule_blocks} date={today} />
+            
+            {effectiveData.nextWeekPlanned === false && (
+                <div className="mb-6 bg-orange-500/10 border border-orange-500/20 rounded-2xl p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <span className="text-orange-400 text-xl">⚠️</span>
+                        <div>
+                            <h4 className="text-orange-400 font-bold text-sm">Next Week Not Planned</h4>
+                            <p className="text-orange-400/70 text-xs">Your calendar is empty for next week.</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => router.push('/app/calendar')}
+                        className="px-4 py-2 bg-orange-500/20 text-orange-400 text-xs font-bold rounded-lg hover:bg-orange-500/30 transition-colors"
+                    >
+                        Plan Now
+                    </button>
+                </div>
+            )}
+
             <HomeLayout
             header={header}
             progressBars={<ProgressBars daily={effectiveData.metrics} weekly={effectiveData.weekly_metrics} />}
+            pillarBalance={<PillarBalance blocks={effectiveData.schedule_blocks} />}
             nowCard={
                 <StateHero
                     state={effectiveState.state}
@@ -243,12 +224,42 @@ export default function HomePage() {
                     nextBlock={effectiveState.next_block}
                     metrics={effectiveState.metrics}
                     insight={effectiveState.proactive_insight}
-                    onAction={(action) => {
+                    onAction={async (action) => {
                         console.log('Action Triggered:', action);
                         if (action === 'generate_schedule') {
                             handleGenerateSchedule();
                         } else if (action === 'optimize_day') {
                             router.push('/app/calendar');
+                        } else if (action === 'reschedule_next') {
+                            router.push('/app/calendar');
+                        } else if (action === 'skip_next' || action === 'start_early') {
+                            if (!effectiveState.next_block?.id) return;
+                            const status = action === 'skip_next' ? 'cancelled' : 'in_progress';
+                            toast.loading('Updating block...');
+                            try {
+                                await apiClient.post('/api/calendar/block-status', {
+                                    block_id: effectiveState.next_block.id,
+                                    status
+                                });
+                                toast.success(action === 'skip_next' ? 'Block skipped.' : 'Started early!');
+                                handleRefresh();
+                            } catch (e) {
+                                toast.error('Failed to update block');
+                            }
+                        } else if (action === 'complete_block' || action === 'fail_block') {
+                            if (!effectiveState.active_block?.id) return;
+                            const status = action === 'complete_block' ? 'done' : 'missed';
+                            toast.loading('Updating block...');
+                            try {
+                                await apiClient.post('/api/calendar/block-status', {
+                                    block_id: effectiveState.active_block.id,
+                                    status
+                                });
+                                toast.success(action === 'complete_block' ? 'Block completed! Great job.' : 'Block marked missed.');
+                                handleRefresh();
+                            } catch (e) {
+                                toast.error('Failed to update block');
+                            }
                         } else {
                             handleRefresh();
                         }

@@ -256,7 +256,7 @@ function DroppableHour({ dayIndex, hour, onClick }: { dayIndex: number; hour: nu
 function BlockCard({ block, layout, onClick, isDayView }: { block: any; layout: LayoutBlock; onClick: () => void; isDayView?: boolean }) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: block.id,
-        disabled: block.is_locked || block.block_type === 'anchor' || block.block_type === 'sleep'
+        disabled: block.is_locked || block.block_type === 'anchor' || block.block_type === 'meal' || block.block_type === 'sleep'
     });
 
     const colors = getBlockColors(block);
@@ -309,7 +309,7 @@ function BlockCard({ block, layout, onClick, isDayView }: { block: any; layout: 
                         {block.title || block.context || 'Untitled'}
                     </span>
                     {isDone && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
-                    {block.block_type === 'anchor' && <Lock className="w-3 h-3 text-white/30 shrink-0" />}
+                    {(block.block_type === 'anchor' || block.block_type === 'meal') && <Lock className="w-3 h-3 text-white/30 shrink-0" />}
                 </div>
 
                 {/* Time display — always show in day view, or when block is tall enough */}

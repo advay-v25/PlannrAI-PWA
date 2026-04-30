@@ -193,6 +193,15 @@ function CalendarPageInner() {
             setAutoPlanned(true);
             handleGenerateToday(todayStr);
         }
+        
+        const action = searchParams.get('action');
+        if (action === 'optimize_day') {
+            setShowOptimizerModal(true);
+            // optionally clean up URL
+            const url = new URL(window.location.href);
+            url.searchParams.delete('action');
+            window.history.replaceState({}, '', url);
+        }
     }, [searchParams, isLoading, autoPlanned]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Day Stats ────────────────────────────────────────────────

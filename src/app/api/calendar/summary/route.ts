@@ -36,7 +36,8 @@ export const GET = secureApiRoute(
         const rawCommitments = commitmentsRes.data || [];
         const goals = goalsRes.data || [];
         const habits = habitsRes.data || [];
-        const blocks = blocksRes.data || [];
+        // Filter out stale anchor blocks from DB — anchors are rendered as virtual blocks from commitments
+        const blocks = (blocksRes.data || []).filter((b: any) => b.block_type !== 'anchor');
         const inbox = inboxBlocks.data || [];
 
         // --- Deduplicate commitments by title+start_time+end_time ---

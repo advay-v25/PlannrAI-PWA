@@ -75,7 +75,8 @@ function normalizeBlockType(type: string): string {
     return map[type] || 'flex';
 }
 
-/** Enforces strict overlap rules: zero overlaps with other blocks and commitments. */
+/** Enforces strict overlap rules: zero overlaps with other blocks, commitments, and meals.
+ *  Also enforces a 2-hour post-meal buffer for body-pillar activities. */
 function enforceFlowState(blocks: PlanBlock[], commitments: any[]): PlanBlock[] {
     const timeToMin = (t: string) => {
         const [h, m] = t.split(':').map(Number);
@@ -88,6 +89,9 @@ function enforceFlowState(blocks: PlanBlock[], commitments: any[]): PlanBlock[] 
         return `${h.toString().padStart(2, '0')}:${ms.toString().padStart(2, '0')}`;
     };
 
+    const IMMOVABLE_TYPES = new Set(['meal', 'sleep', 'anchor']);
+    const BODY_MEAL_BUFFER_MINS = 120; // 2 hours after meals for body activities
+
     // Group blocks by date
     const blocksByDate = blocks.reduce((acc, b) => {
         if (!acc[b.date]) acc[b.date] = [];
@@ -99,45 +103,89 @@ function enforceFlowState(blocks: PlanBlock[], commitments: any[]): PlanBlock[] 
 
     // Process day by day to fix overlaps
     for (const [date, dayBlocks] of Object.entries(blocksByDate)) {
-        // Sort blocks chronologically
-        dayBlocks.sort((a, b) => timeToMin(a.start_time) - timeToMin(b.start_time));
+        // Separate immovable blocks (meals, sleep) from movable blocks (goals, flex, etc.)
+        const immovable = dayBlocks.filter(b => IMMOVABLE_TYPES.has(b.block_type));
+        const movable = dayBlocks.filter(b => !IMMOVABLE_TYPES.has(b.block_type));
 
-        // Get commitments for this date
+        // Sort movable blocks by their intended start time
+        movable.sort((a, b) => timeToMin(a.start_time) - timeToMin(b.start_time));
+
+        // Build exclusion zones from immovable blocks + commitments
         const dayOfWeek = new Date(date + 'T12:00:00').getDay();
         const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
         const dayCommitments = commitments.filter(c => (c.days_of_week || []).includes(isoDay));
 
-        let processedDay: PlanBlock[] = [];
-        let lastEndTime = 0;
+        // Exclusion zones: [start_min, end_min] — blocks cannot overlap these
+        const exclusionZones: Array<{ start: number; end: number }> = [];
+        for (const im of immovable) {
+            exclusionZones.push({ start: timeToMin(im.start_time), end: timeToMin(im.end_time) });
+        }
+        for (const cmt of dayCommitments) {
+            // 30-min buffer around commitments
+            exclusionZones.push({ start: timeToMin(cmt.start_time) - 30, end: timeToMin(cmt.end_time) + 30 });
+        }
+        exclusionZones.sort((a, b) => a.start - b.start);
 
-        for (let i = 0; i < dayBlocks.length; i++) {
-            let b = { ...dayBlocks[i] };
-            let bStart = timeToMin(b.start_time);
-            let duration = timeToMin(b.end_time) - bStart;
+        // Collect meal end times for body-pillar buffer enforcement
+        const mealEndTimes = immovable
+            .filter(b => b.block_type === 'meal')
+            .map(b => timeToMin(b.end_time));
 
-            // 1. Prevent Overlap with previous blocks
-            if (bStart < lastEndTime) {
-                bStart = lastEndTime;
-            }
+        // Place each movable block into the earliest valid slot
+        const placed: PlanBlock[] = [...immovable]; // Start with immovable blocks
+        const placedZones = exclusionZones.map(z => ({ ...z })); // Track all occupied zones
 
-            // 2. Prevent Overlap with Commitments (Anchor 30-min buffer)
-            for (const cmt of dayCommitments) {
-                const cStart = timeToMin(cmt.start_time);
-                const cEnd = timeToMin(cmt.end_time);
-                if (bStart < cEnd + 30 && bStart + duration > cStart - 30) {
-                    bStart = cEnd + 30;
+        for (const block of movable) {
+            let bStart = timeToMin(block.start_time);
+            const duration = Math.max(timeToMin(block.end_time) - bStart, 15); // min 15 min
+            const isBodyPillar = block.pillar === 'body';
+
+            // Try to keep block at its original time, but shift if it conflicts
+            let attempts = 0;
+            let valid = false;
+            while (!valid && attempts < 50) {
+                valid = true;
+                const bEnd = bStart + duration;
+
+                // Check against all occupied zones
+                for (const zone of placedZones) {
+                    if (bStart < zone.end && bEnd > zone.start) {
+                        bStart = zone.end; // Shift past the conflict
+                        valid = false;
+                        break;
+                    }
                 }
+
+                // Body-pillar: must be at least 2h after any meal
+                if (valid && isBodyPillar) {
+                    for (const mealEnd of mealEndTimes) {
+                        if (bStart < mealEnd + BODY_MEAL_BUFFER_MINS && bStart >= mealEnd - 30) {
+                            bStart = mealEnd + BODY_MEAL_BUFFER_MINS;
+                            valid = false;
+                            break;
+                        }
+                    }
+                }
+
+                attempts++;
             }
 
-            // Apply shifted times
-            b.start_time = minToTime(bStart);
-            b.end_time = minToTime(bStart + duration);
-
-            processedDay.push(b);
-            lastEndTime = bStart + duration;
+            // Only place if it fits within waking hours (before 23:59)
+            if (bStart + duration <= 1440) {
+                const shifted = { ...block };
+                shifted.start_time = minToTime(bStart);
+                shifted.end_time = minToTime(bStart + duration);
+                placed.push(shifted);
+                // Add this block to occupied zones
+                placedZones.push({ start: bStart, end: bStart + duration });
+                placedZones.sort((a, b) => a.start - b.start);
+            }
+            // If it doesn't fit, it gets dropped (schedule is full)
         }
 
-        finalBlocks.push(...processedDay);
+        // Sort the final day chronologically
+        placed.sort((a, b) => timeToMin(a.start_time) - timeToMin(b.start_time));
+        finalBlocks.push(...placed);
     }
 
     return finalBlocks;
@@ -240,6 +288,9 @@ CRITICAL RULES:
 4. NEVER schedule over existing commitments — leave a 30-minute buffer before and after
 5. ZERO OVERLAP: Every block MUST have a distinct, non-overlapping time slot
 6. CHECKLIST SYNC: For every 'goal' block, generate a realistic 2-3 item checklist with concrete action steps
+7. GOAL DISTRIBUTION: Spread goals EVENLY throughout the day. Do NOT cluster goals at the start or end of the day. Aim for at least one goal in mid-morning, one in mid-afternoon, and one in early evening. NEVER place more than 2 consecutive goal blocks without a buffer/break between them.
+8. BODY-PILLAR BUFFER: NEVER schedule 'body' pillar activities (exercise, sports, physical training) within 2 HOURS after any meal (Breakfast, Lunch, Dinner). Place body activities at least 2 hours after meals.
+9. MEAL DEDUPLICATION: Do NOT generate Breakfast, Lunch, Dinner, or Sleep blocks — these are added automatically. Only generate goal, routine, buffer, and flex blocks.
 
 FLOW-STATE ARCHITECTURE (apply to EVERY day):
 - Each day follows the user's energy arc (Ramp-Up → Peak → Trough → Rebound → Wind-Down)
@@ -448,11 +499,23 @@ function cleanVariant(raw: any, ctx: CalendarContext, weekStart: string, index: 
         return true;
     });
 
-    // Enforce Flow State and Strict Overlaps
-    const flowBlocks = enforceFlowState(commitmentOverlapFiltered, ctx.commitments);
-    
-    // Inject the exact Bio Rhythm Blocks for this variant, effectively returning them to the calendar directly
-    const finalBlocks = [...globalBioBlocks, ...flowBlocks];
+    // --- Deduplicate: remove AI-generated blocks that duplicate a bio template (e.g. double Breakfast) ---
+    const bioTitlesLower = new Set(globalBioBlocks.map(b => b.title.toLowerCase()));
+    const deduplicatedBlocks = commitmentOverlapFiltered.filter(b => {
+        // If the AI generated a block with the same title as a bio block on the same date, drop it
+        if (bioTitlesLower.has(b.title.toLowerCase())) {
+            const hasBioDuplicate = globalBioBlocks.some(bio => 
+                bio.date === b.date && bio.title.toLowerCase() === b.title.toLowerCase()
+            );
+            if (hasBioDuplicate) return false;
+        }
+        return true;
+    });
+
+    // Merge bio blocks + AI blocks, then run flow enforcement on the COMBINED set
+    // This ensures meals are treated as immovable exclusion zones
+    const mergedBlocks = [...globalBioBlocks, ...deduplicatedBlocks];
+    const finalBlocks = enforceFlowState(mergedBlocks, ctx.commitments);
 
     const totalMins = finalBlocks.reduce((sum, b) => {
         return sum + Math.max(0, timeToMinutes(b.end_time) - timeToMinutes(b.start_time));

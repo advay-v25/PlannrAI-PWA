@@ -64,14 +64,24 @@ export default function WeeklyReviewPage() {
     const [analyticsData, setAnalyticsData] = useState<any>(null);
     const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
-    // Week logic
+    // Week navigation — offset 1 = last week, 2 = two weeks ago, etc.
+    const [weekOffset, setWeekOffset] = useState(1);
     const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-    const lastWeekStart = subWeeks(currentWeekStart, 1);
-    const lastWeekEnd = endOfWeek(lastWeekStart, { weekStartsOn: 1 });
-    const weekStartStr = format(lastWeekStart, 'yyyy-MM-dd');
-    const weekEndStr = format(lastWeekEnd, 'yyyy-MM-dd');
+    const selectedWeekStart = subWeeks(currentWeekStart, weekOffset);
+    const selectedWeekEnd = endOfWeek(selectedWeekStart, { weekStartsOn: 1 });
+    const weekStartStr = format(selectedWeekStart, 'yyyy-MM-dd');
+    const weekEndStr = format(selectedWeekEnd, 'yyyy-MM-dd');
 
-    useEffect(() => { checkExistingReview(); }, []);
+    useEffect(() => { 
+        // Reset state when week changes
+        setReview(null);
+        setMetrics(null);
+        setDayBreakdown({});
+        setCurrentStep(0);
+        setAnalyticsData(null);
+        setLeverApplied(false);
+        checkExistingReview(); 
+    }, [weekOffset]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Fetch analytics when user reaches Insights step
     useEffect(() => {
@@ -220,9 +230,24 @@ export default function WeeklyReviewPage() {
             <div className="flex flex-col items-center justify-center min-h-[70vh] space-y-8 p-4">
                 <div className="text-center space-y-2">
                     <h1 className="text-3xl font-bold tracking-tight">Weekly Review</h1>
-                    <p className="text-[var(--text-secondary)]">
-                        Week of {format(lastWeekStart, 'MMM d')} - {format(lastWeekEnd, 'MMM d')}
-                    </p>
+                    <div className="flex items-center justify-center gap-3 mt-2">
+                        <button 
+                            onClick={() => setWeekOffset(prev => prev + 1)}
+                            className="p-1.5 rounded-lg hover:bg-white/10 text-[var(--text-tertiary)] hover:text-white transition-colors"
+                        >
+                            <ArrowLeft className="w-4 h-4" />
+                        </button>
+                        <p className="text-[var(--text-secondary)] text-sm font-medium">
+                            Week of {format(selectedWeekStart, 'MMM d')} – {format(selectedWeekEnd, 'MMM d')}
+                        </p>
+                        <button 
+                            onClick={() => setWeekOffset(prev => Math.max(1, prev - 1))}
+                            disabled={weekOffset <= 1}
+                            className="p-1.5 rounded-lg hover:bg-white/10 text-[var(--text-tertiary)] hover:text-white transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                        >
+                            <ArrowRight className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
                 <div className="max-w-md w-full text-center space-y-6 p-8 rounded-2xl bg-[var(--glass-bg)] border border-[var(--glass-border)]">
                     <div className="flex justify-center">

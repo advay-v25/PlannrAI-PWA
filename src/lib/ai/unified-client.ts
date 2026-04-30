@@ -102,7 +102,17 @@ function getNvidiaConfig(model: string): ProviderConfig {
 // Fast = simple extraction (brain dump, habits, briefings) → Groq primary
 function getProviderChain(options: AICallOptions): [ProviderConfig, ProviderConfig] {
     const tier = options.model || 'fast';
-    const getPrimaryOpenRouterConfig = options.useNvidia ? getCalendarOpenRouterConfig : getOpenRouterConfig;
+
+    if (options.useNvidia) {
+        // Force NVIDIA endpoints for coach and calendar operations
+        const nvidiaModel = tier === 'smart' ? 'meta/llama-3.1-70b-instruct' : 'meta/llama-3.1-8b-instruct';
+        return [
+            getNvidiaConfig(nvidiaModel),
+            getCalendarOpenRouterConfig(nvidiaModel) // fallback
+        ];
+    }
+
+    const getPrimaryOpenRouterConfig = getOpenRouterConfig;
 
     switch (tier) {
         case 'smart':

@@ -115,6 +115,10 @@ export const POST = secureApiRoute(
         // C. MEALS (Level 2)
         const meals = intel.profile?.meal_preferences as any || { breakfast: "08:00", lunch: "13:00", dinner: "19:00" };
         const addMeal = (name: string, time: string, duration: number) => {
+            // Check if user already has an anchor with a similar name
+            const alreadyPlaced = skeleton.some(s => s.title.toLowerCase().includes(name.toLowerCase()));
+            if (alreadyPlaced) return;
+
             const end = addMinutesStr(time, duration);
             skeleton.push({
                 title: name,
@@ -163,9 +167,13 @@ ${validGoals.map(g => `- [ID:${g.id}] ${g.title} (${g.minutes_per_day}m, ${g.imp
 STRICT SCHEDULING RULES:
 1. TARGETS: Do NOT schedule a goal if its weekly target is already reached (unless it is High Importance and the day is sparse).
 2. BODY COHERENCE: Max ONE body-related activity per day (Gym, Football, Cardio). If "Football" is in the skeleton, do NOT schedule the "Gym" goal today.
-3. WHITESPACE: Do not pack blocks back-to-back. Leave 15-30m "whitespace" gaps for cognitive breathing. 
-4. WEEKEND LEVERAGE: If the user has unfinished goals and today is Sat/Sun, prioritize finishing them. Weekends should NOT be empty if work is pending.
-5. NO HALLUCINATIONS: Respect the skeleton EXACTLY. Do not invent anchors that are not listed.
+3. BODY PILLAR BUFFER: NEVER schedule 'body' pillar activities within 2 HOURS after any meal (Breakfast, Lunch, Dinner).
+4. WHITESPACE: Do not pack blocks back-to-back. Leave 15-30m "whitespace" gaps for cognitive breathing. 
+5. MEAL PROTECTION: Do NOT overlap goals with Meal blocks. Meals are flexible in time but must remain uninterrupted.
+6. DAY SPREAD: Spread goals throughout the day. Avoid clustering everything at the start or end. Aim for a balanced distribution (e.g. 1 morning, 1 afternoon, 1 evening).
+7. WEEKEND LEVERAGE: If the user has unfinished goals and today is Sat/Sun, prioritize finishing them.
+8. NO HALLUCINATIONS: Respect the skeleton EXACTLY. Do not invent anchors that are not listed.
+9. DEDUPLICATION: Do NOT generate your own Breakfast, Lunch, or Dinner blocks if they are already in the skeleton. Use them as anchors.
 
 OUTPUT FORMAT (JSON):
 {

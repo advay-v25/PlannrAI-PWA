@@ -33,13 +33,26 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
 
     // Local buffering for inputs to prevent API spam on every keystroke/pixel drag
     const [localTitle, setLocalTitle] = useState(goal.title || '');
-    const [localWeeklyMins, setLocalWeeklyMins] = useState(goal.weekly_target_minutes || 0);
+    const [localDaysPerWeek, setLocalDaysPerWeek] = useState((goal as any).days_per_week || Math.max(1, Math.round((goal.weekly_target_minutes || 0) / 60)));
+    const [localMinsPerDay, setLocalMinsPerDay] = useState((goal as any).minutes_per_day || Math.max(15, Math.round((goal.weekly_target_minutes || 0) / ((goal as any).days_per_week || 1))));
 
     // Sync local state if external goal prop changes
     useEffect(() => {
         setLocalTitle(goal.title || '');
-        setLocalWeeklyMins(goal.weekly_target_minutes || 0);
-    }, [goal.title, goal.weekly_target_minutes]);
+        setLocalDaysPerWeek((goal as any).days_per_week || Math.max(1, Math.round((goal.weekly_target_minutes || 0) / 60)));
+        setLocalMinsPerDay((goal as any).minutes_per_day || Math.max(15, Math.round((goal.weekly_target_minutes || 0) / ((goal as any).days_per_week || 1))));
+    }, [goal.title, goal.weekly_target_minutes, (goal as any).days_per_week, (goal as any).minutes_per_day]);
+
+    const handleTargetUpdate = () => {
+        const weekly_target_minutes = localDaysPerWeek * localMinsPerDay;
+        if (weekly_target_minutes !== goal.weekly_target_minutes || localDaysPerWeek !== (goal as any).days_per_week || localMinsPerDay !== (goal as any).minutes_per_day) {
+            onUpdate(goal.id, { 
+                weekly_target_minutes, 
+                days_per_week: localDaysPerWeek, 
+                minutes_per_day: localMinsPerDay 
+            } as any);
+        }
+    };
 
     const isPaused = goal.status === 'paused';
 
@@ -73,15 +86,37 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                         </div>
 
                         {!isExpanded && (
-                            <div className="flex items-center gap-3 text-xs text-[var(--text-tertiary)] mt-1">
-                                <span className="font-mono text-[var(--color-primary)] font-bold">Lvl {goal.level || 1}</span>
-                                <span className="w-1 h-1 rounded-full bg-[var(--text-tertiary)]/30" />
-                                <span className="font-mono">{goal.weekly_target_minutes || 0}m/wk</span>
-                                <span className="w-1 h-1 rounded-full bg-[var(--text-tertiary)]/30" />
-                                <div className="flex items-center gap-1 text-orange-400">
-                                    <Zap className="w-3 h-3" />
-                                    <span className="font-mono font-bold">{goal.current_streak_days || 0}</span>
+                            <div className="mt-1 space-y-1.5">
+                                <div className="flex items-center gap-3 text-xs text-[var(--text-tertiary)]">
+                                    <span className="font-mono text-[var(--color-primary)] font-bold">Lvl {goal.level || 1}</span>
+                                    <span className="w-1 h-1 rounded-full bg-[var(--text-tertiary)]/30" />
+                                    <span className="font-mono">{goal.weekly_target_minutes || 0}m/wk</span>
+                                    <span className="w-1 h-1 rounded-full bg-[var(--text-tertiary)]/30" />
+                                    <div className="flex items-center gap-1 text-orange-400">
+                                        <Zap className="w-3 h-3" />
+                                        <span className="font-mono font-bold">{goal.current_streak_days || 0}</span>
+                                    </div>
                                 </div>
+                                {/* Weekly Progress Bar */}
+                                {(goal.weekly_target_minutes || 0) > 0 && (() => {
+                                    const achieved = (goal as any).current_xp || 0;
+                                    const target = goal.weekly_target_minutes || 1;
+                                    const pct = Math.min(100, Math.round((achieved / target) * 100));
+                                    return (
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex-1 h-1.5 bg-[var(--glass-border)] rounded-full overflow-hidden">
+                                                <div
+                                                    className="h-full rounded-full transition-all duration-500"
+                                                    style={{
+                                                        width: `${pct}%`,
+                                                        backgroundColor: pillarColor,
+                                                    }}
+                                                />
+                                            </div>
+                                            <span className="text-[10px] font-mono font-bold" style={{ color: pillarColor }}>{pct}%</span>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         )}
                     </div>
@@ -146,31 +181,35 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
 
                             {/* Key Stats Sliders */}
                             <div className="grid grid-cols-2 gap-6">
-                                {/* Duration Slider */}
-                                <div className="space-y-2">
-                                    <div className="flex justify-between">
-                                        <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Weekly Target</label>
-                                        <span className="text-xs font-mono font-bold text-[var(--color-primary)]">{localWeeklyMins}m/wk</span>
+                                {/* Duration Sliders */}
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between">
+                                            <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Days / Week</label>
+                                            <span className="text-xs font-mono font-bold text-[var(--color-primary)]">{localDaysPerWeek}d</span>
+                                        </div>
+                                        <input
+                                            type="range" min={1} max={7} step={1}
+                                            value={localDaysPerWeek}
+                                            onChange={(e) => setLocalDaysPerWeek(Number(e.target.value))}
+                                            onMouseUp={handleTargetUpdate}
+                                            onTouchEnd={handleTargetUpdate}
+                                            className="w-full accent-[var(--color-primary)] h-1.5 bg-[var(--glass-border)] rounded-lg appearance-none cursor-pointer"
+                                        />
                                     </div>
-                                    <input
-                                        type="range" min={30} max={1440} step={30}
-                                        value={localWeeklyMins}
-                                        onChange={(e) => setLocalWeeklyMins(Number(e.target.value))}
-                                        onMouseUp={() => {
-                                            if (localWeeklyMins !== goal.weekly_target_minutes) {
-                                                onUpdate(goal.id, { weekly_target_minutes: localWeeklyMins });
-                                            }
-                                        }}
-                                        onTouchEnd={() => {
-                                            if (localWeeklyMins !== goal.weekly_target_minutes) {
-                                                onUpdate(goal.id, { weekly_target_minutes: localWeeklyMins });
-                                            }
-                                        }}
-                                        className="w-full accent-[var(--color-primary)] h-1.5 bg-[var(--glass-border)] rounded-lg appearance-none cursor-pointer"
-                                    />
-                                    <div className="flex justify-between text-[10px] text-[var(--text-tertiary)]">
-                                        <span>30m</span>
-                                        <span>24h</span>
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between">
+                                            <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Daily Mins</label>
+                                            <span className="text-xs font-mono font-bold text-[var(--color-primary)]">{localMinsPerDay}m</span>
+                                        </div>
+                                        <input
+                                            type="range" min={5} max={180} step={5}
+                                            value={localMinsPerDay}
+                                            onChange={(e) => setLocalMinsPerDay(Number(e.target.value))}
+                                            onMouseUp={handleTargetUpdate}
+                                            onTouchEnd={handleTargetUpdate}
+                                            className="w-full accent-[var(--color-primary)] h-1.5 bg-[var(--glass-border)] rounded-lg appearance-none cursor-pointer"
+                                        />
                                     </div>
                                 </div>
 

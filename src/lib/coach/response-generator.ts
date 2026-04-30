@@ -328,6 +328,12 @@ STRATEGIC DIRECTIVES:
      * Any change spanning multiple days.
      * Large-scale optimizations or deletions.
 
+🚨 CONFLICT PREVENTION (CRITICAL):
+- NEVER propose moving or creating a block into a time slot that already has an existing block. Check TODAY'S SCHEDULE above for conflicts.
+- When rescheduling a missed block, ONLY suggest time slots that are completely free — no partial overlaps allowed.
+- Before generating any move_block or create_block operation, mentally verify: "Is this time slot empty in the schedule above?" If not, pick a different time.
+- If no free slots are available today, suggest rescheduling to tomorrow or a later day.
+
 PATCH OPERATION TYPES:
 - create_block: { type: "create_block", data: { date, start_time, end_time, title, context, block_type, goal_id?, pillar?, checklist? } }
 - move_block: { type: "move_block", block_id: "existing-id", title: "Block Title", new_start: "HH:MM", new_end: "HH:MM", new_date?: "YYYY-MM-DD" }

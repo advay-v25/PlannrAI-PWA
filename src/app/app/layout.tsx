@@ -9,10 +9,13 @@ import { LayoutDashboard, Calendar, Brain, Activity, User, Sparkles, Menu, Targe
 import { CoachChat } from '@/components/coach/CoachChat';
 import { CommandMenu } from '@/components/ui/command-menu';
 import { cn } from '@/lib/utils';
+import { useUserStore } from '@/stores';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const [isCoachOpen, setIsCoachOpen] = useState(false);
+    const { profile } = useUserStore();
+    const displayName = profile?.full_name || 'User';
 
     const navItems = [
         { href: '/app', icon: LayoutDashboard, label: 'Home' },
@@ -78,7 +81,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                             <User className="w-4 h-4 text-[var(--color-primary)]" />
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate group-hover:text-[var(--color-primary)] transition-colors">User</p>
+                            <p className="text-sm font-medium truncate group-hover:text-[var(--color-primary)] transition-colors">{displayName}</p>
                             <p className="text-xs text-[var(--text-tertiary)] truncate">Settings</p>
                         </div>
                     </Link>

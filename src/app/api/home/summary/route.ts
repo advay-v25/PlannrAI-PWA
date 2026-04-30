@@ -12,6 +12,11 @@ export const GET = secureApiRoute(
         const weekStartStr = format(startOfWeek(todayDateObj, { weekStartsOn: 1 }), 'yyyy-MM-dd');
         const weekEndStr = format(endOfWeek(todayDateObj, { weekStartsOn: 1 }), 'yyyy-MM-dd');
 
+        const nextWeekStartObj = new Date(todayDateObj);
+        nextWeekStartObj.setDate(nextWeekStartObj.getDate() + 7);
+        const nextWeekStartStr = format(startOfWeek(nextWeekStartObj, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        const nextWeekEndStr = format(endOfWeek(nextWeekStartObj, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+
         // Resilient parallel fetching — each query catches its own errors
         const safeQuery = async (fn: () => any, fallback: any): Promise<any> => {
             try {
@@ -27,7 +32,7 @@ export const GET = secureApiRoute(
             }
         };
 
-        const [profile, userState, blocks, anchors, goals, habitStacks, weeklyBlocks] = await Promise.all([
+        const [profile, userState, blocks, anchors, goals, habitStacks, weeklyBlocks, nextWeekBlocks] = await Promise.all([
             safeQuery(() => supabase.from('profiles').select('*, bio_data').eq('id', userId).single(), null),
             safeQuery(() => supabase.from('user_states').select('*').eq('user_id', userId).single(), null),
             safeQuery(() => supabase.from('schedule_blocks')
@@ -42,7 +47,13 @@ export const GET = secureApiRoute(
                 .select('*')
                 .eq('user_id', userId)
                 .gte('date', weekStartStr)
-                .lte('date', weekEndStr), [])
+                .lte('date', weekEndStr), []),
+            safeQuery(() => supabase.from('schedule_blocks')
+                .select('id')
+                .eq('user_id', userId)
+                .gte('date', nextWeekStartStr)
+                .lte('date', nextWeekEndStr)
+                .limit(1), [])
         ]);
 
         if (!profile) return apiError('Profile not found', 404);
@@ -146,6 +157,7 @@ export const GET = secureApiRoute(
                 planned_min: Math.round(weeklyPlannedMin),
                 completed_min: Math.round(weeklyCompletedMin)
             },
+            nextWeekPlanned: nextWeekBlocks && nextWeekBlocks.length > 0,
             ai_profile: (profile as any)?.bio_data?.ai_profile || null,
             insight
         });
