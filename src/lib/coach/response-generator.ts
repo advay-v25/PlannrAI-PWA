@@ -403,9 +403,9 @@ Generate 2-3 actionable options with concrete patch operations. Return valid JSO
             systemPrompt,
             model: 'smart',
             temperature: 0.5,
-            maxTokens: 4000,
+            maxTokens: 2500,
             requireJSON: true,
-            timeout: 25000,
+            timeout: 45000,
             useNvidia: true,
         });
 
@@ -691,7 +691,7 @@ Respond with helpful, data-driven information. Return valid JSON only.`;
             temperature: 0.4,
             maxTokens: 1000,
             requireJSON: true,
-            timeout: 15000,
+            timeout: 30000,
             useNvidia: true,
         });
 

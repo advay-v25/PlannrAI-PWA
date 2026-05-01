@@ -5,7 +5,7 @@ import { buildCoachContext } from '@/lib/coach/context-builder';
 import { classifyIntent } from '@/lib/coach/intent-classifier';
 import { generateCoachResponse } from '@/lib/coach/response-generator';
 
-export const maxDuration = 25;
+export const maxDuration = 60;
 
 interface MessageRequest {
     message: string;
