@@ -324,11 +324,19 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
 
                 let processedDay: any[] = [];
                 let lastEndTime = 0;
+                let bodyGoalPlaced = false;
 
                 for (let i = 0; i < dayBlocks.length; i++) {
                     let b = { ...dayBlocks[i] };
                     let bStart = timeToMinutes(b.start_time);
                     let duration = timeToMinutes(b.end_time) - bStart;
+                    const isBodyGoal = b.pillar === 'body' || b.block_type === 'body';
+
+                    // One body goal per day rule
+                    if (isBodyGoal && bodyGoalPlaced) {
+                        console.log(`[GenerateToday] Skipping extra body goal "${b.title}"`);
+                        continue;
+                    }
 
                     // 1. Prevent Overlap with previous blocks
                     if (bStart < lastEndTime) {
@@ -347,6 +355,7 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
                     // Apply shifted times
                     b.start_time = minToTime(bStart);
                     b.end_time = minToTime(bStart + duration);
+                    if (isBodyGoal) bodyGoalPlaced = true;
 
                     processedDay.push(b);
                     lastEndTime = bStart + duration;

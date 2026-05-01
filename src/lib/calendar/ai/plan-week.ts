@@ -134,11 +134,21 @@ function enforceFlowState(blocks: PlanBlock[], commitments: any[]): PlanBlock[] 
         // Place each movable block into the earliest valid slot
         const placed: PlanBlock[] = [...immovable]; // Start with immovable blocks
         const placedZones = exclusionZones.map(z => ({ ...z })); // Track all occupied zones
+        
+        let bodyGoalPlaced = false;
+        // Check if any immovable/commitment block is already body-related (unlikely but possible)
+        bodyGoalPlaced = placed.some(b => b.pillar === 'body' || b.title.toLowerCase().includes('gym') || b.title.toLowerCase().includes('workout'));
 
         for (const block of movable) {
             let bStart = timeToMin(block.start_time);
             const duration = Math.max(timeToMin(block.end_time) - bStart, 15); // min 15 min
             const isBodyPillar = block.pillar === 'body';
+
+            // STRICT: One body goal per day
+            if (isBodyPillar && bodyGoalPlaced) {
+                console.log(`[PlanWeek] Skipping extra body goal "${block.title}" on ${date} (One per day rule)`);
+                continue;
+            }
 
             // Try to keep block at its original time, but shift if it conflicts
             let attempts = 0;
@@ -176,6 +186,7 @@ function enforceFlowState(blocks: PlanBlock[], commitments: any[]): PlanBlock[] 
                 shifted.start_time = minToTime(bStart);
                 shifted.end_time = minToTime(bStart + duration);
                 placed.push(shifted);
+                if (isBodyPillar) bodyGoalPlaced = true;
                 // Add this block to occupied zones
                 placedZones.push({ start: bStart, end: bStart + duration });
                 placedZones.sort((a, b) => a.start - b.start);

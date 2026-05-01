@@ -250,6 +250,10 @@ OUTPUT FORMAT (JSON):
             }
 
             // 2. Insert new blocks
+            let bodyGoalPlaced = false;
+            // Check if skeleton already has a body activity
+            bodyGoalPlaced = skeleton.some(s => s.type === 'anchor' && (s.title.toLowerCase().includes('gym') || s.title.toLowerCase().includes('workout') || s.title.toLowerCase().includes('football')));
+
             for (const b of optimizedBlocks) {
                 const normalizeTime = (t: string) => {
                     if (!t) return null;
@@ -268,9 +272,21 @@ OUTPUT FORMAT (JSON):
 
                 if (start && end) {
                     let safeGoalId = null;
+                    let isBodyGoal = b.type === 'body' || b.title.toLowerCase().includes('workout');
+
                     if (b.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(b.id)) {
                         safeGoalId = b.id;
+                        // Resolve pillar from context
+                        const goal = intel.goals.find(g => g.id === safeGoalId);
+                        if (goal?.pillar === 'body') isBodyGoal = true;
                     }
+
+                    // STRICT: One body goal per day
+                    if (isBodyGoal && bodyGoalPlaced) {
+                        console.log(`[Optimization] Skipping extra body goal "${b.title}"`);
+                        continue;
+                    }
+                    if (isBodyGoal) bodyGoalPlaced = true;
 
                     patchOps.push({
                         op: 'create_event',
