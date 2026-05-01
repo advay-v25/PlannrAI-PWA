@@ -271,7 +271,7 @@ OUTPUT FORMAT (JSON):
                 const safeType = allowedTypes.includes(b.type) ? b.type : 'goal';
 
                 if (start && end) {
-                    let safeGoalId = null;
+                    let safeGoalId: string | null = null;
                     let isBodyGoal = b.type === 'body' || b.title.toLowerCase().includes('workout');
 
                     if (b.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(b.id)) {
