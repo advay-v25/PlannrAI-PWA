@@ -36,6 +36,8 @@ export function Step4Goals() {
             pillar: activePillar,
             current_minutes_per_day: 0,
             target_minutes_per_day: target_mins,
+            days_per_week: 7,
+            energy_demand: 'medium',
             preferred_time_of_day: 'flexible',
             importance: 'high'
         };
@@ -59,12 +61,12 @@ export function Step4Goals() {
         updateData({ goals: next });
     };
 
-    const totalGoalMins = goals.reduce((acc, g) => acc + g.target_minutes_per_day, 0);
-    const availableMins = 8 * 60;
+    const totalGoalMins = goals.reduce((acc, g) => acc + (g.target_minutes_per_day * (g.days_per_week || 7)), 0);
+    const availableMins = 7 * 8 * 60; // 8 hours a day, 7 days a week
     const calcPct = Math.min((totalGoalMins / availableMins) * 100, 100);
 
     return (
-        <div className="flex flex-col items-center justify-start space-y-8 w-full max-w-xl mx-auto pb-24">
+        <div className="flex flex-col items-center justify-start space-y-8 w-full max-w-xl mx-auto pb-32">
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center space-y-2">
                 <h2 className="text-3xl font-bold tracking-tight text-white font-mono uppercase">
                     Goal <span className="text-[var(--color-primary)]">Discovery</span>
@@ -94,112 +96,206 @@ export function Step4Goals() {
                     ))}
                 </div>
 
-                {/* Quick Add Area */}
-                <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-md shadow-lg">
-                    <p className="text-xs font-semibold text-white/50 uppercase tracking-widest mb-4">
-                        Quick Add {activePillar} Goals
-                    </p>
-                    <div className="flex flex-wrap gap-2.5">
-                        {GOAL_TEMPLATES[activePillar].map((t, i) => (
-                            <button
-                                key={i}
-                                onClick={() => addDraftGoal(t.title, false, t.minutes)}
-                                className="px-5 py-2.5 rounded-full border border-white/20 bg-black/20 hover:bg-white hover:border-white hover:text-black transition-all duration-300 text-sm font-semibold tracking-wide whitespace-nowrap shadow-sm hover:shadow-md hover:scale-105 active:scale-95"
-                            >
-                                + {t.title}
-                            </button>
-                        ))}
+                {/* Main Action Area */}
+                <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-xl shadow-2xl space-y-8">
+                    {/* Quick Add Area */}
+                    <div>
+                        <p className="text-xs font-semibold text-white/50 uppercase tracking-widest mb-4">
+                            Quick Add {activePillar} Goals
+                        </p>
+                        <div className="flex flex-wrap gap-2.5">
+                            {GOAL_TEMPLATES[activePillar].map((t, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => addDraftGoal(t.title, false, t.minutes)}
+                                    className="px-5 py-2.5 rounded-full border border-white/20 bg-black/20 hover:bg-white hover:border-white hover:text-black transition-all duration-300 text-sm font-semibold tracking-wide whitespace-nowrap shadow-sm hover:shadow-md hover:scale-105 active:scale-95"
+                                >
+                                    + {t.title}
+                                </button>
+                            ))}
+                        </div>
+                        <button
+                            onClick={() => addDraftGoal('', true)}
+                            className="mt-5 w-full py-4 border border-dashed border-white/20 hover:border-white/60 hover:bg-white/5 rounded-2xl flex items-center justify-center gap-2 text-sm font-semibold text-white/50 hover:text-white transition-all duration-300 group tracking-wide"
+                        >
+                            <Plus className="w-5 h-5 group-hover:scale-125 transition-transform duration-300" /> Create Custom Goal
+                        </button>
                     </div>
-                    <button
-                        onClick={() => addDraftGoal('', true)}
-                        className="mt-5 w-full py-4 border border-dashed border-white/20 hover:border-white/60 hover:bg-white/5 rounded-2xl flex items-center justify-center gap-2 text-sm font-semibold text-white/50 hover:text-white transition-all duration-300 group tracking-wide"
-                    >
-                        <Plus className="w-5 h-5 group-hover:scale-125 transition-transform duration-300" /> Create Custom Goal
-                    </button>
+
+                    {/* Capacity Visualization - Now inside the card flow */}
+                    <div className="pt-6 border-t border-white/10">
+                        <div className="flex justify-between text-[10px] font-bold tracking-widest mb-3 uppercase">
+                            <span className="text-white/50">Weekly Commitment Load</span>
+                            <span className="text-white">{Math.round(totalGoalMins / 60 * 10) / 10} / 56.0 HRS</span>
+                        </div>
+                        <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden shadow-inner">
+                            <motion.div 
+                                initial={{ width: 0 }}
+                                animate={{ width: `${calcPct}%` }}
+                                className={`h-full transition-all duration-700 ease-out rounded-full ${calcPct > 80 ? 'bg-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.4)]' : 'bg-[var(--color-primary)] shadow-[0_0_15px_rgba(var(--color-primary-rgb),0.4)]'}`}
+                            />
+                        </div>
+                        <p className="text-[9px] text-white/30 mt-3 text-center uppercase tracking-[0.2em] font-medium italic">Based on an average 8h/day focused deep work capacity.</p>
+                    </div>
                 </div>
 
                 {/* Selected Goals List */}
                 {goals.length > 0 && (
                     <div className="space-y-4">
                         <div className="flex items-center justify-between px-1">
-                            <h3 className="text-sm font-semibold text-white/80 tracking-widest uppercase">Your Goals</h3>
+                            <h3 className="text-sm font-semibold text-white/80 tracking-widest uppercase">Your Selected Path</h3>
                             <span className="bg-white/10 border border-white/10 text-white/60 font-bold tracking-widest px-2.5 py-1 rounded-full text-[10px]">{goals.length} ACTIVE</span>
                         </div>
                         
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                             {goals.map((goal, i) => {
                                 const pillarData = PILLARS.find(p => p.id === goal.pillar);
                                 const isEditing = editingGoalIndex === i;
 
                                 return (
-                                    <div key={i} className={`bg-black/40 border backdrop-blur-md ${isEditing ? 'border-white/50 shadow-xl' : 'border-white/10 hover:border-white/30 hover:bg-white/5'} p-5 rounded-2xl transition-all duration-300`}>
+                                    <div key={i} className={`bg-white/[0.03] border backdrop-blur-xl ${isEditing ? 'border-white/40 ring-1 ring-white/20 shadow-2xl' : 'border-white/10 hover:border-white/20 hover:bg-white/5'} p-6 rounded-3xl transition-all duration-500 overflow-hidden`}>
                                         
                                         {!isEditing ? (
                                             <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-4">
-                                                    <div className={`p-2.5 rounded-xl ${pillarData?.bg} ${pillarData?.color} shadow-inner bg-opacity-20`}>
+                                                <div className="flex items-center gap-5">
+                                                    <div className={`p-3.5 rounded-2xl ${pillarData?.bg} ${pillarData?.color} shadow-lg ring-1 ring-white/5`}>
                                                         {pillarData && <pillarData.icon className="w-5 h-5" />}
                                                     </div>
                                                     <div>
-                                                        <div className="font-bold text-white tracking-wide text-lg">{goal.title || 'Untitled Goal'}</div>
-                                                        <div className="text-xs text-white/50 flex items-center gap-2 mt-1 font-medium">
-                                                            <span className="capitalize">{goal.preferred_time_of_day}</span> • 
-                                                            <span>Target: {goal.target_minutes_per_day}m/day</span>
+                                                        <div className="font-bold text-white tracking-tight text-lg">{goal.title || 'Untitled Goal'}</div>
+                                                        <div className="text-[11px] text-white/40 flex items-center gap-3 mt-1.5 font-bold uppercase tracking-wider">
+                                                            <span className="capitalize">{goal.preferred_time_of_day}</span>
+                                                            <span className="w-1 h-1 rounded-full bg-white/20" />
+                                                            <span>{goal.days_per_week || 7}d/wk</span>
+                                                            <span className="w-1 h-1 rounded-full bg-white/20" />
+                                                            <span>{goal.target_minutes_per_day}m sessions</span>
                                                         </div>
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-2">
-                                                    <button onClick={() => setEditingGoalIndex(i)} className="p-2.5 text-white/30 hover:text-white hover:bg-white/10 rounded-xl transition-all">
+                                                    <button onClick={() => setEditingGoalIndex(i)} className="p-3 text-white/30 hover:text-white hover:bg-white/10 rounded-2xl transition-all border border-transparent hover:border-white/10">
                                                         <Settings2 className="w-4 h-4" />
                                                     </button>
-                                                    <button onClick={() => removeGoal(i)} className="p-2.5 text-white/30 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all">
+                                                    <button onClick={() => removeGoal(i)} className="p-3 text-white/30 hover:text-red-400 hover:bg-red-500/10 rounded-2xl transition-all border border-transparent hover:border-red-500/20">
                                                         <Trash2 className="w-4 h-4" />
                                                     </button>
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="space-y-5">
+                                            <div className="space-y-6">
+                                                <div className="flex items-center justify-between">
+                                                    <h4 className="text-[10px] font-black tracking-[0.2em] uppercase text-white/40">Calibrating Goal</h4>
+                                                    <button onClick={() => setEditingGoalIndex(null)} className="p-1 text-white/40 hover:text-white transition-colors">
+                                                        <Trash2 className="w-4 h-4" onClick={(e) => { e.stopPropagation(); removeGoal(i); }} />
+                                                    </button>
+                                                </div>
+
                                                 <input
                                                     placeholder="Goal Title (e.g. Master TypeScript)"
                                                     value={goal.title}
                                                     onChange={e => updateGoal(i, { title: e.target.value })}
-                                                    className="w-full bg-transparent border-b-2 border-white/20 hover:border-white/50 focus:border-white text-xl text-white py-2 focus:outline-none placeholder:text-white/30 transition-colors font-bold tracking-wide"
+                                                    className="w-full bg-transparent border-b-2 border-white/10 hover:border-white/30 focus:border-[var(--color-primary)] text-2xl text-white py-3 focus:outline-none placeholder:text-white/20 transition-all font-black tracking-tight"
                                                     autoFocus
                                                 />
                                                 
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div className="space-y-2">
-                                                        <label className="text-[10px] font-bold tracking-widest text-white/50 uppercase ml-1">Target Time</label>
-                                                        <select
+                                                <div className="grid grid-cols-2 gap-8">
+                                                    <div className="space-y-4">
+                                                        <div className="flex justify-between items-center px-1">
+                                                            <label className="text-[10px] font-black tracking-widest text-white/40 uppercase">Days / Week</label>
+                                                            <span className="text-xs font-mono font-black text-[var(--color-primary)]">{goal.days_per_week || 7}D</span>
+                                                        </div>
+                                                        <input
+                                                            type="range" min={1} max={7} step={1}
+                                                            value={goal.days_per_week || 7}
+                                                            onChange={e => updateGoal(i, { days_per_week: parseInt(e.target.value) })}
+                                                            className="w-full accent-[var(--color-primary)] h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-4">
+                                                        <div className="flex justify-between items-center px-1">
+                                                            <label className="text-[10px] font-black tracking-widest text-white/40 uppercase">Mins / Session</label>
+                                                            <span className="text-xs font-mono font-black text-[var(--color-primary)]">{goal.target_minutes_per_day}M</span>
+                                                        </div>
+                                                        <input
+                                                            type="range" min={15} max={180} step={15}
                                                             value={goal.target_minutes_per_day}
                                                             onChange={e => updateGoal(i, { target_minutes_per_day: parseInt(e.target.value) })}
-                                                            className="w-full bg-white/5 border border-white/10 focus:border-white/30 text-white p-3 rounded-xl transition-colors font-medium appearance-none"
+                                                            className="w-full accent-[var(--color-primary)] h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black tracking-widest text-white/40 uppercase ml-1">Energy Demand</label>
+                                                        <div className="flex bg-black/40 p-1.5 rounded-2xl border border-white/5">
+                                                            {(['light', 'medium', 'heavy'] as const).map(e => (
+                                                                <button
+                                                                    key={e}
+                                                                    onClick={() => updateGoal(i, { energy_demand: e })}
+                                                                    className={`flex-1 text-[9px] font-black py-2 rounded-xl transition-all uppercase tracking-tighter ${goal.energy_demand === e
+                                                                        ? 'bg-white text-black shadow-lg'
+                                                                        : 'text-white/40 hover:text-white'
+                                                                    }`}
+                                                                >
+                                                                    {e}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black tracking-widest text-white/40 uppercase ml-1">Priority</label>
+                                                        <div className="flex bg-black/40 p-1.5 rounded-2xl border border-white/5">
+                                                            {(['low', 'medium', 'high'] as const).map(p => (
+                                                                <button
+                                                                    key={p}
+                                                                    onClick={() => updateGoal(i, { importance: p })}
+                                                                    className={`flex-1 text-[9px] font-black py-2 rounded-xl transition-all uppercase tracking-tighter ${goal.importance === p
+                                                                        ? 'bg-white text-black shadow-lg'
+                                                                        : 'text-white/40 hover:text-white'
+                                                                    }`}
+                                                                >
+                                                                    {p}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black tracking-widest text-white/40 uppercase ml-1">Pillar</label>
+                                                        <select
+                                                            value={goal.pillar}
+                                                            onChange={e => updateGoal(i, { pillar: e.target.value as any })}
+                                                            className="w-full bg-black/40 border border-white/5 focus:border-white/20 text-white px-4 py-2.5 rounded-2xl transition-colors text-xs font-bold appearance-none outline-none"
                                                         >
-                                                            <option value={15} className="bg-black text-white">15 mins / day</option>
-                                                            <option value={30} className="bg-black text-white">30 mins / day</option>
-                                                            <option value={45} className="bg-black text-white">45 mins / day</option>
-                                                            <option value={60} className="bg-black text-white">1 hour / day</option>
-                                                            <option value={90} className="bg-black text-white">1.5 hours / day</option>
-                                                            <option value={120} className="bg-black text-white">2 hours / day</option>
+                                                            <option value="mind">Mind 🧠</option>
+                                                            <option value="body">Body 💪</option>
+                                                            <option value="craft">Craft 💼</option>
                                                         </select>
                                                     </div>
                                                     <div className="space-y-2">
-                                                        <label className="text-[10px] font-bold tracking-widest text-white/50 uppercase ml-1">Preferred Time</label>
+                                                        <label className="text-[10px] font-black tracking-widest text-white/40 uppercase ml-1">Preferred Time</label>
                                                         <select
                                                             value={goal.preferred_time_of_day}
                                                             onChange={e => updateGoal(i, { preferred_time_of_day: e.target.value as any })}
-                                                            className="w-full bg-white/5 border border-white/10 focus:border-white/30 text-white p-3 rounded-xl transition-colors font-medium appearance-none"
+                                                            className="w-full bg-black/40 border border-white/5 focus:border-white/20 text-white px-4 py-2.5 rounded-2xl transition-colors text-xs font-bold appearance-none outline-none"
                                                         >
-                                                            <option value="morning" className="bg-black text-white">Morning 🌅</option>
-                                                            <option value="afternoon" className="bg-black text-white">Afternoon ☀️</option>
-                                                            <option value="evening" className="bg-black text-white">Evening 🌆</option>
-                                                            <option value="flexible" className="bg-black text-white">Flexible ⏰</option>
+                                                            <option value="morning">Morning 🌅</option>
+                                                            <option value="afternoon">Afternoon ☀️</option>
+                                                            <option value="evening">Evening 🌆</option>
+                                                            <option value="flexible">Flexible ⏰</option>
                                                         </select>
                                                     </div>
                                                 </div>
 
-                                                <button onClick={() => setEditingGoalIndex(null)} disabled={!goal.title} className="w-full py-4 bg-white text-black font-bold tracking-wide rounded-xl disabled:opacity-50 mt-2 hover:scale-[1.02] active:scale-95 transition-all shadow-lg hover:shadow-xl">
-                                                    Done Editing
+                                                <button 
+                                                    onClick={() => setEditingGoalIndex(null)} 
+                                                    disabled={!goal.title} 
+                                                    className="w-full py-5 bg-white text-black font-black text-xs tracking-[0.3em] uppercase rounded-2xl disabled:opacity-50 mt-4 hover:scale-[1.01] active:scale-95 transition-all shadow-xl hover:shadow-[0_0_30px_rgba(255,255,255,0.2)]"
+                                                >
+                                                    SAVE CALIBRATION
                                                 </button>
                                             </div>
                                         )}
@@ -210,25 +306,6 @@ export function Step4Goals() {
                     </div>
                 )}
             </motion.div>
-
-            {/* Floating Capacity Bar */}
-            <div className="fixed bottom-24 left-0 w-full p-4 pointer-events-none z-40 flex justify-center">
-                <div className="bg-black/60 border border-white/10 shadow-2xl backdrop-blur-xl rounded-2xl p-5 w-full max-w-lg pointer-events-auto">
-                    <div className="flex justify-between text-[10px] font-bold tracking-widest mb-2 uppercase">
-                        <span className="text-white/50">Daily Goal Load</span>
-                        <span className="text-white">{Math.round(totalGoalMins / 60 * 10) / 10} / 8.0 HRS</span>
-                    </div>
-                    <div className="w-full h-2.5 bg-white/10 rounded-full overflow-hidden shadow-inner">
-                        <div 
-                            className={`h-full transition-all duration-700 ease-out rounded-full ${totalGoalMins > availableMins ? 'bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)]'}`}
-                            style={{ width: `${calcPct}%` }}
-                        />
-                    </div>
-                    {totalGoalMins > availableMins && (
-                        <p className="text-[10px] text-red-400 mt-3 text-center uppercase tracking-widest font-bold">⚠️ Warning: Load may be unsustainable.</p>
-                    )}
-                </div>
-            </div>
         </div>
     );
 }

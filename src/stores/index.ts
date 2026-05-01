@@ -7,6 +7,8 @@ export interface OnboardingGoal {
     pillar: 'mind' | 'body' | 'craft';
     current_minutes_per_day: number;
     target_minutes_per_day: number;
+    days_per_week?: number;
+    energy_demand?: 'light' | 'medium' | 'heavy';
     preferred_time_of_day: 'morning' | 'afternoon' | 'evening' | 'flexible';
     importance: 'low' | 'medium' | 'high';
 }

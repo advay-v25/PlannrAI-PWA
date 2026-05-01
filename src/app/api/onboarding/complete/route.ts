@@ -101,7 +101,10 @@ export const POST = secureApiRoute(
                     pillar: g.pillar,
                     category: g.pillar, // sync for legacy
                     importance: g.importance || 'high',
-                    weekly_target_minutes: g.target_minutes_per_day * 7,
+                    days_per_week: g.days_per_week || 7,
+                    minutes_per_day: g.target_minutes_per_day,
+                    energy_demand: g.energy_demand || 'medium',
+                    weekly_target_minutes: g.target_minutes_per_day * (g.days_per_week || 7),
                     status: 'active'
                 })));
 
