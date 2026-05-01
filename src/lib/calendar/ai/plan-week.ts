@@ -420,9 +420,9 @@ OUTPUT FORMAT (strict JSON):
         systemPrompt,
         model: 'smart',
         temperature: 0.7,
-        maxTokens: 6000,
+        maxTokens: 3000,
         requireJSON: true,
-        timeout: 180000,
+        timeout: 55000,
         useNvidia: true,
     });
 

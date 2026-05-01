@@ -251,9 +251,9 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
                 systemPrompt,
                 model: 'smart',
                 temperature: 0.6,
-                maxTokens: 6000,
+                maxTokens: 2500,
                 requireJSON: true,
-                timeout: 110000,
+                timeout: 55000,
                 useNvidia: true,
             });
 

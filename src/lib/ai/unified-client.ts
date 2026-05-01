@@ -299,49 +299,59 @@ async function callProvider<T>(
  */
 export async function callAI<T = any>(options: AICallOptions): Promise<AIResponse<T>> {
     const tier = options.model ?? 'fast';
+    const totalStartTime = Date.now();
+    const MAX_TOTAL_TIME = options.timeout ?? 55000;
+
+    const getRemainingTime = () => Math.max(5000, MAX_TOTAL_TIME - (Date.now() - totalStartTime));
 
     // Calendar-dedicated key: bypass normal provider chain and use Nvidia
     if (options.useNvidia) {
         console.log('\x1b[36m[AI ✨]\x1b[0m Using Nvidia API for Generation...');
         const calendarProvider = getNvidiaConfig('meta/llama-3.1-70b-instruct');
-        const result = await callProvider<T>(calendarProvider, options);
+        const result = await callProvider<T>(calendarProvider, { ...options, timeout: getRemainingTime() });
         if (result.success) return result;
         
-        // Fall back to Groq Llama 3.3 70B if Nvidia fails
-        console.log('\x1b[33m[AI →]\x1b[0m Nvidia key failed, falling back to Groq...');
-        const groqFallback = getGroqConfig('llama-3.3-70b-versatile');
-        return callProvider<T>(groqFallback, options);
+        // Fall back to Groq Llama 3.3 70B if Nvidia fails and time remains
+        const remaining = getRemainingTime();
+        if (remaining > 10000) {
+            console.log('\x1b[33m[AI →]\x1b[0m Nvidia key failed, falling back to Groq...');
+            const groqFallback = getGroqConfig('llama-3.3-70b-versatile');
+            return callProvider<T>(groqFallback, { ...options, timeout: remaining });
+        }
+        return result;
     }
 
     const [primary, fallback] = getProviderChain(options);
 
     // Try primary
-    const primaryResult = await callProvider<T>(primary, options);
+    const primaryResult = await callProvider<T>(primary, { ...options, timeout: getRemainingTime() });
     if (primaryResult.success) {
         return primaryResult;
     }
 
     // Fallback
-    console.log(`\x1b[33m[AI →]\x1b[0m Falling back to ${fallback.name}...`);
-    const fallbackResult = await callProvider<T>(fallback, options);
-    if (fallbackResult.success) {
+    const remainingAfterPrimary = getRemainingTime();
+    if (remainingAfterPrimary > 10000) {
+        console.log(`\x1b[33m[AI →]\x1b[0m Falling back to ${fallback.name}...`);
+        const fallbackResult = await callProvider<T>(fallback, { ...options, timeout: remainingAfterPrimary });
+        if (fallbackResult.success) {
+            return fallbackResult;
+        }
+
+        // Emergency Fallback: GPT-4o-Mini (Cheap & highly reliable)
+        const remainingAfterFallback = getRemainingTime();
+        if (remainingAfterFallback > 5000) {
+            console.log(`\x1b[35m[AI ALERT]\x1b[0m Both providers failed. Trying emergency fallback (GPT-4o-Mini)...`);
+            const emergencyProvider = getOpenRouterConfig('openai/gpt-4o-mini');
+            const emergencyResult = await callProvider<T>(emergencyProvider, { ...options, timeout: remainingAfterFallback });
+            if (emergencyResult.success) {
+                return emergencyResult;
+            }
+            return emergencyResult;
+        }
         return fallbackResult;
     }
 
-    // Emergency Fallback: GPT-4o-Mini (Cheap & highly reliable)
-    console.log(`\x1b[35m[AI ALERT]\x1b[0m Both providers failed. Trying emergency fallback (GPT-4o-Mini)...`);
-    const emergencyProvider = getOpenRouterConfig('openai/gpt-4o-mini');
-    const emergencyResult = await callProvider<T>(emergencyProvider, options);
-    if (emergencyResult.success) {
-        return emergencyResult;
-    }
-
-    // All failed
-    return {
-        success: false,
-        error: `All providers failed. Primary: ${primaryResult.error}. Fallback: ${fallbackResult.error}. Emergency: ${emergencyResult.error}`,
-        provider: primary.name,
-        model: primary.model,
-        latency_ms: primaryResult.latency_ms + fallbackResult.latency_ms + emergencyResult.latency_ms,
-    };
+    // All failed or no time left
+    return primaryResult;
 }

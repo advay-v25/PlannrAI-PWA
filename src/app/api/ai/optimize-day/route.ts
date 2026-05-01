@@ -21,6 +21,9 @@ const OptimizeDayOutputSchema = z.object({
     summary: z.string().optional()
 });
 
+export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
+
 // Types
 interface TimeBlock {
     id?: string;
