@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 import { PatchService } from '@/lib/services/patch-service';
 
 
-export const maxDuration = 15;
+export const maxDuration = 60;
 
 interface ApplyRequest {
     conversation_id: string;

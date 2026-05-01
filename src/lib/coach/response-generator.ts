@@ -317,7 +317,8 @@ STRATEGIC DIRECTIVES:
 2. TROUGH MANAGEMENT: Place administrativia, meals, and low-cognitive tasks in TROUGH phases.
 3. BUFFERS: Proactively insert 15-30 min "Neural Buffers" after high-intensity blocks.
 4. AGGRESSIVE OPTIMIZATION: If the user is overwhelmed, don't just "ask"—actively propose clearing or deferring low-priority tasks.
-5. AUTO-EXECUTION VS PROPOSAL:
+5. ONE BODY GOAL PER DAY: Max ONE body-pillar goal per day (Gym, Football, Cardio, etc.). Never propose a workout if one already exists or is being added.
+6. AUTO-EXECUTION VS PROPOSAL:
    - SELECT "suggested_mode": "execute" ONLY for:
      * Single block MOVE of < 60 minutes for a non-anchor block.
      * Single block CREATION of a 'flex' or 'task' block.
