@@ -297,6 +297,24 @@ export default function HomePage() {
                             } catch (e) {
                                 toast.error('Failed to update block');
                             }
+                        } else if (action === 'shift_schedule') {
+                            router.push('/app/coach?mode=strategic&prompt=Reality%20Drift%3A%20I%20missed%20my%20last%20block.%20Shift%20the%20rest%20of%20my%20schedule%20back%20by%2030%20minutes.');
+                        } else if (action === 'drop_block') {
+                            if (!effectiveState.active_block?.id) {
+                                router.push('/app/coach?mode=strategic&prompt=Reality%20Drift%3A%20Drop%20the%20missed%20block%20and%20continue%20the%20schedule.');
+                                return;
+                            }
+                            toast.loading('Dropping block...');
+                            try {
+                                await apiClient.post('/api/calendar/block-status', {
+                                    block_id: effectiveState.active_block.id,
+                                    status: 'missed'
+                                });
+                                toast.success('Block dropped. Schedule continues.');
+                                handleRefresh();
+                            } catch (e) {
+                                toast.error('Failed to update block');
+                            }
                         } else {
                             handleRefresh();
                         }

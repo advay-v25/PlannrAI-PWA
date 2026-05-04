@@ -46,6 +46,30 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
     const [pendingOption, setPendingOption] = useState<CoachOption | null>(null);
     const [showPreview, setShowPreview] = useState(false);
 
+    // Thinking state stages
+    const [loadingStage, setLoadingStage] = useState(0);
+    const stages = [
+        "Consulting temporal protocols...",
+        "Analyzing focus constraints...",
+        "Evaluating energy availability...",
+        "Synchronizing with goals...",
+        "Drafting strategic response..."
+    ];
+
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+        if (isLoading) {
+            interval = setInterval(() => {
+                setLoadingStage(prev => (prev + 1) % stages.length);
+            }, 3000);
+        } else {
+            setLoadingStage(0);
+        }
+        return () => clearInterval(interval);
+    }, [isLoading, stages.length]);
+
+    const loadingStageText = stages[loadingStage];
+
     // Handle form submit
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
@@ -206,6 +230,30 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
                         )}
                     </div>
                 ))}
+
+                {isLoading && (
+                    <div className="flex flex-col space-y-2 animate-pulse">
+                        <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs shrink-0">
+                                <span className="animate-spin text-sm">⚡</span>
+                            </div>
+                            <div className="flex flex-col space-y-2">
+                                <div className="glass-morphism p-3 rounded-2xl rounded-tl-none max-w-[280px] bg-white/[0.03]">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-foreground/40 font-mono italic">
+                                            {loadingStageText}
+                                        </span>
+                                        <div className="flex gap-1">
+                                            <span className="w-1 h-1 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                                            <span className="w-1 h-1 bg-primary rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                                            <span className="w-1 h-1 bg-primary rounded-full animate-bounce"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Loading State */}
                 {isLoading && (

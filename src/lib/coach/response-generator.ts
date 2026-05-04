@@ -340,10 +340,15 @@ PATCH OPERATION TYPES:
 - move_block: { type: "move_block", block_id: "existing-id", title: "Block Title", new_start: "HH:MM", new_end: "HH:MM", new_date?: "YYYY-MM-DD" }
 - update_block: { type: "update_block", block_id: "existing-id", title: "Block Title", changes: { status?, title?, start_time?, end_time? } }
 - delete_block: { type: "delete_block", block_id: "existing-id", title: "Block Title" }
+- update_goal: { type: "update_goal", goal_id: "existing-id", changes: { ... } }
 
-OUTPUT FORMAT (strict JSON):
+🚨 OUTPUT FORMAT (STRICT JSON ONLY):
+- Return a single valid JSON object.
+- NO markdown formatting (no ```json).
+- NO text before or after the JSON.
+- "summary": Must be a conversational string in your persona. NEVER include JSON or operations inside the summary string.
 {
-  "summary": "Donna's conversational response. Speak directly to the user with tough love, high standards, and actionable advice. DO NOT BE ROBOTIC. Sound like a real performance coach. (2-3 sentences)",
+  "summary": "Donna's conversational response. Speak directly to the user with tough love, high standards, and actionable advice. (2-3 sentences)",
   "confidence_score": 0.0-1.0,
   "suggested_mode": "propose" | "execute",
   "strategic_insight": "A single sentence explaining WHY this optimization matters for their goals",
@@ -407,7 +412,6 @@ Generate 2-3 actionable options with concrete patch operations. Return valid JSO
             maxTokens: 2500,
             requireJSON: true,
             timeout: 45000,
-            useNvidia: true,
         });
 
         if (response.success && response.data && response.data.options?.length) {

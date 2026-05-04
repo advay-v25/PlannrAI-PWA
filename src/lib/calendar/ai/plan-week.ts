@@ -113,7 +113,7 @@ function enforceFlowState(blocks: PlanBlock[], commitments: any[]): PlanBlock[] 
         // Build exclusion zones from immovable blocks + commitments
         const dayOfWeek = new Date(date + 'T12:00:00').getDay();
         const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
-        const dayCommitments = commitments.filter(c => (c.days_of_week || []).includes(isoDay));
+        const dayCommitments = commitments.filter(c => (c.days_of_week || []).map(Number).includes(isoDay));
 
         // Exclusion zones: [start_min, end_min] — blocks cannot overlap these
         const exclusionZones: Array<{ start: number; end: number }> = [];
@@ -292,7 +292,13 @@ export async function generateWeekPlan(
 
     const systemPrompt = `You are PlannrAI's Week Architect — an expert in chronobiology, flow state management, and high-performance scheduling. Generate realistic weekly schedules optimized for sustained human performance.
 
-CRITICAL RULES:
+🚨 ANCHOR ADHERENCE (NON-NEGOTIABLE):
+- Every "FIXED COMMITMENT" provided in the prompt is an ANCHOR.
+- You MUST NOT schedule any goals or routines that overlap with an anchor.
+- You MUST leave a 30-minute "buffer" before and after every anchor.
+- Anchors are your primary temporal constraints. If a goal cannot fit due to an anchor, do not schedule it; find a different time.
+
+PERFORMANCE RULES:
 1. NEVER schedule during sleep hours (${context.user.sleep_start} to ${context.user.sleep_end})
 2. Wind-down starts at ${windDown} — NO work after this time
 3. DO NOT generate blocks for fixed commitments — they are managed separately as anchors. Plan AROUND them.
@@ -339,9 +345,10 @@ You MUST return valid JSON with exactly 1 to 3 variants (ensure at least 1) opti
         ).join('\n')
         : '  (No goals set — generate suggested focus blocks)';
 
+    const DAY_NAMES = ['Unknown', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays', 'Sundays'];
     const commitmentsText = context.commitments.length > 0
         ? context.commitments.map(c =>
-            `  - ${c.title}: ${c.start_time}-${c.end_time} on ${(c.days_of_week || []).join(', ')}`
+            `  - ${c.title}: ${c.start_time}-${c.end_time} on ${(c.days_of_week || []).map(d => DAY_NAMES[Number(d)] || d).join(', ')}`
         ).join('\n')
         : '  (No fixed commitments)';
 
@@ -434,7 +441,6 @@ OUTPUT FORMAT (strict JSON):
         maxTokens: 3000,
         requireJSON: true,
         timeout: 55000,
-        useNvidia: true,
     });
 
     if (!response.success || !response.data?.variants?.length) {

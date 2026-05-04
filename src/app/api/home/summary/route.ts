@@ -34,7 +34,12 @@ export const GET = secureApiRoute(
 
         const [profile, userState, blocks, anchors, goals, habitStacks, weeklyBlocks, nextWeekBlocks] = await Promise.all([
             safeQuery(() => supabase.from('profiles').select('*, bio_data').eq('id', userId).single(), null),
-            safeQuery(() => supabase.from('user_states').select('*').eq('user_id', userId).single(), null),
+            safeQuery(() => supabase.from('user_states')
+                .select('*')
+                .eq('user_id', userId)
+                .order('updated_at', { ascending: false })
+                .limit(1)
+                .maybeSingle(), null),
             safeQuery(() => supabase.from('schedule_blocks')
                 .select('*')
                 .eq('user_id', userId)

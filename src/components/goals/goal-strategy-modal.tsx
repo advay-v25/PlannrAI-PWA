@@ -35,6 +35,7 @@ export function GoalStrategyModal({
 }: GoalStrategyModalProps) {
     const { showToast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
+    const [loadingStage, setLoadingStage] = useState(0);
     const [isScheduling, setIsScheduling] = useState(false);
     const [strategy, setStrategy] = useState<any>(goal.ai_strategy || null);
     const [showScheduler, setShowScheduler] = useState(false);
@@ -56,10 +57,28 @@ export function GoalStrategyModal({
     const [conflicts, setConflicts] = useState<ConflictInfo[]>([]);
     const [showConflictDialog, setShowConflictDialog] = useState(false);
 
-    // Sync strategy when goal changes
     useEffect(() => {
         setStrategy(goal.ai_strategy || null);
     }, [goal.ai_strategy]);
+
+    const loadingMessages = [
+        "Analyzing goal parameters...",
+        "Synthesizing flow-state protocol...",
+        "Drafting actionable checklists...",
+        "Consulting Donna AI..."
+    ];
+
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+        if (isLoading) {
+            interval = setInterval(() => {
+                setLoadingStage(prev => (prev < loadingMessages.length - 1 ? prev + 1 : prev));
+            }, 1200);
+        } else {
+            setLoadingStage(0);
+        }
+        return () => clearInterval(interval);
+    }, [isLoading]);
 
     const handleDecompose = async () => {
         setIsLoading(true);
@@ -240,75 +259,121 @@ export function GoalStrategyModal({
 
                 {!strategy ? (
                     /* No Strategy - Generate CTA */
-                    <div className="text-center py-12 space-y-4">
-                        <Sparkles className="w-12 h-12 text-[var(--color-primary)] mx-auto animate-pulse" />
-                        <h3 className="text-lg font-medium">Ready to consult the Expert?</h3>
-                        <p className="text-[var(--color-text-tertiary)] max-w-sm mx-auto">
-                            I will break this goal down into a daily protocol, milestone roadmap, and pre-flight checklists.
-                        </p>
-                        <GlassButton
-                            variant="primary"
-                            onClick={handleDecompose}
-                            className="w-full max-w-xs mx-auto"
-                        >
+                    <div className="text-center py-16 space-y-6">
+                        <div className="relative w-20 h-20 mx-auto">
+                            <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                                className="absolute inset-0 rounded-full border-t-2 border-r-2 border-[var(--color-primary)] opacity-20"
+                            />
                             {isLoading ? (
-                                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                                <RefreshCw className="w-10 h-10 text-[var(--color-primary)] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-spin" />
                             ) : (
-                                <Sparkles className="w-4 h-4 mr-2" />
+                                <Sparkles className="w-10 h-10 text-[var(--color-primary)] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
                             )}
-                            {isLoading ? 'Synthesizing...' : 'Generate Strategy'}
-                        </GlassButton>
+                        </div>
+                        
+                        <div className="space-y-2">
+                            <h3 className="text-xl font-medium tracking-tight">
+                                {isLoading ? "Consulting the Expert..." : "Ready to consult the Expert?"}
+                            </h3>
+                            <div className="h-6 flex items-center justify-center">
+                                <AnimatePresence mode="wait">
+                                    <motion.p
+                                        key={isLoading ? loadingStage : 'idle'}
+                                        initial={{ opacity: 0, y: 5 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -5 }}
+                                        className="text-sm text-[var(--color-text-tertiary)]"
+                                    >
+                                        {isLoading ? loadingMessages[loadingStage] : "Break this goal down into a daily protocol and roadmap."}
+                                    </motion.p>
+                                </AnimatePresence>
+                            </div>
+                        </div>
+
+                        {!isLoading && (
+                            <GlassButton
+                                variant="primary"
+                                onClick={handleDecompose}
+                                className="w-full max-w-xs mx-auto py-3 text-sm"
+                            >
+                                <Sparkles className="w-4 h-4 mr-2" />
+                                Generate Strategy
+                            </GlassButton>
+                        )}
                     </div>
                 ) : (
-                    /* Strategy Display */
-                    <div className="space-y-6">
-                        {/* Strategy One-Liner */}
-                        <div className="p-4 rounded-lg bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20">
-                            <p className="text-[var(--color-primary)] font-medium text-center">
-                                "{strategy.strategy_one_liner}"
-                            </p>
-                        </div>
-
-                        {/* Routine Protocol */}
-                        <div className="space-y-3">
-                            <h3 className="text-sm font-bold text-[var(--color-text-secondary)] uppercase tracking-wider flex items-center gap-2">
-                                <Calendar className="w-4 h-4" /> Daily Protocol
-                            </h3>
-                            <GlassCard padding="sm" className="bg-white/5">
-                                <div className="space-y-2">
-                                    {strategy.routine?.steps?.map((step: string, i: number) => (
-                                        <div key={i} className="flex items-start gap-3 text-sm">
-                                            <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0 text-xs mt-0.5">
-                                                {i + 1}
-                                            </div>
-                                            <p>{step}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                                {strategy.routine?.notes && (
-                                    <p className="mt-3 pt-3 border-t border-white/5 text-xs text-[var(--color-text-tertiary)]">
-                                        💡 {strategy.routine.notes}
+                    /* Strategy Display — Premium Multi-Pane Layout */
+                    <div className="space-y-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            
+                            {/* Left Pane: Insights & Mindset */}
+                            <div className="space-y-6">
+                                <div className="p-5 rounded-2xl bg-gradient-to-br from-[var(--color-primary)]/20 to-transparent border border-[var(--color-primary)]/20 shadow-lg shadow-[var(--color-primary)]/5">
+                                    <h3 className="text-xs font-bold text-[var(--color-primary)] uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                                        <Sparkles className="w-3 h-3" /> Strategic One-Liner
+                                    </h3>
+                                    <p className="text-white font-medium italic text-lg leading-relaxed">
+                                        &ldquo;{strategy.strategy_one_liner}&rdquo;
                                     </p>
-                                )}
-                            </GlassCard>
-                        </div>
+                                </div>
 
-                        {/* Checklists */}
-                        {strategy.checklist?.length > 0 && (
-                            <div className="space-y-3">
-                                <h3 className="text-sm font-bold text-[var(--color-text-secondary)] uppercase tracking-wider flex items-center gap-2">
-                                    <List className="w-4 h-4" /> Pre-Flight Checklist
-                                </h3>
-                                <div className="grid grid-cols-1 gap-2">
-                                    {strategy.checklist?.map((item: any, i: number) => (
-                                        <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-white/5 border border-white/5">
-                                            <div className="w-4 h-4 rounded border border-white/20" />
-                                            <span className="text-sm">{item.text}</span>
-                                        </div>
-                                    ))}
+                                <div className="space-y-4">
+                                    <h3 className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] px-1">Tactical Checklist</h3>
+                                    <div className="space-y-2">
+                                        {strategy.checklist?.map((item: any, i: number) => (
+                                            <motion.div 
+                                                key={i}
+                                                initial={{ opacity: 0, x: -10 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ delay: i * 0.1 }}
+                                                className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.05] hover:border-white/10 transition-all group"
+                                            >
+                                                <div className="w-5 h-5 rounded-md border-2 border-white/10 flex items-center justify-center group-hover:border-[var(--color-primary)]/50 transition-colors">
+                                                    <div className="w-2 h-2 bg-[var(--color-primary)] rounded-sm opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                </div>
+                                                <span className="text-sm text-white/70 group-hover:text-white transition-colors">{item.text}</span>
+                                            </motion.div>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
-                        )}
+
+                            {/* Right Pane: Protocol & Details */}
+                            <div className="space-y-6">
+                                <div className="space-y-4">
+                                    <h3 className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] px-1 flex items-center justify-between">
+                                        <span>Daily Flow Protocol</span>
+                                        <Calendar className="w-3 h-3 opacity-30" />
+                                    </h3>
+                                    <div className="relative pl-6 space-y-6 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-px before:bg-gradient-to-b before:from-[var(--color-primary)]/50 before:to-transparent">
+                                        {strategy.routine?.steps?.map((step: string, i: number) => (
+                                            <motion.div 
+                                                key={i}
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                transition={{ delay: 0.2 + (i * 0.1) }}
+                                                className="relative"
+                                            >
+                                                <div className="absolute -left-[22px] top-1 w-[22px] h-[22px] rounded-full bg-black border-2 border-[var(--color-primary)] flex items-center justify-center z-10 shadow-[0_0_10px_rgba(249,115,22,0.3)]">
+                                                    <span className="text-[9px] font-black text-[var(--color-primary)]">{i + 1}</span>
+                                                </div>
+                                                <p className="text-sm text-white/80 leading-relaxed font-medium">{step}</p>
+                                            </motion.div>
+                                        ))}
+                                    </div>
+                                    {strategy.routine?.notes && (
+                                        <div className="p-3 rounded-xl bg-orange-500/5 border border-orange-500/10 flex gap-3 items-start mt-4">
+                                            <Sparkles className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
+                                            <p className="text-xs text-orange-300/80 leading-relaxed italic">
+                                                {strategy.routine.notes}
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
 
                         {/* Scheduler Section */}
                         <div className="border-t border-white/10 pt-4">

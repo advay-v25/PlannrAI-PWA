@@ -177,7 +177,7 @@ MOVABLE BLOCKS (${movableBlocks.length}): Can be rearranged or removed
 USER PERFORMANCE: ${context.performance.last_7_days_completion_rate}% completion rate last 7 days
 
 INSTRUCTIONS:
-${focus === 'reduce_overwhelm' ? 'User feels overwhelmed. Remove non-essential blocks, add breaks. Do not schedule heavy goals.' :
+${focus === 'reduce_overwhelm' || focus === 'reality_drift' ? 'USER IS BEHIND SCHEDULE / OVERWHELMED. Priority: RECOVERY. Aggressively remove low-priority blocks. Shorten remaining blocks if needed to preserve wind-down time. Do NOT schedule heavy new goals.' :
             focus === 'maximize_output' ? 'User wants max productivity. Tighten schedule, fill gaps with focus blocks.' :
                 'Balance the schedule — ensure breaks, meals, and focus time are placed optimally until wind-down.'}
 Identify gaps in the schedule and CREATE routines, Meals, and Focus Blocks for the user's goals if missing. Follow the ENERGY ARC — place deep work in peak/rebound phases, light work in trough/wind-down.
@@ -217,7 +217,6 @@ OUTPUT FORMAT (strict JSON):
         maxTokens: 4000,
         requireJSON: true,
         timeout: 110000,
-        useNvidia: true,
     });
 
     if (!response.success || !response.data) {
