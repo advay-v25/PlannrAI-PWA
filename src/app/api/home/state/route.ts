@@ -148,6 +148,15 @@ export const GET = secureApiRoute(
                         }
                     }
                 }
+
+                // Check for BEHIND_SCHEDULE: if blocks with end_time < currentTime are still 'planned'
+                const missedBlocks = blocks.filter((b: any) => {
+                    const endMins = timeToMinutes(b.end_time);
+                    return endMins < currentMins && b.status === 'planned';
+                });
+                if (missedBlocks.length >= 2 && currentState !== 'DAY_COMPLETE') {
+                    currentState = 'BEHIND_SCHEDULE';
+                }
             }
 
             const insights: Record<HomeState, string> = {

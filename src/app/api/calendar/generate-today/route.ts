@@ -150,11 +150,11 @@ YOU ARE NOT A GENERIC CALENDAR APP. You are designing a day for a high-performan
 1. FOLLOW THE ENERGY ARC: Schedule blocks according to the user's energy phases (provided below). Never put high-energy work in low-energy phases.
 2. ULTRADIAN RHYTHM: Deep work in 60-90min bursts, followed by 15-20min Active Recovery (walk, stretch, breathe — NOT another task).
 3. COGNITIVE SWITCHING: 10-15min transition buffer between different types of work. Same-pillar tasks need 5min, different pillars need 15min.
-4. STRATEGIC MEALS: Meals are energy anchors — breakfast fuels the morning peak, lunch marks the trough, dinner starts wind-down.
+4. STRATEGIC MEALS: Meals are energy anchors. YOU MUST SCHEDULE EXACTLY ${mealsPerDay} meals. YOU MUST SCHEDULE THEM STRICTLY WITHIN THE PROVIDED MEAL WINDOWS. NEVER INVENT RANDOM MEAL TIMES OUTSIDE THESE WINDOWS.
 5. MAX 3-4 DEEP WORK CYCLES: No human sustains more than 3-4 hours of genuine deep focus per day. Quality over quantity.
 6. MORNING ROUTINE: The first 60-90 min after waking is for activation (routine, breakfast, light review). Do NOT schedule heavy cognitive work here.
 7. WIND-DOWN: The last 60-90 min before sleep is for deceleration. No work, no screens for deep focus. Light review, journaling, routine only.
-8. ZERO OVERLAP: Every block has a unique, non-overlapping time slot.
+8. ZERO OVERLAP & RESPECT ANCHORS: Every block has a unique time slot. YOU MUST NEVER OVERLAP WITH FIXED COMMITMENTS.
 9. COMMITMENT BUFFERS: Leave 20-30 minute buffers before and after fixed commitments for travel/transition.
 
 🧠 PILLAR DISTRIBUTION — DYNAMIC, NOT FORMULAIC:
@@ -240,10 +240,10 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
 6. After every deep work block (60-90min), schedule a 15min "Active Recovery" buffer
 7. Schedule goals based on WEEKLY PROGRESS — goals that are behind get priority and more time
 8. Include at least 1 "Free Time" or unstructured block — high performers need whitespace
-9. Meals at REALISTIC times within the configured windows
+9. Meals MUST be placed exactly within the provided Meal Windows. No exceptions.
 10. If there's a large commitment (e.g., Work 9-5), fill morning and evening windows intelligently, not just 1 block
 11. Generate 10-20 blocks for a FULL, COMPLETE day — not just 3-4 blocks
-12. EVERY goal block MUST have a 2-4 item checklist with concrete, specific actions (not "work on X")`;
+12. EVERY goal block MUST have a 2-4 item checklist. The checklist MUST be derived directly from the 'AI Strategy' provided for that goal. DO NOT INVENT RANDOM TASKS if an AI Strategy is provided.`;
 
             // 6. Call AI
             const response = await callAI<{ blocks: any[]; summary: string; philosophy: string }>({
@@ -251,7 +251,7 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
                 systemPrompt,
                 model: 'smart',
                 temperature: 0.6,
-                maxTokens: 2500,
+                maxTokens: 4000,
                 requireJSON: true,
                 timeout: 55000,
                 useNvidia: true,
@@ -285,10 +285,10 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
             };
 
             // Build commitment exclusion zones (commitment time ± 30 min buffer)
+            // DB stores days_of_week with JS encoding: Sun=0, Mon=1...Sat=6
             const dayOfWeek = new Date(targetDate + 'T12:00:00').getDay();
-            const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
             const commitmentZones = ctx.commitments
-                .filter((c: any) => !c.days_of_week || c.days_of_week.includes(isoDay))
+                .filter((c: any) => !c.days_of_week || c.days_of_week.includes(dayOfWeek))
                 .map((c: any) => ({
                     start: timeToMinutes(c.start_time) - 30,
                     end: timeToMinutes(c.end_time) + 30,
@@ -320,7 +320,7 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
                 dayBlocks.sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
 
                 // Get commitments for this date for buffer checking
-                const dayCommitments = commitments.filter((c: any) => (c.days_of_week || []).includes(isoDay));
+                const dayCommitments = commitments.filter((c: any) => (c.days_of_week || []).includes(dayOfWeek));
 
                 let processedDay: any[] = [];
                 let lastEndTime = 0;
@@ -417,7 +417,42 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
 
             const finalBlocks = flowValidation.fixedBlocks;
 
-            // 8. Return as a single option to auto-apply
+            // 8. Auto-apply when force=true — write directly to schedule_blocks
+            let appliedCount = 0;
+            if (force && finalBlocks.length > 0) {
+                const blocksToInsert = finalBlocks.map((b: any) => ({
+                    ...b,
+                    user_id: userId,
+                    status: b.status || 'planned',
+                }));
+
+                const { data: inserted, error: insertError } = await supabase
+                    .from('schedule_blocks')
+                    .insert(blocksToInsert)
+                    .select('id');
+
+                if (insertError) {
+                    console.error('[GenerateToday] Auto-apply insert failed:', insertError);
+                } else {
+                    appliedCount = inserted?.length || 0;
+                    console.log(`[GenerateToday] Auto-applied ${appliedCount} blocks for ${targetDate}`);
+                }
+
+                // Clear needs_rescheduling flag after successful generation
+                try {
+                    const { data: profile } = await supabase.from('profiles').select('bio_data').eq('id', userId).single();
+                    if (profile) {
+                        const bioData = (profile.bio_data as any) || {};
+                        if (bioData.needs_rescheduling) {
+                            await supabase.from('profiles').update({
+                                bio_data: { ...bioData, needs_rescheduling: false }
+                            }).eq('id', userId);
+                        }
+                    }
+                } catch (e) { /* non-blocking */ }
+            }
+
+            // 9. Return as a single option (also usable for manual apply)
             const option = {
                 id: 'today_schedule',
                 label: `${dayName} Schedule`,
@@ -436,6 +471,7 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
             return apiSuccess({
                 plan_summary: summary,
                 options: [option],
+                auto_applied: force ? appliedCount : 0,
                 warnings: flowValidation.violations.map(v => `${v.block_title}: ${v.violation}`),
             });
 
@@ -471,10 +507,10 @@ function generateFlowStateFallback(
     const windDownMins = timeToMinutes(windDownTime);
 
     // Build commitment exclusion zones for this date
+    // DB stores days_of_week with JS encoding: Sun=0, Mon=1...Sat=6
     const dayOfWeek = new Date(date + 'T12:00:00').getDay();
-    const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
     const dayCommitments = (ctx.commitments || [])
-        .filter((c: any) => !c.days_of_week || c.days_of_week.includes(isoDay))
+        .filter((c: any) => !c.days_of_week || c.days_of_week.includes(dayOfWeek))
         .sort((a: any, b: any) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
 
     // Build available time windows (wake to wind-down, excluding commitments with 20min buffer)
@@ -522,6 +558,42 @@ function generateFlowStateFallback(
         return true;
     };
 
+    // ── Meal Window Placement ─────────────────────
+    // Instead of placing meals sequentially, place them at their user-defined window times
+    const mealWindows = ctx.user?.meal_windows || {
+        breakfast: { start: '07:00', end: '10:00' },
+        lunch: { start: '12:00', end: '15:00' },
+        dinner: { start: '18:30', end: '21:30' },
+    };
+
+    const placeMealBlock = (title: string, mealKey: string, durationMin: number) => {
+        const window = (mealWindows as any)?.[mealKey];
+        if (!window?.start) return;
+
+        const windowStart = timeToMinutes(window.start);
+        const windowEnd = timeToMinutes(window.end || window.start);
+        // Place meal at the start of its window
+        const mealStart = Math.max(windowStart, wakeMins);
+        const mealEnd = mealStart + durationMin;
+
+        // Only place if within waking hours and window
+        if (mealEnd <= windDownMins + 60 && mealStart < windowEnd) {
+            blocks.push({
+                date,
+                start_time: minutesToTime(mealStart),
+                end_time: minutesToTime(mealEnd),
+                title,
+                block_type: 'meal',
+                status: 'planned',
+                checklist: title === 'Breakfast'
+                    ? [{ text: 'Prepare and eat a protein-rich breakfast' }, { text: 'Plan first deep work block mentally' }]
+                    : title === 'Lunch'
+                    ? [{ text: 'Step away from desk completely' }, { text: 'Eat mindfully, no screens' }]
+                    : [{ text: 'Prepare and eat dinner' }, { text: 'Connect with family/friends if possible' }],
+            });
+        }
+    };
+
     // ── RAMP-UP PHASE ──────────────────────────
 
     // Morning Routine (with habit stacks)
@@ -538,10 +610,8 @@ function generateFlowStateFallback(
     }
     placeBlock('Morning Routine', 'routine', 30, { checklist: morningChecklist });
 
-    // Breakfast
-    placeBlock('Breakfast', 'meal', 30, {
-        checklist: [{ text: 'Prepare and eat a protein-rich breakfast' }, { text: 'Plan first deep work block mentally' }]
-    });
+    // Breakfast — placed within user-defined breakfast window
+    placeMealBlock('Breakfast', 'breakfast', 30);
 
     // ── PEAK PHASE — Deep Work ─────────────────
 
@@ -603,10 +673,8 @@ function generateFlowStateFallback(
 
     // ── TROUGH PHASE — Lunch + Light Work ──────
 
-    // Lunch
-    placeBlock('Lunch', 'meal', 45, {
-        checklist: [{ text: 'Step away from desk completely' }, { text: 'Eat mindfully, no screens' }]
-    });
+    // Lunch — placed within user-defined lunch window
+    placeMealBlock('Lunch', 'lunch', 45);
 
     // Light admin / flex block
     placeBlock('Admin & Planning', 'flex', 30, {
@@ -664,10 +732,8 @@ function generateFlowStateFallback(
         checklist: [{ text: 'Unstructured time — relax, hobby, or social' }],
     });
 
-    // Dinner
-    placeBlock('Dinner', 'meal', 45, {
-        checklist: [{ text: 'Prepare and eat dinner' }, { text: 'Connect with family/friends if possible' }]
-    });
+    // Dinner — placed within user-defined dinner window
+    placeMealBlock('Dinner', 'dinner', 45);
 
     // Evening Review / Light goal if remaining
     if (highEnergyGoals.length > 2) {

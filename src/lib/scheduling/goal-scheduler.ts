@@ -16,7 +16,9 @@ export class GoalScheduler {
         duration: number,
         stride: number,
         preferredTime: string,
-        currentSchedule: any[]
+        currentSchedule: any[],
+        wakeHour: number = 7,
+        sleepHour: number = 22
     ): { changes: any[], slotsFound: number } {
         const changes: any[] = [];
         let dayOffset = 0;
@@ -31,18 +33,18 @@ export class GoalScheduler {
                 continue;
             }
 
-            let minTime = setMinutes(setHours(date, 8), 0);
-            let maxTime = setMinutes(setHours(date, 22), 0);
+            let minTime = setMinutes(setHours(date, wakeHour), 0);
+            let maxTime = setMinutes(setHours(date, sleepHour), 0);
 
             if (preferredTime === 'morning') {
-                minTime = setMinutes(setHours(date, 5), 0);
+                minTime = setMinutes(setHours(date, Math.max(5, wakeHour)), 0);
                 maxTime = setMinutes(setHours(date, 12), 0);
             } else if (preferredTime === 'afternoon') {
                 minTime = setMinutes(setHours(date, 12), 0);
                 maxTime = setMinutes(setHours(date, 17), 0);
             } else if (preferredTime === 'evening') {
                 minTime = setMinutes(setHours(date, 17), 0);
-                maxTime = setMinutes(setHours(date, 23), 0);
+                maxTime = setMinutes(setHours(date, Math.min(23, sleepHour)), 0);
             }
 
             const dayContext = currentSchedule
@@ -92,36 +94,40 @@ export class GoalScheduler {
         preferences?: {
             preferredTime?: 'morning' | 'afternoon' | 'evening';
             days?: number[];
+            wakeHour?: number;
+            sleepHour?: number;
         }
     ): CalendarPatch {
         const duration = goal.minutes_per_day;
         const perWeek = goal.days_per_week || 3;
         const preferredTime = preferences?.preferredTime || (goal.constraints as any)?.preferred_time || 'any';
+        const defaultWake = preferences?.wakeHour ?? 7;
+        const defaultSleep = preferences?.sleepHour ?? 22;
 
         const stride = Math.max(1, Math.floor(7 / perWeek));
 
         const warnings: string[] = [];
 
         // 1. Attempt Perfect Match
-        let result = this.attemptSchedule(perWeek, duration, stride, preferredTime, currentSchedule);
+        let result = this.attemptSchedule(perWeek, duration, stride, preferredTime, currentSchedule, defaultWake, defaultSleep);
 
         // 2. Fallback: Relaxed Time Window
         if (result.slotsFound === 0 && preferredTime !== 'any') {
             warnings.push(`Could not find slots in the ${preferredTime}. Switched to any time.`);
-            result = this.attemptSchedule(perWeek, duration, stride, 'any', currentSchedule);
+            result = this.attemptSchedule(perWeek, duration, stride, 'any', currentSchedule, defaultWake, defaultSleep);
         }
 
         // 3. Fallback: Reduced Duration
         if (result.slotsFound === 0) {
             const reducedDuration = Math.max(15, Math.floor(duration * 0.75));
             warnings.push(`Squeezed duration from ${duration}m to ${reducedDuration}m to fit.`);
-            result = this.attemptSchedule(perWeek, reducedDuration, stride, 'any', currentSchedule);
+            result = this.attemptSchedule(perWeek, reducedDuration, stride, 'any', currentSchedule, defaultWake, defaultSleep);
         }
 
         // 4. Fallback: Aggressive
         if (result.slotsFound === 0) {
             warnings.push(`Couldn't find space even with reduced duration. Packed sessions tightly.`);
-            result = this.attemptSchedule(perWeek, Math.max(15, Math.floor(duration * 0.5)), 1, 'any', currentSchedule);
+            result = this.attemptSchedule(perWeek, Math.max(15, Math.floor(duration * 0.5)), 1, 'any', currentSchedule, defaultWake, defaultSleep);
         }
 
         const finalChanges = result.changes.map(c => ({

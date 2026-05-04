@@ -310,13 +310,13 @@ async function generateAIScheduleResponse(
 ): Promise<CoachResponse> {
     const scheduleContext = buildScheduleContextForAI(coachCtx, calCtx);
 
-const systemPrompt = `You are Donna, PlannrAI's Strategic Scheduling Architect. You don't just "assistant"—you manage the user's focus as their most precious resource.
+const systemPrompt = `You are Donna, PlannrAI's Flow State and Performance Coach. You operate with 'Tough Love'. You are direct, no-nonsense, highly empathetic but fiercely protective of the user's potential. You do not coddle. If they are slacking, you call it out respectfully. If they are overwhelmed, you aggressively cut the fat from their schedule. Your priority is their long-term growth and immediate flow state. You manage their focus as their most precious resource.
 
 STRATEGIC DIRECTIVES:
 1. FLOW STATE PROTECTION: Prioritize deep work blocks (90-120 min) during the user's PEAK energy phases.
 2. TROUGH MANAGEMENT: Place administrativia, meals, and low-cognitive tasks in TROUGH phases.
 3. BUFFERS: Proactively insert 15-30 min "Neural Buffers" after high-intensity blocks.
-4. AGGRESSIVE OPTIMIZATION: If the user is overwhelmed, don't just "ask"—actively propose clearing or deferring low-priority tasks.
+4. AGGRESSIVE OPTIMIZATION: If the user is overwhelmed, don't just "ask"—actively propose clearing or deferring low-priority tasks. Use your tough love persona to explain why they need a break.
 5. ONE BODY GOAL PER DAY: Max ONE body-pillar goal per day (Gym, Football, Cardio, etc.). Never propose a workout if one already exists or is being added.
 6. AUTO-EXECUTION VS PROPOSAL:
    - SELECT "suggested_mode": "execute" ONLY for:
@@ -343,7 +343,7 @@ PATCH OPERATION TYPES:
 
 OUTPUT FORMAT (strict JSON):
 {
-  "summary": "Donna's strategic reasoning (direct, insightful, high-EQ)",
+  "summary": "Donna's conversational response. Speak directly to the user with tough love, high standards, and actionable advice. DO NOT BE ROBOTIC. Sound like a real performance coach. (2-3 sentences)",
   "confidence_score": 0.0-1.0,
   "suggested_mode": "propose" | "execute",
   "strategic_insight": "A single sentence explaining WHY this optimization matters for their goals",
@@ -667,15 +667,16 @@ async function generateAIInformResponse(
 ): Promise<CoachResponse> {
     const scheduleContext = buildScheduleContextForAI(coachCtx, calCtx);
 
-    const systemPrompt = `You are Donna, PlannrAI's AI scheduling coach. The user is asking for information about their schedule, goals, or progress.
+    const systemPrompt = `You are Donna, PlannrAI's Flow State and Performance Coach. You operate with 'Tough Love'. You are direct, no-nonsense, highly empathetic but fiercely protective of the user's potential. You do not coddle. If they are behind on goals, you call it out. If they're crushing it, you celebrate briefly and push for more.
 
-Respond with a helpful, concise summary. Be strategic and empathetic. If you see opportunities for improvement, mention them.
+The user is asking about their schedule, goals, or progress. Give them a data-driven answer using REAL numbers from their schedule. Be specific — mention block titles, completion percentages, and concrete insights.
 
 OUTPUT FORMAT (strict JSON):
 {
-  "summary": "Your informative response (2-4 sentences max). Include specific data from their schedule.",
-  "suggestions": ["Optional suggestion 1", "Optional suggestion 2"]
+  "summary": "Donna's direct, data-driven response. Use tough love tone. Reference specific schedule data. (2-4 sentences max)",
+  "suggestions": ["Optional actionable suggestion 1", "Optional actionable suggestion 2"]
 }`;
+
 
     const userPrompt = `${scheduleContext}
 
@@ -732,15 +733,21 @@ function generateAcknowledgmentResponse(
 ): CoachResponse {
     const message = coachCtx.last_user_message || '';
     const lower = message.toLowerCase();
+    const missedBlocks = coachCtx.user_state.recent_missed_blocks;
 
-    let ack = { message: "Got it.", offer: "Let me know if you need any schedule changes." };
+    // Tough Love acknowledgments based on emotional context + schedule state
+    let ack = { message: "Got it. Now let's make it count.", offer: "Need me to optimize something?" };
 
     if (/(hate|frustrated|annoying|ugh|terrible)/i.test(lower)) {
-        ack = { message: "I hear you. That sounds frustrating.", offer: "Want me to lighten your schedule?" };
+        ack = missedBlocks >= 3
+            ? { message: `I hear you. But ${missedBlocks} missed blocks today isn't frustration — that's avoidance. Let's fix the root cause.`, offer: "Want me to cut the fat from your schedule?" }
+            : { message: "Frustration is signal, not noise. Something about your schedule isn't working. Let's fix it.", offer: "Tell me what's not working and I'll restructure." };
     } else if (/(stressed|anxious|worried|overwhelmed)/i.test(lower)) {
-        ack = { message: "That's a lot to deal with.", offer: "I can help reduce your load if you'd like." };
+        ack = { message: "Your brain is telling you it's overloaded. That's actually useful data. Let's lighten the load strategically — not randomly.", offer: "I can clear everything except your top 2 priorities." };
     } else if (/(thanks|thank you|great|awesome|perfect)/i.test(lower)) {
-        ack = { message: "Happy to help! 💪", offer: "Anything else you need?" };
+        ack = { message: "Good. Stay locked in. 💪", offer: "What's next on your radar?" };
+    } else if (/(tired|sleepy|exhausted|drained)/i.test(lower)) {
+        ack = { message: "Your body is keeping score. Rest isn't weakness — it's strategy. Let me adjust your remaining blocks.", offer: "Want me to switch to recovery mode?" };
     }
 
     return {
@@ -860,7 +867,8 @@ export async function generateCoachResponse(
     userMessage: string,
     conversationHistory: Array<{ role: string; content: string }>,
     context: CoachContext,
-    supabase?: any
+    supabase?: any,
+    prebuiltCalCtx?: CalendarContext | null
 ): Promise<CoachResponse> {
     // 1. Classify intent
     const classification = await classifyIntent(
@@ -876,9 +884,9 @@ export async function generateCoachResponse(
 
     const intent = classification.primary_intent;
 
-    // 2. Build enriched calendar context if we have supabase
-    let calCtx: CalendarContext | null = null;
-    if (supabase) {
+    // 2. Use pre-built calendar context if provided, otherwise build fresh (deduplication)
+    let calCtx: CalendarContext | null = prebuiltCalCtx || null;
+    if (!calCtx && supabase) {
         try {
             calCtx = await buildCalendarContext(context.user.id, supabase);
         } catch (e) {

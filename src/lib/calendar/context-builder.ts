@@ -163,13 +163,18 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
 
     // ── Parallel Fetch ───────────────────────────────────────────
 
-    const [profileRes, goalsRes, commitmentsRes, habitStacksRes, todayBlocksRes, weekBlocksRes, perfBlocksRes, coachLearningsRes, behaviorPatternsRes, energyStateRes, brainDumpItemsRes] = await Promise.all([
+    const [profileRes, profilePrefsRes, goalsRes, commitmentsRes, habitStacksRes, todayBlocksRes, weekBlocksRes, perfBlocksRes, coachLearningsRes, behaviorPatternsRes, energyStateRes, brainDumpItemsRes] = await Promise.all([
         // 1. Profile
         db.from('profiles')
-            .select('id, first_name, sleep_start, sleep_end, wind_down_mins, energy_level, stress_level, meals_per_day, meal_windows, body_preferences, bio_data')
+            .select('id, first_name, preferred_name, sleep_start, sleep_end, wind_down_mins, wind_down_minutes, energy_level, stress_level, meals_per_day, meal_windows, meal_times, body_preferences, bio_data, peak_windows, low_windows')
             .eq('id', userId)
             .maybeSingle(),
 
+        // 1b. Profile Preferences (onboarding may write here)
+        db.from('profile_preferences')
+            .select('wake_time, sleep_start, meal_windows, meals_per_day, buffer_min, preferred_windows, workout_preference, workout_min_per_day, wind_down_min, is_workout_protected')
+            .eq('user_id', userId)
+            .maybeSingle(),
 
         // 2. Active Goals
         db.from('goals')
@@ -248,12 +253,24 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
 
     // ── Process Results ──────────────────────────────────────────
 
-    const profile = profileRes.data || {
+    const profileRaw = profileRes.data || {
         id: userId,
         first_name: 'User',
         sleep_start: '23:00',
         sleep_end: '07:00',
         wind_down_mins: 30,
+    };
+
+    // Merge profile_preferences (onboarding may write here)
+    const prefs = profilePrefsRes.data || {};
+    const profile = {
+        ...profileRaw,
+        // profile_preferences overrides when they exist
+        sleep_start: profileRaw.sleep_start || prefs.sleep_start || '23:00',
+        sleep_end: profileRaw.sleep_end || prefs.wake_time || '07:00',
+        wind_down_mins: profileRaw.wind_down_mins || profileRaw.wind_down_minutes || prefs.wind_down_min || 30,
+        meals_per_day: profileRaw.meals_per_day || prefs.meals_per_day || 3,
+        meal_windows: profileRaw.meal_windows || prefs.meal_windows || null,
     };
 
     const goals = (goalsRes.data || []).map((g: any) => ({

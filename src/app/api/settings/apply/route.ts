@@ -42,7 +42,7 @@ export const POST = secureApiRoute(
                 ...patch,
                 ops: otherOps
             };
-            await apiClient.post('/api/schedule/apply-patch', { patch: schedulePatch });
+            await apiClient.post('/api/calendar/apply-schedule', { action: 'manual', patch: { update: otherOps } });
         }
 
         return apiSuccess({ success: true });

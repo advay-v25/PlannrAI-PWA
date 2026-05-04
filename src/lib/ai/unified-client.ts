@@ -306,8 +306,9 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
 
     // Calendar-dedicated key: bypass normal provider chain and use Nvidia
     if (options.useNvidia) {
-        console.log('\x1b[36m[AI ✨]\x1b[0m Using Nvidia API for Generation...');
-        const calendarProvider = getNvidiaConfig('meta/llama-3.1-70b-instruct');
+        const nvidiaModel = tier === 'fast' ? 'meta/llama-3.1-8b-instruct' : 'meta/llama-3.1-70b-instruct';
+        console.log(`\x1b[36m[AI ✨]\x1b[0m Using Nvidia API (${nvidiaModel}) for Generation...`);
+        const calendarProvider = getNvidiaConfig(nvidiaModel);
         const result = await callProvider<T>(calendarProvider, { ...options, timeout: getRemainingTime() });
         if (result.success) return result;
         

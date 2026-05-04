@@ -176,6 +176,12 @@ export const apiClient = {
     },
 
     // Unified AI & Patch Pipeline
+    get coach() {
+        return {
+            getProactiveSuggestion: () => this.get<{ has_suggestion: boolean; suggestion?: any }>('/api/coach/proactive')
+        };
+    },
+
     get ai() {
         return {
             execute: (data: { channel: ChannelType; input: string; context?: any; limits?: any; twoPass?: boolean; maxTokens?: number }) =>
@@ -215,30 +221,24 @@ export const apiClient = {
                 this.post('/api/calendar/add-block', { block: data }), // Use add-block for conflict detection
 
             updateBlock: (id: string, updates: Record<string, any>) =>
-                this.post('/api/schedule/apply-patch', {
-                    patch: {
-                        ops: [{ op: 'update_event', event_id: id, payload: updates }]
-                    },
-                    source: 'manual_update'
+                this.post('/api/calendar/apply-schedule', {
+                    action: 'manual',
+                    patch: { update: [{ id, changes: updates }] }
                 }),
 
             moveBlock: (id: string, newDate: string, newStart: string, newEnd: string, resolution_strategy?: string) =>
                 this.post('/api/calendar/move-block', { block_id: id, new_date: newDate, new_start_time: newStart, new_end_time: newEnd, resolution_strategy }),
 
             deleteBlock: (id: string) =>
-                this.post('/api/schedule/apply-patch', {
-                    patch: {
-                        ops: [{ op: 'delete_event', event_id: id }]
-                    },
-                    source: 'manual_delete'
+                this.post('/api/calendar/apply-schedule', {
+                    action: 'manual',
+                    patch: { remove: [id] }
                 }),
 
             updateStatus: (id: string, status: BlockStatus) =>
-                this.post('/api/schedule/apply-patch', {
-                    patch: {
-                        ops: [{ op: 'update_event', event_id: id, payload: { status } }]
-                    },
-                    source: 'status_change'
+                this.post('/api/calendar/apply-schedule', {
+                    action: 'manual',
+                    patch: { update: [{ id, changes: { status } }] }
                 }),
 
             // AI Features
@@ -255,20 +255,10 @@ export const apiClient = {
                 this.post('/api/calendar/inbox', data),
 
             deleteCommitment: (commitmentId: string) =>
-                this.post('/api/schedule/apply-patch', {
-                    patch: {
-                        ops: [{ op: 'delete_anchor', anchor_id: commitmentId }]
-                    },
-                    source: 'manual_delete_anchor'
-                }),
+                this.delete(`/api/anchors?id=${commitmentId}`),
 
             createCommitment: (data: { title: string; start_time: string; end_time: string; days_of_week: number[] }) =>
-                this.post('/api/schedule/apply-patch', {
-                    patch: {
-                        ops: [{ op: 'create_anchor', ...data }]
-                    },
-                    source: 'manual_create_anchor'
-                }),
+                this.post<{ commitment: Commitment }>('/api/anchors', data),
 
             updateBlockStatus: (data: {
                 block_id: string;

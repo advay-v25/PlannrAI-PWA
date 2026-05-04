@@ -301,7 +301,7 @@ export default function WeeklyReviewPage() {
                     <div>
                         <h1 className="text-xl font-bold tracking-tight">Weekly Review</h1>
                         <p className="text-xs text-[var(--text-tertiary)]">
-                            {format(lastWeekStart, 'MMM d')} - {format(lastWeekEnd, 'MMM d')}
+                            {format(selectedWeekStart, 'MMM d')} - {format(selectedWeekEnd, 'MMM d')}
                         </p>
                     </div>
                     <div className="text-xs font-medium text-[var(--text-secondary)]">

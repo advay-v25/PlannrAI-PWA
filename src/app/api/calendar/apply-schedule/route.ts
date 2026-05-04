@@ -186,10 +186,9 @@ export const POST = secureApiRoute(
                     const bStart = timeToMin(b.start_time);
                     const bEnd = timeToMin(b.end_time);
                     const dayOfWeek = new Date(b.date + 'T12:00:00').getDay();
-                    const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
 
                     for (const cmt of commitmentBlocks) {
-                        if (cmt.days_of_week && !cmt.days_of_week.includes(isoDay)) continue;
+                        if (cmt.days_of_week && !cmt.days_of_week.includes(dayOfWeek)) continue;
                         const cStart = timeToMin(cmt.start_time);
                         const cEnd = timeToMin(cmt.end_time);
                         // Strict overlap: block starts before commitment ends AND ends after commitment starts

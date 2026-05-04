@@ -34,13 +34,16 @@ export default function HomePage() {
 
     const briefingAttempted = useRef(false);
 
+    const [proactiveSuggestion, setProactiveSuggestion] = useState<any>(null);
+
     const fetchHomeData = async () => {
         try {
             const today = new Date().toISOString().split('T')[0];
             const timestamp = Date.now();
-            const [summaryData, stateData] = await Promise.all([
+            const [summaryData, stateData, proactiveData] = await Promise.all([
                 apiClient.get<any>(`/api/home/summary?date=${today}&t=${timestamp}`),
-                apiClient.get<any>(`/api/home/state?date=${today}&t=${timestamp}`)
+                apiClient.get<any>(`/api/home/state?date=${today}&t=${timestamp}`),
+                apiClient.coach.getProactiveSuggestion().catch(() => null)
             ]);
 
             if (summaryData) {
@@ -49,6 +52,9 @@ export default function HomePage() {
             }
             if (stateData) {
                 setStateData(stateData);
+            }
+            if (proactiveData && proactiveData.has_suggestion) {
+                setProactiveSuggestion(proactiveData.suggestion);
             }
         } catch (e) {
             console.error(e);
@@ -67,6 +73,13 @@ export default function HomePage() {
             handleGenerateBriefing();
         }
     }, [loading, data, briefing]);
+
+    // Pipeline Trigger: Auto-route to Calendar Constraint Solver if a new goal was added
+    useEffect(() => {
+        if (!loading && data?.needs_rescheduling) {
+            router.push('/app/calendar?action=optimize_day');
+        }
+    }, [loading, data, router]);
 
     const handleRefresh = () => {
         fetchHomeData();
@@ -208,6 +221,30 @@ export default function HomePage() {
                         className="px-4 py-2 bg-orange-500/20 text-orange-400 text-xs font-bold rounded-lg hover:bg-orange-500/30 transition-colors"
                     >
                         Plan Now
+                    </button>
+                </div>
+            )}
+
+            {proactiveSuggestion && (
+                <div className="mb-6 bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 rounded-2xl p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <span className="text-[var(--color-primary)] text-xl">✨</span>
+                        <div>
+                            <h4 className="text-[var(--color-primary)] font-bold text-sm">{proactiveSuggestion.title}</h4>
+                            <p className="text-[var(--color-primary)]/70 text-xs">{proactiveSuggestion.message}</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => {
+                            if (proactiveSuggestion.id === 'no-schedule' || proactiveSuggestion.id === 'goal-sync-needed') {
+                                router.push('/app/calendar?action=optimize_day');
+                            } else {
+                                router.push(`/app/coach?mode=strategic&prompt=${encodeURIComponent(proactiveSuggestion.message)}`);
+                            }
+                        }}
+                        className="px-4 py-2 bg-[var(--color-primary)]/20 text-[var(--color-primary)] text-xs font-bold rounded-lg hover:bg-[var(--color-primary)]/30 transition-colors"
+                    >
+                        {proactiveSuggestion.action_label || 'Resolve'}
                     </button>
                 </div>
             )}

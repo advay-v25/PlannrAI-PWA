@@ -34,6 +34,22 @@ export function DayOptimizerModal({ date, onClose, onApply, optimizeDay }: DayOp
     optimizeDayRef.current = optimizeDay;
     onCloseRef.current = onClose;
 
+    const loadingTexts = [
+        "Reading constraints & commitments...",
+        "Analyzing flow state & energy arc...",
+        "Generating optimized blocks...",
+        "Finalizing schedule options..."
+    ];
+    const [loadingStage, setLoadingStage] = useState(0);
+
+    useEffect(() => {
+        if (step !== 'analyzing') return;
+        const interval = setInterval(() => {
+            setLoadingStage(prev => (prev + 1) % loadingTexts.length);
+        }, 4000);
+        return () => clearInterval(interval);
+    }, [step]);
+
     // Auto-start analysis — runs ONCE on mount only
     useEffect(() => {
         let isMounted = true;
@@ -92,7 +108,15 @@ export function DayOptimizerModal({ date, onClose, onApply, optimizeDay }: DayOp
                     {step === 'analyzing' && (
                         <div className="py-12 text-center space-y-4">
                             <div className="w-16 h-16 mx-auto rounded-full border-4 border-[var(--color-primary)]/30 border-t-[var(--color-primary)] animate-spin" />
-                            <p className="text-sm font-medium animate-pulse">Analyzing your energy & schedule...</p>
+                            <motion.p 
+                                key={loadingStage}
+                                initial={{ opacity: 0, y: 5 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -5 }}
+                                className="text-sm font-medium animate-pulse"
+                            >
+                                {loadingTexts[loadingStage]}
+                            </motion.p>
                         </div>
                     )}
 

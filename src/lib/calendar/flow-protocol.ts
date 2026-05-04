@@ -189,7 +189,12 @@ export function buildFlowPromptFragment(
     fragment += `━━━ TRANSITIONS ━━━\n`;
     fragment += `• Same-pillar back-to-back: 5-10 min buffer (context is warm)\n`;
     fragment += `• Different-pillar switch: 15 min transition buffer\n`;
-    fragment += `• After a fixed commitment (e.g. Work): 20 min decompression buffer before new deep work\n`;
+    fragment += `• After a fixed commitment (e.g. Work): 20 min decompression buffer before new deep work\n\n`;
+
+    // Add habit stack rules
+    fragment += `━━━ HABIT STACKS ━━━\n`;
+    fragment += `• If you schedule a block that is a "trigger habit" for an active Habit Stack, you MUST immediately append a block for the "action habit" directly after it.\n`;
+    fragment += `• Do not separate a trigger habit and its action habit with breaks or other tasks.\n`;
 
     return fragment;
 }

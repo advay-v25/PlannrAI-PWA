@@ -70,5 +70,19 @@ export class ReactiveGoalService {
                 false // Don't trigger extraction for assistant messages
             );
         }
+
+        // 5. Pipeline Trigger: Set needs_rescheduling flag for Proactive Banner / Home Page
+        const { data: profile } = await supabase.from('profiles').select('bio_data').eq('id', userId).single();
+        if (profile) {
+            const bioData = (profile.bio_data as any) || {};
+            await supabase.from('profiles').update({
+                bio_data: {
+                    ...bioData,
+                    needs_rescheduling: true,
+                    pending_goal_update: goal.title,
+                    pending_goal_id: goal.id
+                }
+            }).eq('id', userId);
+        }
     }
 }

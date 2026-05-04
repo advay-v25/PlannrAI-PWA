@@ -116,7 +116,7 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
 
     return (
         <DndContext onDragEnd={handleDragEnd} sensors={sensors}>
-            <div className="h-full overflow-y-auto relative no-scrollbar" ref={gridRef}>
+            <div className="h-full overflow-auto relative no-scrollbar" ref={gridRef}>
 
                 {/* Day Headers */}
                 <div className="sticky top-0 z-20 flex border-b border-white/[0.06] bg-black/95 backdrop-blur-xl">
@@ -174,12 +174,14 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                         const dayBlocks = blocks.filter(b => isSameDay(new Date(b.date), day));
                         const layoutMap = dayLayouts.get(dayIndex) || new Map();
                         const isToday = isSameDay(day, new Date());
+                        const isPast = day < new Date(new Date().setHours(0,0,0,0));
 
                         return (
                             <div key={dayIndex} className={cn(
                                 "flex-1 border-r border-white/[0.04] last:border-r-0 relative",
                                 viewMode === 'day' ? 'min-w-0' : 'min-w-[110px]',
-                                isToday && "bg-orange-500/[0.02]"
+                                isToday && "bg-[var(--color-primary)]/[0.03]",
+                                isPast && "bg-black/20 opacity-80"
                             )}>
                                 {/* Hour Droppables */}
                                 {HOURS.map(h => (

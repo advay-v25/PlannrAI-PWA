@@ -472,8 +472,8 @@ function CalendarPageInner() {
 
                 {/* Grid Area */}
                 <main className="flex-1 overflow-hidden relative">
-                    {/* Empty State for Today */}
-                    {!hasScheduleToday && !isLoading && viewDateStr === todayStr && (
+                    {/* Empty State for Today — only in Day view */}
+                    {viewMode === 'day' && !hasScheduleToday && !isLoading && viewDateStr === todayStr && (
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}

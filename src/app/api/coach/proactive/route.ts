@@ -46,10 +46,31 @@ export async function GET(request: NextRequest) {
 
         const completedBlocks = blocks.filter((b: any) => b.status === 'completed');
 
+        // Check for needs_rescheduling flag in profile
+        const { data: profile } = await supabase.from('profiles').select('bio_data').eq('id', user.id).single();
+        const bioData = (profile?.bio_data as any) || {};
+        const needsRescheduling = bioData.needs_rescheduling === true;
+        const pendingGoal = bioData.pending_goal_update || 'your new goal';
+
         // Generate a proactive suggestion based on schedule state
         let suggestion = null;
 
-        if (missedBlocks.length >= 3) {
+        if (needsRescheduling) {
+            suggestion = {
+                id: 'goal-sync-needed',
+                trigger_type: 'goal_added',
+                title: 'Schedule Optimization Required',
+                message: `I noticed you updated "${pendingGoal}". Should I re-optimize your week to fit it in?`,
+                action_label: 'Optimize Schedule',
+                priority: 'high',
+            };
+            
+            // Auto-clear the flag so we don't spam them if they ignore it
+            await supabase.from('profiles').update({
+                bio_data: { ...bioData, needs_rescheduling: false }
+            }).eq('id', user.id);
+
+        } else if (missedBlocks.length >= 3) {
             suggestion = {
                 id: 'missed-blocks',
                 trigger_type: 'missed_blocks',

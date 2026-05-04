@@ -23,7 +23,7 @@ export interface CoachContext {
         title: string;
         start_time: string;
         end_time: string;
-        days_of_week: string[];
+        days_of_week: number[];
         is_locked: boolean;
     }>;
 
@@ -106,9 +106,9 @@ export async function buildCoachContext(
         missedBlocksRes
     ] = await Promise.all([
         supabase.from('goals')
-            .select('id, title, pillar, weekly_target_minutes, current_streak_days, priority, is_active')
+            .select('id, title, pillar, weekly_target_minutes, current_streak_days, priority, status, energy_demand, minutes_per_day, days_per_week, ai_strategy')
             .eq('user_id', userId)
-            .eq('is_active', true),
+            .eq('status', 'active'),
 
         supabase.from('commitments')
             .select('id, title, start_time, end_time, days_of_week, is_active')
@@ -128,16 +128,18 @@ export async function buildCoachContext(
             .order('start_time'),
 
         supabase.from('energy_checkins')
-            .select('level')
+            .select('energy_level, emotional_state')
             .eq('user_id', userId)
-            .order('checked_at', { ascending: false })
+            .order('checked_in_at', { ascending: false })
             .limit(1)
             .maybeSingle(),
 
-        supabase.from('coach_learned_preferences')
-            .select('category, preference_key, preference_value, natural_language')
+        // coach_learned_preferences doesn't exist — use memory_facts for behavioral intelligence
+        supabase.from('memory_facts')
+            .select('key, value, kind')
             .eq('user_id', userId)
-            .eq('is_active', true),
+            .eq('kind', 'preference')
+            .limit(20),
 
         // Count missed blocks in last 24 hours (relative to local today)
         supabase.from('schedule_blocks')
@@ -153,10 +155,17 @@ export async function buildCoachContext(
     const todayBlocks = todayBlocksRes.data || [];
     const tomorrowBlocks = tomorrowBlocksRes.data || [];
     const lastEnergy = energyRes.data;
-    const preferences = preferencesRes.data || [];
+    // Transform memory_facts into the learned_preferences shape the Coach expects
+    const rawFacts = preferencesRes.data || [];
+    const preferences = rawFacts.map((f: any) => ({
+        category: f.kind || 'general',
+        preference_key: f.key || '',
+        preference_value: f.value,
+        natural_language: typeof f.value === 'string' ? f.value : (f.value?.description || f.key || ''),
+    }));
     const missedCount = missedBlocksRes.count || 0;
 
-    const isMinimalMode = determineMinimalMode(lastEnergy?.level, missedCount);
+    const isMinimalMode = determineMinimalMode(lastEnergy?.energy_level?.toString(), missedCount);
 
     const todayWithLocks = markLockedBlocks(todayBlocks, commitments, today);
     const tomorrowWithLocks = markLockedBlocks(tomorrowBlocks, commitments, tomorrow);
@@ -209,10 +218,11 @@ function markLockedBlocks(
     commitments: any[],
     date: string
 ): ScheduleBlock[] {
-    const dayOfWeek = getDayOfWeek(date);
+    // DB stores days_of_week as number[]: Sun=0, Mon=1...Sat=6
+    const dayNum = new Date(date + 'T12:00:00').getDay();
 
     const lockedTimes = commitments
-        .filter(c => c.days_of_week.includes(dayOfWeek))
+        .filter(c => (c.days_of_week || []).includes(dayNum))
         .map(c => ({ start: c.start_time, end: c.end_time }));
 
     return blocks.map(block => {

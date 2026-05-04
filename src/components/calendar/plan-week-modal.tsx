@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
@@ -31,13 +31,29 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context }: PlanWeekM
     const [options, setOptions] = useState<CalendarOption[]>([]);
     const [selectedOption, setSelectedOption] = useState<CalendarOption | null>(null);
 
+    const loadingTexts = [
+        "Analyzing weekly constraints...",
+        "Evaluating habit stacks...",
+        "Drafting optimal schedules...",
+        "Refining options..."
+    ];
+    const [loadingStage, setLoadingStage] = useState(0);
+
+    useEffect(() => {
+        if (step !== 'generating') return;
+        const interval = setInterval(() => {
+            setLoadingStage(prev => (prev + 1) % loadingTexts.length);
+        }, 4000);
+        return () => clearInterval(interval);
+    }, [step]);
+
     const handleGenerate = async () => {
         setStep('generating');
         try {
             // Call API via the passed hook function
             const result = await planWeek({
                 mode: selectedMode,
-                allow_weekend: false // or user pref
+                allow_weekend: true // Schedule the entire week, including weekends
             });
 
             if (result && result.options) {
@@ -155,8 +171,15 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context }: PlanWeekM
                                     <div className="absolute inset-0 rounded-full border-4 border-t-[var(--color-primary)] animate-spin" />
                                     <Sparkles className="absolute inset-0 m-auto w-6 h-6 text-[var(--color-primary)] animate-pulse" />
                                 </div>
-                                <p className="font-medium">Architecting your week...</p>
-                                <p className="text-sm text-[var(--text-tertiary)]">Considering constraints, energy, and goals.</p>
+                                <motion.p 
+                                    key={loadingStage}
+                                    initial={{ opacity: 0, y: 5 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -5 }}
+                                    className="font-medium animate-pulse"
+                                >
+                                    {loadingTexts[loadingStage]}
+                                </motion.p>
                             </motion.div>
                         )}
 

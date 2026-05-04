@@ -66,7 +66,7 @@ export const GET = secureApiRoute(
 
         // Filter blocks for valid calculation (exclude buffers if desired, but "planned" usually implies all active blocks)
         // Valid types: anchor, body, craft, mind, meal
-        const validTypes = ['anchor', 'body', 'craft', 'mind', 'meal'];
+        const validTypes = ['anchor', 'goal', 'meal', 'routine', 'buffer', 'flex', 'wind_down', 'sleep', 'body', 'craft', 'mind'];
         const validBlocks = (blocks as any[])?.filter((b: any) => validTypes.includes(b.block_type)) || [];
 
         validBlocks.forEach((b: any) => {
@@ -159,6 +159,7 @@ export const GET = secureApiRoute(
             },
             nextWeekPlanned: nextWeekBlocks && nextWeekBlocks.length > 0,
             ai_profile: (profile as any)?.bio_data?.ai_profile || null,
+            needs_rescheduling: (profile as any)?.bio_data?.needs_rescheduling === true,
             insight
         });
     },

@@ -1,5 +1,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import { apiClient } from '@/lib/api-client';
 import type { ScheduleBlock, Goal, Commitment, HabitStack } from '@/types/database';
@@ -23,9 +24,12 @@ export interface ConflictError {
     pendingAction: { type: 'create' | 'move'; payload: any };
 }
 
-export function useCalendar() {
+export function useCalendar(initialDate: Date = new Date()) {
+    const router = useRouter();
+    const { showToast } = useToast();
+
     // View State
-    const [selectedDate, setSelectedDate] = useState(new Date());
+    const [selectedDate, setSelectedDate] = useState(initialDate);
     const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
     // Data State
@@ -47,7 +51,7 @@ export function useCalendar() {
     const [isOptimizing, setIsOptimizing] = useState(false);
     const [isPlanning, setIsPlanning] = useState(false);
 
-    const { showToast } = useToast();
+
 
     const loadData = useCallback(async () => {
         setState(prev => ({ ...prev, isLoading: true }));
@@ -116,6 +120,9 @@ export function useCalendar() {
         } catch (e: any) {
             const conflictData = e.data?.error?.details || e.data;
             if (e.status === 409 && conflictData?.conflict) {
+                const conflictPrompt = encodeURIComponent(`I just tried to add a block to my schedule but it conflicts. Please help me resolve the conflict for ${blockData.start_time}-${blockData.end_time}.`);
+                router.push(`/app/coach?mode=strategic&prompt=${conflictPrompt}`);
+                
                 setConflictError({
                     conflict: true,
                     options: conflictData.resolution_options,
@@ -146,6 +153,11 @@ export function useCalendar() {
 
             const conflictData = e.data?.error?.details || e.data;
             if (e.status === 409 && conflictData?.conflict) {
+                // Intercept Conflict -> Auto-Open Coach
+                const conflictPrompt = encodeURIComponent(`I just tried to move a block but it conflicts with my schedule. Please help me resolve the conflict for block ID: ${id} to ${newStart}-${newEnd}.`);
+                router.push(`/app/coach?mode=strategic&prompt=${conflictPrompt}`);
+                
+                // Fallback (in case router fails or user goes back, we still have state)
                 setConflictError({
                     conflict: true,
                     options: conflictData.resolution_options,
