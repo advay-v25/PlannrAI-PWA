@@ -344,7 +344,7 @@ PATCH OPERATION TYPES:
 
 🚨 OUTPUT FORMAT (STRICT JSON ONLY):
 - Return a single valid JSON object.
-- NO markdown formatting (no ```json).
+- NO markdown formatting (no \`\`\`json).
 - NO text before or after the JSON.
 - "summary": Must be a conversational string in your persona. NEVER include JSON or operations inside the summary string.
 {
