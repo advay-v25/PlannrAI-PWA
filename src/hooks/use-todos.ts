@@ -4,28 +4,24 @@ import { apiClient } from '@/lib/api-client';
 export interface TodoItem {
     id: string;
     title: string;
+    description?: string | null;
     is_completed: boolean;
     assigned_block_id?: string | null;
     due_date?: string | null;
     priority?: 'low' | 'medium' | 'high';
-}
-
-export interface TodoList {
-    id: string;
-    title: string;
-    color: string | null;
-    todos: TodoItem[];
+    created_at?: string;
+    order_index?: number;
 }
 
 export function useTodos() {
-    const [lists, setLists] = useState<TodoList[]>([]);
+    const [todos, setTodos] = useState<TodoItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    const loadLists = useCallback(async () => {
+    const loadTodos = useCallback(async () => {
         try {
-            const data = await apiClient.get<TodoList[]>('/api/todos');
+            const data = await apiClient.get<TodoItem[]>('/api/todos');
             if (data) {
-                setLists(Array.isArray(data) ? data : []);
+                setTodos(Array.isArray(data) ? data : []);
             }
         } catch (e) {
             console.error("Failed to load todos:", e);
@@ -35,74 +31,75 @@ export function useTodos() {
     }, []);
 
     useEffect(() => {
-        loadLists();
-    }, [loadLists]);
+        loadTodos();
+    }, [loadTodos]);
 
-    const addList = async (title: string) => {
-        const data = await apiClient.post<any>('/api/todos', { action: 'create_list', title });
-        if (data && data.list) {
-            setLists(prev => [...prev, { ...data.list, todos: [] }]);
-            window.dispatchEvent(new CustomEvent('calendar-refresh'));
-        }
-    };
-
-    const deleteList = async (listId: string) => {
-        setLists(prev => prev.filter(l => l.id !== listId));
-        await apiClient.post('/api/todos', { action: 'delete_list', listId });
-        window.dispatchEvent(new CustomEvent('calendar-refresh'));
-    };
-
-    const addTodo = async (listId: string, title: string, dueDate?: string, priority?: string) => {
+    const addTodo = async (title: string, description?: string, dueDate?: string, priority?: 'low' | 'medium' | 'high') => {
+        const orderIndex = todos.length > 0 ? Math.max(...todos.map(t => t.order_index || 0)) + 1 : 0;
         const data = await apiClient.post<any>('/api/todos', { 
             action: 'create_todo', 
-            listId, 
             title,
+            description,
             dueDate,
-            priority
+            priority,
+            orderIndex
         });
         if (data && data.todo) {
-            setLists(prev => prev.map(l => {
-                if (l.id === listId) {
-                    return { ...l, todos: [...l.todos, data.todo] };
-                }
-                return l;
-            }));
+            setTodos(prev => [...prev, data.todo]);
             window.dispatchEvent(new CustomEvent('calendar-refresh'));
         }
     };
 
     const toggleTodo = async (todoId: string, isCompleted: boolean) => {
-        setLists(prev => prev.map(l => ({
-            ...l,
-            todos: l.todos.map(t => t.id === todoId ? { ...t, is_completed: isCompleted } : t)
-        })));
+        setTodos(prev => prev.map(t => t.id === todoId ? { ...t, is_completed: isCompleted } : t));
         await apiClient.post('/api/todos', { action: 'toggle_todo', todoId, isCompleted });
         window.dispatchEvent(new CustomEvent('calendar-refresh'));
     };
 
+    const updateTodo = async (todoId: string, updates: { title?: string, description?: string, dueDate?: string, priority?: 'low' | 'medium' | 'high', isCompleted?: boolean }) => {
+        setTodos(prev => prev.map(t => {
+            if (t.id === todoId) {
+                return {
+                    ...t,
+                    title: updates.title !== undefined ? updates.title : t.title,
+                    description: updates.description !== undefined ? updates.description : t.description,
+                    due_date: updates.dueDate !== undefined ? updates.dueDate : t.due_date,
+                    priority: updates.priority !== undefined ? updates.priority : t.priority,
+                    is_completed: updates.isCompleted !== undefined ? updates.isCompleted : t.is_completed
+                };
+            }
+            return t;
+        }));
+        await apiClient.post('/api/todos', { action: 'update_todo', todoId, ...updates });
+        window.dispatchEvent(new CustomEvent('calendar-refresh'));
+    };
+
     const deleteTodo = async (todoId: string) => {
-        setLists(prev => prev.map(l => ({
-            ...l,
-            todos: l.todos.filter(t => t.id !== todoId)
-        })));
+        setTodos(prev => prev.filter(t => t.id !== todoId));
         await apiClient.post('/api/todos', { action: 'delete_todo', todoId });
         window.dispatchEvent(new CustomEvent('calendar-refresh'));
     };
 
+    const reorderTodos = async (reorderedTodos: TodoItem[]) => {
+        setTodos(reorderedTodos);
+        const updates = reorderedTodos.map((t, index) => ({ id: t.id, order_index: index }));
+        await apiClient.post('/api/todos', { action: 'reorder_todos', updates });
+    };
+
     const dumpThoughts = async (text: string) => {
         await apiClient.post('/api/todos/dump', { text });
-        await loadLists(); // refresh entirely to snag the ai-created ones
+        await loadTodos();
         window.dispatchEvent(new CustomEvent('calendar-refresh'));
     };
 
     return {
-        lists,
+        todos,
         isLoading,
-        addList,
-        deleteList,
         addTodo,
         toggleTodo,
+        updateTodo,
         deleteTodo,
+        reorderTodos,
         dumpThoughts
     };
 }

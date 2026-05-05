@@ -4,19 +4,19 @@ export const GET = secureApiRoute(
     async (context) => {
         const { userId, supabase } = context;
         try {
-            // Fetch all lists with their nested active and completed todos
-            const { data: lists, error } = await supabase
-                .from('todo_lists')
+            // Fetch all active and completed todos for the user
+            const { data: todos, error } = await supabase
+                .from('todos')
                 .select(`
-                    id, title, color, created_at,
-                    todos (id, title, is_completed, assigned_block_id, due_date, priority, created_at)
+                    id, title, description, is_completed, assigned_block_id, due_date, priority, created_at, order_index
                 `)
                 .eq('user_id', userId)
-                .order('created_at', { ascending: true });
+                .order('order_index', { ascending: true })
+                .order('created_at', { ascending: false });
 
             if (error) throw error;
 
-            return apiSuccess(lists || []);
+            return apiSuccess(todos || []);
         } catch (e: any) {
             return apiError(e.message, 500);
         }
@@ -26,30 +26,31 @@ export const GET = secureApiRoute(
 
 export const POST = secureApiRoute(
     async (context, body) => {
-        const { action, listId, todoId, title, isCompleted, dueDate, priority } = body as any;
+        const { 
+            action, 
+            todoId, 
+            title, 
+            isCompleted, 
+            dueDate, 
+            priority, 
+            description, 
+            orderIndex, 
+            updates 
+        } = body as any;
         const { userId, supabase } = context;
 
         try {
-            if (action === 'create_list') {
-                const { data, error } = await supabase
-                    .from('todo_lists')
-                    .insert({ user_id: userId, title, color: 'var(--color-primary)' })
-                    .select()
-                    .single();
-                if (error) throw error;
-                return apiSuccess(data);
-            }
-
             if (action === 'create_todo') {
                 const { data, error } = await supabase
                     .from('todos')
                     .insert({ 
                         user_id: userId, 
-                        list_id: listId, 
                         title, 
+                        description: description || null,
                         is_completed: false,
                         due_date: dueDate || null,
-                        priority: priority || 'medium'
+                        priority: priority || 'medium',
+                        order_index: orderIndex !== undefined ? orderIndex : 0
                     })
                     .select()
                     .single();
@@ -69,6 +70,25 @@ export const POST = secureApiRoute(
                 return apiSuccess(data);
             }
 
+            if (action === 'update_todo') {
+                const updatePayload: any = {};
+                if (title !== undefined) updatePayload.title = title;
+                if (description !== undefined) updatePayload.description = description;
+                if (dueDate !== undefined) updatePayload.due_date = dueDate;
+                if (priority !== undefined) updatePayload.priority = priority;
+                if (isCompleted !== undefined) updatePayload.is_completed = isCompleted;
+
+                const { data, error } = await supabase
+                    .from('todos')
+                    .update(updatePayload)
+                    .eq('id', todoId)
+                    .eq('user_id', userId)
+                    .select()
+                    .single();
+                if (error) throw error;
+                return apiSuccess(data);
+            }
+
             if (action === 'delete_todo') {
                 const { error } = await supabase
                     .from('todos')
@@ -79,14 +99,21 @@ export const POST = secureApiRoute(
                 return apiSuccess({ deleted: true });
             }
 
-            if (action === 'delete_list') {
-                const { error } = await supabase
-                    .from('todo_lists')
-                    .delete()
-                    .eq('id', listId)
-                    .eq('user_id', userId);
-                if (error) throw error;
-                return apiSuccess({ deleted: true });
+            if (action === 'reorder_todos') {
+                if (!updates || !Array.isArray(updates)) return apiError("Invalid updates format", 400);
+
+                // Supabase doesn't easily do bulk updates with distinct values in JS client without upsert.
+                // We will do parallel updates for simplicity since the list shouldn't be huge.
+                const promises = updates.map(u => 
+                    supabase
+                        .from('todos')
+                        .update({ order_index: u.order_index })
+                        .eq('id', u.id)
+                        .eq('user_id', userId)
+                );
+                
+                await Promise.all(promises);
+                return apiSuccess({ success: true });
             }
 
             return apiError("Unknown action", 400);
