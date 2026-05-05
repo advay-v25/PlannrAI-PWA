@@ -171,19 +171,28 @@ export class WeekOrchestrator {
 
         // 6) Place sessions using scoring + constraints + spacing rules
         const createdGoalBlocks: Omit<ScheduleBlockRow, "id">[] = [];
-        for (const session of sessions) {
+        const sessionsToPlace = [...sessions];
+        
+        while (sessionsToPlace.length > 0) {
+            const session = sessionsToPlace.shift()!;
             const chosen = this.findBestSlotForSession(dayCtxs, session);
-            if (!chosen) {
-                // Spillover / failure note: do not spam stack; record missing session
-                // In MVP: skip and note. Later: backlog.
+            
+            if (chosen) {
+                const block = this.sessionToBlock(userId, session, chosen);
+                createdGoalBlocks.push(block);
+
+                const dc = dayCtxs.find((d) => d.date === block.date)!;
+                dc.placed.push(block);
+                dc.blocked.push(this.blockToSlot(block)); // treat placed block as occupied for later placements
+            } else if (session.minutes > 20) {
+                // If a large session doesn't fit, split it and try to place the pieces to ensure total minutes are met
+                const firstHalf = Math.floor(session.minutes / 2);
+                sessionsToPlace.push({ ...session, minutes: firstHalf });
+                sessionsToPlace.push({ ...session, minutes: session.minutes - firstHalf });
+            } else {
+                // Could not place even a small slice, move on but this is rare
                 continue;
             }
-            const block = this.sessionToBlock(userId, session, chosen);
-            createdGoalBlocks.push(block);
-
-            const dc = dayCtxs.find((d) => d.date === block.date)!;
-            dc.placed.push(block);
-            dc.blocked.push(this.blockToSlot(block)); // treat placed block as occupied for later placements
         }
 
         // 7) Build patch
@@ -403,34 +412,40 @@ export class WeekOrchestrator {
                 const slot = this.findBestMealSlot(dc, searchStart, searchEnd, duration);
                 if (slot) {
                     out.push(this.makeMealBlock(dc, "Breakfast", slot.startMin, slot.endMin));
-                    // buffer (try to place, optional if tight)
+                    // Add buffer to blocked so nothing is scheduled here, but don't create a visible block
                     if (!this.overlapsAny(dc.blocked, { date: dc.date, startMin: slot.endMin, endMin: slot.endMin + buffer })) {
-                        out.push(this.makeBufferBlock(dc, "Post-breakfast buffer", slot.endMin, slot.endMin + buffer));
+                        dc.blocked.push({ date: dc.date, startMin: slot.endMin, endMin: slot.endMin + buffer });
                     }
                 }
             }
 
-            // Lunch: 12:00–15:00
+            // Lunch: 12:30–14:30 whenever possible
             {
-                const win = dc.prefs.meal_windows.lunch;
-                const slot = this.findBestMealSlot(dc, this.hhmmToMin(win.start), this.hhmmToMin(win.end), duration);
+                const startSearch = this.hhmmToMin("12:30");
+                const endSearch = this.hhmmToMin("14:30");
+                const slot = this.findBestMealSlot(dc, startSearch, endSearch, duration);
                 if (slot) {
                     out.push(this.makeMealBlock(dc, "Lunch", slot.startMin, slot.endMin));
                     if (!this.overlapsAny(dc.blocked, { date: dc.date, startMin: slot.endMin, endMin: slot.endMin + buffer })) {
-                        out.push(this.makeBufferBlock(dc, "Post-lunch buffer", slot.endMin, slot.endMin + buffer));
+                        dc.blocked.push({ date: dc.date, startMin: slot.endMin, endMin: slot.endMin + buffer });
                     }
                 }
             }
 
-            // Dinner: 18:30–21:30
+            // Dinner: 19:30 onwards, every single day no matter what
             {
-                const win = dc.prefs.meal_windows.dinner;
-                const slot = this.findBestMealSlot(dc, this.hhmmToMin(win.start), this.hhmmToMin(win.end), duration);
-                if (slot) {
-                    out.push(this.makeMealBlock(dc, "Dinner", slot.startMin, slot.endMin));
-                    if (!this.overlapsAny(dc.blocked, { date: dc.date, startMin: slot.endMin, endMin: slot.endMin + buffer })) {
-                        out.push(this.makeBufferBlock(dc, "Post-dinner buffer", slot.endMin, slot.endMin + buffer));
-                    }
+                const startSearch = this.hhmmToMin("19:30");
+                const endSearch = 1440; // up to midnight
+                let slot = this.findBestMealSlot(dc, startSearch, endSearch, duration);
+                
+                // If STILL not found (fully blocked by anchors? Very unlikely, but force it to ensure it's always present)
+                if (!slot) {
+                    slot = { date: dc.date, startMin: startSearch, endMin: startSearch + duration };
+                }
+
+                out.push(this.makeMealBlock(dc, "Dinner", slot.startMin, slot.endMin));
+                if (!this.overlapsAny(dc.blocked, { date: dc.date, startMin: slot.endMin, endMin: slot.endMin + buffer })) {
+                    dc.blocked.push({ date: dc.date, startMin: slot.endMin, endMin: slot.endMin + buffer });
                 }
             }
         }
@@ -515,8 +530,10 @@ export class WeekOrchestrator {
             let weight = 1.0;
 
             if (isWeekend) {
-                if (dc.prefs.weekend_intensity === 'off') weight = 0;
-                else if (dc.prefs.weekend_intensity === 'light') weight = 0.6;
+                // Ensure weekend activity by providing a healthy weight even if 'off' or 'light'
+                if (dc.prefs.weekend_intensity === 'off') weight = 0.8;
+                else if (dc.prefs.weekend_intensity === 'light') weight = 0.9;
+                else weight = 1.0;
             }
 
             schedulePlan.push({ date: dc.date, isWeekend, weight });
@@ -566,28 +583,45 @@ export class WeekOrchestrator {
             let weeklyMinutesRemaining = g.minutes_per_day * (g.days_per_week ?? 7);
             if (reduceIntensity) weeklyMinutesRemaining *= 0.8;
 
-            // Distribute across days with available bucket space
-            for (const date of sortedDates) {
-                if (weeklyMinutesRemaining <= 0) break;
-                if (dailyBuckets[date] <= 0) continue;
+            let pass = 0;
+            // Loop until we schedule all minutes, allowing up to 10 passes to heavily overcrowd if necessary (especially on weekends)
+            while (weeklyMinutesRemaining > 0 && pass < 10) {
+                pass++;
+                let madeProgress = false;
+                
+                // Distribute across days with available bucket space
+                for (const date of sortedDates) {
+                    if (weeklyMinutesRemaining <= 0) break;
+                    
+                    // On the first pass, strictly respect the dailyBucket target minutes
+                    if (pass === 1 && dailyBuckets[date] <= 0) continue;
 
-                // How much to take? 
-                const sessionLen = Math.min(60, g.minutes_per_day, weeklyMinutesRemaining);
+                    // On passes > 1, prioritize days that have FEWER anchors (like weekends)
+                    // We don't have anchor info here easily, but the placement logic will naturally fail on full days and succeed on empty days
+                    
+                    // Allow blocks to be larger to ensure we hit the goals, up to 4 hours or the daily goal chunk
+                    const sessionLen = Math.min(240, Math.max(g.minutes_per_day, 60), weeklyMinutesRemaining);
 
-                // Add session
-                sessions.push({
-                    goalId: g.id,
-                    title: g.title,
-                    pillar: g.pillar,
-                    priority: g.priority,
-                    energy: (g.energy ?? "medium") as Energy,
-                    minutes: sessionLen,
-                    preferred: (Array.isArray(g.preferred_windows) ? g.preferred_windows : []) as any,
-                    date: date
-                });
+                    if (sessionLen <= 0) continue;
 
-                weeklyMinutesRemaining -= sessionLen;
-                dailyBuckets[date] -= sessionLen;
+                    // Add session
+                    sessions.push({
+                        goalId: g.id,
+                        title: g.title,
+                        pillar: g.pillar,
+                        priority: g.priority,
+                        energy: (g.energy ?? "medium") as Energy,
+                        minutes: sessionLen,
+                        preferred: (Array.isArray(g.preferred_windows) ? g.preferred_windows : []) as any,
+                        date: date
+                    });
+
+                    weeklyMinutesRemaining -= sessionLen;
+                    dailyBuckets[date] -= sessionLen;
+                    madeProgress = true;
+                }
+                
+                if (!madeProgress) break; // Could not allocate any more minutes (all days failed to take a chunk)
             }
         }
 
@@ -733,7 +767,7 @@ export class WeekOrchestrator {
         // 5. Weekend Intensity Check
         const dow = this.dayOfWeek(slot.date);
         const isWeekend = dow === 0 || dow === 6;
-        if (dc.prefs.weekend_intensity === "off" && isWeekend) score -= 5000;
+        if (dc.prefs.weekend_intensity === "off" && isWeekend) score -= 100; // Drastically reduced penalty to allow activity
 
         return score;
     }

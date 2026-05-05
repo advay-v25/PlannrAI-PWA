@@ -253,9 +253,8 @@ export async function generateWeekPlan(
         bioTemplates.push({ title: 'Lunch', block_type: 'meal', start, end: safeAddMins(start, 45) });
     }
     if (mealsPerDay >= 3) {
-        let start = (mealWindows as any)?.dinner?.start || '19:00';
-        // Sanity: Dinner after 18:00
-        if (timeToMinutes(start) < 1080) start = '19:00';
+        // ALWAYS Dinner after 19:30
+        let start = '19:30';
         bioTemplates.push({ title: 'Dinner', block_type: 'meal', start, end: safeAddMins(start, 45) });
     }
 
@@ -318,17 +317,18 @@ PERFORMANCE RULES:
 9. MEAL DEDUPLICATION: Do NOT generate Breakfast, Lunch, Dinner, or Sleep blocks — these are added automatically. Only generate goal, routine, buffer, and flex blocks.
 10. WEEKEND PARITY: Saturday and Sunday MUST be treated as high-capacity scheduling days. Do NOT reduce load on weekends unless the PLANNING MODE is specifically 'RECOVERY'. If weekdays are saturated with anchors, use the weekends to absorb the remaining weekly goal targets.
 11. WEEKLY TARGET ADHERENCE: Calculate the 'Goals need' minutes carefully. If a goal has 300 minutes/week, you MUST distribute those 300 minutes across the 7 days. Do not settle for less if capacity exists.
+12. DINNER & LUNCH: Dinner MUST ALWAYS be after 19:30. Lunch MUST ALWAYS be between 12:30 and 14:30.
 
 FLOW-STATE ARCHITECTURE (apply to EVERY day):
 - Each day follows the user's energy arc (Ramp-Up → Peak → Trough → Rebound → Wind-Down)
 - Deep work blocks: 60-120min MAX, followed by 15-20min Active Recovery
-- Max 4-5 deep work cycles per day (240-480 min total)
+- There is NO LIMIT on the number of blocks per day. Fill the entire waking window (excluding meals and anchors) with goal blocks until weekly targets are hit.
 - For high-duration goals (e.g. >90min/day), you MUST schedule multiple blocks for that goal throughout the day or stack them with recovery buffers.
 - Morning (ramp-up): routine, breakfast, light prep — NO deep work
 - Peak: highest-energy goal blocks (deep focus)
 - Trough (post-lunch): lunch, admin, light tasks
 - Rebound: creative work, moderate goals, exercise
-- Wind-down: dinner, light review, evening routine
+- Wind-down: dinner, light review
 - 15min transition buffers between different types of work
 
 🧠 PILLAR DISTRIBUTION — DYNAMIC, NOT FORMULAIC:
@@ -402,10 +402,10 @@ ${context.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION 
 
 🚨 SCHEDULING AROUND COMMITMENTS:
 - If the user has a large commitment (e.g., "Work" 09:00-17:00), you MUST still fill the MORNING window (wake to commitment start - 30min) and EVENING window (commitment end + 30min to wind-down) with goal blocks, meals, routines, and buffers.
-- Example with Work 09:00-17:00: Morning Routine (07:00), Breakfast (07:30), Goal 1 (08:00-09:30 - Deep Session), then after work: Buffer (17:30), Goal 2 (17:45-19:15 - Deep Session), Dinner (19:30), Goal 3 (20:15-21:00), Evening Routine, Wind-down.
+- Example with Work 09:00-17:00: Morning Routine (07:00), Breakfast (07:30), Goal 1 (08:00-09:30 - Deep Session), then after work: Buffer (17:30), Goal 2 (17:45-19:15 - Deep Session), Dinner (19:30), Goal 3 (20:15-21:00), Wind-down.
 - NEVER leave the morning or evening windows empty. These are prime goal-completion windows.
-- Each weekday should have 3-8 goal/activity blocks OUTSIDE of fixed commitments.
-- Weekend Utilization: Saturdays and Sundays should be used for goal completion exactly like weekdays. If the user has fewer anchors on weekends, increase the density of goal blocks to ensure weekly targets are achieved.
+- There is NO LIMIT to the number of blocks you can schedule. As long as it is within waking hours and doesn't clash with an anchor, schedule it to hit the weekly goal target.
+- Weekend Utilization: Saturdays and Sundays should be PACKED with goal completion exactly like weekdays. Schedule MORE than the default amount of blocks on weekends since there are no anchors, to make up time and ensure weekly targets are achieved.
 - Generate COMPLETE, FILLED schedules — not just Breakfast + 1 block.
 
 Generate up to 3 variants, but ALL variants MUST reflect the requested PLANNING MODE: ${mode.toUpperCase()}.
@@ -696,15 +696,18 @@ function generateFallbackSchedule(ctx: CalendarContext, weekStart: string, allow
 
         // Place afternoon/evening goals after commitments
         for (const goal of dayGoals.slice(1)) {
-            const duration = Math.min(goal.minutes_per_day || 30, 90);
+            const duration = Math.min(goal.minutes_per_day || 30, 120);
             placeBlock(goal.title, 'goal', duration, goal.id, goal.pillar);
         }
 
-        // Dinner
-        placeBlock('Dinner', 'meal', 45);
-
-        // Evening Routine
-        placeBlock('Evening Routine', 'routine', 15);
+        // Dinner: Always after 19:30
+        blocks.push({
+            date,
+            start_time: '19:30',
+            end_time: '20:15',
+            title: 'Dinner',
+            block_type: 'meal',
+        });
     }
 
     return [{

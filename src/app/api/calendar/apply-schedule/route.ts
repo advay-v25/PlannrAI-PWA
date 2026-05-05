@@ -95,8 +95,9 @@ export const POST = secureApiRoute(
                 if (action === 'manual') {
                     deleteQuery = deleteQuery.or('is_locked.is.null,is_locked.eq.false');
                 } else {
-                    // AI Re-planning must NEVER delete Anchors or user-locked chunks
-                    deleteQuery = deleteQuery.or('is_locked.is.null,is_locked.eq.false')
+                    // AI Re-planning must NEVER delete Anchors or user-locked chunks.
+                    // However, it SHOULD clear previous planner-generated meals/sleep to allow fresh placement.
+                    deleteQuery = deleteQuery.or('is_locked.is.null,is_locked.eq.false,block_type.in.(meal,sleep,buffer)')
                                              .neq('block_type', 'anchor');
                 }
 
@@ -121,7 +122,9 @@ export const POST = secureApiRoute(
                 if (action === 'manual') {
                     deleteQuery = deleteQuery.or('is_locked.is.null,is_locked.eq.false');
                 } else {
-                    deleteQuery = deleteQuery.or('is_locked.is.null,is_locked.eq.false')
+                    // AI Re-planning must NEVER delete Anchors or user-locked chunks.
+                    // However, it SHOULD clear previous planner-generated meals/sleep to allow fresh placement.
+                    deleteQuery = deleteQuery.or('is_locked.is.null,is_locked.eq.false,block_type.in.(meal,sleep,buffer)')
                                              .neq('block_type', 'anchor');
                 }
 
