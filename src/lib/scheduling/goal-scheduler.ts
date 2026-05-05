@@ -67,10 +67,11 @@ export class GoalScheduler {
 
             if (slot) {
                 changes.push({
-                    op: 'CREATE_ANCHOR',
+                    op: 'create_block',
                     title: 'Goal Session',
-                    start_ts: slot.start.toISOString(),
-                    end_ts: slot.end.toISOString(),
+                    date: format(slot.start, 'yyyy-MM-dd'),
+                    start_time: format(slot.start, 'HH:mm'),
+                    end_time: format(slot.end, 'HH:mm'),
                     locked: false,
                     block_type: 'goal',
                 });
@@ -146,10 +147,11 @@ export class GoalScheduler {
                 summary: `No free space found. I've placed a candidate slot for you to review.`,
                 affected_date: format(forcedDate, 'yyyy-MM-dd'),
                 changes: [{
-                    op: 'CREATE_ANCHOR',
+                    op: 'create_block',
                     title: `[Review] ${goal.title}`,
-                    start_ts: forcedStart.toISOString(),
-                    end_ts: addMinutes(forcedStart, duration).toISOString(),
+                    date: format(forcedStart, 'yyyy-MM-dd'),
+                    start_time: format(forcedStart, 'HH:mm'),
+                    end_time: format(addMinutes(forcedStart, duration), 'HH:mm'),
                     locked: false,
                     goal_id: goal.id,
                     block_type: 'goal',
