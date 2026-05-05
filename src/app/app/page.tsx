@@ -283,16 +283,16 @@ export default function HomePage() {
                             } catch (e) {
                                 toast.error('Failed to update block');
                             }
-                        } else if (action === 'complete_block' || action === 'fail_block') {
+                        } else if (action === 'complete_early' || action === 'mark_incomplete') {
                             if (!effectiveState.active_block?.id) return;
-                            const status = action === 'complete_block' ? 'done' : 'missed';
+                            const status = action === 'complete_early' ? 'done' : 'missed';
                             toast.loading('Updating block...');
                             try {
                                 await apiClient.post('/api/calendar/block-status', {
                                     block_id: effectiveState.active_block.id,
                                     status
                                 });
-                                toast.success(action === 'complete_block' ? 'Block completed! Great job.' : 'Block marked missed.');
+                                toast.success(action === 'complete_early' ? 'Block completed early! Great job.' : 'Block marked incomplete.');
                                 handleRefresh();
                             } catch (e) {
                                 toast.error('Failed to update block');

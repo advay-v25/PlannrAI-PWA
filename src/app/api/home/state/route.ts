@@ -52,16 +52,34 @@ export const GET = secureApiRoute(
             const dayOfWeek = new Date(isoDate).getDay();
             const isWeekend = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0;
 
-            // 2. Fetch Today's Blocks — resilient
+            // 2. Fetch Today's Blocks and Anchors
             let blocks: any[] = [];
             try {
-                const { data } = await supabase
+                const { data: scheduleBlocks } = await supabase
                     .from('schedule_blocks')
                     .select('*')
                     .eq('user_id', userId)
-                    .eq('date', isoDate)
-                    .order('start_time', { ascending: true });
-                blocks = data || [];
+                    .eq('date', isoDate);
+                
+                const { data: commitments } = await supabase
+                    .from('commitments')
+                    .select('*')
+                    .eq('user_id', userId);
+
+                // Filter commitments by dayOfWeek
+                const activeCommitments = (commitments || []).filter(c => 
+                    c.days_of_week && c.days_of_week.includes(dayOfWeek) && c.is_active !== false
+                ).map(c => ({
+                    ...c,
+                    block_type: 'anchor',
+                    date: isoDate
+                }));
+
+                blocks = [...(scheduleBlocks || []), ...activeCommitments].sort((a, b) => {
+                    if (a.start_time < b.start_time) return -1;
+                    if (a.start_time > b.start_time) return 1;
+                    return 0;
+                });
             } catch (e) {
                 console.warn('[HomeState] Blocks fetch failed:', e);
             }
@@ -125,6 +143,7 @@ export const GET = secureApiRoute(
                     currentState = 'DAY_COMPLETE';
                 }
                 else {
+                    let foundState = false;
                     for (let i = 0; i < blocks.length; i++) {
                         const block = blocks[i];
                         const startMins = timeToMinutes(block.start_time);
@@ -135,6 +154,7 @@ export const GET = secureApiRoute(
                             activeBlock = block;
                             timeRemainingInBlock = endMins - currentMins;
                             if (i + 1 < blocks.length) nextBlock = blocks[i + 1];
+                            foundState = true;
                             break;
                         }
                         else if (currentMins >= endMins && i + 1 < blocks.length) {
@@ -143,9 +163,13 @@ export const GET = secureApiRoute(
                                 currentState = 'BETWEEN_BLOCKS';
                                 nextBlock = blocks[i + 1];
                                 timeUntilNextBlock = nextStartMins - currentMins;
+                                foundState = true;
                                 break;
                             }
                         }
+                    }
+                    if (!foundState && currentMins >= timeToMinutes(lastBlock.end_time)) {
+                        currentState = 'DAY_COMPLETE';
                     }
                 }
 

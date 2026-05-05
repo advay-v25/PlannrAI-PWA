@@ -106,12 +106,12 @@ export function StateHero({ state, currentTime, activeBlock, nextBlock, metrics,
                             />
                         </div>
 
-                        <div className="flex gap-3">
-                            <GlassButton variant="primary" className="flex-1" onClick={() => onAction('complete_block')}>
-                                <Check size={18} className="mr-2" /> Mark Complete
+                        <div className="flex gap-3 mt-8">
+                            <GlassButton variant="primary" className="flex-1 text-sm bg-[var(--color-primary)] hover:bg-[var(--color-primary)]/80 text-black border-transparent" onClick={() => onAction('complete_early')}>
+                                <Check size={18} className="mr-2" /> Complete Early
                             </GlassButton>
-                            <GlassButton variant="danger" className="px-4" onClick={() => onAction('fail_block')}>
-                                <X size={18} />
+                            <GlassButton variant="ghost" className="flex-1 text-sm border-white/10 hover:bg-white/5 hover:text-[var(--color-red)] text-white/70" onClick={() => onAction('mark_incomplete')}>
+                                <X size={18} className="mr-2" /> Mark Incomplete
                             </GlassButton>
                         </div>
                     </div>
