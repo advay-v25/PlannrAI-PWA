@@ -75,7 +75,10 @@ export function computeDayPhases(
     const troughEnd = Math.min(wakeMinutes + 420 + offset, windDownMinutes); // wake + 7h
     const reboundStart = troughEnd;
     const reboundEnd = Math.min(wakeMinutes + 600 + offset, windDownMinutes); // wake + 10h
-    const windDownStart = reboundEnd;
+    
+    // SANITY CHECK: Wind-down should ideally not start before 18:00 (1080 mins) 
+    // unless the user sleeps extremely early.
+    const windDownStart = Math.max(reboundEnd, Math.min(1080, windDownMinutes - 60));
 
     const phases: DayPhase[] = [];
 

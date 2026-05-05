@@ -26,6 +26,7 @@ export interface WeekPlanVariant {
         total_blocks: number;
         total_hours: number;
         days_with_work: number;
+        unscheduled_minutes: Record<string, number>; // Mapping goal title -> missing minutes
     };
 }
 
@@ -77,7 +78,7 @@ function normalizeBlockType(type: string): string {
 
 /** Enforces strict overlap rules: zero overlaps with other blocks, commitments, and meals.
  *  Also enforces a 2-hour post-meal buffer for body-pillar activities. */
-function enforceFlowState(blocks: PlanBlock[], commitments: any[]): PlanBlock[] {
+function enforceFlowState(blocks: PlanBlock[], commitments: any[], sleepStartMins: number = 1350): PlanBlock[] {
     const timeToMin = (t: string) => {
         const [h, m] = t.split(':').map(Number);
         return (h || 0) * 60 + (m || 0);
@@ -180,8 +181,8 @@ function enforceFlowState(blocks: PlanBlock[], commitments: any[]): PlanBlock[] 
                 attempts++;
             }
 
-            // Only place if it fits within waking hours (before 23:59)
-            if (bStart + duration <= 1440) {
+            // Only place if it fits before sleepStartMins (or 23:59)
+            if (bStart + duration <= Math.min(sleepStartMins, 1440)) {
                 const shifted = { ...block };
                 shifted.start_time = minToTime(bStart);
                 shifted.end_time = minToTime(bStart + duration);
@@ -207,7 +208,8 @@ function enforceFlowState(blocks: PlanBlock[], commitments: any[]): PlanBlock[] 
 export async function generateWeekPlan(
     context: CalendarContext,
     weekStartDate: string,
-    mode: 'balanced' | 'momentum' | 'recovery' = 'balanced'
+    mode: 'balanced' | 'momentum' | 'recovery' = 'balanced',
+    allowWeekend: boolean = true
 ): Promise<WeekPlanVariant[]> {
     const weekEndDate = format(addDays(parseISO(weekStartDate), 6), 'yyyy-MM-dd');
     const windDown = calculateWindDown(context);
@@ -244,11 +246,16 @@ export async function generateWeekPlan(
         bioTemplates.push({ title: 'Breakfast', block_type: 'meal', start, end: safeAddMins(start, 30) });
     }
     if (mealsPerDay >= 2) {
-        const start = (mealWindows as any)?.lunch?.start || '12:30';
+        let start = (mealWindows as any)?.lunch?.start || '12:30';
+        // Sanity: Lunch between 11:30 and 14:30
+        const startMins = timeToMinutes(start);
+        if (startMins < 690 || startMins > 870) start = '12:30';
         bioTemplates.push({ title: 'Lunch', block_type: 'meal', start, end: safeAddMins(start, 45) });
     }
     if (mealsPerDay >= 3) {
-        const start = (mealWindows as any)?.dinner?.start || '19:00';
+        let start = (mealWindows as any)?.dinner?.start || '19:00';
+        // Sanity: Dinner after 18:00
+        if (timeToMinutes(start) < 1080) start = '19:00';
         bioTemplates.push({ title: 'Dinner', block_type: 'meal', start, end: safeAddMins(start, 45) });
     }
 
@@ -297,6 +304,7 @@ export async function generateWeekPlan(
 - You MUST NOT schedule any goals or routines that overlap with an anchor.
 - You MUST leave a 30-minute "buffer" before and after every anchor.
 - Anchors are your primary temporal constraints. If a goal cannot fit due to an anchor, do not schedule it; find a different time.
+- WEEKEND PLANNING: ${allowWeekend ? 'ENABLED. Schedule goals and routines on Saturday and Sunday exactly as you would on weekdays. If weekdays are full, shift the load to the weekend.' : 'DISABLED. Do not schedule any goal blocks on Saturday or Sunday.'}
 
 PERFORMANCE RULES:
 1. NEVER schedule during sleep hours (${context.user.sleep_start} to ${context.user.sleep_end})
@@ -308,11 +316,14 @@ PERFORMANCE RULES:
 7. GOAL DISTRIBUTION: Spread goals EVENLY throughout the day. Do NOT cluster goals at the start or end of the day. Aim for at least one goal in mid-morning, one in mid-afternoon, and one in early evening. NEVER place more than 2 consecutive goal blocks without a buffer/break between them.
 8. BODY-PILLAR BUFFER: NEVER schedule 'body' pillar activities (exercise, sports, physical training) within 2 HOURS after any meal (Breakfast, Lunch, Dinner). Place body activities at least 2 hours after meals.
 9. MEAL DEDUPLICATION: Do NOT generate Breakfast, Lunch, Dinner, or Sleep blocks — these are added automatically. Only generate goal, routine, buffer, and flex blocks.
+10. WEEKEND PARITY: Saturday and Sunday MUST be treated as high-capacity scheduling days. Do NOT reduce load on weekends unless the PLANNING MODE is specifically 'RECOVERY'. If weekdays are saturated with anchors, use the weekends to absorb the remaining weekly goal targets.
+11. WEEKLY TARGET ADHERENCE: Calculate the 'Goals need' minutes carefully. If a goal has 300 minutes/week, you MUST distribute those 300 minutes across the 7 days. Do not settle for less if capacity exists.
 
 FLOW-STATE ARCHITECTURE (apply to EVERY day):
 - Each day follows the user's energy arc (Ramp-Up → Peak → Trough → Rebound → Wind-Down)
-- Deep work blocks: 60-90min MAX, followed by 15-20min Active Recovery
-- Max 3-4 deep work cycles per day (180-360 min total)
+- Deep work blocks: 60-120min MAX, followed by 15-20min Active Recovery
+- Max 4-5 deep work cycles per day (240-480 min total)
+- For high-duration goals (e.g. >90min/day), you MUST schedule multiple blocks for that goal throughout the day or stack them with recovery buffers.
 - Morning (ramp-up): routine, breakfast, light prep — NO deep work
 - Peak: highest-energy goal blocks (deep focus)
 - Trough (post-lunch): lunch, admin, light tasks
@@ -340,9 +351,12 @@ ${(mealWindows as any)?.dinner ? `- Dinner preferred window: ${(mealWindows as a
 You MUST return valid JSON with exactly 1 to 3 variants (ensure at least 1) optimized for the requested PLANNING MODE.`;
 
     const goalsText = context.goals.length > 0
-        ? context.goals.map(g =>
-            `  - ${g.title} (${g.pillar.toUpperCase()}, ${g.energy_demand} energy): ${g.weekly_target_minutes}min/week (~${Math.round(g.weekly_target_minutes / 60 * 10) / 10}h), ID: ${g.id}\n    AI Strategy: ${g.ai_strategy ? JSON.stringify(g.ai_strategy) : 'None'}`
-        ).join('\n')
+        ? context.goals.map(g => {
+            const progress = context.goalProgress?.find(gp => gp.goal_id === g.id);
+            const remaining = progress ? progress.remaining_minutes : g.weekly_target_minutes;
+            const dailyTarget = g.minutes_per_day || Math.round(g.weekly_target_minutes / (g.days_per_week || 5));
+            return `  - ${g.title} (${g.pillar.toUpperCase()}, ${g.energy_demand} energy): Target ${g.weekly_target_minutes}min/week (~${dailyTarget}min/day), REMAINING: ${remaining}min. ID: ${g.id}\n    AI Strategy: ${g.ai_strategy ? JSON.stringify(g.ai_strategy) : 'None'}`;
+        }).join('\n')
         : '  (No goals set — generate suggested focus blocks)';
 
     const DAY_NAMES = ['Unknown', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays', 'Sundays'];
@@ -388,9 +402,10 @@ ${context.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION 
 
 🚨 SCHEDULING AROUND COMMITMENTS:
 - If the user has a large commitment (e.g., "Work" 09:00-17:00), you MUST still fill the MORNING window (wake to commitment start - 30min) and EVENING window (commitment end + 30min to wind-down) with goal blocks, meals, routines, and buffers.
-- Example with Work 09:00-17:00: Morning Routine (07:00), Breakfast (07:30), Goal 1 (08:00-08:30), then after work: Buffer (17:30), Goal 2 (17:45-18:30), Dinner (19:00), Goal 3 (19:45-20:30), Evening Routine, Wind-down.
+- Example with Work 09:00-17:00: Morning Routine (07:00), Breakfast (07:30), Goal 1 (08:00-09:30 - Deep Session), then after work: Buffer (17:30), Goal 2 (17:45-19:15 - Deep Session), Dinner (19:30), Goal 3 (20:15-21:00), Evening Routine, Wind-down.
 - NEVER leave the morning or evening windows empty. These are prime goal-completion windows.
 - Each weekday should have 3-8 goal/activity blocks OUTSIDE of fixed commitments.
+- Weekend Utilization: Saturdays and Sundays should be used for goal completion exactly like weekdays. If the user has fewer anchors on weekends, increase the density of goal blocks to ensure weekly targets are achieved.
 - Generate COMPLETE, FILLED schedules — not just Breakfast + 1 block.
 
 Generate up to 3 variants, but ALL variants MUST reflect the requested PLANNING MODE: ${mode.toUpperCase()}.
@@ -425,11 +440,21 @@ OUTPUT FORMAT (strict JSON):
       "stats": {
         "total_blocks": 25,
         "total_hours": 18.5,
-        "days_with_work": 5
+        "days_with_work": 7,
+        "unscheduled_minutes": {
+          "[Goal Title]": 45
+        }
       }
     }
   ]
-}`;
+}
+
+🚨 GAP ANALYSIS (CRITICAL):
+- If you cannot fit a goal's daily or weekly target due to anchors, you MUST report the missing minutes in "unscheduled_minutes".
+- Be aggressive: Use all available free time between anchors and routines to hit targets.
+- If a day is full, look for space on other days (especially weekends).
+- Efficiency is priority #1. A packed schedule is better than an empty one.
+`;
 
     // ── Call AI ──────────────────────────────────────────────────
 
@@ -445,7 +470,7 @@ OUTPUT FORMAT (strict JSON):
 
     if (!response.success || !response.data?.variants?.length) {
         console.warn('[PlanWeek] AI failed, using fallback:', response.error);
-        return generateFallbackSchedule(context, weekStartDate);
+        return generateFallbackSchedule(context, weekStartDate, allowWeekend);
     }
 
     // ── Validate & Clean ────────────────────────────────────────
@@ -532,7 +557,8 @@ function cleanVariant(raw: any, ctx: CalendarContext, weekStart: string, index: 
     // Merge bio blocks + AI blocks, then run flow enforcement on the COMBINED set
     // This ensures meals are treated as immovable exclusion zones
     const mergedBlocks = [...globalBioBlocks, ...deduplicatedBlocks];
-    const finalBlocks = enforceFlowState(mergedBlocks, ctx.commitments);
+    const sleepStartMins = timeToMinutes(ctx.user.sleep_start || '22:30');
+    const finalBlocks = enforceFlowState(mergedBlocks, ctx.commitments, sleepStartMins);
 
     const totalMins = finalBlocks.reduce((sum, b) => {
         return sum + Math.max(0, timeToMinutes(b.end_time) - timeToMinutes(b.start_time));
@@ -550,13 +576,14 @@ function cleanVariant(raw: any, ctx: CalendarContext, weekStart: string, index: 
             total_blocks: finalBlocks.length,
             total_hours: Math.round(totalMins / 60 * 10) / 10,
             days_with_work: uniqueDays.size,
+            unscheduled_minutes: raw.stats?.unscheduled_minutes || {},
         },
     };
 }
 
 // ── Fallback (Deterministic) ─────────────────────────────────────
 
-function generateFallbackSchedule(ctx: CalendarContext, weekStart: string): WeekPlanVariant[] {
+function generateFallbackSchedule(ctx: CalendarContext, weekStart: string, allowWeekend: boolean = true): WeekPlanVariant[] {
     const blocks: PlanBlock[] = [];
     const wakeMin = timeToMinutes(ctx.user.sleep_end || '07:00');
     const windDownMin = timeToMinutes(calculateWindDown(ctx));
@@ -577,8 +604,9 @@ function generateFallbackSchedule(ctx: CalendarContext, weekStart: string): Week
 
     // Distribute goals across days in round-robin (3 goals per day)
     const goalsPerDay = 3;
+    const daysToPlan = allowWeekend ? 7 : 5;
 
-    for (let day = 0; day < 5; day++) {
+    for (let day = 0; day < daysToPlan; day++) {
         const date = format(addDays(parseISO(weekStart), day), 'yyyy-MM-dd');
         const dayOfWeek = new Date(date + 'T12:00:00').getDay();
         const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
@@ -646,7 +674,7 @@ function generateFallbackSchedule(ctx: CalendarContext, weekStart: string): Week
 
         // Place morning goals (before any commitment)
         for (const goal of dayGoals.slice(0, 1)) {
-            const duration = Math.min(goal.minutes_per_day || 30, 45);
+            const duration = Math.min(goal.minutes_per_day || 30, 120);
             placeBlock(goal.title, 'goal', duration, goal.id, goal.pillar);
         }
 
@@ -668,7 +696,7 @@ function generateFallbackSchedule(ctx: CalendarContext, weekStart: string): Week
 
         // Place afternoon/evening goals after commitments
         for (const goal of dayGoals.slice(1)) {
-            const duration = Math.min(goal.minutes_per_day || 30, 45);
+            const duration = Math.min(goal.minutes_per_day || 30, 90);
             placeBlock(goal.title, 'goal', duration, goal.id, goal.pillar);
         }
 
@@ -690,6 +718,7 @@ function generateFallbackSchedule(ctx: CalendarContext, weekStart: string): Week
             total_hours: Math.round(blocks.reduce((sum, b) =>
                 sum + Math.max(0, timeToMinutes(b.end_time) - timeToMinutes(b.start_time)), 0) / 60 * 10) / 10,
             days_with_work: 5,
+            unscheduled_minutes: {},
         },
     }];
 }

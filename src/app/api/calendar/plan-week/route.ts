@@ -23,7 +23,8 @@ export const POST = secureApiRoute(
             return apiError(`Invalid input: ${validation.error.message}`, 400);
         }
 
-        const { start_date, mode } = validation.data;
+        const { start_date, mode, allow_weekend } = validation.data;
+        const allowWeekend = allow_weekend !== false; // Default to true if not explicitly false
 
         // 2. Determine week start (default to current week's Monday)
         let weekStart: string;
@@ -39,7 +40,7 @@ export const POST = secureApiRoute(
             const calendarCtx = await buildCalendarContext(userId, supabase);
 
             // 4. Generate AI variants
-            const variants = await generateWeekPlan(calendarCtx, weekStart, mode);
+            const variants = await generateWeekPlan(calendarCtx, weekStart, mode, allowWeekend);
 
             // 5. Convert to option format expected by frontend
             const options = variants.map(v => ({
@@ -47,6 +48,11 @@ export const POST = secureApiRoute(
                 label: v.label,
                 description: v.description,
                 tradeoff: v.philosophy,
+                analysis: {
+                    unscheduled: v.stats.unscheduled_minutes,
+                    total_hours: v.stats.total_hours,
+                    days_with_work: v.stats.days_with_work,
+                },
                 patch: {
                     ops: v.blocks.map(b => ({
                         op: 'create_event' as const,

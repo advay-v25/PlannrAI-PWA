@@ -56,9 +56,21 @@ export class ReactiveGoalService {
         if (conversation) {
             const messageContent = JSON.stringify({
                 text: `I noticed you updated "${goal.title}". I've prepared a schedule adjustment for it.`,
+                options: [
+                    {
+                        id: `goal_sync_${Date.now()}`,
+                        title: 'Apply Schedule Adjustment',
+                        description: `Automatically places ${patch.changes.length} sessions in your calendar.`,
+                        impact: 'Updates calendar seamlessly',
+                        patch: {
+                            ops: patch.changes,
+                            undoable: true
+                        },
+                        recommended: true
+                    }
+                ],
                 metadata: {
-                    type: 'proposal_card',
-                    patch: patch
+                    type: 'proposal_card'
                 }
             });
 

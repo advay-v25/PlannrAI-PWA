@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -7,7 +6,7 @@ import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
 import type { Patch } from '@/lib/ai/schemas';
 import {
-    Calendar, Sparkles, X, Check, Loader2, ArrowRight, Zap, Battery, Activity
+    Calendar, Sparkles, X, Check, Loader2, ArrowRight, Zap, Battery, Activity, AlertTriangle
 } from 'lucide-react';
 
 export interface CalendarOption {
@@ -15,6 +14,11 @@ export interface CalendarOption {
     label: string;
     description: string;
     tradeoff: string;
+    analysis?: {
+        unscheduled: Record<string, number>;
+        total_hours: number;
+        days_with_work: number;
+    };
     patch: Patch;
 }
 
@@ -209,11 +213,29 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context }: PlanWeekM
                                                 {selectedOption === opt && <Check className="w-4 h-4 text-[var(--color-success)]" />}
                                             </div>
                                             <p className="text-xs text-[var(--text-secondary)]">{opt.description}</p>
-                                            <div className="mt-2 flex gap-2">
+                                            <div className="mt-2 flex flex-wrap gap-2">
                                                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-[var(--text-tertiary)]">
                                                     {opt.patch?.ops.length || 0} Changes
                                                 </span>
+                                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-[var(--text-tertiary)]">
+                                                    {opt.analysis?.total_hours || 0}h Total
+                                                </span>
                                             </div>
+                                            
+                                            {opt.analysis?.unscheduled && Object.keys(opt.analysis.unscheduled).length > 0 && (
+                                                <div className="mt-3 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                                                    <p className="text-[10px] text-amber-400 font-bold mb-1 flex items-center gap-1">
+                                                        <AlertTriangle className="w-3 h-3" /> GAP ANALYSIS:
+                                                    </p>
+                                                    <div className="space-y-0.5">
+                                                        {Object.entries(opt.analysis.unscheduled).map(([goal, mins]) => (
+                                                            <p key={goal} className="text-[10px] text-amber-200/70">
+                                                                • {goal}: {mins}m unfilled
+                                                            </p>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </button>
                                     ))}
                                 </div>
