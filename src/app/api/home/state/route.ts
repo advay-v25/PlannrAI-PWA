@@ -37,11 +37,20 @@ export const GET = secureApiRoute(
                 console.warn('[HomeState] Profile fetch failed:', e);
             }
 
-            // Use user's timezone for date/time calculations
-            const timezone = profile?.timezone || 'UTC';
+            // Use user's timezone for date/time calculations (safely fallback if invalid)
+            let timezone = profile?.timezone || 'UTC';
             const now = new Date();
-            const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
-            const timeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false });
+            let dateFormatter: Intl.DateTimeFormat;
+            let timeFormatter: Intl.DateTimeFormat;
+            try {
+                dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
+                timeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false });
+            } catch (e) {
+                console.warn(`[HomeState] Invalid timezone string: ${timezone}, falling back to UTC`);
+                timezone = 'UTC';
+                dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' });
+                timeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false });
+            }
 
             // Use provided date param or the user's local date
             const dateParam = context.request.nextUrl.searchParams.get('date');
