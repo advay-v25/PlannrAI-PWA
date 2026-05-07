@@ -562,7 +562,7 @@ export function ActionCenter() {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.2, delay: index * 0.03 }}
                             draggable
-                            onDragStart={(e) => handleDragStart(e, index)}
+                            onDragStart={(e) => handleDragStart(e as any, index)}
                             onDragOver={handleDragOver}
                             onDrop={(e) => handleDrop(e, index)}
                             onDragEnd={() => setDraggedIndex(null)}
