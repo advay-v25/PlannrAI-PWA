@@ -44,8 +44,9 @@ export function useTodos() {
             priority,
             orderIndex
         });
-        if (data && data.todo) {
-            setTodos(prev => [...prev, data.todo]);
+        // apiClient unwraps the ApiEnvelope, so `data` is the raw todo row directly
+        if (data && data.id) {
+            setTodos(prev => [...prev, data]);
             window.dispatchEvent(new CustomEvent('calendar-refresh'));
         }
     };

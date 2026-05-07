@@ -177,12 +177,21 @@ function generateVariant(
 
     // Deep copy exclusions so we can modify them per variant
     const exclusions = new Map<number, Array<{ start: number; end: number; title: string, type: string }>>();
+    const weekendIntensity = ctx.user.weekend_intensity || 'normal';
+    // Light weekend = hard 4PM (960 mins) cutoff on Sat/Sun
+    const LIGHT_WEEKEND_CUTOFF = 960; // 16:00
+
     for (let [d, ex] of baseExclusions.entries()) {
         exclusions.set(d, ex.map(e => ({ ...e })));
     }
 
-    // Sort goals based on importance (High importance first)
-    const sortedGoals = [...ctx.goals].sort((a, b) => (b.importance || 5) - (a.importance || 5));
+    // Sort goals: Largest Total Time first, then by importance
+    const sortedGoals = [...ctx.goals].sort((a, b) => {
+        const aTotal = (a.days_per_week || 5) * (a.minutes_per_day || 60);
+        const bTotal = (b.days_per_week || 5) * (b.minutes_per_day || 60);
+        if (bTotal !== aTotal) return bTotal - aTotal;
+        return (b.importance || 5) - (a.importance || 5);
+    });
 
     for (const goal of sortedGoals) {
         const targetDays = goal.days_per_week || 5;
@@ -210,6 +219,12 @@ function generateVariant(
         for (const isoDay of preferredDays) {
             if (daysPlaced >= targetDays) break;
 
+            const isWeekend = isoDay >= 6;
+            const dailyMins = targetMinsPerDay;
+
+            // For light weekends, cap the scheduling window at 4PM
+            const dayWindDown = (isWeekend && weekendIntensity === 'light') ? LIGHT_WEEKEND_CUTOFF : windDownMins;
+
             const dayExclusions = exclusions.get(isoDay)!;
             const dateStr = format(addDays(parseISO(weekStart), isoDay - 1), 'yyyy-MM-dd');
 
@@ -223,10 +238,10 @@ function generateVariant(
             let cursor = wakeMins;
 
             for (const ex of dayExclusions) {
-                // Buffer logic: if goal is body pillar, need 2h buffer after meals
+                // Buffer logic: if goal is body pillar, need 30m buffer after meals
                 let exEnd = ex.end;
                 if (goal.pillar === 'body' && ex.type === 'meal') {
-                    exEnd += 105; // Base meal has 15m buffer, so +105 = 120m buffer total
+                    exEnd += 15; // Base meal has 15m buffer, so +15 = 30m buffer total
                 }
 
                 if (cursor < ex.start) {
@@ -234,14 +249,14 @@ function generateVariant(
                 }
                 cursor = Math.max(cursor, exEnd);
             }
-            if (cursor < windDownMins) {
-                windows.push({ start: cursor, end: windDownMins });
+            if (cursor < dayWindDown) {
+                windows.push({ start: cursor, end: dayWindDown });
             }
 
-            // Find a window that can fit targetMinsPerDay
+            // Find a window that can fit dailyMins
             let placed = false;
             for (const win of windows) {
-                if (win.end - win.start >= targetMinsPerDay) {
+                if (win.end - win.start >= dailyMins) {
                     // Fit it here!
                     let start = win.start;
                     
@@ -254,7 +269,7 @@ function generateVariant(
                     blocks.push({
                         date: dateStr,
                         start_time: minutesToTime(start),
-                        end_time: minutesToTime(start + targetMinsPerDay),
+                        end_time: minutesToTime(start + dailyMins),
                         title: goal.title,
                         block_type: 'goal',
                         goal_id: goal.id,
@@ -265,7 +280,7 @@ function generateVariant(
                     // Add to exclusions for this day (with a 10m buffer after)
                     dayExclusions.push({
                         start: start,
-                        end: start + targetMinsPerDay + 10,
+                        end: start + dailyMins + 10,
                         title: goal.title,
                         type: 'goal'
                     });
@@ -282,6 +297,79 @@ function generateVariant(
             unscheduled_minutes[goal.title] = failedMins;
         }
     }
+
+    // Phase 2: Bonus Fill (Maximize momentum by packing remaining free time)
+    // Only apply bonus fill if weekend_intensity is set to full speed ('normal')
+    if (weekendIntensity === 'normal') {
+        let changed = true;
+    let fallbackCounter = 0;
+    while (changed && fallbackCounter < 100) {
+        changed = false;
+        fallbackCounter++;
+
+        // Cycle through all goals by importance to naturally interleave them
+        for (const goal of [...ctx.goals].sort((a, b) => (b.importance || 5) - (a.importance || 5))) {
+            // EXCLUSION: No bonus blocks for body pillar activities
+            if (goal.pillar === 'body') continue;
+
+            const targetMinsPerDay = goal.minutes_per_day || 60;
+            let placedInCycle = false;
+
+            for (let isoDay = 1; isoDay <= 7; isoDay++) {
+                if (!allowWeekend && (isoDay > 5)) continue;
+
+                const dayExclusions = exclusions.get(isoDay)!;
+                const dateStr = format(addDays(parseISO(weekStart), isoDay - 1), 'yyyy-MM-dd');
+
+                dayExclusions.sort((a, b) => a.start - b.start);
+                const windows: Array<{ start: number; end: number }> = [];
+                let cursor = wakeMins;
+
+                for (const ex of dayExclusions) {
+                    let exEnd = ex.end;
+                    if (goal.pillar === 'body' && ex.type === 'meal') {
+                        exEnd += 15;
+                    }
+                    if (cursor < ex.start) {
+                        windows.push({ start: cursor, end: ex.start });
+                    }
+                    cursor = Math.max(cursor, exEnd);
+                }
+                if (cursor < windDownMins) {
+                    windows.push({ start: cursor, end: windDownMins });
+                }
+
+                for (const win of windows) {
+                    if (win.end - win.start >= targetMinsPerDay) {
+                        const start = win.start;
+                        
+                        blocks.push({
+                            date: dateStr,
+                            start_time: minutesToTime(start),
+                            end_time: minutesToTime(start + targetMinsPerDay),
+                            title: goal.title, // Bonus block
+                            block_type: 'goal',
+                            goal_id: goal.id,
+                            pillar: goal.pillar,
+                            checklist: goal.ai_strategy?.checklist || [{text: "Bonus focus session"}, {text: "Review progress"}]
+                        });
+
+                        dayExclusions.push({
+                            start: start,
+                            end: start + targetMinsPerDay + 10,
+                            title: goal.title,
+                            type: 'goal'
+                        });
+                        placedInCycle = true;
+                        changed = true;
+                        break;
+                    }
+                }
+                if (placedInCycle) break; // Move to the next goal to interleave
+            }
+        }
+    }
+}
 
     const totalMins = blocks.reduce((sum, b) => {
         if (b.block_type === 'sleep' || b.block_type === 'meal') return sum;

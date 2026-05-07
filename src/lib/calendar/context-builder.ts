@@ -23,6 +23,7 @@ export interface CalendarContext {
         body_preferences: any;
         bio_data: any;
         chronotype: string;
+        weekend_intensity: string;
     };
 
 
@@ -166,13 +167,13 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
     const [profileRes, profilePrefsRes, goalsRes, commitmentsRes, habitStacksRes, todayBlocksRes, weekBlocksRes, perfBlocksRes, coachLearningsRes, behaviorPatternsRes, energyStateRes, brainDumpItemsRes] = await Promise.all([
         // 1. Profile
         db.from('profiles')
-            .select('id, first_name, preferred_name, sleep_start, sleep_end, wind_down_mins, wind_down_minutes, energy_level, stress_level, meals_per_day, meal_windows, meal_times, body_preferences, bio_data, peak_windows, low_windows')
+            .select('id, first_name, preferred_name, sleep_start, sleep_end, wind_down_mins, wind_down_minutes, energy_level, stress_level, meals_per_day, meal_windows, meal_times, body_preferences, bio_data, peak_windows, low_windows, weekend_intensity')
             .eq('id', userId)
             .maybeSingle(),
 
         // 1b. Profile Preferences (onboarding may write here)
         db.from('profile_preferences')
-            .select('wake_time, sleep_start, meal_windows, meals_per_day, buffer_min, preferred_windows, workout_preference, workout_min_per_day, wind_down_min, is_workout_protected')
+            .select('wake_time, sleep_start, meal_windows, meals_per_day, buffer_min, preferred_windows, workout_preference, workout_min_per_day, wind_down_min, is_workout_protected, weekend_intensity')
             .eq('user_id', userId)
             .maybeSingle(),
 
@@ -420,6 +421,7 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
             body_preferences: profile.body_preferences || {},
             bio_data: profile.bio_data || {},
             chronotype: (profile.body_preferences as any)?.chronotype || 'bear',
+            weekend_intensity: prefs?.weekend_intensity || profile.weekend_intensity || 'normal',
         },
 
         goals,
