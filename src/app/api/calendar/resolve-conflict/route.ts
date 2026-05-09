@@ -52,7 +52,7 @@ export const POST = secureApiRoute(
                         title: b.title || 'Untitled',
                         start_time: b.start_time,
                         end_time: b.end_time,
-                        block_type: b.block_type || 'task',
+                        block_type: b.block_type || 'flex',
                         pillar: b.pillar
                     })),
                     profile: prefs,

@@ -7,10 +7,12 @@ export interface CalendarPatchOp {
     op: 'create' | 'update' | 'delete' | 'move'
     | 'create_event' | 'update_event' | 'delete_event' | 'move_event'
     | 'update_goal' | 'update_settings'
-    | 'create_anchor' | 'delete_anchor';
+    | 'create_anchor' | 'delete_anchor'
+    | 'create_todo' | 'update_todo' | 'delete_todo';
     event_id?: string;
     goal_id?: string;
     anchor_id?: string;
+    todo_id?: string;
     event?: any;
     payload?: any;
     fields?: Record<string, any>;

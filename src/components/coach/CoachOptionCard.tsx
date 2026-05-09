@@ -10,6 +10,60 @@ interface CoachOptionCardProps {
     minimalMode: boolean;
 }
 
+function formatTime(time: string | undefined): string {
+    if (!time) return '';
+    const [h, m] = time.split(':');
+    const hour = parseInt(h);
+    const ampm = hour >= 12 ? 'pm' : 'am';
+    const hour12 = hour % 12 || 12;
+    return `${hour12}:${m}${ampm}`;
+}
+
+function formatOpLabel(op: any): { icon: string; label: string } {
+    const type = op.op || op.type || '';
+
+    if (type.includes('create_todo')) {
+        return { icon: '☑', label: `Add task: "${op.payload?.title || op.title || 'Task'}"` };
+    }
+    if (type.includes('update_todo')) {
+        const changes = op.fields || op.changes || {};
+        if (changes.is_completed === true) {
+            return { icon: '✓', label: `Complete: "${op.title || 'Task'}"` };
+        }
+        return { icon: '✎', label: `Update task: "${op.title || 'Task'}"` };
+    }
+    if (type.includes('delete_todo')) {
+        return { icon: '✕', label: `Remove task: "${op.title || 'Task'}"` };
+    }
+
+    if (type.includes('create')) {
+        const event = op.event || op.payload || op.data || {};
+        const title = event.title || op.title || 'New Block';
+        const start = event.start_time || op.start_time;
+        const end = event.end_time || op.end_time;
+        const date = event.date || op.date;
+        const timeRange = start && end ? ` → ${formatTime(start)}–${formatTime(end)}` : '';
+        const dateStr = date ? ` (${date})` : '';
+        return { icon: '+', label: `Add: "${title}"${timeRange}${dateStr}` };
+    }
+    if (type.includes('move')) {
+        const title = op.title || 'Block';
+        const start = op.to_start || op.new_start;
+        const end = op.to_end || op.new_end;
+        const timeRange = start && end ? ` → ${formatTime(start)}–${formatTime(end)}` : '';
+        const dateStr = op.date || op.new_date ? ` (${op.date || op.new_date})` : '';
+        return { icon: '↔', label: `Move: "${title}"${timeRange}${dateStr}` };
+    }
+    if (type.includes('delete')) {
+        return { icon: '✕', label: `Remove: "${op.title || 'Block'}"` };
+    }
+    if (type.includes('update')) {
+        return { icon: '✎', label: `Update: "${op.title || 'Block'}"` };
+    }
+
+    return { icon: '•', label: type || 'Operation' };
+}
+
 export function CoachOptionCard({
     option,
     onSelect,
@@ -21,6 +75,12 @@ export function CoachOptionCard({
         caution: 'bg-yellow-500/5 text-yellow-500/80 border-yellow-500/10',
         warning: 'bg-red-500/5 text-red-500/80 border-red-500/10',
     };
+
+    // Read from both .ops (CalendarPatchOp format) and .operations (PatchOperation format)
+    const patchOps = (option.patch as any)?.ops || [];
+    const operations = (option.patch as any)?.operations || [];
+    const displayOps = patchOps.length > 0 ? patchOps : operations;
+    const hasOps = displayOps.length > 0;
 
     return (
         <div
@@ -52,7 +112,7 @@ export function CoachOptionCard({
 
                 {/* Description */}
                 <p className="text-xs text-foreground/60 leading-relaxed italic">
-                    "{option.description}"
+                    &quot;{option.description}&quot;
                 </p>
 
                 {/* Impact Highlight */}
@@ -63,29 +123,30 @@ export function CoachOptionCard({
                     </span>
                 </div>
 
-                {/* Detailed Plan Preview (The 'Plan View' for Big Edits) */}
-                {option.patch?.ops && option.patch.ops.length > 0 && (
+                {/* Proposed Changes — Human-readable timeslot view */}
+                {hasOps && (
                     <div className="space-y-1.5 py-1">
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-foreground/30">Proposed Protocol</span>
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-foreground/30">Proposed Changes</span>
                         <div className="space-y-1">
-                            {option.patch.ops.slice(0, 4).map((op, idx) => {
-                                let label = '';
-                                const type = op.op;
-                                if (type.includes('create')) label = `Add: ${op.event?.title || op.title || 'New block'}`;
-                                else if (type.includes('move')) label = `Move: ${op.title || 'Block'} to ${op.to_start}`;
-                                else if (type.includes('delete')) label = `Cancel: ${op.title || 'Block'}`;
-                                else if (type.includes('update')) label = `Update: ${op.title || 'Block'}`;
-                                
+                            {displayOps.slice(0, 5).map((op: any, idx: number) => {
+                                const { icon, label } = formatOpLabel(op);
+                                const iconColor = icon === '+' || icon === '☑'
+                                    ? 'text-emerald-400'
+                                    : icon === '✕'
+                                        ? 'text-red-400'
+                                        : icon === '↔' || icon === '✎'
+                                            ? 'text-yellow-400'
+                                            : 'text-primary/60';
                                 return (
-                                    <div key={idx} className="flex items-center space-x-2 text-[10px] text-foreground/70">
-                                        <span className="text-primary/60">•</span>
-                                        <span className="line-clamp-1">{label}</span>
+                                    <div key={idx} className="flex items-start space-x-2 text-[11px] text-foreground/70">
+                                        <span className={`${iconColor} font-bold shrink-0 w-3`}>{icon}</span>
+                                        <span className="line-clamp-2">{label}</span>
                                     </div>
                                 );
                             })}
-                            {option.patch.ops.length > 4 && (
-                                <div className="text-[9px] text-foreground/40 pl-3">
-                                    + {option.patch.ops.length - 4} more operations
+                            {displayOps.length > 5 && (
+                                <div className="text-[9px] text-foreground/40 pl-5">
+                                    + {displayOps.length - 5} more operations
                                 </div>
                             )}
                         </div>
@@ -129,7 +190,7 @@ export function CoachOptionCard({
                     }}
                     disabled={disabled}
                 >
-                    <span>{disabled ? 'Applying Neural Protocol...' : option.tradeoff ? 'Review & Execute' : 'Execute Directive'}</span>
+                    <span>{disabled ? 'Applying...' : option.tradeoff ? 'Review & Execute' : 'Review & Execute'}</span>
                 </button>
             </div>
         </div>

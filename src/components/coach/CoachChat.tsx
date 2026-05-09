@@ -25,7 +25,8 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
         applyOption,
         undo,
         clearError,
-        loadHistory
+        loadHistory,
+        resetConversation
     } = useCoach();
 
     // Load history on mount
@@ -81,6 +82,12 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
         await sendMessage(message);
     };
 
+    // Handle quick-chip click — auto-send immediately
+    const handleQuickChip = (text: string) => {
+        if (isLoading) return;
+        sendMessage(text);
+    };
+
     // Handle option selection
     const handleOptionSelect = (option: CoachOption) => {
         // If tradeoff requires confirmation, show modal
@@ -116,6 +123,11 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
         }
     };
 
+    // Handle new chat
+    const handleNewChat = () => {
+        resetConversation();
+    };
+
     return (
         <div className="flex flex-col h-full glass relative overflow-hidden bg-bg-secondary/40">
             {/* Mesh Background Overlay (Subtle) */}
@@ -143,6 +155,16 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
                             <span className="text-[9px] font-bold text-primary uppercase">Minimal</span>
                         </div>
                     )}
+                    {/* New Chat Button */}
+                    <button
+                        onClick={handleNewChat}
+                        className="p-1.5 rounded-lg hover:bg-white/5 transition-colors text-foreground/40 hover:text-foreground/70"
+                        title="New conversation"
+                    >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                    </button>
                     {onClose && (
                         <button
                             onClick={onClose}
@@ -176,7 +198,7 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
                             &quot;I&apos;m overwhelmed,&quot; or &quot;Protect my focus today.&quot;
                         </p>
                         
-                        {/* Proactive Quick-Action Chips */}
+                        {/* Proactive Quick-Action Chips — Auto-send on click */}
                         <div className="flex flex-wrap justify-center gap-2 max-w-[300px] mx-auto">
                             {[
                                 { label: "I'm overwhelmed", emoji: "😵‍💫" },
@@ -188,8 +210,9 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
                             ].map(chip => (
                                 <button
                                     key={chip.label}
-                                    onClick={() => { setInput(chip.label); }}
-                                    className="px-3 py-1.5 bg-white/[0.04] border border-white/[0.08] rounded-full text-xs text-foreground/60 hover:text-foreground hover:bg-white/[0.08] hover:border-primary/30 transition-all"
+                                    onClick={() => handleQuickChip(chip.label)}
+                                    disabled={isLoading}
+                                    className="px-3 py-1.5 bg-white/[0.04] border border-white/[0.08] rounded-full text-xs text-foreground/60 hover:text-foreground hover:bg-white/[0.08] hover:border-primary/30 transition-all disabled:opacity-50"
                                 >
                                     {chip.emoji} {chip.label}
                                 </button>
@@ -205,65 +228,91 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
                         {/* Options UI */}
                         {message.role === 'assistant' && message.options && message.options.length > 0 && (
                             <div className="mt-4 flex flex-col space-y-3 animate-slide-up">
-                                {!message.selected_option_id ? (
+                                {!message.selected_option_id && !message.isApplying ? (
                                     message.options.map(option => (
                                         <CoachOptionCard
                                             key={option.id}
                                             option={option}
                                             onSelect={() => handleOptionSelect(option)}
-                                            disabled={isLoading}
+                                            disabled={isLoading || !!message.isApplying}
                                             minimalMode={minimalMode}
                                         />
                                     ))
-                                ) : (
-                                    <div className="mx-4 p-3 rounded-xl bg-primary/5 border border-primary/20 flex items-center space-x-3">
-                                        <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-[10px] text-white">✓</div>
+                                ) : message.isApplying ? (
+                                    <div className="mx-4 p-3 rounded-xl bg-yellow-500/5 border border-yellow-500/20 flex items-center space-x-3 animate-pulse">
+                                        <div className="w-6 h-6 rounded-full bg-yellow-500/20 flex items-center justify-center text-[10px] text-yellow-400">
+                                            <span className="animate-spin">⚡</span>
+                                        </div>
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] font-bold text-primary uppercase">Strategically Applied</span>
-                                            <span className="text-sm text-foreground/80">
-                                                {message.options.find(o => o.id === message.selected_option_id)?.title}
-                                            </span>
+                                            <span className="text-[10px] font-bold text-yellow-400 uppercase">Applying Changes...</span>
                                         </div>
                                     </div>
+                                ) : (
+                                    <div className="mx-4 p-3 rounded-xl bg-primary/5 border border-primary/20 flex items-center justify-between">
+                                        <div className="flex items-center space-x-3">
+                                            <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-[10px] text-white">✓</div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] font-bold text-primary uppercase">Applied Successfully</span>
+                                                <span className="text-sm text-foreground/80">
+                                                    {message.options.find(o => o.id === message.selected_option_id)?.title}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {message.undoToken && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleUndo();
+                                                }}
+                                                disabled={isLoading}
+                                                className="px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-[10px] font-bold text-red-400 uppercase tracking-wider hover:bg-red-500/20 transition-all disabled:opacity-50 shrink-0"
+                                            >
+                                                ↩ Undo
+                                            </button>
+                                        )}
+                                    </div>
                                 )}
+                            </div>
+                        )}
+
+                        {/* Suggested Actions — Clickable chips after assistant messages */}
+                        {message.role === 'assistant' && message.suggestedActions && message.suggestedActions.length > 0 && !message.selected_option_id && (
+                            <div className="flex flex-wrap gap-2 pl-4 animate-fade-in">
+                                {message.suggestedActions.map((action, i) => (
+                                    <button
+                                        key={i}
+                                        onClick={() => handleQuickChip(action)}
+                                        disabled={isLoading}
+                                        className="px-3 py-1.5 bg-white/[0.04] border border-white/[0.08] rounded-full text-[11px] text-foreground/50 hover:text-foreground hover:bg-primary/10 hover:border-primary/30 transition-all disabled:opacity-50"
+                                    >
+                                        {action}
+                                    </button>
+                                ))}
                             </div>
                         )}
                     </div>
                 ))}
 
+                {/* Loading Indicator — Single unified one */}
                 {isLoading && (
-                    <div className="flex flex-col space-y-2 animate-pulse">
-                        <div className="flex items-start gap-3">
-                            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs shrink-0">
-                                <span className="animate-spin text-sm">⚡</span>
-                            </div>
-                            <div className="flex flex-col space-y-2">
-                                <div className="glass-morphism p-3 rounded-2xl rounded-tl-none max-w-[280px] bg-white/[0.03]">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs text-foreground/40 font-mono italic">
-                                            {loadingStageText}
-                                        </span>
-                                        <div className="flex gap-1">
-                                            <span className="w-1 h-1 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                                            <span className="w-1 h-1 bg-primary rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                                            <span className="w-1 h-1 bg-primary rounded-full animate-bounce"></span>
-                                        </div>
+                    <div className="flex items-start gap-3 animate-fade-in">
+                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs shrink-0">
+                            <span className="animate-spin text-sm">⚡</span>
+                        </div>
+                        <div className="flex flex-col space-y-2">
+                            <div className="glass-morphism p-3 rounded-2xl rounded-tl-none max-w-[280px] bg-white/[0.03]">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-foreground/40 font-mono italic">
+                                        {loadingStageText}
+                                    </span>
+                                    <div className="flex gap-1">
+                                        <span className="w-1 h-1 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+                                        <span className="w-1 h-1 bg-primary rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+                                        <span className="w-1 h-1 bg-primary rounded-full animate-bounce"></span>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                )}
-
-                {/* Loading State */}
-                {isLoading && (
-                    <div className="flex items-center space-x-2 pl-4 animate-fade-in">
-                        <div className="flex space-x-1.5">
-                            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-glow"></div>
-                            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse delay-75 shadow-glow"></div>
-                            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse delay-150 shadow-glow"></div>
-                        </div>
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-primary/50">Analyzing Neural Load</span>
                     </div>
                 )}
 

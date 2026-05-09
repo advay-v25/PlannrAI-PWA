@@ -437,8 +437,8 @@ export class CalendarEngine {
                 date: today,
                 start_time: '00:00', // Pseudo-time for Inbox items
                 end_time: '00:00',
+                block_type: 'flex',
                 status: 'inbox',
-                block_type: 'task',
                 meta: { estimated_minutes: estimatedMinutes }
             })
             .select()

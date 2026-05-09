@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
         const { conversation_id, option_id, patch } = body;
 
         if (!option_id || !patch) {
+            console.log(`[Coach Apply] Missing required fields. option_id: ${option_id}, patch: ${!!patch}`);
             return NextResponse.json(
                 { success: false, error: 'Missing required fields (option_id, patch)' },
                 { status: 400 }
@@ -74,9 +75,10 @@ export async function POST(request: NextRequest) {
 
             if (lastMessage) {
                 const messageAge = Date.now() - new Date(lastMessage.created_at).getTime();
-                const tenMinutes = 10 * 60 * 1000;
+                const expiryTime = 60 * 60 * 1000; // 60 minutes
 
-                if (messageAge > tenMinutes) {
+                if (messageAge > expiryTime) {
+                    console.log(`[Coach Apply] Option expired. Age: ${messageAge}ms`);
                     return NextResponse.json({
                         success: false,
                         error: 'Options expired. Please ask again for fresh options.',
@@ -95,6 +97,7 @@ export async function POST(request: NextRequest) {
         normalizedPatch.undoable = true;
 
         console.log('[Coach Apply] Applying patch with', normalizedPatch.ops?.length || 0, 'operations');
+        console.log('[Coach Apply] Ops:', JSON.stringify(normalizedPatch.ops?.map((o: any) => ({ op: o.op, title: o.payload?.title || o.title })), null, 2));
 
         const result = await PatchService.applyPatch(
             user.id,
@@ -102,6 +105,31 @@ export async function POST(request: NextRequest) {
             supabase,
             'coach'
         );
+
+        // Graceful degradation: if SOME ops succeeded but others failed, still return success
+        if (result.changes > 0 && result.errors.length > 0) {
+            console.warn('[Coach Apply] Partial success:', result.changes, 'applied,', result.errors.length, 'failed:', result.errors);
+            
+            if (result.undo_token) {
+                await PatchService.recordCoachAction(
+                    user.id,
+                    conversation_id,
+                    option_id,
+                    result.undo_token,
+                    supabase
+                );
+            }
+
+            return NextResponse.json({
+                success: true,
+                partial: true,
+                undo_token: result.undo_token,
+                applied_operations: result.changes,
+                failed_operations: result.errors.length,
+                errors: result.errors,
+                message: `${result.changes} changes applied, ${result.errors.length} failed`,
+            });
+        }
 
         if (!result.success) {
             console.error('[Coach Apply] Patch failed:', result.errors);
@@ -137,7 +165,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
             success: false,
-            error: 'Failed to apply changes',
+            error: error instanceof Error ? error.message : 'Failed to apply changes',
         }, { status: 500 });
     }
 }
@@ -148,8 +176,23 @@ export async function POST(request: NextRequest) {
  * PatchService expects:          { ops: [{ op: "create_event", event: {...} }] }
  */
 function normalizePatchForService(patch: any): any {
-    // If it already has ops[], it's likely already in PatchService format
+    const VALID_BLOCK_TYPES = ['anchor', 'goal', 'meal', 'buffer', 'routine', 'sleep', 'wind_down', 'flex'];
+
+    // Sanitize block_type in any op payload
+    function sanitizeBlockType(payload: any) {
+        if (payload?.block_type && !VALID_BLOCK_TYPES.includes(payload.block_type)) {
+            console.warn(`[Coach Apply] Sanitizing invalid block_type: "${payload.block_type}" → "flex"`);
+            payload.block_type = 'flex';
+        }
+        return payload;
+    }
+
+    // If it already has ops[], sanitize and return
     if (patch.ops && Array.isArray(patch.ops)) {
+        patch.ops.forEach((op: any) => {
+            if (op.payload) sanitizeBlockType(op.payload);
+            if (op.event) sanitizeBlockType(op.event);
+        });
         return patch;
     }
 
@@ -168,7 +211,7 @@ function normalizePatchForService(patch: any): any {
                         start_time: operation.data?.start_time || operation.start_time,
                         end_time: operation.data?.end_time || operation.end_time,
                         title: operation.data?.title || operation.data?.context || operation.title || 'New Block',
-                        block_type: operation.data?.block_type || operation.block_type || 'flex',
+                        block_type: ['anchor', 'goal', 'meal', 'buffer', 'routine', 'sleep', 'wind_down', 'flex'].includes(operation.data?.block_type || operation.block_type) ? (operation.data?.block_type || operation.block_type) : 'flex',
                         goal_id: operation.data?.goal_id || null,
                         pillar: operation.data?.pillar || null,
                         status: 'planned',
@@ -202,6 +245,22 @@ function normalizePatchForService(patch: any): any {
                     op: 'update_goal' as const,
                     goal_id: operation.goal_id,
                     fields: operation.changes || operation.fields || {},
+                };
+            case 'create_todo':
+                return {
+                    op: 'create_todo' as const,
+                    payload: operation.data || {},
+                };
+            case 'update_todo':
+                return {
+                    op: 'update_todo' as const,
+                    todo_id: operation.todo_id,
+                    fields: operation.changes || operation.fields || {},
+                };
+            case 'delete_todo':
+                return {
+                    op: 'delete_todo' as const,
+                    todo_id: operation.todo_id,
                 };
             default:
                 console.warn('[Coach Apply] Unknown operation type:', opType);
