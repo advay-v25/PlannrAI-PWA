@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
                     start_time: change.data.start_time,
                     end_time: change.data.end_time,
                     is_fixed: change.data.is_fixed || false,
-                    block_type: change.data.block_type || 'task'
+                    block_type: change.data.block_type || 'flex'
                 });
                 if (error) throw error;
             }

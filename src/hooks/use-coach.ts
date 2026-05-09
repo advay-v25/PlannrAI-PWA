@@ -44,6 +44,7 @@ interface CoachState {
     loadHistory: () => Promise<void>;
     dismissProactive: () => Promise<void>;
     actOnProactive: () => void;
+    resetConversation: () => void;
 }
 
 /**
@@ -152,6 +153,18 @@ export const useCoach = create<CoachState>((set, get) => ({
             return false;
         }
 
+        // GUARD: Prevent re-applying an already applied option
+        if (msg?.selected_option_id) {
+            console.warn('[Coach] Option already applied for this message, skipping');
+            return true;
+        }
+
+        // GUARD: Prevent concurrent apply (double-click)
+        if (msg?.isApplying) {
+            console.warn('[Coach] Apply already in progress, skipping');
+            return false;
+        }
+
         // Skip empty patches (e.g. "open calendar" option)
         const ops = (option.patch as any)?.operations || (option.patch as any)?.ops || [];
         if (ops.length === 0) {
@@ -220,11 +233,20 @@ export const useCoach = create<CoachState>((set, get) => ({
             await apiClient.post('/api/coach/undo', { undo_token: lastUndoToken });
 
             set(state => ({
-                messages: state.messages.map(m =>
-                    m.undoToken === lastUndoToken
-                        ? { ...m, selected_option_id: undefined, undoToken: null }
-                        : m
-                ),
+                messages: [
+                    ...state.messages.map(m =>
+                        m.undoToken === lastUndoToken
+                            ? { ...m, selected_option_id: undefined, undoToken: null }
+                            : m
+                    ),
+                    // Add confirmation message
+                    {
+                        id: `undo_${Date.now()}`,
+                        role: 'assistant' as const,
+                        content: "**Done.** I've reverted the last change. Your schedule is back to how it was. What would you like to do instead?",
+                        mode: 'inform',
+                    }
+                ],
                 lastUndoToken: null,
                 canUndo: false,
                 isLoading: false
@@ -236,7 +258,7 @@ export const useCoach = create<CoachState>((set, get) => ({
             return true;
         } catch (error: any) {
             console.error("Undo Failed", error);
-            set({ isLoading: false, error: error.message || "Undo failed." });
+            set({ isLoading: false, error: error.message || "Undo failed. The change may have already been reverted." });
             return false;
         }
     },
@@ -333,5 +355,21 @@ export const useCoach = create<CoachState>((set, get) => ({
         if (!proactiveSuggestion) return;
         sendMessage(proactiveSuggestion.action_label);
         set({ proactiveSuggestion: null });
-    }
+    },
+
+    resetConversation: () => {
+        set({
+            messages: [],
+            conversationId: null,
+            isLoading: false,
+            error: null,
+            minimalMode: false,
+            canUndo: false,
+            lastUndoToken: null,
+            suggestedActions: [],
+            hasLoadedProactive: false,
+            proactiveSuggestion: null,
+            checkingProactive: false,
+        });
+    },
 }));

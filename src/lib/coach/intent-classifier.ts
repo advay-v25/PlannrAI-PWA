@@ -4,7 +4,9 @@ export enum CoachIntent {
     // ===== SCHEDULING INTENTS =====
     BUSY_AT_TIME = 'busy_at_time',           // "I'm busy at 4pm"
     MOVE_BLOCK = 'move_block',               // "Move my gym to evening"
-    ADD_TASK = 'add_task',                   // "I need to buy milk"
+    ADD_TASK = 'add_task',                   // "Remind me to buy milk"
+    COMPLETE_TASK = 'complete_task',         // "Mark buy milk as done"
+    DELETE_TASK = 'delete_task',             // "Remove buy milk from my list"
     DELETE_BLOCK = 'delete_block',           // "Cancel my reading session"
     RESCHEDULE_DAY = 'reschedule_day',       // "Reorganize today"
     RESCHEDULE_WEEK = 'reschedule_week',     // "Replan my week"
@@ -49,6 +51,7 @@ export interface IntentClassification {
         intensity?: string;             // "lighter", "harder", "normal"
         pillar?: 'mind' | 'body' | 'craft';
         goal_reference?: string;        // "reading goal", "gym sessions"
+        task_reference?: string;        // "buy milk", "email John"
     };
     extracted_constraint?: {
         type: 'busy' | 'available' | 'preferred';
@@ -78,11 +81,24 @@ export const INTENT_EXAMPLES = {
     ],
 
     [CoachIntent.ADD_TASK]: [
-        "I need to buy milk",
-        "Add grocery shopping tomorrow",
-        "Schedule a call with Sarah",
-        "I have to finish the report by Friday",
+        "Add grocery shopping to my list",
         "Remind me to email John",
+        "I need to buy milk",
+        "Add a task to pay bills",
+        "Put finish report on my todo list",
+    ],
+
+    [CoachIntent.COMPLETE_TASK]: [
+        "Mark buy milk as done",
+        "I finished the report task",
+        "Check off grocery shopping",
+        "Set email John to complete",
+    ],
+
+    [CoachIntent.DELETE_TASK]: [
+        "Remove buy milk from my list",
+        "Delete the pay bills task",
+        "I don't need to do grocery shopping anymore",
     ],
 
     [CoachIntent.DELETE_BLOCK]: [
@@ -282,6 +298,9 @@ SPECIAL CASES:
 - If "Too tired for X" -> ENERGY_OFFSET
 - If "I'm busy at [time]" → BUSY_AT_TIME + extract constraint
 - If "Move X to Y" → MOVE_BLOCK + extract entities
+- If "Mark X as done" (referring to a task) → COMPLETE_TASK
+- If "Add X" (without a specific time duration) → ADD_TASK (to-do list)
+- If "Schedule X" (with a time duration) → MOVE_BLOCK or create a new block.
 - If emotional venting without action request → GENERAL_CHAT
 
 OUTPUT (valid JSON only):

@@ -42,8 +42,8 @@ export const POST = secureApiRoute(
                 end_time: b.end_time,
                 title: b.title || b.context || 'Untitled',
                 context: b.context || b.title,
-                block_type: b.block_type || 'task',
-                status: 'planned',
+                block_type: b.block_type || 'flex',
+                status: b.status || 'planned',
                 goal_id: b.goal_id
             }));
 

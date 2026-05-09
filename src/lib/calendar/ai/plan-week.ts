@@ -298,78 +298,11 @@ function generateVariant(
         }
     }
 
-    // Phase 2: Bonus Fill (Maximize momentum by packing remaining free time)
-    // Only apply bonus fill if weekend_intensity is set to full speed ('normal')
-    if (weekendIntensity === 'normal') {
-        let changed = true;
-    let fallbackCounter = 0;
-    while (changed && fallbackCounter < 100) {
-        changed = false;
-        fallbackCounter++;
-
-        // Cycle through all goals by importance to naturally interleave them
-        for (const goal of [...ctx.goals].sort((a, b) => (b.importance || 5) - (a.importance || 5))) {
-            // EXCLUSION: No bonus blocks for body pillar activities
-            if (goal.pillar === 'body') continue;
-
-            const targetMinsPerDay = goal.minutes_per_day || 60;
-            let placedInCycle = false;
-
-            for (let isoDay = 1; isoDay <= 7; isoDay++) {
-                if (!allowWeekend && (isoDay > 5)) continue;
-
-                const dayExclusions = exclusions.get(isoDay)!;
-                const dateStr = format(addDays(parseISO(weekStart), isoDay - 1), 'yyyy-MM-dd');
-
-                dayExclusions.sort((a, b) => a.start - b.start);
-                const windows: Array<{ start: number; end: number }> = [];
-                let cursor = wakeMins;
-
-                for (const ex of dayExclusions) {
-                    let exEnd = ex.end;
-                    if (goal.pillar === 'body' && ex.type === 'meal') {
-                        exEnd += 15;
-                    }
-                    if (cursor < ex.start) {
-                        windows.push({ start: cursor, end: ex.start });
-                    }
-                    cursor = Math.max(cursor, exEnd);
-                }
-                if (cursor < windDownMins) {
-                    windows.push({ start: cursor, end: windDownMins });
-                }
-
-                for (const win of windows) {
-                    if (win.end - win.start >= targetMinsPerDay) {
-                        const start = win.start;
-                        
-                        blocks.push({
-                            date: dateStr,
-                            start_time: minutesToTime(start),
-                            end_time: minutesToTime(start + targetMinsPerDay),
-                            title: goal.title, // Bonus block
-                            block_type: 'goal',
-                            goal_id: goal.id,
-                            pillar: goal.pillar,
-                            checklist: goal.ai_strategy?.checklist || [{text: "Bonus focus session"}, {text: "Review progress"}]
-                        });
-
-                        dayExclusions.push({
-                            start: start,
-                            end: start + targetMinsPerDay + 10,
-                            title: goal.title,
-                            type: 'goal'
-                        });
-                        placedInCycle = true;
-                        changed = true;
-                        break;
-                    }
-                }
-                if (placedInCycle) break; // Move to the next goal to interleave
-            }
-        }
-    }
-}
+    // Phase 2: Bonus Fill — REMOVED
+    // Previously, this loop kept cramming additional blocks for each goal into every
+    // free window, causing goals set to 90 min/day to fill 5-6 slots per day.
+    // Each goal is now placed exactly once per day (at minutes_per_day duration)
+    // up to days_per_week times. No bonus blocks.
 
     const totalMins = blocks.reduce((sum, b) => {
         if (b.block_type === 'sleep' || b.block_type === 'meal') return sum;
