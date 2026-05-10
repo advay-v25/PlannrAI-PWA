@@ -8,7 +8,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 // Status badge component showing task health
 function TaskStatusBadge({ pending, done }: { pending: number; done: number }) {
-  const ratio = totalTasks > 0 ? done / (pending + done) : 0;
+  const total = pending + done;
+  const ratio = total > 0 ? done / total : 0;
   if (ratio >= 0.8) return <div className="px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-400/10 text-emerald-400 border border-emerald-400/30">Thriving</div>;
   if (ratio >= 0.5) return <div className="px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-yellow-400/10 text-yellow-400 border border-yellow-400/30">Balanced</div>;
   if (done === 0 && pending > 0) return <div className="px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-orange-400/10 text-orange-400 border border-orange-400/30">Start</div>;

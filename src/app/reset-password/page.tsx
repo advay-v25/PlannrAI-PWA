@@ -51,12 +51,15 @@ export default function ResetPasswordPage() {
             
             if (error) throw error;
             
-            setStatus({ type: 'success', message: 'Password updated successfully!' });
+            setStatus({ type: 'success', message: 'Password updated successfully! Sign in with your new credentials.' });
             
-            // Redirect to app after a brief delay so they can see the success message
+            // Sign out so they must log back in with the new password
+            await supabase.auth.signOut();
+
+            // Redirect to login after a brief delay so they can see the success message
             setTimeout(() => {
-                router.push('/app');
-            }, 1500);
+                router.push('/login');
+            }, 2000);
         } catch (err: any) {
             console.error('[Update Password Error]:', err);
             setStatus({ type: 'error', message: err.message || 'Failed to update password' });
@@ -68,33 +71,41 @@ export default function ResetPasswordPage() {
     return (
         <div className="min-h-screen flex items-center justify-center p-4 bg-black overflow-hidden relative">
             {/* Background Orbs */}
-            <div className="absolute top-1/4 -left-20 w-96 h-96 bg-emerald-500/10 rounded-full blur-[120px]" />
-            <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-orange-500/10 rounded-full blur-[120px]" />
+            <div className="absolute top-1/4 -left-20 w-96 h-96 bg-orange-600/20 rounded-full blur-[120px] animate-pulse" />
+            <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-emerald-600/20 rounded-full blur-[120px]" />
 
             <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
+                initial={{ opacity: 0, y: 30, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ type: 'spring', stiffness: 100, damping: 20 }}
                 className="w-full max-w-md relative z-10"
             >
-                <GlassCard variant="glow" padding="lg" className="border-white/10 shadow-2xl">
+                <GlassCard variant="glow" padding="xl" className="border-white/10 shadow-3xl relative overflow-hidden">
+                    {/* Minimal geometric accent */}
+                    <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-orange-500 to-transparent opacity-50" />
+                    
                     <div className="relative z-10">
                         {/* Title */}
-                        <div className="text-center mb-8">
+                        <div className="text-center mb-10">
                             <motion.div
-                                initial={{ scale: 0 }}
-                                animate={{ scale: 1 }}
-                                transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-                                className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-orange-500/20 mb-4 border border-orange-500/30"
+                                initial={{ scale: 0, rotate: -45 }}
+                                animate={{ scale: 1, rotate: 0 }}
+                                transition={{ 
+                                    delay: 0.2, 
+                                    type: 'spring', 
+                                    stiffness: 260, 
+                                    damping: 20 
+                                }}
+                                className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-br from-orange-500/20 to-orange-600/5 border border-orange-500/30 mb-6 shadow-inner-glow"
                             >
-                                <Lock className="w-8 h-8 text-orange-500" />
+                                <Lock className="w-9 h-9 text-orange-500 filter drop-shadow-[0_0_8px_rgba(249,115,22,0.4)]" />
                             </motion.div>
 
-                            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60 mb-2">
-                                Set New Password
+                            <h1 className="text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white via-white to-white/60 mb-3">
+                                Reset Access
                             </h1>
-                            <p className="text-white/40 text-sm">
-                                Enter your new password below.
+                            <p className="text-white/50 text-sm font-medium">
+                                Secure your account with a new password.
                             </p>
                         </div>
 
