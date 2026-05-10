@@ -4,6 +4,7 @@ import "./globals.css";
 import { ToastProvider } from "@/components/ui/toast";
 import { Toaster } from "sonner";
 import { ApiDiagnostics } from "@/components/debug/api-diagnostics";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -59,6 +60,7 @@ export default function RootLayout({
           {children}
           <ApiDiagnostics />
           <Toaster position="top-center" />
+          <SpeedInsights />
         </ToastProvider>
       </body>
     </html>
