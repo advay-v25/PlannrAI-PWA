@@ -468,7 +468,7 @@ function mapBlock(b: any): ScheduleBlock {
         end_time: b.end_time,
         title: b.title || b.context || 'Untitled',
         status: b.status || 'planned',
-        block_type: b.block_type || 'task',
+        block_type: b.block_type || 'flex',
         goal_id: b.goal_id || undefined,
         is_fixed: b.is_fixed || false,
         commitment_id: b.commitment_id || undefined,

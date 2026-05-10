@@ -62,7 +62,23 @@ export type PatchOperation =
     | { type: 'move_block'; block_id: string; new_start: string; new_end: string; new_date?: string }
     | { type: 'update_block'; block_id: string; changes: Partial<BlockData> }
     | { type: 'delete_block'; block_id: string }
-    | { type: 'update_goal'; goal_id: string; changes: Partial<GoalData> };
+    | { type: 'update_goal'; goal_id: string; changes: Partial<GoalData> }
+    | { type: 'create_todo'; data: NewTodoData }
+    | { type: 'update_todo'; todo_id: string; changes: Partial<TodoData> }
+    | { type: 'delete_todo'; todo_id: string };
+
+interface NewTodoData {
+    title: string;
+    due_date?: string;
+    priority?: 'low' | 'medium' | 'high';
+}
+
+interface TodoData {
+    title: string;
+    is_completed: boolean;
+    due_date: string | null;
+    priority: 'low' | 'medium' | 'high';
+}
 
 interface NewBlockData {
     date: string;
@@ -92,6 +108,8 @@ interface GoalData {
     priority: number;
 }
 
+const VALID_BLOCK_TYPES = ['anchor', 'goal', 'meal', 'buffer', 'routine', 'sleep', 'wind_down', 'flex'];
+
 // ============ UTILITY FUNCTIONS ============
 
 function generateId(): string {
@@ -113,6 +131,11 @@ function formatTime(time: string): string {
 function timeToMinutes(time: string): number {
     const [h, m] = time.split(':').map(Number);
     return h * 60 + m;
+}
+
+function getDayOfWeek(date: string): string {
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    return days[new Date(date + 'T12:00:00').getDay()];
 }
 
 function minutesToTime(minutes: number): string {
@@ -200,7 +223,7 @@ function buildScheduleContextForAI(
 
     const goalsText = coachCtx.goals.length > 0
         ? coachCtx.goals.map((g: any) =>
-            `  - "${g.title}" (Pillar: ${g.pillar}, ${g.weekly_target_minutes}min/week, Priority: ${g.priority || 'medium'}) ID:${g.id}`
+            `  - "${g.title}" (Pillar: ${g.pillar}, ${g.minutes_per_day || 60}min/day, ${g.days_per_week || 5}d/week, ${g.weekly_target_minutes || 0}min/week total, Priority: ${g.priority || 'medium'}) ID:${g.id}`
         ).join('\n')
         : '  (No active goals)';
 
@@ -209,6 +232,12 @@ function buildScheduleContextForAI(
             `  - "${c.title}" ${c.start_time}–${c.end_time} on ${(c.days_of_week || []).join(', ')} [LOCKED]`
         ).join('\n')
         : '  (No fixed commitments)';
+
+    const todosText = coachCtx.todos && coachCtx.todos.length > 0
+        ? coachCtx.todos.map((t: any) =>
+            `  - [${t.is_completed ? 'x' : ' '}] "${t.title}" (Priority: ${t.priority || 'medium'})${t.due_date ? ` Due: ${t.due_date}` : ''} ID:${t.id}`
+        ).join('\n')
+        : '  (No active tasks)';
 
     let bioContext = '';
     let flowContext = '';
@@ -262,8 +291,33 @@ ${todayText}
 ━━━ TOMORROW'S SCHEDULE ━━━
 ${tomorrowText}
 
-━━━ ACTIVE GOALS ━━━
+━━━ THIS WEEK'S FULL SCHEDULE ━━━
+${weekBlocks.length > 0
+    ? (() => {
+        // Group by date
+        const byDate = new Map<string, any[]>();
+        weekBlocks.forEach((b: any) => {
+            const d = b.date;
+            if (!byDate.has(d)) byDate.set(d, []);
+            byDate.get(d)!.push(b);
+        });
+        return Array.from(byDate.entries())
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([date, blocks]) => {
+                const dayName = getDayOfWeek(date).toUpperCase();
+                const lines = blocks.map((b: any) =>
+                    `    ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${b.goal_id ? ` → Goal: ${b.goal_id}` : ''}${b.id ? ` ID:${b.id}` : ''}`
+                ).join('\n');
+                return `  ${dayName} (${date}):\n${lines}`;
+            }).join('\n');
+    })()
+    : '  (No blocks this week)'}
+
+━━━ ACTIVE GOALS (with daily/weekly constraints) ━━━
 ${goalsText}
+
+━━━ TO-DO LIST (TASKS) ━━━
+${todosText}
 
 ━━━ FIXED COMMITMENTS (LOCKED — NEVER MODIFY) ━━━
 ${commitmentsText}
@@ -278,6 +332,8 @@ ${flowContext}`;
 const SCHEDULE_MODIFICATION_INTENTS = new Set([
     CoachIntent.MOVE_BLOCK,
     CoachIntent.ADD_TASK,
+    CoachIntent.COMPLETE_TASK,
+    CoachIntent.DELETE_TASK,
     CoachIntent.DELETE_BLOCK,
     CoachIntent.RESCHEDULE_DAY,
     CoachIntent.RESCHEDULE_WEEK,
@@ -321,19 +377,45 @@ STRATEGIC DIRECTIVES:
 6. AUTO-EXECUTION VS PROPOSAL:
    - SELECT "suggested_mode": "execute" ONLY for:
      * Single block MOVE of < 60 minutes for a non-anchor block.
-     * Single block CREATION of a 'flex' or 'task' block.
+     * Single block CREATION of a 'flex' block.
+     * Single to-do task creation (create_todo).
      * Status updates for existing blocks.
+
+🎯 GOAL TIME ENFORCEMENT (CRITICAL):
+- Each goal has a minutes_per_day and days_per_week constraint shown in ACTIVE GOALS.
+- NEVER schedule more than the goal's minutes_per_day for any single goal on any day.
+- NEVER schedule a goal on more days than its days_per_week limit.
+- When the user asks to schedule a goal, check how much time is already allocated for that goal today/this week before adding more.
+- If the goal is already fully scheduled, tell the user instead of creating more blocks.
    - SELECT "suggested_mode": "propose" ALWAYS for:
      * ANY change involving 'anchor' blocks.
      * Multi-block rescheduling (> 1 block moved/created).
      * Any change spanning multiple days.
      * Large-scale optimizations or deletions.
 
+🚫 IMMUTABLE BLOCKS (ABSOLUTE — NEVER VIOLATE):
+- NEVER move, delete, modify, or reschedule blocks of type: sleep, meal, wind_down, anchor.
+- These are biological necessities and fixed commitments. They are SACRED.
+- To free up time, you MUST work around goal blocks, buffer blocks, routine blocks, or flex blocks ONLY.
+- If the user asks to skip sleep or meals, REFUSE and explain why it's harmful.
+- If all remaining blocks are immutable, tell the user there's nothing to optimize.
+
 🚨 CONFLICT PREVENTION (CRITICAL):
-- NEVER propose moving or creating a block into a time slot that already has an existing block. Check TODAY'S SCHEDULE above for conflicts.
+- NEVER propose moving or creating a block into a time slot that already has an existing block, UNLESS the user explicitly asks to replace, overwrite, or schedule over that specific existing block. Check TODAY'S SCHEDULE above for conflicts.
 - When rescheduling a missed block, ONLY suggest time slots that are completely free — no partial overlaps allowed.
-- Before generating any move_block or create_block operation, mentally verify: "Is this time slot empty in the schedule above?" If not, pick a different time.
+- Before generating any move_block or create_block operation, mentally verify: "Is this time slot empty in the schedule above?" If it is not empty, you MUST either pick a different time, OR generate a delete_block operation for the existing block to make room.
 - If no free slots are available today, suggest rescheduling to tomorrow or a later day.
+- TASKS VS BLOCKS: If the user wants to add a "task" or "to-do" without specifying a specific time they want to work on it, use \`create_todo\`. Only use \`create_block\` if they explicitly want to block out time on the calendar for it.
+- block_type for create_block MUST be one of: anchor, goal, meal, buffer, routine, sleep, wind_down, flex. NEVER use "task", "shopping", "errand", or any custom value. Use "flex" for general activities.
+
+🔁 COUNTER-PROPOSALS & SWAPS (CRITICAL):
+- If the user REJECTED a previous option and suggests an alternative (e.g. "no, put it during my craft block" or "I'd rather do shopping at 3pm instead"), you MUST:
+  1. Identify the existing block the user referenced from the schedule above. Use the EXACT block ID from the schedule.
+  2. If replacing an existing block: generate a delete_block for that block using its EXACT ID, THEN a create_block for the new activity in that EXACT timeslot and on the SAME date.
+  3. If just changing the time: generate the operation at the user's requested time.
+  4. Clearly state in the summary what is being replaced and what the new block will be.
+- CRITICAL: When swapping blocks, the new block MUST go on the SAME DATE as the deleted block. Do NOT put it on a different day.
+- CRITICAL: Use the EXACT date from the schedule context (e.g., "2026-05-09") — NEVER guess or default to today.
 
 PATCH OPERATION TYPES:
 - create_block: { type: "create_block", data: { date, start_time, end_time, title, context, block_type, goal_id?, pillar?, checklist? } }
@@ -341,6 +423,9 @@ PATCH OPERATION TYPES:
 - update_block: { type: "update_block", block_id: "existing-id", title: "Block Title", changes: { status?, title?, start_time?, end_time? } }
 - delete_block: { type: "delete_block", block_id: "existing-id", title: "Block Title" }
 - update_goal: { type: "update_goal", goal_id: "existing-id", changes: { ... } }
+- create_todo: { type: "create_todo", data: { title, due_date?, priority? } }
+- update_todo: { type: "update_todo", todo_id: "existing-id", changes: { is_completed?, title?, due_date?, priority? } }
+- delete_todo: { type: "delete_todo", todo_id: "existing-id" }
 
 🚨 OUTPUT FORMAT (STRICT JSON ONLY):
 - Return a single valid JSON object.
@@ -360,7 +445,7 @@ PATCH OPERATION TYPES:
       "impact": "Concrete positive outcome (e.g., 'Reclaims 2 hours of peak focus')",
       "tradeoff": { "warning": "Any downsides", "severity": "info|caution|warning" },
       "operations": [
-        { "type": "create_block|move_block|update_block|delete_block", ... }
+        { "type": "create_block|move_block|update_block|delete_block|create_todo|update_todo|delete_todo", ... }
       ],
       "recommended": true
     }
@@ -433,27 +518,44 @@ Generate 2-3 actionable options with concrete patch operations. Return valid JSO
 
             const aiMode = isSimple ? 'execute' : 'propose';
 
-            const options: CoachOption[] = data.options.map((opt, i) => ({
-                id: opt.id || `option_${i}`,
-                title: opt.title,
-                description: opt.description,
-                impact: opt.impact || data.strategic_insight || "Optimizing your schedule",
-                tradeoff: opt.tradeoff ? {
-                    warning: opt.tradeoff.warning,
-                    severity: (opt.tradeoff.severity as 'info' | 'caution' | 'warning') || 'info',
-                } : undefined,
-                patch: {
-                    operations: (opt.operations || []).map(normalizeOperation),
-                    requires_confirmation: aiMode === 'execute' ? false : true,
-                },
-                preview: {
-                    blocks_added: (opt as any).blocks_added || 0,
-                    blocks_modified: (opt as any).blocks_modified || 0,
-                    blocks_removed: (opt as any).blocks_removed || 0,
-                    affected_dates: (opt as any).affected_dates || [coachCtx.current.date],
-                },
-                recommended: opt.recommended || false,
-            }));
+            const options: CoachOption[] = data.options.map((opt, i) => {
+                const normalizedOps = (opt.operations || []).map(normalizeOperation);
+                // Convert to CalendarPatchOp format for the UI card
+                const calendarOps = normalizedOps.map(convertToCalendarPatchOp);
+                // Compute preview counts from actual operations (don't trust AI)
+                const blocksAdded = normalizedOps.filter(o => o.type === 'create_block' || o.type === 'create_todo').length;
+                const blocksModified = normalizedOps.filter(o => o.type === 'move_block' || o.type === 'update_block' || o.type === 'update_todo').length;
+                const blocksRemoved = normalizedOps.filter(o => o.type === 'delete_block' || o.type === 'delete_todo').length;
+                const dates = new Set<string>();
+                normalizedOps.forEach(o => {
+                    if (o.type === 'create_block' && o.data?.date) dates.add(o.data.date);
+                    else if (o.type === 'move_block' && o.new_date) dates.add(o.new_date);
+                    else dates.add(coachCtx.current.date);
+                });
+
+                return {
+                    id: opt.id || `option_${i}`,
+                    title: opt.title,
+                    description: opt.description,
+                    impact: opt.impact || data.strategic_insight || "Optimizing your schedule",
+                    tradeoff: opt.tradeoff ? {
+                        warning: opt.tradeoff.warning,
+                        severity: (opt.tradeoff.severity as 'info' | 'caution' | 'warning') || 'info',
+                    } : undefined,
+                    patch: {
+                        operations: normalizedOps,
+                        ops: calendarOps,
+                        requires_confirmation: aiMode === 'execute' ? false : true,
+                    },
+                    preview: {
+                        blocks_added: blocksAdded,
+                        blocks_modified: blocksModified,
+                        blocks_removed: blocksRemoved,
+                        affected_dates: Array.from(dates),
+                    },
+                    recommended: opt.recommended || false,
+                };
+            });
 
             // Ensure at least one is recommended
             if (!options.some(o => o.recommended) && options.length > 0) {
@@ -489,7 +591,8 @@ function normalizeOperation(op: any): PatchOperation {
     switch (type) {
         case 'create_block':
         case 'create':
-        case 'create_event':
+        case 'create_event': {
+            const rawBlockType = op.data?.block_type || op.block_type || 'flex';
             return {
                 type: 'create_block',
                 data: {
@@ -498,13 +601,14 @@ function normalizeOperation(op: any): PatchOperation {
                     end_time: op.data?.end_time || op.end_time,
                     context: op.data?.context || op.data?.title || op.context || op.title || 'New Block',
                     title: op.data?.title || op.data?.context || op.title || 'New Block',
-                    block_type: op.data?.block_type || op.block_type || 'flex',
+                    block_type: VALID_BLOCK_TYPES.includes(rawBlockType) ? rawBlockType : 'flex',
                     energy_level_required: op.data?.energy_level_required,
                     goal_id: op.data?.goal_id || op.goal_id,
                     pillar: op.data?.pillar || op.pillar,
                     checklist: op.data?.checklist || op.checklist,
                 },
             };
+        }
         case 'move_block':
         case 'move':
         case 'move_event':
@@ -536,8 +640,96 @@ function normalizeOperation(op: any): PatchOperation {
                 goal_id: op.goal_id || op.id,
                 changes: op.changes || op.fields || {},
             };
+        case 'create_todo':
+            return {
+                type: 'create_todo',
+                data: {
+                    title: op.data?.title || op.title,
+                    due_date: op.data?.due_date || op.due_date,
+                    priority: op.data?.priority || op.priority || 'medium',
+                },
+            };
+        case 'update_todo':
+            return {
+                type: 'update_todo',
+                todo_id: op.todo_id || op.id,
+                changes: op.changes || op.fields || {},
+            };
+        case 'delete_todo':
+            return {
+                type: 'delete_todo',
+                todo_id: op.todo_id || op.id,
+            };
         default:
             console.warn('[CoachAI] Unknown operation type:', type);
+            return op;
+    }
+}
+
+/**
+ * Convert internal PatchOperation to CalendarPatchOp format for UI rendering.
+ * The UI card (CoachOptionCard) reads option.patch.ops[] which uses CalendarPatchOp shape.
+ */
+function convertToCalendarPatchOp(op: PatchOperation): any {
+    switch (op.type) {
+        case 'create_block':
+            return {
+                op: 'create_event',
+                event: op.data,
+                payload: op.data,
+                title: op.data?.title,
+                start_time: op.data?.start_time,
+                end_time: op.data?.end_time,
+                date: op.data?.date,
+            };
+        case 'move_block':
+            return {
+                op: 'move_event',
+                event_id: op.block_id,
+                to_start: op.new_start,
+                to_end: op.new_end,
+                date: op.new_date,
+                title: (op as any).title || 'Block',
+            };
+        case 'update_block':
+            return {
+                op: 'update_event',
+                event_id: op.block_id,
+                fields: op.changes,
+                title: (op as any).title || 'Block',
+            };
+        case 'delete_block':
+            return {
+                op: 'delete_event',
+                event_id: op.block_id,
+                title: (op as any).title || 'Block',
+            };
+        case 'update_goal':
+            return {
+                op: 'update_goal',
+                goal_id: op.goal_id,
+                fields: op.changes,
+            };
+        case 'create_todo':
+            return {
+                op: 'create_todo',
+                payload: op.data,
+                title: op.data?.title,
+            };
+        case 'update_todo':
+            return {
+                op: 'update_todo',
+                todo_id: op.todo_id,
+                fields: op.changes,
+                title: (op as any).title || 'Task',
+            };
+        case 'delete_todo':
+            return {
+                op: 'delete_todo',
+                todo_id: op.todo_id,
+                title: (op as any).title || 'Task',
+            };
+        default:
             return op;
     }
 }

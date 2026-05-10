@@ -1,7 +1,7 @@
 // Removed @ts-nocheck
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,12 +11,25 @@ import { CommandMenu } from '@/components/ui/command-menu';
 import { cn } from '@/lib/utils';
 import { useUserStore } from '@/stores';
 import { RealTimeIndicator } from '@/components/ui/real-time-indicator';
+import { createClient } from '@/lib/supabase/client';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const [isCoachOpen, setIsCoachOpen] = useState(false);
-    const { profile } = useUserStore();
-    const displayName = profile?.full_name || 'User';
+    const { profile, setProfile } = useUserStore();
+    const supabase = useMemo(() => createClient(), []);
+    const displayName = profile?.full_name?.split(' ')[0] || profile?.full_name || 'User';
+
+    // Hydrate profile in layout so it's available on every page
+    useEffect(() => {
+        if (profile) return; // Already loaded
+        (async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+            const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+            if (data) setProfile(data);
+        })();
+    }, [profile, supabase, setProfile]);
 
     const navItems = [
         { href: '/app', icon: LayoutDashboard, label: 'Home' },

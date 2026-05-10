@@ -61,4 +61,3 @@ ALTER TABLE intervention_logs ADD CONSTRAINT intervention_logs_user_id_fkey
 ALTER TABLE user_context DROP CONSTRAINT IF EXISTS user_context_user_id_fkey;
 ALTER TABLE user_context ADD CONSTRAINT user_context_user_id_fkey 
   FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-

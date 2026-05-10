@@ -20,7 +20,7 @@ export const POST = secureApiRoute(
         }
 
         const duration = duration_minutes || 60;
-        const type = block_type || 'task';
+        const type = block_type || 'flex';
 
         const systemPrompt = `You are PlannrAI's action planner. Generate a checklist of 3-5 specific, actionable sub-tasks for a schedule block. Each item should be concrete and completable within the block duration. Return valid JSON only.`;
 

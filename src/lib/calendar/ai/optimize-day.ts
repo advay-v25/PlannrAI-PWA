@@ -90,8 +90,11 @@ export async function optimizeDayAI(
     const behaviorFragment = buildBehaviorInsights(context);
     const progressFragment = buildGoalProgressFragment(context);
 
+    // ALL blocks for today (including past/done, for goal allocation tracking)
+    const allTodayBlocks = context.schedule.today;
+
     // Filter to remaining blocks (not yet past, not done)
-    const remainingBlocks = context.schedule.today.filter(b => {
+    const remainingBlocks = allTodayBlocks.filter(b => {
         const blockStartMins = timeToMinutes(b.start_time);
         return blockStartMins >= currentMins && b.status !== 'done' && b.status !== 'cancelled';
     });
@@ -99,10 +102,30 @@ export async function optimizeDayAI(
     const fixedBlocks = remainingBlocks.filter(b => b.is_fixed || b.commitment_id);
     const movableBlocks = remainingBlocks.filter(b => !b.is_fixed && !b.commitment_id);
 
+    // Calculate how many minutes each goal ALREADY has scheduled today
+    const goalAllocation = new Map<string, { title: string; scheduledMins: number; targetMins: number }>();
+    for (const goal of context.goals) {
+        const goalBlocks = allTodayBlocks.filter(b => b.goal_id === goal.id);
+        const scheduledMins = goalBlocks.reduce((sum, b) => {
+            return sum + Math.max(0, timeToMinutes(b.end_time) - timeToMinutes(b.start_time));
+        }, 0);
+        goalAllocation.set(goal.id, {
+            title: goal.title,
+            scheduledMins,
+            targetMins: goal.minutes_per_day || 60,
+        });
+    }
+
+    // Build goals text with allocation status
     const goalsText = context.goals.length > 0
-        ? context.goals.map(g =>
-            `  - ${g.title} (${g.pillar.toUpperCase()}, ${g.energy_demand} energy): ${g.minutes_per_day || 30}min/day, ID: ${g.id}\n    AI Strategy: ${g.ai_strategy ? JSON.stringify(g.ai_strategy) : 'None'}`
-        ).join('\n')
+        ? context.goals.map(g => {
+            const alloc = goalAllocation.get(g.id);
+            const scheduledMins = alloc?.scheduledMins || 0;
+            const targetMins = g.minutes_per_day || 60;
+            const isFull = scheduledMins >= targetMins;
+            const status = isFull ? '✅ FULLY SCHEDULED — DO NOT ADD MORE' : `⚠️ ${scheduledMins}/${targetMins}min scheduled`;
+            return `  - ${g.title} (${g.pillar.toUpperCase()}, ${g.energy_demand} energy): ${targetMins}min/day, ${status}, ID: ${g.id}`;
+        }).join('\n')
         : '  (No specific goals)';
 
     const commitmentsText = context.commitments.length > 0
@@ -137,6 +160,22 @@ CRITICAL RULES:
    - CHECKLIST SYNC: For every 'goal' block you create, generate a realistic 2-3 item checklist
 8. Use existing block IDs for move/delete operations
 9. Use the user's ACTUAL goal names and IDs. Do NOT invent generic blocks.
+10. block_type for create_event MUST be one of: goal, routine, meal, buffer, flex. NEVER use "task", "shopping", "errand", or any custom value.
+
+🚫 IMMUTABLE BLOCKS (ABSOLUTE — NEVER VIOLATE):
+- NEVER move, delete, modify, or reschedule blocks of type: sleep, meal, wind_down, anchor.
+- These are biological necessities and fixed commitments. They are SACRED.
+- To free up time, you MUST work around goal blocks, buffer blocks, routine blocks, or flex blocks ONLY.
+- If the user asks to skip sleep or meals, REFUSE and explain why it's harmful.
+- If all remaining blocks are immutable, tell the user there's nothing to optimize — their schedule is locked.
+
+🎯 GOAL TIME ENFORCEMENT (CRITICAL — HIGHEST PRIORITY):
+- Each goal has a minutes_per_day limit shown in the GOALS section below.
+- If a goal is marked "✅ FULLY SCHEDULED", you MUST NOT create any new blocks for that goal.
+- If a goal shows e.g. "60/90min scheduled", you may only add up to 30min more.
+- NEVER exceed the goal's daily minutes_per_day limit under any circumstances.
+- This rule overrides all other scheduling logic. Over-scheduling goals is the #1 bug to avoid.
+- When you see gaps in the schedule, fill them with buffers, routines, or flex blocks — NOT with more goal blocks if goals are already at their daily limit.
 
 BIO-CONTEXT:
 - ${chronotypeRules}
@@ -168,6 +207,11 @@ Return valid JSON only.`;
         optionsText = `Generate 2 options:\nOption 1: "Realistic" — Balanced plan with standard meal times and plenty of breaks.\nOption 2: "Focused Flow" — Slightly more concentrated work/goals with minimal viable breaks.`;
     }
 
+    // Build the full-day view (ALL blocks, including past) so AI sees what was already planned
+    const allBlocksText = allTodayBlocks.map(b =>
+        `  - ID: ${b.id} | ${b.start_time}-${b.end_time} | "${b.title}" | ${b.block_type} | ${b.is_fixed ? 'FIXED' : 'movable'} | ${b.status}${b.goal_id ? ` | goal_id: ${b.goal_id}` : ''}`
+    ).join('\n');
+
     const userPrompt = `
 OPTIMIZE TODAY'S SCHEDULE
 
@@ -176,13 +220,16 @@ DATE: ${context.current.date}
 STRATEGY: ${focus || 'balanced'}
 WIND-DOWN: ${windDown}
 
-GOALS TO SCHEDULE (if not already in blocks):
+GOALS (with today's allocation — respect these limits!):
 ${goalsText}
 
 FIXED COMMITMENTS (Must be scheduled if missing):
 ${commitmentsText}
 
-REMAINING BLOCKS (${remainingBlocks.length}):
+FULL TODAY'S SCHEDULE (ALL ${allTodayBlocks.length} blocks — including past):
+${allBlocksText || '  (No blocks today)'}
+
+REMAINING BLOCKS (${remainingBlocks.length} — future only):
 ${blocksText || '  (No remaining blocks)'}
 
 FIXED BLOCKS (${fixedBlocks.length}): Cannot be moved or deleted
@@ -193,6 +240,7 @@ USER PERFORMANCE: ${context.performance.last_7_days_completion_rate}% completion
 INSTRUCTIONS:
 ${strategyInstruction}
 Identify gaps in the schedule and CREATE routines, Meals, and Focus Blocks for the user's goals if missing. Follow the ENERGY ARC — place deep work in peak/rebound phases, light work in trough/wind-down.
+REMEMBER: Check the goal allocation status above. If a goal is ✅ FULLY SCHEDULED, do NOT create more blocks for it. Only fill gaps with buffers, routines, meals, or flex blocks.
 ${progressFragment}
 ${optionsText}
 
@@ -257,8 +305,10 @@ OUTPUT FORMAT (strict JSON):
 // ── Fallback ─────────────────────────────────────────────────────
 
 function generateFallbackOptimization(ctx: CalendarContext, blocks: ScheduleBlock[]): OptimizeDayResult {
+    const PROTECTED_TYPES = ['sleep', 'meal', 'wind_down', 'anchor', 'buffer'];
     const health = blocks.length > 6 ? 'overloaded' : blocks.length > 0 ? 'manageable' : 'light';
-    const movable = blocks.filter(b => !b.is_fixed && !b.commitment_id);
+    // Only goal, flex, and routine blocks are movable — NEVER touch sleep, meal, anchor, buffer, wind_down
+    const movable = blocks.filter(b => !b.is_fixed && !b.commitment_id && !PROTECTED_TYPES.includes(b.block_type));
 
     const options: DayOptimization[] = [
         {

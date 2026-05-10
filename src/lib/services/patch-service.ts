@@ -11,13 +11,17 @@ export type PatchOpType =
     | 'update_goal'
     | 'update_settings'
     | 'create_anchor'
-    | 'delete_anchor';
+    | 'delete_anchor'
+    | 'create_todo'
+    | 'update_todo'
+    | 'delete_todo';
 
 export interface PatchOp {
     op: PatchOpType;
     event_id?: string;
     goal_id?: string;
     anchor_id?: string;
+    todo_id?: string;
     event?: any;
     payload?: any;
     fields?: Record<string, any>;
@@ -79,29 +83,41 @@ export class PatchService {
             }
         }
 
-        // 1. Calculate Snapshot or Inverse Patch (BEFORE applying) — for undo support
-        let inversePatch: any = { ops: [] };
+        // 1. Create Snapshot (BEFORE applying) — for full-scope undo
         let versionId: string | null = null;
 
-        // If scope is week or explicitly requested, take a full snapshot
         if (patch.scope === 'week' || patch.snapshot_requested) {
             try {
                 const snapshot = await this.createSnapshot(userId, patch, supabase);
                 versionId = snapshot.id;
             } catch (snapErr: any) {
-                console.warn('[PatchService] Snapshot failed, falling back to inverse patch:', snapErr.message);
+                console.warn('[PatchService] Snapshot failed:', snapErr.message);
             }
         }
 
-        // Always attempt inverse patch as a secondary/granular fallback
+        // 2. Calculate pre-execution state for inverse patch
+        // We need to capture the CURRENT state of blocks that will be modified/deleted/moved
+        // BEFORE executing, so we can revert them.
+        let preExecState: Record<string, any> = {};
         try {
-            inversePatch = await this.calculateInversePatch(userId, patch, supabase);
-        } catch (invErr: any) {
-            console.warn('[PatchService] Inverse patch calc failed:', invErr.message);
+            const touchedEventIds = patch.ops
+                .filter(op => op.event_id)
+                .map(op => op.event_id as string);
+            if (touchedEventIds.length > 0) {
+                const { data } = await supabase
+                    .from('schedule_blocks')
+                    .select('*')
+                    .in('id', touchedEventIds)
+                    .eq('user_id', userId);
+                if (data) {
+                    preExecState = data.reduce((acc: any, block: any) => ({ ...acc, [block.id]: block }), {});
+                }
+            }
+        } catch (e: any) {
+            console.warn('[PatchService] Pre-exec state fetch failed:', e.message);
         }
 
-
-        // 2. Execute Operations
+        // 3. Execute Operations
         for (const op of patch.ops) {
             try {
                 await this.executeOp(userId, op, supabase);
@@ -116,7 +132,16 @@ export class PatchService {
             return { success: false, undo_token: null, changes: 0, errors };
         }
 
-        // 3. Store Undo Token
+        // 4. Calculate Inverse Patch AFTER execution
+        // Now create_event ops have their generated IDs stored on op.event_id
+        let inversePatch: Patch = { ops: [] };
+        try {
+            inversePatch = this.buildInversePatchFromOps(patch, preExecState);
+        } catch (invErr: any) {
+            console.warn('[PatchService] Inverse patch calc failed:', invErr.message);
+        }
+
+        // 5. Store Undo Token
         let undoToken: string | null = null;
         if (patch.undoable !== false) {
             try {
@@ -126,12 +151,10 @@ export class PatchService {
                         user_id: userId,
                         patch: patch as any,
                         inverse_patch: inversePatch as any,
-                        schedule_version_id: versionId,
                         applied: true,
                         source,
                         created_at: new Date().toISOString()
                     })
-
                     .select('id')
                     .single();
 
@@ -139,6 +162,7 @@ export class PatchService {
                     console.error('[PatchService] Failed to store patch run:', error);
                 } else {
                     undoToken = run.id;
+                    console.log(`[PatchService] Undo token created: ${undoToken} with ${inversePatch.ops.length} inverse ops`);
                 }
             } catch (e: any) {
                 console.error('[PatchService] Undo storage failed:', e.message);
@@ -165,23 +189,24 @@ export class PatchService {
             .single();
 
         if (error || !run) {
-            console.error('[PatchService] Undo failed: Patch not found');
+            console.error('[PatchService] Undo failed: Patch not found for token:', undoToken);
             return { success: false, changes: 0 };
         }
 
-        if (run.schedule_version_id) {
-            // Priority 1: Full Snapshot Restore
-            console.log('[PatchService] Restoring from full snapshot:', run.schedule_version_id);
-            const success = await this.restoreFromSnapshot(userId, run.schedule_version_id, supabase);
-            if (success) {
-                await supabase.from('patch_runs').update({ applied: false }).eq('id', undoToken);
-                return { success: true, changes: -1 }; // -1 indicates full restore
-            }
+        if (!run.applied) {
+            console.warn('[PatchService] Undo skipped: patch already reverted');
+            return { success: false, changes: 0 };
         }
 
         const inverse = run.inverse_patch as Patch;
-        let changes = 0;
+        
+        if (!inverse || !inverse.ops || inverse.ops.length === 0) {
+            console.error('[PatchService] Undo failed: No inverse operations available');
+            return { success: false, changes: 0 };
+        }
 
+        console.log(`[PatchService] Undoing patch ${undoToken} with ${inverse.ops.length} inverse ops`);
+        let changes = 0;
 
         // 2. Apply Inverse
         for (const op of inverse.ops) {
@@ -199,7 +224,8 @@ export class PatchService {
             .update({ applied: false })
             .eq('id', undoToken);
 
-        return { success: true, changes };
+        console.log(`[PatchService] Undo complete: ${changes} ops reverted`);
+        return { success: changes > 0, changes };
     }
 
     /**
@@ -359,7 +385,7 @@ export class PatchService {
                     end_time: event.end_time || event.end || event.to_end,
                     date: event.date || op.date || new Date().toISOString().split('T')[0],
                     status: event.status || 'planned',
-                    block_type: event.block_type || 'task',
+                    block_type: ['anchor', 'goal', 'meal', 'buffer', 'routine', 'sleep', 'wind_down', 'flex'].includes(event.block_type) ? event.block_type : 'flex',
                     pillar: event.pillar || null,
                     goal_id: event.goal_id || null,
                     checklist: Array.isArray(event.checklist) ? event.checklist : null,
@@ -368,6 +394,61 @@ export class PatchService {
 
                 // Generate ID if provided (for reliable undo)
                 if (event.id) insertData.id = event.id;
+
+                // DEDUPLICATION: Skip if identical block already exists
+                const { data: existing } = await supabase
+                    .from('schedule_blocks')
+                    .select('id')
+                    .eq('user_id', userId)
+                    .eq('title', insertData.title)
+                    .eq('date', insertData.date)
+                    .eq('start_time', insertData.start_time)
+                    .eq('end_time', insertData.end_time)
+                    .maybeSingle();
+
+                if (existing) {
+                    console.log(`[PatchService] Skipping duplicate block: "${insertData.title}" on ${insertData.date} ${insertData.start_time}-${insertData.end_time}`);
+                    op.event_id = existing.id;
+                    break;
+                }
+
+                // GOAL OVER-ALLOCATION ENFORCEMENT: Check daily goal minutes limit
+                if (insertData.goal_id && insertData.block_type === 'goal') {
+                    const timeToMin = (t: string) => {
+                        const [h, m] = (t || '0:0').split(':').map(Number);
+                        return (h || 0) * 60 + (m || 0);
+                    };
+
+                    // Fetch goal's daily limit
+                    const { data: goalData } = await supabase
+                        .from('goals')
+                        .select('minutes_per_day')
+                        .eq('id', insertData.goal_id)
+                        .maybeSingle();
+
+                    if (goalData) {
+                        const dailyLimit = goalData.minutes_per_day || 60;
+
+                        // Sum existing goal minutes for this day
+                        const { data: existingGoalBlocks } = await supabase
+                            .from('schedule_blocks')
+                            .select('start_time, end_time')
+                            .eq('user_id', userId)
+                            .eq('goal_id', insertData.goal_id)
+                            .eq('date', insertData.date);
+
+                        const existingMins = (existingGoalBlocks || []).reduce((sum: number, b: any) => {
+                            return sum + Math.max(0, timeToMin(b.end_time) - timeToMin(b.start_time));
+                        }, 0);
+
+                        const newBlockMins = Math.max(0, timeToMin(insertData.end_time) - timeToMin(insertData.start_time));
+
+                        if (existingMins + newBlockMins > dailyLimit) {
+                            console.log(`[PatchService] BLOCKED over-allocation: "${insertData.title}" on ${insertData.date} would be ${existingMins + newBlockMins}min (limit: ${dailyLimit}min/day)`);
+                            break; // Skip this insert entirely
+                        }
+                    }
+                }
 
                 const { data, error } = await supabase
                     .from('schedule_blocks')
@@ -387,15 +468,17 @@ export class PatchService {
                 const id = op.event_id;
                 const fields = op.fields || op.payload;
                 if (!id) throw new Error('Update requires event_id');
-                // Protect meal blocks from being moved/modified
+                // Protect immutable blocks from modification
                 const { data: existing } = await supabase
                     .from('schedule_blocks')
                     .select('block_type')
                     .eq('id', id)
                     .eq('user_id', userId)
                     .maybeSingle();
-                if (existing?.block_type === 'meal') {
-                    throw new Error('Cannot modify meal blocks — they are locked.');
+                const IMMUTABLE_TYPES = ['sleep', 'meal', 'wind_down', 'anchor'];
+                if (existing && IMMUTABLE_TYPES.includes(existing.block_type)) {
+                    console.log(`[PatchService] BLOCKED: Cannot modify immutable ${existing.block_type} block`);
+                    break; // Skip silently rather than throwing
                 }
                 const { error } = await supabase
                     .from('schedule_blocks')
@@ -409,15 +492,17 @@ export class PatchService {
             case 'delete':
             case 'delete_event': {
                 if (!op.event_id) throw new Error('Delete requires event_id');
-                // Protect meal blocks from deletion
+                // Protect immutable blocks from deletion (sleep, meal, wind_down, anchor)
                 const { data: delTarget } = await supabase
                     .from('schedule_blocks')
                     .select('block_type')
                     .eq('id', op.event_id)
                     .eq('user_id', userId)
                     .maybeSingle();
-                if (delTarget?.block_type === 'meal') {
-                    throw new Error('Cannot delete meal blocks — they are locked.');
+                const IMMUTABLE_DEL = ['sleep', 'meal', 'wind_down', 'anchor'];
+                if (delTarget && IMMUTABLE_DEL.includes(delTarget.block_type)) {
+                    console.log(`[PatchService] BLOCKED: Cannot delete immutable ${delTarget.block_type} block`);
+                    break; // Skip silently
                 }
                 const { error } = await supabase
                     .from('schedule_blocks')
@@ -434,6 +519,18 @@ export class PatchService {
                 const start = op.to_start || op.start_time;
                 const end = op.to_end || op.end_time;
                 if (!id || !start || !end) throw new Error('Move requires event_id, to_start, to_end');
+                // Protect immutable blocks from being moved
+                const { data: moveTarget } = await supabase
+                    .from('schedule_blocks')
+                    .select('block_type')
+                    .eq('id', id)
+                    .eq('user_id', userId)
+                    .maybeSingle();
+                const IMMUTABLE_MOVE = ['sleep', 'meal', 'wind_down', 'anchor'];
+                if (moveTarget && IMMUTABLE_MOVE.includes(moveTarget.block_type)) {
+                    console.log(`[PatchService] BLOCKED: Cannot move immutable ${moveTarget.block_type} block`);
+                    break; // Skip silently
+                }
                 const updateData: any = { start_time: start, end_time: end };
                 if (op.date) updateData.date = op.date;
                 const { error } = await supabase
@@ -504,12 +601,126 @@ export class PatchService {
                 break;
             }
 
+            case 'create_todo': {
+                const payload = op.payload || {};
+                const insertData: any = {
+                    user_id: userId,
+                    title: payload.title || 'New Task',
+                    is_completed: false,
+                    due_date: payload.due_date || null,
+                    priority: payload.priority || 'medium',
+                };
+                const { data, error } = await supabase
+                    .from('todos')
+                    .insert(insertData)
+                    .select('id')
+                    .single();
+                if (error) throw new Error(`Create todo failed: ${error.message}`);
+                if (data?.id) op.todo_id = data.id;
+                break;
+            }
+
+            case 'update_todo': {
+                const id = op.todo_id;
+                const fields = op.fields || op.payload;
+                if (!id) throw new Error('Update todo requires todo_id');
+                const { error } = await supabase
+                    .from('todos')
+                    .update(fields)
+                    .eq('id', id)
+                    .eq('user_id', userId);
+                if (error) throw new Error(`Update todo failed: ${error.message}`);
+                break;
+            }
+
+            case 'delete_todo': {
+                if (!op.todo_id) throw new Error('Delete todo requires todo_id');
+                const { error } = await supabase
+                    .from('todos')
+                    .delete()
+                    .eq('id', op.todo_id)
+                    .eq('user_id', userId);
+                if (error) throw new Error(`Delete todo failed: ${error.message}`);
+                break;
+            }
+
             default:
                 console.warn(`[PatchService] Unknown op: ${operation}`);
         }
     }
 
     // --- Inverse Calculation ---
+
+    /**
+     * Build inverse patch from executed ops using pre-execution state.
+     * This runs AFTER executeOp, so create_event ops have their generated IDs on op.event_id.
+     */
+    private static buildInversePatchFromOps(
+        patch: Patch,
+        preExecState: Record<string, any>
+    ): Patch {
+        const inverseOps: PatchOp[] = [];
+
+        // Process in REVERSE order for correct undo sequence
+        for (const op of [...patch.ops].reverse()) {
+            const opType = op.op;
+
+            if (opType === 'create' || opType === 'create_event') {
+                // Inverse of Create = Delete the created block
+                // After executeOp, op.event_id holds the generated ID
+                const id = op.event_id;
+                if (id) {
+                    inverseOps.push({ op: 'delete_event', event_id: id });
+                } else {
+                    console.warn('[PatchService] Cannot undo create: no event_id captured');
+                }
+            } else if (opType === 'delete' || opType === 'delete_event') {
+                // Inverse of Delete = Re-create the original block
+                const original = preExecState[op.event_id!];
+                if (original) {
+                    const { created_at, updated_at, ...blockData } = original;
+                    inverseOps.push({ op: 'create_event', event: blockData });
+                }
+            } else if (opType === 'update' || opType === 'update_event') {
+                // Inverse of Update = Revert to original field values
+                const original = preExecState[op.event_id!];
+                if (original && op.fields) {
+                    const revertFields: any = {};
+                    for (const key of Object.keys(op.fields)) {
+                        revertFields[key] = original[key];
+                    }
+                    inverseOps.push({ op: 'update_event', event_id: op.event_id, fields: revertFields });
+                }
+            } else if (opType === 'move' || opType === 'move_event') {
+                // Inverse of Move = Move back to original position
+                const original = preExecState[op.event_id!];
+                if (original) {
+                    inverseOps.push({
+                        op: 'move_event',
+                        event_id: op.event_id,
+                        to_start: original.start_time,
+                        to_end: original.end_time,
+                        date: original.date
+                    });
+                }
+            } else if (opType === 'create_todo') {
+                const id = op.todo_id;
+                if (id) {
+                    inverseOps.push({ op: 'delete_todo', todo_id: id });
+                }
+            } else if (opType === 'delete_todo') {
+                // We don't have pre-exec state for todos in this path,
+                // so we'd need to extend preExecState. For now, skip.
+                console.warn('[PatchService] Todo delete undo not fully supported yet');
+            }
+        }
+
+        return {
+            ops: inverseOps,
+            scope: patch.scope,
+            reason: `Undo: ${patch.reason || 'applied patch'}`
+        };
+    }
 
     private static async calculateInversePatch(
         userId: string,
@@ -527,8 +738,13 @@ export class PatchService {
             .filter(op => op.anchor_id)
             .map(op => op.anchor_id as string);
 
+        const touchedTodoIds = patch.ops
+            .filter(op => op.todo_id)
+            .map(op => op.todo_id as string);
+
         let currentBlocks: Record<string, any> = {};
         let currentAnchors: Record<string, any> = {};
+        let currentTodos: Record<string, any> = {};
 
         if (touchedEventIds.length > 0) {
             const { data } = await supabase
@@ -549,6 +765,17 @@ export class PatchService {
                 .eq('user_id', userId);
             if (data) {
                 currentAnchors = data.reduce((acc, a) => ({ ...acc, [a.id]: a }), {});
+            }
+        }
+
+        if (touchedTodoIds.length > 0) {
+            const { data } = await supabase
+                .from('todos')
+                .select('*')
+                .in('id', touchedTodoIds)
+                .eq('user_id', userId);
+            if (data) {
+                currentTodos = data.reduce((acc, t) => ({ ...acc, [t.id]: t }), {});
             }
         }
 
@@ -608,6 +835,32 @@ export class PatchService {
                         end_time: original.end_time,
                         days_of_week: original.days_of_week,
                     });
+                }
+            } else if (opType === 'create_todo') {
+                const id = op.todo_id;
+                if (id) {
+                    inverseOps.push({ op: 'delete_todo', todo_id: id });
+                }
+            } else if (opType === 'delete_todo') {
+                const original = currentTodos[op.todo_id!];
+                if (original) {
+                    inverseOps.push({ 
+                        op: 'create_todo', 
+                        payload: {
+                            title: original.title,
+                            due_date: original.due_date,
+                            priority: original.priority
+                        } 
+                    });
+                }
+            } else if (opType === 'update_todo') {
+                const original = currentTodos[op.todo_id!];
+                if (original && op.fields) {
+                    const revertFields: any = {};
+                    for (const key of Object.keys(op.fields)) {
+                        revertFields[key] = original[key];
+                    }
+                    inverseOps.push({ op: 'update_todo', todo_id: op.todo_id, fields: revertFields });
                 }
             }
         }

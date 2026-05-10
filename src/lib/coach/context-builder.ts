@@ -27,6 +27,14 @@ export interface CoachContext {
         is_locked: boolean;
     }>;
 
+    todos: Array<{
+        id: string;
+        title: string;
+        is_completed: boolean;
+        due_date?: string | null;
+        priority?: string;
+    }>;
+
     schedule: {
         today: ScheduleBlock[];
         tomorrow: ScheduleBlock[];
@@ -101,9 +109,11 @@ export async function buildCoachContext(
         commitmentsRes,
         todayBlocksRes,
         tomorrowBlocksRes,
+        weekBlocksRes,
         energyRes,
         preferencesRes,
-        missedBlocksRes
+        missedBlocksRes,
+        todosRes
     ] = await Promise.all([
         supabase.from('goals')
             .select('id, title, pillar, weekly_target_minutes, current_streak_days, priority, status, energy_demand, minutes_per_day, days_per_week, ai_strategy')
@@ -127,6 +137,15 @@ export async function buildCoachContext(
             .eq('date', tomorrow)
             .order('start_time'),
 
+        // Full week's blocks for comprehensive AI Coach context
+        supabase.from('schedule_blocks')
+            .select('id, date, start_time, end_time, title, context, block_type, status, goal_id')
+            .eq('user_id', userId)
+            .gte('date', weekStart)
+            .lte('date', weekEnd)
+            .order('date')
+            .order('start_time'),
+
         supabase.from('energy_checkins')
             .select('energy_level, emotional_state')
             .eq('user_id', userId)
@@ -146,7 +165,14 @@ export async function buildCoachContext(
             .select('id', { count: 'exact', head: true })
             .eq('user_id', userId)
             .eq('status', 'missed')
-            .gte('date', dateFormatter.format(new Date(now.getTime() - 24 * 60 * 60 * 1000)))
+            .gte('date', dateFormatter.format(new Date(now.getTime() - 24 * 60 * 60 * 1000))),
+
+        supabase.from('todos')
+            .select('id, title, is_completed, due_date, priority')
+            .eq('user_id', userId)
+            .eq('is_completed', false)
+            .order('order_index', { ascending: true })
+            .limit(20)
     ]);
 
 
@@ -154,6 +180,7 @@ export async function buildCoachContext(
     const commitments = commitmentsRes.data || [];
     const todayBlocks = todayBlocksRes.data || [];
     const tomorrowBlocks = tomorrowBlocksRes.data || [];
+    const weekBlocks = weekBlocksRes.data || [];
     const lastEnergy = energyRes.data;
     // Transform memory_facts into the learned_preferences shape the Coach expects
     const rawFacts = preferencesRes.data || [];
@@ -164,6 +191,7 @@ export async function buildCoachContext(
         natural_language: typeof f.value === 'string' ? f.value : (f.value?.description || f.key || ''),
     }));
     const missedCount = missedBlocksRes.count || 0;
+    const todos = todosRes.data || [];
 
     const isMinimalMode = determineMinimalMode(lastEnergy?.energy_level?.toString(), missedCount);
 
@@ -180,6 +208,7 @@ export async function buildCoachContext(
             timezone: profile.timezone || 'UTC',
         },
         goals,
+        todos,
         commitments: commitments.map((c: any) => ({
             ...c,
             is_locked: true,
@@ -187,7 +216,7 @@ export async function buildCoachContext(
         schedule: {
             today: todayWithLocks,
             tomorrow: tomorrowWithLocks,
-            this_week: [], // Trimmed for performance/token budget
+            this_week: weekBlocks,
         },
         user_state: {
             is_minimal_mode: isMinimalMode,

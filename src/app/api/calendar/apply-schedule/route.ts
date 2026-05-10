@@ -97,7 +97,7 @@ export const POST = secureApiRoute(
                 } else {
                     // AI Re-planning must NEVER delete Anchors or user-locked chunks.
                     // However, it SHOULD clear previous planner-generated meals/sleep to allow fresh placement.
-                    deleteQuery = deleteQuery.or('is_locked.is.null,is_locked.eq.false,block_type.in.(meal,sleep,buffer)')
+                    deleteQuery = deleteQuery.or('is_locked.is.null,is_locked.eq.false,block_type.eq.meal,block_type.eq.sleep,block_type.eq.buffer')
                                              .neq('block_type', 'anchor');
                 }
 
@@ -124,7 +124,7 @@ export const POST = secureApiRoute(
                 } else {
                     // AI Re-planning must NEVER delete Anchors or user-locked chunks.
                     // However, it SHOULD clear previous planner-generated meals/sleep to allow fresh placement.
-                    deleteQuery = deleteQuery.or('is_locked.is.null,is_locked.eq.false,block_type.in.(meal,sleep,buffer)')
+                    deleteQuery = deleteQuery.or('is_locked.is.null,is_locked.eq.false,block_type.eq.meal,block_type.eq.sleep,block_type.eq.buffer')
                                              .neq('block_type', 'anchor');
                 }
 
@@ -203,7 +203,66 @@ export const POST = secureApiRoute(
                     return true;
                 });
 
-                const blocks = filteredBlocks.map((b: any) => ({
+                // ── GOAL OVER-ALLOCATION ENFORCEMENT ───────────────────────
+                // Prevent any goal from exceeding its minutes_per_day on any given day.
+                // Step 1: Fetch goals with their daily limits
+                const { data: userGoals } = await supabase
+                    .from('goals')
+                    .select('id, title, minutes_per_day')
+                    .eq('user_id', userId)
+                    .eq('status', 'active');
+
+                const goalLimits = new Map<string, number>();
+                for (const g of (userGoals || [])) {
+                    goalLimits.set(g.id, g.minutes_per_day || 60);
+                }
+
+                // Step 2: Fetch existing blocks for all target dates to know what's already allocated
+                const existingByDateGoal = new Map<string, number>(); // key: "date|goal_id" => minutes
+                if (targetDates.length > 0) {
+                    const { data: existingGoalBlocks } = await supabase
+                        .from('schedule_blocks')
+                        .select('date, goal_id, start_time, end_time')
+                        .eq('user_id', userId)
+                        .in('date', targetDates)
+                        .not('goal_id', 'is', null);
+
+                    for (const eb of (existingGoalBlocks || [])) {
+                        const key = `${eb.date}|${eb.goal_id}`;
+                        const mins = timeToMin(eb.end_time) - timeToMin(eb.start_time);
+                        existingByDateGoal.set(key, (existingByDateGoal.get(key) || 0) + Math.max(0, mins));
+                    }
+                }
+
+                // Step 3: Filter + track running totals for new blocks in this batch
+                const newBlockTotals = new Map<string, number>(); // "date|goal_id" => new mins in this batch
+
+                const goalEnforcedBlocks = filteredBlocks.filter((b: any) => {
+                    if (!b.goal_id || !goalLimits.has(b.goal_id)) return true; // Not a goal block, allow
+
+                    const key = `${b.date}|${b.goal_id}`;
+                    const limit = goalLimits.get(b.goal_id)!;
+                    const existingMins = existingByDateGoal.get(key) || 0;
+                    const newMins = newBlockTotals.get(key) || 0;
+                    const blockMins = Math.max(0, timeToMin(b.end_time) - timeToMin(b.start_time));
+                    const totalAfter = existingMins + newMins + blockMins;
+
+                    if (totalAfter > limit) {
+                        console.log(`[ApplySchedule] BLOCKED over-allocation: "${b.title}" on ${b.date} would be ${totalAfter}min (limit: ${limit}min/day)`);
+                        return false;
+                    }
+
+                    // Track this block's contribution for subsequent blocks in this batch
+                    newBlockTotals.set(key, newMins + blockMins);
+                    return true;
+                });
+
+                const goalSkipped = filteredBlocks.length - goalEnforcedBlocks.length;
+                if (goalSkipped > 0) {
+                    console.log(`[ApplySchedule] Goal enforcement: filtered out ${goalSkipped} blocks exceeding daily limits`);
+                }
+
+                const blocks = goalEnforcedBlocks.map((b: any) => ({
                     ...b,
                     user_id: userId,
                     status: b.status || 'planned',
