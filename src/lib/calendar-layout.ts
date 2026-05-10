@@ -99,10 +99,17 @@ export function calculateLayout(blocks: any[], cellHeight: number = 60): Map<str
 }
 
 function calculateVertical2(block: any, cellHeight: number) {
-    const start = new Date(`2000-01-01T${block.start_time}`);
-    const end = new Date(`2000-01-01T${block.end_time}`);
-    let startMinutes = start.getHours() * 60 + start.getMinutes();
-    let duration = differenceInMinutes(end, start);
+    const [startH, startM] = block.start_time.split(':').map(Number);
+    const [endH, endM] = block.end_time.split(':').map(Number);
+
+    const start = new Date(2000, 0, 1, startH, startM);
+    const end = new Date(2000, 0, 1, endH, endM);
+
+    let startMinutes = startH * 60 + startM;
+    let endMinutes = endH * 60 + endM;
+    if (endMinutes < startMinutes) endMinutes += 24 * 60; // handle wrap around midnight
+
+    let duration = endMinutes - startMinutes;
     if (duration < 15) duration = 15;
 
     const top = (startMinutes / 60) * cellHeight;

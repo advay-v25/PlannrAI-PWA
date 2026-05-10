@@ -104,7 +104,8 @@ export async function generateWeekPlan(
     for (const cmt of context.commitments) {
         if (!cmt.is_active) continue;
         const days = ((cmt.days_of_week || []) as any[]).map(Number);
-        for (const d of days) {
+        for (let d of days) {
+            if (d === 0) d = 7;
             commitmentsByDay.get(d)!.push({
                 start: timeToMinutes(cmt.start_time) - 15, // 15m buffer before
                 end: timeToMinutes(cmt.end_time) + 15,   // 15m buffer after

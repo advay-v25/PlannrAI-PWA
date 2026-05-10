@@ -12,6 +12,15 @@ interface TimelineStripProps {
     anchors?: any[];
 }
 
+function formatSafeTime(timeStr: string) {
+    if (!timeStr) return '';
+    const [h, m] = timeStr.split(':').map(Number);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hours = h % 12 || 12;
+    return `${hours}:${m.toString().padStart(2, '0')} ${ampm}`;
+}
+
+
 export function TimelineStrip({ blocks, anchors = [] }: TimelineStripProps) {
     const [currentTime, setCurrentTime] = useState(new Date().toTimeString().slice(0, 5));
 
@@ -70,7 +79,7 @@ export function TimelineStrip({ blocks, anchors = [] }: TimelineStripProps) {
                                             "text-xs font-bold font-mono",
                                             isCurrent ? "text-[var(--color-primary)]" : "text-white/50"
                                         )}>
-                                            {format(new Date(`2000-01-01T${block.start_time}`), 'h:mm a')}
+                                            {formatSafeTime(block.start_time)}
                                         </span>
                                         <div className="flex-1 w-[2px] rounded-full bg-white/5 relative">
                                             {isCurrent && (
