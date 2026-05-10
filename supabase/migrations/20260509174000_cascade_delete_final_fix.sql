@@ -51,3 +51,13 @@ ALTER TABLE weekly_review_data ADD CONSTRAINT weekly_review_data_associated_bloc
 ALTER TABLE weekly_review_data DROP CONSTRAINT IF EXISTS weekly_review_data_associated_goal_id_fkey;
 ALTER TABLE weekly_review_data ADD CONSTRAINT weekly_review_data_associated_goal_id_fkey 
   FOREIGN KEY (associated_goal_id) REFERENCES goals(id) ON DELETE CASCADE;
+
+-- 11. intervention_logs (user_id) -> auth.users (id)
+ALTER TABLE intervention_logs DROP CONSTRAINT IF EXISTS intervention_logs_user_id_fkey;
+ALTER TABLE intervention_logs ADD CONSTRAINT intervention_logs_user_id_fkey 
+  FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- 12. user_context (user_id) -> auth.users (id)
+ALTER TABLE user_context DROP CONSTRAINT IF EXISTS user_context_user_id_fkey;
+ALTER TABLE user_context ADD CONSTRAINT user_context_user_id_fkey 
+  FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;

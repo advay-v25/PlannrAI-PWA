@@ -151,15 +151,26 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="px-4 py-8 border-t border-[var(--glass-border)]">
-        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-[var(--color-primary)]" />
-            <span className="font-medium">PlannrAI</span>
+      <footer className="px-4 py-8 border-t border-[var(--glass-border)] mt-12">
+        <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex flex-col items-center md:items-start gap-2">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-[var(--color-primary)]" />
+              <span className="font-medium">PlannrAI</span>
+            </div>
+            <p className="text-sm text-[var(--color-text-muted)]">
+              Your data is private. Always.
+            </p>
           </div>
-          <p className="text-sm text-[var(--color-text-muted)]">
-            Your data is private. Always.
-          </p>
+          
+          <div className="flex gap-6 text-sm text-[var(--color-text-muted)]">
+            <Link href="/legal/terms" className="hover:text-white transition-colors">
+              Terms & Conditions
+            </Link>
+            <Link href="/legal/privacy" className="hover:text-white transition-colors">
+              Privacy Policy
+            </Link>
+          </div>
         </div>
       </footer>
     </div>

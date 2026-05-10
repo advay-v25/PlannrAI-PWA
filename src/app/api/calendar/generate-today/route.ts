@@ -324,16 +324,16 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
 
                 let processedDay: any[] = [];
                 let lastEndTime = 0;
-                let bodyGoalPlaced = false;
+                let bodyGoalCount = 0;
 
                 for (let i = 0; i < dayBlocks.length; i++) {
                     let b = { ...dayBlocks[i] };
                     let bStart = timeToMinutes(b.start_time);
                     let duration = timeToMinutes(b.end_time) - bStart;
-                    const isBodyGoal = b.pillar === 'body' || b.block_type === 'body';
+                    const isBodyGoal = b.pillar === 'body' || b.block_type === 'body' || (b.title && (b.title.toLowerCase().includes('workout') || b.title.toLowerCase().includes('gym') || b.title.toLowerCase().includes('exercise') || b.title.toLowerCase().includes('football')));
 
-                    // One body goal per day rule
-                    if (isBodyGoal && bodyGoalPlaced) {
+                    // Max two body goals per day rule
+                    if (isBodyGoal && bodyGoalCount >= 2) {
                         console.log(`[GenerateToday] Skipping extra body goal "${b.title}"`);
                         continue;
                     }
@@ -355,13 +355,44 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
                     // Apply shifted times
                     b.start_time = minToTime(bStart);
                     b.end_time = minToTime(bStart + duration);
-                    if (isBodyGoal) bodyGoalPlaced = true;
+                    if (isBodyGoal) bodyGoalCount++;
 
                     processedDay.push(b);
                     lastEndTime = bStart + duration;
                 }
 
-                return processedDay;
+                // If there are exactly 2 body goals, reorder them to the ends of the day
+                const reorderBodyGoals = (blocks: any[]) => {
+                    const bodyBlocks = blocks.filter(b => b.pillar === 'body' || b.block_type === 'body' || (b.title && (b.title.toLowerCase().includes('workout') || b.title.toLowerCase().includes('gym') || b.title.toLowerCase().includes('exercise') || b.title.toLowerCase().includes('football'))));
+                    if (bodyBlocks.length < 2) return blocks;
+
+                    const activeBodyBlocks = bodyBlocks.slice(0, 2);
+                    const nonBodyBlocks = blocks.filter(b => !activeBodyBlocks.includes(b));
+                    const goalSlots = nonBodyBlocks.filter(b => b.block_type === 'goal' || b.block_type === 'flex');
+
+                    if (goalSlots.length === 0) return blocks;
+
+                    goalSlots.sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
+
+                    // First body goal goes to the first goal slot, second body goal to the last goal slot
+                    const orderedGoals = [activeBodyBlocks[0], ...goalSlots, activeBodyBlocks[1]];
+                    const allGoalTimes = [
+                        ...goalSlots.map(g => ({ start: g.start_time, end: g.end_time })),
+                        ...activeBodyBlocks.map(g => ({ start: g.start_time, end: g.end_time }))
+                    ].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+
+                    for (let i = 0; i < orderedGoals.length; i++) {
+                        if (i < allGoalTimes.length) {
+                            orderedGoals[i].start_time = allGoalTimes[i].start;
+                            orderedGoals[i].end_time = allGoalTimes[i].end;
+                        }
+                    }
+
+                    const otherBlocks = nonBodyBlocks.filter(b => b.block_type !== 'goal' && b.block_type !== 'flex');
+                    return [...otherBlocks, ...orderedGoals].sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
+                };
+
+                return reorderBodyGoals(processedDay);
             };
 
             const cleanBlocks = blocks

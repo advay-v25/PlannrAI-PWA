@@ -3,6 +3,7 @@
 import { useState, FormEvent, useRef, useEffect } from 'react';
 
 import { useCoach, CoachMessage } from '@/hooks/use-coach';
+import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { CoachOption } from '@/types/coach-v4';
 
 import { CoachOptionCard } from './CoachOptionCard';

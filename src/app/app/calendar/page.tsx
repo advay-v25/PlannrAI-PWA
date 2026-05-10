@@ -517,63 +517,25 @@ function CalendarPageInner() {
 
 
 
-                {/* ── Right Sidebar ──────────────────────────────── */}
-                <aside className="hidden lg:flex flex-col w-[260px] shrink-0 border-l border-white/[0.06] bg-black/40 overflow-y-auto no-scrollbar">
-                    <AnimatePresence mode="wait">
-                        {selectedBlock ? (
-                            <motion.div
-                                key="inspector"
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: 20 }}
-                                className="h-full"
-                            >
+                {/* ── Right Sidebar (Inspector Only) ─────────────── */}
+                <AnimatePresence>
+                    {selectedBlock && (
+                        <motion.aside
+                            initial={{ width: 0, opacity: 0 }}
+                            animate={{ width: 320, opacity: 1 }}
+                            exit={{ width: 0, opacity: 0 }}
+                            className="hidden lg:flex flex-col shrink-0 border-l border-white/[0.06] bg-black/40 overflow-y-auto no-scrollbar"
+                        >
+                            <div className="w-[320px] h-full">
                                 <BlockInspector
                                     block={selectedBlock}
                                     onClose={() => setSelectedBlock(null)}
                                     onAction={handleBlockAction}
                                 />
-                            </motion.div>
-                        ) : (
-                            <motion.div
-                                key="sidebar"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="p-4 space-y-6"
-                            >
-                                {/* Mini Calendar */}
-                                <MiniCalendar selectedDate={selectedDate} onSelectDate={setSelectedDate} />
-
-                                {/* Task Categories */}
-                                <TaskCategories blocks={viewDayBlocks} />
-
-                                {/* Daily Goal Ring */}
-                                <div className="space-y-3">
-                                    <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider">Daily Goal</h4>
-                                    <DailyGoalRing pct={dayStats.pct} />
-                                    <p className="text-center text-[10px] text-white/30">
-                                        {dayStats.done} of {dayStats.total} tasks completed
-                                    </p>
-                                </div>
-
-                                {/* Quick Links */}
-                                <div className="space-y-2 pt-2 border-t border-white/[0.06]">
-                                    <Link href="/app/goals"
-                                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-white/50
-                                            hover:bg-white/[0.06] hover:text-white transition-all">
-                                        <Target className="w-3.5 h-3.5 text-orange-400" /> Goals
-                                    </Link>
-                                    <Link href="/app/coach"
-                                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-white/50
-                                            hover:bg-white/[0.06] hover:text-white transition-all">
-                                        <MessageSquare className="w-3.5 h-3.5 text-orange-400" /> Ask Donna
-                                    </Link>
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </aside>
+                            </div>
+                        </motion.aside>
+                    )}
+                </AnimatePresence>
             </div>
 
             {/* ── Modals ────────────────────────────────────────── */}

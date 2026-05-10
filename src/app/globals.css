@@ -50,12 +50,12 @@
   --color-routine: hsl(280, 67%, 55%);
   --color-routine-glow: hsla(280, 67%, 55%, 0.2);
 
-  /* Luxury Overlays */
+  /* Luxury Overlays (Darkened) */
   --mesh-gradient:
-    radial-gradient(at 0% 0%, hsla(16, 100%, 60%, 0.1) 0, transparent 50%),
-    radial-gradient(at 100% 0%, hsla(270, 80%, 60%, 0.08) 0, transparent 50%),
-    radial-gradient(at 100% 100%, hsla(150, 80%, 40%, 0.06) 0, transparent 50%),
-    radial-gradient(at 0% 100%, hsla(330, 80%, 60%, 0.08) 0, transparent 50%);
+    radial-gradient(at 0% 0%, hsla(16, 100%, 60%, 0.05) 0, transparent 50%),
+    radial-gradient(at 100% 0%, hsla(270, 80%, 60%, 0.04) 0, transparent 50%),
+    radial-gradient(at 100% 100%, hsla(150, 80%, 40%, 0.03) 0, transparent 50%),
+    radial-gradient(at 0% 100%, hsla(330, 80%, 60%, 0.04) 0, transparent 50%);
 
   /* Status Colors */
   --color-success: #10B981;

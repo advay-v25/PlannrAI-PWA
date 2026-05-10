@@ -129,17 +129,17 @@ export async function generateWeekPlan(
     // Generate Variants
     const variants: WeekPlanVariant[] = [];
 
-    // Variant 1: Balanced (Spread goals evenly)
-    variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Balanced Week', 'Evenly distributed across the week for steady, sustainable progress.', 'Consistency builds momentum. This schedule spreads your goals out so no single day is overloaded.'));
-
-    // Variant 2: Momentum (Front-loaded)
-    variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Front-Loaded Momentum', 'Aggressive start to the week, leaving more free time later.', 'Tackle the hardest things first. By crushing your goals early in the week, you build unstoppable momentum.'));
-
-    // Variant 3: Specialized based on mode
-    if (mode === 'recovery') {
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Recovery & Light', 'Spaces out work maximally, heavily utilizing weekends for low-stress catch-up.', 'Slow and steady. Maximizes buffers and prioritizes rest without sacrificing your targets.'));
-    } else {
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'clustered', 'Deep Work Clusters', 'Groups goals tightly to maximize long continuous blocks of free time.', 'Context switching drains energy. This schedule clusters work together to give you massive unbroken blocks of freedom.'));
+    if (mode === 'balanced') {
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Standard Balanced', 'Evenly distributed across the week for steady, sustainable progress.', 'Consistency builds momentum.'));
+        if (allowWeekend) {
+            variants.push(generateVariant(context, weekStartDate, false, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Condensed Balanced', 'Balanced but strictly within weekdays.', 'Protects your weekends entirely.'));
+        }
+    } else if (mode === 'momentum') {
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Standard Momentum', 'Aggressive start to the week, leaving more free time later.', 'Tackle the hardest things first.'));
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Momentum + Bonus', 'Fills any remaining free time with extra goal work.', 'Maximum output.', false, true));
+    } else if (mode === 'recovery') {
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Standard Recovery', 'Spaces out work maximally.', 'Slow and steady.'));
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Light Weekend Recovery', 'Spaces out work but enforces a strict 4PM cutoff on weekends.', 'Prioritizes weekend rest.', true));
     }
 
     return variants;
@@ -156,7 +156,9 @@ function generateVariant(
     strategyId: string,
     label: string,
     description: string,
-    philosophy: string
+    philosophy: string,
+    forceLightWeekend: boolean = false,
+    forceBonusFill: boolean = false
 ): WeekPlanVariant {
     const blocks: PlanBlock[] = [];
     const unscheduled_minutes: Record<string, number> = {};
@@ -177,7 +179,7 @@ function generateVariant(
 
     // Deep copy exclusions so we can modify them per variant
     const exclusions = new Map<number, Array<{ start: number; end: number; title: string, type: string }>>();
-    const weekendIntensity = ctx.user.weekend_intensity || 'normal';
+    const weekendIntensity = forceLightWeekend ? 'light' : (ctx.user.weekend_intensity || 'normal');
     // Light weekend = hard 4PM (960 mins) cutoff on Sat/Sun
     const LIGHT_WEEKEND_CUTOFF = 960; // 16:00
 
@@ -304,21 +306,70 @@ function generateVariant(
     // Each goal is now placed exactly once per day (at minutes_per_day duration)
     // up to days_per_week times. No bonus blocks.
 
-    const totalMins = blocks.reduce((sum, b) => {
+    // Post-process blocks: reorder body goals for each day to place them at the ends of the day
+    const processedBlocks: PlanBlock[] = [];
+    const dates = Array.from(new Set(blocks.map(b => b.date)));
+
+    for (const d of dates) {
+        const dayBlocks = blocks.filter(b => b.date === d);
+
+        const bodyBlocks = dayBlocks.filter(b => b.pillar === 'body' || b.block_type === 'body' || (b.title && (b.title.toLowerCase().includes('workout') || b.title.toLowerCase().includes('gym') || b.title.toLowerCase().includes('exercise') || b.title.toLowerCase().includes('football'))));
+        if (bodyBlocks.length < 2) {
+            processedBlocks.push(...dayBlocks);
+            continue;
+        }
+
+        const activeBodyBlocks = bodyBlocks.slice(0, 2);
+        const extraBodyBlocks = bodyBlocks.slice(2);
+        extraBodyBlocks.forEach(b => {
+            b.pillar = 'mind'; // convert extra to mind
+        });
+
+        const nonBodyBlocks = dayBlocks.filter(b => !activeBodyBlocks.includes(b));
+        const goalSlots = nonBodyBlocks.filter(b => b.block_type === 'goal' || b.block_type === 'flex');
+
+        if (goalSlots.length === 0) {
+            processedBlocks.push(...dayBlocks);
+            continue;
+        }
+
+        goalSlots.sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
+
+        const orderedGoals = [activeBodyBlocks[0], ...goalSlots, activeBodyBlocks[1]];
+        const allGoalTimes = [
+            ...goalSlots.map(g => ({ start: g.start_time, end: g.end_time })),
+            ...activeBodyBlocks.map(g => ({ start: g.start_time, end: g.end_time }))
+        ].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+
+        for (let i = 0; i < orderedGoals.length; i++) {
+            if (i < allGoalTimes.length) {
+                orderedGoals[i].start_time = allGoalTimes[i].start;
+                orderedGoals[i].end_time = allGoalTimes[i].end;
+            }
+        }
+
+        const otherBlocks = nonBodyBlocks.filter(b => b.block_type !== 'goal' && b.block_type !== 'flex');
+        const finalDayBlocks = [...otherBlocks, ...orderedGoals].sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
+        processedBlocks.push(...finalDayBlocks);
+    }
+
+    const finalBlocks = processedBlocks.length > 0 ? processedBlocks : blocks;
+
+    const totalMins = finalBlocks.reduce((sum, b) => {
         if (b.block_type === 'sleep' || b.block_type === 'meal') return sum;
         return sum + Math.max(0, timeToMinutes(b.end_time) - timeToMinutes(b.start_time));
     }, 0);
 
-    const uniqueDays = new Set(blocks.filter(b => b.block_type === 'goal').map(b => b.date));
+    const uniqueDays = new Set(finalBlocks.filter(b => b.block_type === 'goal').map(b => b.date));
 
     return {
         id: strategyId,
         label,
         description,
         philosophy,
-        blocks,
+        blocks: finalBlocks,
         stats: {
-            total_blocks: blocks.length,
+            total_blocks: finalBlocks.length,
             total_hours: Math.round(totalMins / 60 * 10) / 10,
             days_with_work: uniqueDays.size,
             unscheduled_minutes,

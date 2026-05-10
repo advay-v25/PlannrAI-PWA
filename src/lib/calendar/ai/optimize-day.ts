@@ -193,6 +193,20 @@ Return valid JSON only.`;
         `  - ID: ${b.id} | ${b.start_time}-${b.end_time} | "${b.title}" | ${b.block_type} | ${b.is_fixed ? 'FIXED' : 'movable'} | ${b.status}`
     ).join('\n');
 
+    let strategyInstruction = '';
+    let optionsText = '';
+
+    if (focus === 'momentum') {
+        strategyInstruction = 'USER STRATEGY: MOMENTUM. Maximize output and deep work. Tighten the schedule and push harder. Minimize non-essential breaks.';
+        optionsText = `Generate 2 options:\nOption 1: "Aggressive Sprint" — Maximum density, clustering all work into long uninterrupted blocks.\nOption 2: "Steady Momentum" — High output but retains standard meal breaks.`;
+    } else if (focus === 'recovery') {
+        strategyInstruction = 'USER STRATEGY: RECOVERY. Reduce overwhelm. Priority is active recovery and avoiding burnout. Aggressively remove low-priority blocks and shorten remaining blocks if needed to preserve wind-down time. Do NOT schedule heavy new goals.';
+        optionsText = `Generate 2 options:\nOption 1: "Essential Only" — Strips schedule to only fixed commitments and highest priority goals.\nOption 2: "Active Recovery" — Includes essential goals but heavily spaces them out with large buffers and routine blocks.`;
+    } else {
+        strategyInstruction = 'USER STRATEGY: BALANCED. Balance the schedule — ensure breaks, meals, and focus time are placed optimally until wind-down. Sustainable mix of deep work and rest.';
+        optionsText = `Generate 2 options:\nOption 1: "Realistic" — Balanced plan with standard meal times and plenty of breaks.\nOption 2: "Focused Flow" — Slightly more concentrated work/goals with minimal viable breaks.`;
+    }
+
     // Build the full-day view (ALL blocks, including past) so AI sees what was already planned
     const allBlocksText = allTodayBlocks.map(b =>
         `  - ID: ${b.id} | ${b.start_time}-${b.end_time} | "${b.title}" | ${b.block_type} | ${b.is_fixed ? 'FIXED' : 'movable'} | ${b.status}${b.goal_id ? ` | goal_id: ${b.goal_id}` : ''}`
@@ -203,7 +217,7 @@ OPTIMIZE TODAY'S SCHEDULE
 
 CURRENT TIME: ${context.current.time}
 DATE: ${context.current.date}
-FOCUS: ${focus || 'balance'}
+STRATEGY: ${focus || 'balanced'}
 WIND-DOWN: ${windDown}
 
 GOALS (with today's allocation — respect these limits!):
@@ -224,15 +238,12 @@ MOVABLE BLOCKS (${movableBlocks.length}): Can be rearranged or removed
 USER PERFORMANCE: ${context.performance.last_7_days_completion_rate}% completion rate last 7 days
 
 INSTRUCTIONS:
-${focus === 'reduce_overwhelm' || focus === 'reality_drift' ? 'USER IS BEHIND SCHEDULE / OVERWHELMED. Priority: RECOVERY. Aggressively remove low-priority blocks. Shorten remaining blocks if needed to preserve wind-down time. Do NOT schedule heavy new goals.' :
-            focus === 'maximize_output' ? 'User wants max productivity. Tighten schedule, fill gaps with focus blocks.' :
-                'Balance the schedule — ensure breaks, meals, and focus time are placed optimally until wind-down.'}
+${strategyInstruction}
+Identify gaps in the schedule and CREATE routines, Meals, and Focus Blocks for the user's goals if missing. Follow the ENERGY ARC — place deep work in peak/rebound phases, light work in trough/wind-down.
 REMEMBER: Check the goal allocation status above. If a goal is ✅ FULLY SCHEDULED, do NOT create more blocks for it. Only fill gaps with buffers, routines, meals, or flex blocks.
 ${progressFragment}
-Generate 2 options:
+${optionsText}
 
-Option 1: "Realistic" — Balanced plan with standard meal times and plenty of breaks.
-Option 2: "Focused" — Concentrated work/goals with minimal viable breaks.
 
 OUTPUT FORMAT (strict JSON):
 {

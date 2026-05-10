@@ -49,7 +49,7 @@ function getOpenRouterConfig(model: string): ProviderConfig {
         getHeaders: () => ({
             'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
             'Content-Type': 'application/json',
-            'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'https://plannrai.com',
+            'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'https://plannrai.in',
             'X-Title': 'PlannrAI',
         }),
         supportsResponseFormat: false,
@@ -64,7 +64,7 @@ function getCalendarOpenRouterConfig(model: string): ProviderConfig {
         getHeaders: () => ({
             'Authorization': `Bearer ${process.env.CALENDAR_OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY}`,
             'Content-Type': 'application/json',
-            'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'https://plannrai.com',
+            'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'https://plannrai.in',
             'X-Title': 'PlannrAI Calendar',
         }),
         supportsResponseFormat: false,
@@ -181,12 +181,82 @@ function robustJSONParse(text: string): any {
     return null;
 }
 
+// ── Circuit Breaker ──────────────────────────────────────────────
+
+interface CircuitBreakerState {
+    failures: number;
+    lastFailureTime: number;
+    state: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+}
+
+const circuitBreakers = new Map<string, CircuitBreakerState>();
+const FAILURE_THRESHOLD = 3; // Number of failures before opening circuit
+const COOLDOWN_MS = 60000; // 1 minute cooldown
+
+function checkCircuit(providerName: string): boolean {
+    const breaker = circuitBreakers.get(providerName);
+    if (!breaker) return true; // Allowed
+
+    if (breaker.state === 'OPEN') {
+        if (Date.now() - breaker.lastFailureTime > COOLDOWN_MS) {
+            breaker.state = 'HALF_OPEN';
+            return true;
+        }
+        return false;
+    }
+    return true;
+}
+
+function recordFailure(providerName: string, statusCode?: number) {
+    // Only trip circuit for rate limits (429) and server errors (5xx)
+    if (statusCode && statusCode !== 429 && (statusCode < 500 || statusCode > 599)) {
+        return;
+    }
+
+    let breaker = circuitBreakers.get(providerName);
+    if (!breaker) {
+        breaker = { failures: 0, lastFailureTime: 0, state: 'CLOSED' };
+        circuitBreakers.set(providerName, breaker);
+    }
+    
+    breaker.failures += 1;
+    breaker.lastFailureTime = Date.now();
+    
+    if (breaker.failures >= FAILURE_THRESHOLD && breaker.state === 'CLOSED') {
+        breaker.state = 'OPEN';
+        console.warn(`\x1b[31m[CIRCUIT BREAKER] 🔴 ${providerName} is now OPEN due to consecutive failures.\x1b[0m`);
+    } else if (breaker.state === 'HALF_OPEN') {
+        breaker.state = 'OPEN';
+        console.warn(`\x1b[31m[CIRCUIT BREAKER] 🔴 ${providerName} returned to OPEN state.\x1b[0m`);
+    }
+}
+
+function recordSuccess(providerName: string) {
+    const breaker = circuitBreakers.get(providerName);
+    if (breaker && (breaker.state === 'HALF_OPEN' || breaker.failures > 0)) {
+        breaker.state = 'CLOSED';
+        breaker.failures = 0;
+        console.log(`\x1b[32m[CIRCUIT BREAKER] 🟢 ${providerName} is now CLOSED and healthy.\x1b[0m`);
+    }
+}
+
 // ── Core Call Function ───────────────────────────────────────────
 
 async function callProvider<T>(
     config: ProviderConfig,
     options: AICallOptions
 ): Promise<AIResponse<T>> {
+    if (!checkCircuit(config.name)) {
+        console.warn(`\x1b[33m[CIRCUIT BREAKER] 🚫 Skipping ${config.name} (Circuit OPEN)\x1b[0m`);
+        return {
+            success: false,
+            error: `Circuit breaker OPEN for ${config.name}`,
+            provider: config.name,
+            model: config.model,
+            latency_ms: 0,
+        };
+    }
+
     const startTime = Date.now();
 
     const messages = [];
@@ -223,7 +293,9 @@ async function callProvider<T>(
 
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`${config.name} API ${response.status}: ${errorText.slice(0, 200)}`);
+            const error = new Error(`${config.name} API ${response.status}: ${errorText.slice(0, 200)}`);
+            (error as any).status = response.status;
+            throw error;
         }
 
         const data = await response.json();
@@ -234,6 +306,7 @@ async function callProvider<T>(
             throw new Error(`${config.name} returned empty response`);
         }
 
+        recordSuccess(config.name);
         console.log(`\x1b[32m[AI ✓]\x1b[0m ${config.name}/${config.model} ${latencyMs}ms`);
 
         // JSON parsing if required
@@ -265,6 +338,15 @@ async function callProvider<T>(
 
     } catch (error: any) {
         clearTimeout(timeoutId);
+        
+        if (error.name === 'AbortError') {
+            recordFailure(config.name, 504); // Treat timeout as Gateway Timeout
+        } else if (error.status) {
+            recordFailure(config.name, error.status);
+        } else if (error.message.includes('fetch')) {
+            recordFailure(config.name, 503); // Treat network errors as unavailable
+        }
+
         const latencyMs = Date.now() - startTime;
         const isTimeout = error.name === 'AbortError';
         const errorMsg = isTimeout ? `Timeout after ${timeout}ms` : error.message;
