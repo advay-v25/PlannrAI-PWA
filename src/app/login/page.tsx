@@ -56,6 +56,14 @@ export default function LoginPage() {
             }
         } catch (err: any) {
             console.error('[Auth Error]:', err);
+            
+            // If they are trying to log in but haven't confirmed email
+            const errorMsg = err.message || '';
+            if (errorMsg.toLowerCase().includes('email not confirmed') || errorMsg.toLowerCase().includes('verify your email')) {
+                 router.push('/verify-email');
+                 return;
+            }
+
             setError(err.message || 'Authentication failed');
         } finally {
             setIsLoading(false);
