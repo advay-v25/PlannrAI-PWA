@@ -19,15 +19,14 @@ const rateLimitStore = new Map<string, RateLimitEntry>();
 // Default limits
 const LIMITS = {
     // Per IP limits
-    ip: { windowMs: 60 * 1000, maxRequests: 100 },      // 100 req/min per IP
-    ipStrict: { windowMs: 60 * 1000, maxRequests: 30 }, // 30 req/min for auth
+    ip: { windowMs: 60 * 1000, maxRequests: 200 },       // 200 req/min per IP (unauthenticated)
+    ipStrict: { windowMs: 60 * 1000, maxRequests: 100 }, // 100 req/min for auth endpoints
 
     // Per user limits
-    user: { windowMs: 60 * 1000, maxRequests: 60 },     // 60 req/min per user
+    user: { windowMs: 60 * 1000, maxRequests: 500 },    // 500 req/min per authenticated user
 
-    // AI endpoint limits (tightened to protect API keys)
-    ai: { windowMs: 60 * 1000, maxRequests: 15 },       // 15 req/min for AI
-
+    // AI endpoint limits (protect API keys)
+    ai: { windowMs: 60 * 1000, maxRequests: 20 },       // 20 req/min for AI
     // AI burst protection (prevent rapid-fire abuse)
     aiBurst: { windowMs: 10 * 1000, maxRequests: 5 },   // 5 req/10s for AI
 

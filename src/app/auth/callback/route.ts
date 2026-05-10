@@ -42,8 +42,8 @@ export async function GET(request: Request) {
                     return NextResponse.redirect(`${origin}/onboarding`);
                 }
 
-                // Redirect to onboarding if not complete
-                if (!profile.onboarding_complete) {
+                // Redirect to onboarding if not complete (unless resetting password)
+                if (!profile.onboarding_complete && next !== '/reset-password') {
                     return NextResponse.redirect(`${origin}/onboarding`);
                 }
             }

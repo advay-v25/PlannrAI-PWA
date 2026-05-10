@@ -72,6 +72,8 @@ export function secureApiRoute(
             const origin = request.headers.get('origin');
             const allowedOrigins = [
                 process.env.NEXT_PUBLIC_APP_URL,
+                'https://plannrai.in',
+                'https://www.plannrai.in',
                 'https://plannrai.com',
                 'https://www.plannrai.com',
                 'https://plannr-ai.vercel.app',

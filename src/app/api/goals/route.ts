@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import { secureApiRoute, apiSuccess, apiError, validateRequiredFields } from '@/lib/security/api-protection';
 import { validateGoalTitle, validateInput } from '@/lib/security/input-validator';
 import { createClient } from '@/lib/supabase/server';
+import { z } from 'zod';
+import { zSanitizedString, validateWithZod } from '@/lib/security/zod-validator';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,51 +95,32 @@ export const GET = secureApiRoute(
 // POST - Create a new goal or subtask
 export const POST = secureApiRoute(
     async (context, body) => {
-        const validation = validateRequiredFields(body, ['title', 'category']);
+        const GoalSchema = z.object({
+            title: zSanitizedString.min(1).max(200),
+            category: z.enum(['mind', 'body', 'future', 'craft']),
+            minutes_per_day: z.number().min(5).max(480).optional().default(30),
+            importance: z.enum(['low', 'medium', 'high']).optional().default('medium'),
+            parent_id: z.string().uuid().optional(),
+            constraints: z.record(z.unknown()).optional(),
+            non_negotiables: z.array(zSanitizedString).optional(),
+            time_commitment_mins: z.number().optional(),
+        });
+
+        const validation = validateWithZod(GoalSchema, body);
         if (!validation.valid) {
-            return apiError(`Missing required fields: ${validation.missing.join(', ')}`)
+            return apiError(validation.errors, 400);
         }
 
         const {
             title,
             category,
-            minutes_per_day = 30,
-            importance = 'medium',
+            minutes_per_day,
+            importance,
             parent_id,
             constraints,
             non_negotiables,
             time_commitment_mins,
-        } = body as {
-            title: string;
-            category: string;
-            minutes_per_day?: number;
-            importance?: string;
-            parent_id?: string;
-            constraints?: Record<string, unknown>;
-            non_negotiables?: string[];
-            time_commitment_mins?: number;
-        };
-
-        // Validate title
-        const titleValidation = validateGoalTitle(title);
-        if (!titleValidation.valid) {
-            return apiError(titleValidation.errors.join(', '));
-        }
-
-        // Validate category
-        if (!['mind', 'body', 'future', 'craft'].includes(category)) {
-            return apiError('Category must be mind, body, craft, or future');
-        }
-
-        // Validate importance
-        if (!['low', 'medium', 'high'].includes(importance)) {
-            return apiError('Importance must be low, medium, or high');
-        }
-
-        // Validate minutes
-        if (minutes_per_day < 5 || minutes_per_day > 480) {
-            return apiError('Minutes per day must be between 5 and 480');
-        }
+        } = validation.data;
 
         const supabase = await createClient();
 
@@ -171,7 +154,7 @@ export const POST = secureApiRoute(
             .from('goals')
             .insert({
                 user_id: context.userId,
-                title: titleValidation.sanitized,
+                title: title,
                 category,
                 minutes_per_day,
                 importance,
@@ -210,86 +193,47 @@ export const POST = secureApiRoute(
 // PUT - Update a goal
 export const PUT = secureApiRoute(
     async (context, body) => {
-        const validation = validateRequiredFields(body, ['id']);
+        const UpdateGoalSchema = z.object({
+            id: z.string().uuid(),
+            title: zSanitizedString.min(1).max(200).optional(),
+            category: z.enum(['mind', 'body', 'future', 'craft']).optional(),
+            minutes_per_day: z.number().min(5).max(1440).optional(),
+            importance: z.enum(['low', 'medium', 'high']).optional(),
+            is_paused: z.boolean().optional(),
+            status: zSanitizedString.optional(),
+            weekly_target_minutes: z.number().optional(),
+            energy_demand: zSanitizedString.optional(),
+            constraints: z.record(z.unknown()).optional(),
+            non_negotiables: z.array(zSanitizedString).optional(),
+            time_commitment_mins: z.number().optional(),
+            milestone_progress: z.number().optional(),
+            sort_order: z.number().optional(),
+            ai_strategy: z.unknown().optional(),
+        });
+
+        const validation = validateWithZod(UpdateGoalSchema, body);
         if (!validation.valid) {
-            return apiError(`Missing required fields: ${validation.missing.join(', ')}`);
+            return apiError(validation.errors, 400);
         }
 
-        const {
-            id,
-            title,
-            category,
-            minutes_per_day,
-            importance,
-            is_paused,
-            constraints,
-            non_negotiables,
-            time_commitment_mins,
-            milestone_progress,
-            sort_order,
-        } = body as {
-            id: string;
-            title?: string;
-            category?: string;
-            minutes_per_day?: number;
-            importance?: string;
-            is_paused?: boolean;
-            constraints?: Record<string, unknown>;
-            non_negotiables?: string[];
-            time_commitment_mins?: number;
-            milestone_progress?: number;
-            sort_order?: number;
-        };
-
+        const data = validation.data;
         const updates: Record<string, unknown> = {};
 
-        if (title !== undefined) {
-            const titleValidation = validateGoalTitle(title);
-            if (!titleValidation.valid) {
-                return apiError(titleValidation.errors.join(', '));
-            }
-            updates.title = titleValidation.sanitized;
-        }
-
-        if (category !== undefined) {
-            if (!['mind', 'body', 'future', 'craft'].includes(category)) {
-                return apiError('Category must be mind, body, craft, or future');
-            }
-            updates.category = category;
-        }
-
-        if (importance !== undefined) {
-            if (!['low', 'medium', 'high'].includes(importance)) {
-                return apiError('Importance must be low, medium, or high');
-            }
-            updates.importance = importance;
-        }
-
-        if (minutes_per_day !== undefined) {
-            if (minutes_per_day < 5 || minutes_per_day > 1440) {
-                return apiError('Minutes per day must be between 5 and 1440');
-            }
-            updates.minutes_per_day = minutes_per_day;
-        }
-
-        if (is_paused !== undefined) updates.is_paused = is_paused;
-        // Support `status` parameter as well since GoalCard sends it
-        // @ts-ignore - Dynamic field
-        if (body.status !== undefined) updates.status = body.status;
-        // Support `weekly_target_minutes` parameter
-        // @ts-ignore - Dynamic field
-        if (body.weekly_target_minutes !== undefined) updates.weekly_target_minutes = body.weekly_target_minutes;
-        // Support `energy_demand` parameter
-        // @ts-ignore - Dynamic field
-        if (body.energy_demand !== undefined) updates.energy_demand = body.energy_demand;
-
-        if (constraints !== undefined) updates.constraints = constraints;
-        if (non_negotiables !== undefined) updates.non_negotiables = non_negotiables;
-        if (time_commitment_mins !== undefined) updates.time_commitment_mins = time_commitment_mins;
-        if (milestone_progress !== undefined) updates.milestone_progress = milestone_progress;
-        if (sort_order !== undefined) updates.sort_order = sort_order;
-        // @ts-ignore - Dynamic field
-        if (body.ai_strategy !== undefined) updates.ai_strategy = body.ai_strategy;
+        if (data.title !== undefined) updates.title = data.title;
+        if (data.category !== undefined) updates.category = data.category;
+        if (data.importance !== undefined) updates.importance = data.importance;
+        if (data.minutes_per_day !== undefined) updates.minutes_per_day = data.minutes_per_day;
+        
+        if (data.is_paused !== undefined) updates.is_paused = data.is_paused;
+        if (data.status !== undefined) updates.status = data.status;
+        if (data.weekly_target_minutes !== undefined) updates.weekly_target_minutes = data.weekly_target_minutes;
+        if (data.energy_demand !== undefined) updates.energy_demand = data.energy_demand;
+        if (data.constraints !== undefined) updates.constraints = data.constraints;
+        if (data.non_negotiables !== undefined) updates.non_negotiables = data.non_negotiables;
+        if (data.time_commitment_mins !== undefined) updates.time_commitment_mins = data.time_commitment_mins;
+        if (data.milestone_progress !== undefined) updates.milestone_progress = data.milestone_progress;
+        if (data.sort_order !== undefined) updates.sort_order = data.sort_order;
+        if (data.ai_strategy !== undefined) updates.ai_strategy = data.ai_strategy;
 
         if (Object.keys(updates).length === 0) {
             return apiError('No valid updates provided');
@@ -300,7 +244,7 @@ export const PUT = secureApiRoute(
         const { data: goal, error } = await supabase
             .from('goals')
             .update(updates)
-            .eq('id', id)
+            .eq('id', data.id)
             .eq('user_id', context.userId)
             .select()
             .single();
@@ -317,11 +261,11 @@ export const PUT = secureApiRoute(
                 .from('schedule_blocks')
                 .delete()
                 .eq('user_id', context.userId)
-                .eq('goal_id', id)
+                .eq('goal_id', data.id)
                 .gte('date', today)
                 .select('id');
             blocksRemoved = deleted?.length || 0;
-            console.log(`[Goals PUT] Removed ${blocksRemoved} future blocks for paused goal ${id}`);
+            console.log(`[Goals PUT] Removed ${blocksRemoved} future blocks for paused goal ${data.id}`);
         }
 
         // Trigger Reactive Scheduling (One Engine)
@@ -340,12 +284,16 @@ export const PUT = secureApiRoute(
 // DELETE - Delete a goal (cascades to subtasks)
 export const DELETE = secureApiRoute(
     async (context, body) => {
-        const validation = validateRequiredFields(body, ['id']);
+        const DeleteGoalSchema = z.object({
+            id: z.string().uuid()
+        });
+
+        const validation = validateWithZod(DeleteGoalSchema, body);
         if (!validation.valid) {
-            return apiError(`Missing required fields: ${validation.missing.join(', ')}`);
+            return apiError(validation.errors, 400);
         }
 
-        const { id } = body as { id: string };
+        const { id } = validation.data;
 
         const supabase = await createClient();
 

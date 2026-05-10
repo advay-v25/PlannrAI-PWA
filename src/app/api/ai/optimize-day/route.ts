@@ -169,7 +169,7 @@ ${validGoals.map(g => `- [ID:${g.id}] ${g.title} (${g.minutes_per_day}m, ${g.imp
 
 STRICT SCHEDULING RULES:
 1. TARGETS: Do NOT schedule a goal if its weekly target is already reached (unless it is High Importance and the day is sparse).
-2. BODY COHERENCE: Max ONE body-related activity per day (Gym, Football, Cardio). If "Football" is in the skeleton, do NOT schedule the "Gym" goal today.
+2. BODY COHERENCE: Max TWO body-related activities per day (Gym, Football, Cardio). If there are two body goals scheduled, they CANNOT be scheduled consecutively (one after the other); they must be placed on the ends of the day (e.g. one in the morning, one in the evening).
 3. BODY PILLAR BUFFER: NEVER schedule 'body' pillar activities within 2 HOURS after any meal (Breakfast, Lunch, Dinner).
 4. WHITESPACE: Do not pack blocks back-to-back. Leave 15-30m "whitespace" gaps for cognitive breathing. 
 5. MEAL PROTECTION: Do NOT overlap goals with Meal blocks. Meals are flexible in time but must remain uninterrupted.
@@ -250,9 +250,12 @@ OUTPUT FORMAT (JSON):
             }
 
             // 2. Insert new blocks
-            let bodyGoalPlaced = false;
+            let bodyGoalCount = 0;
             // Check if skeleton already has a body activity
-            bodyGoalPlaced = skeleton.some(s => s.type === 'anchor' && (s.title.toLowerCase().includes('gym') || s.title.toLowerCase().includes('workout') || s.title.toLowerCase().includes('football')));
+            const skeletonHasBody = skeleton.some(s => s.type === 'anchor' && (s.title.toLowerCase().includes('gym') || s.title.toLowerCase().includes('workout') || s.title.toLowerCase().includes('football')));
+            if (skeletonHasBody) bodyGoalCount = 1;
+
+            const parsedBlocks: any[] = [];
 
             for (const b of optimizedBlocks) {
                 const normalizeTime = (t: string) => {
@@ -272,7 +275,7 @@ OUTPUT FORMAT (JSON):
 
                 if (start && end) {
                     let safeGoalId: string | null = null;
-                    let isBodyGoal = b.type === 'body' || b.title.toLowerCase().includes('workout');
+                    let isBodyGoal = b.type === 'body' || b.title.toLowerCase().includes('workout') || b.title.toLowerCase().includes('gym') || b.title.toLowerCase().includes('exercise') || b.title.toLowerCase().includes('football');
 
                     if (b.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(b.id)) {
                         safeGoalId = b.id;
@@ -281,26 +284,76 @@ OUTPUT FORMAT (JSON):
                         if (goal?.pillar === 'body') isBodyGoal = true;
                     }
 
-                    // STRICT: One body goal per day
-                    if (isBodyGoal && bodyGoalPlaced) {
+                    // STRICT: Max two body goals per day
+                    if (isBodyGoal && bodyGoalCount >= 2) {
                         console.log(`[Optimization] Skipping extra body goal "${b.title}"`);
                         continue;
                     }
-                    if (isBodyGoal) bodyGoalPlaced = true;
+                    if (isBodyGoal) bodyGoalCount++;
 
-                    patchOps.push({
-                        op: 'create_event',
-                        payload: {
-                            date: date,
-                            start_time: start,
-                            end_time: end,
-                            title: b.title,
-                            block_type: safeType,
-                            status: 'planned',
-                            goal_id: safeGoalId
-                        }
+                    parsedBlocks.push({
+                        date: date,
+                        start_time: start,
+                        end_time: end,
+                        title: b.title,
+                        block_type: safeType,
+                        status: 'planned',
+                        goal_id: safeGoalId,
+                        is_body: isBodyGoal
                     });
                 }
+            }
+
+            // Apply reordering if there are 2 body goals
+            const timeToMinutes = (t: string) => {
+                const [h, m] = t.split(':').map(Number);
+                return (h || 0) * 60 + (m || 0);
+            };
+
+            const reorderBodyGoals = (blocks: any[]) => {
+                const bodyBlocks = blocks.filter(b => b.is_body);
+                if (bodyBlocks.length < 2) return blocks;
+
+                const activeBodyBlocks = bodyBlocks.slice(0, 2);
+                const nonBodyBlocks = blocks.filter(b => !activeBodyBlocks.includes(b));
+                const goalSlots = nonBodyBlocks.filter(b => b.block_type === 'goal' || b.block_type === 'flex');
+
+                if (goalSlots.length === 0) return blocks;
+
+                goalSlots.sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
+
+                const orderedGoals = [activeBodyBlocks[0], ...goalSlots, activeBodyBlocks[1]];
+                const allGoalTimes = [
+                    ...goalSlots.map(g => ({ start: g.start_time, end: g.end_time })),
+                    ...activeBodyBlocks.map(g => ({ start: g.start_time, end: g.end_time }))
+                ].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+
+                for (let i = 0; i < orderedGoals.length; i++) {
+                    if (i < allGoalTimes.length) {
+                        orderedGoals[i].start_time = allGoalTimes[i].start;
+                        orderedGoals[i].end_time = allGoalTimes[i].end;
+                    }
+                }
+
+                const otherBlocks = nonBodyBlocks.filter(b => b.block_type !== 'goal' && b.block_type !== 'flex');
+                return [...otherBlocks, ...orderedGoals].sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
+            };
+
+            const finalParsedBlocks = reorderBodyGoals(parsedBlocks);
+
+            for (const b of finalParsedBlocks) {
+                patchOps.push({
+                    op: 'create_event',
+                    payload: {
+                        date: b.date,
+                        start_time: b.start_time,
+                        end_time: b.end_time,
+                        title: b.title,
+                        block_type: b.block_type,
+                        status: 'planned',
+                        goal_id: b.goal_id
+                    }
+                });
             }
 
             // 3. Apply Patch

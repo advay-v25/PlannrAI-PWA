@@ -10,6 +10,7 @@ import { CoachChat } from '@/components/coach/CoachChat';
 import { CommandMenu } from '@/components/ui/command-menu';
 import { cn } from '@/lib/utils';
 import { useUserStore } from '@/stores';
+import { RealTimeIndicator } from '@/components/ui/real-time-indicator';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
@@ -88,71 +89,76 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </div>
             </aside>
 
-            {/* Content Area */}
-            <main className={cn(
-                "flex-1 relative flex flex-col transition-all duration-300 ease-in-out",
-                isCoachOpen ? "mr-[400px]" : "mr-0"
-            )}>
+  {/* Content Area with AI Coach - Using CSS Grid for fluid animations */}
+  <div className={cn(
+    "flex-1 grid transition-[grid-template-columns] duration-300 ease-in-out",
+    isCoachOpen ? "grid-cols-[1fr_400px]" : "grid-cols-[1fr_0px]"
+  )}>
+    {/* Main Content */}
+    <main className="relative flex flex-col overflow-hidden">
+      {/* Top System Bar */}
+      <header className="h-14 flex items-center justify-between px-6 border-b border-[var(--glass-border)] bg-[var(--color-bg-secondary)]/50 backdrop-blur-md z-20 md:hidden">
+        {/* Mobile Header Content - simplified since Sidebar handles desktop */}
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-[var(--color-primary)] animate-pulse-slow" />
+          <span className="text-xs font-mono text-[var(--text-tertiary)] uppercase tracking-widest">Neural OS</span>
+        </div>
+        <button
+          onClick={() => setIsCoachOpen(!isCoachOpen)}
+          className={cn(
+            "p-2 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg)] transition-all",
+            isCoachOpen ? "text-[var(--color-primary)] border-[var(--color-primary)]/30" : "text-[var(--text-secondary)]"
+          )}
+        >
+          <Sparkles className={cn("w-4 h-4", isCoachOpen && "animate-pulse")} />
+        </button>
+      </header>
 
-                {/* Top System Bar */}
-                <header className="h-14 flex items-center justify-between px-6 border-b border-[var(--glass-border)] bg-[var(--color-bg-secondary)]/50 backdrop-blur-md z-20 md:hidden">
-                    {/* Mobile Header Content - simplified since Sidebar handles desktop */}
-                    <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-[var(--color-primary)] animate-pulse-slow" />
-                        <span className="text-xs font-mono text-[var(--text-tertiary)] uppercase tracking-widest">Neural OS</span>
-                    </div>
-                    <button
-                        onClick={() => setIsCoachOpen(!isCoachOpen)}
-                        className="p-2 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg)] text-[var(--text-secondary)]"
-                    >
-                        <Sparkles className="w-4 h-4" />
-                    </button>
-                </header>
+      {/* Scrollable Page Content */}
+      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-[var(--glass-border)]">
+        <div className="max-w-5xl mx-auto p-4 pb-32 md:pb-10">
+          {children}
+        </div>
+      </div>
 
-                {/* Scrollable Page Content */}
-                <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-[var(--glass-border)]">
-                    <div className="max-w-5xl mx-auto p-4 pb-32 md:pb-10">
-                        {children}
-                    </div>
-                </div>
+      {/* Bottom Navigation Dock (Mobile Only) */}
+      <nav className="md:hidden absolute bottom-6 left-4 right-4 h-16 glass-panel rounded-full flex items-center justify-around px-2 z-30">
+        {navItems.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all",
+                isActive ? "text-[var(--color-primary)] bg-[var(--color-primary)]/10" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+              )}
+            >
+              <item.icon className="w-5 h-5" />
+            </Link>
+          );
+        })}
+        {/* Mobile Settings Link (since 'Me' was removed from navItems) */}
+        <Link
+          href="/app/settings"
+          className={cn(
+            "flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all",
+            pathname === '/app/settings' ? "text-[var(--color-primary)] bg-[var(--color-primary)]/10" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+          )}
+        >
+          <User className="w-5 h-5" />
+        </Link>
+      </nav>
+    </main>
 
-                {/* Bottom Navigation Dock (Mobile Only) */}
-                <nav className="md:hidden absolute bottom-6 left-4 right-4 h-16 glass-panel rounded-full flex items-center justify-around px-2 z-30">
-                    {navItems.map((item) => {
-                        const isActive = pathname === item.href;
-                        return (
-                            <Link
-                                key={item.href}
-                                href={item.href}
-                                className={cn(
-                                    "flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all",
-                                    isActive ? "text-[var(--color-primary)] bg-[var(--color-primary)]/10" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
-                                )}
-                            >
-                                <item.icon className="w-5 h-5" />
-                            </Link>
-                        );
-                    })}
-                    {/* Mobile Settings Link (since 'Me' was removed from navItems) */}
-                    <Link
-                        href="/app/settings"
-                        className={cn(
-                            "flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all",
-                            pathname === '/app/settings' ? "text-[var(--color-primary)] bg-[var(--color-primary)]/10" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
-                        )}
-                    >
-                        <User className="w-5 h-5" />
-                    </Link>
-                </nav>
-            </main>
-
-            {/* AI Coach Drawer - Always mounted, slides in */}
-            <aside className={cn(
-                "fixed inset-y-0 right-0 w-[400px] glass-panel border-l border-[var(--glass-border)] shadow-2xl z-40 transform transition-transform duration-300 ease-in-out",
-                isCoachOpen ? "translate-x-0" : "translate-x-full"
-            )}>
-                <CoachChat onClose={() => setIsCoachOpen(false)} />
-            </aside>
+    {/* AI Coach Panel - Slides in with grid animation */}
+    <aside className={cn(
+      "overflow-hidden h-full transition-all duration-300",
+      isCoachOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+    )}>
+      <CoachChat onClose={() => setIsCoachOpen(false)} />
+    </aside>
+  </div>
         </div>
     );
 }

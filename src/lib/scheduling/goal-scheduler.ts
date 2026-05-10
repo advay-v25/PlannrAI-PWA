@@ -67,7 +67,7 @@ export class GoalScheduler {
 
             if (slot) {
                 changes.push({
-                    op: 'create_block',
+                    op: 'create_event',
                     title: 'Goal Session',
                     date: format(slot.start, 'yyyy-MM-dd'),
                     start_time: format(slot.start, 'HH:mm'),
@@ -147,7 +147,7 @@ export class GoalScheduler {
                 summary: `No free space found. I've placed a candidate slot for you to review.`,
                 affected_date: format(forcedDate, 'yyyy-MM-dd'),
                 changes: [{
-                    op: 'create_block',
+                    op: 'create_event',
                     title: `[Review] ${goal.title}`,
                     date: format(forcedStart, 'yyyy-MM-dd'),
                     start_time: format(forcedStart, 'HH:mm'),

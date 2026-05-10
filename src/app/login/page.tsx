@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
@@ -48,9 +49,9 @@ export default function LoginPage() {
                 if (session) {
                     router.push('/onboarding');
                 } else {
-                    setError('Account created! You can now log in.');
-                    setMode('login');
-                    setPassword('');
+                    // If email verification is on, Supabase will return an empty session.
+                    // Direct users to check inbox.
+                    router.push('/verify-email');
                 }
             }
         } catch (err: any) {
@@ -127,14 +128,26 @@ export default function LoginPage() {
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
                             />
-                            <GlassInput
-                                type="password"
-                                placeholder="••••••••"
-                                label="Password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
-                            />
+                            <div>
+                                <GlassInput
+                                    type="password"
+                                    placeholder="••••••••"
+                                    label="Password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
+                                />
+                                {mode === 'login' && (
+                                    <div className="flex justify-end mt-2">
+                                        <Link 
+                                            href="/forgot-password" 
+                                            className="text-xs text-white/40 hover:text-orange-500 transition-colors"
+                                        >
+                                            Forgot password?
+                                        </Link>
+                                    </div>
+                                )}
+                            </div>
 
                             <AnimatePresence mode="wait">
                                 {error && (

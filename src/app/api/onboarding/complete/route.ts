@@ -114,36 +114,41 @@ export const POST = secureApiRoute(
         }
 
         // 4. Trigger Initial Schedule Generation
-        const { WeekOrchestrator } = await import('@/lib/calendar/week-orchestrator');
+        const { buildCalendarContext } = await import('@/lib/calendar/context-builder');
+        const { generateWeekPlan } = await import('@/lib/calendar/ai/plan-week');
         const { PatchService } = await import('@/lib/services/patch-service');
         
         const today = new Date().toISOString().split('T')[0];
         let blocksCreated = 0;
 
         try {
-            // Map selected_variant_id to WeekOrchestrator modes if applicable
-            // For now, we use 'plan' mode regardless of variant
-            const result = await WeekOrchestrator.generateWeek({
-                userId: effectiveUserId,
-                weekStartISO: today,
-                mode: 'plan',
-                supabase: supabase as any,
-            });
+            const calendarCtx = await buildCalendarContext(effectiveUserId, supabase as any);
+            const variants = await generateWeekPlan(calendarCtx, today, 'balanced', true);
 
-            if (result.patch && result.patch.changes.length > 0) {
+            if (variants.length > 0) {
+                const bestVariant = variants[0]; // Take standard balanced variant
+                
                 const calendarPatch = {
-                    ops: result.patch.changes.map((c: any) => {
-                        if (c.op === 'create_event') return { op: 'create' as const, event: c.payload };
-                        if (c.op === 'update_event') return { op: 'update' as const, event_id: c.event_id, fields: c.payload };
-                        if (c.op === 'delete_event') return { op: 'delete' as const, event_id: c.event_id };
-                        return c;
-                    }),
+                    ops: bestVariant.blocks.map((b: any) => ({
+                        op: 'create_event' as const,
+                        payload: {
+                            date: b.date,
+                            start_time: b.start_time,
+                            end_time: b.end_time,
+                            title: b.title,
+                            block_type: b.block_type,
+                            goal_id: b.goal_id || null,
+                            pillar: b.pillar || null,
+                            status: 'planned',
+                            checklist: b.checklist || null,
+                        }
+                    })),
                     scope: 'week' as const,
                     reason: 'Onboarding initial schedule generation',
                 };
 
                 await PatchService.applyPatch(effectiveUserId, calendarPatch, supabase as any);
-                blocksCreated = result.previewBlocks?.length || 0;
+                blocksCreated = bestVariant.blocks.length;
             }
         } catch (genError) {
             console.error('Initial schedule generation failed:', genError);

@@ -3,6 +3,7 @@
 import { useState, FormEvent, useRef, useEffect } from 'react';
 
 import { useCoach, CoachMessage } from '@/hooks/use-coach';
+import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { CoachOption } from '@/types/coach-v4';
 
 import { CoachOptionCard } from './CoachOptionCard';
@@ -116,45 +117,45 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
         }
     };
 
-    return (
-        <div className="flex flex-col h-full glass relative overflow-hidden bg-bg-secondary/40">
-            {/* Mesh Background Overlay (Subtle) */}
-            <div className="absolute inset-0 z-0 opacity-20 pointer-events-none bg-mesh-gradient"></div>
+  return (
+    <div className="flex flex-col h-full glass relative overflow-hidden bg-bg-secondary/40">
+      {/* Mesh Background Overlay (Subtle) */}
+      <div className="absolute inset-0 z-0 opacity-20 pointer-events-none bg-mesh-gradient"></div>
 
-            {/* Header / Mode Indicator */}
-            <div className="z-10 px-6 py-4 flex justify-between items-center border-b border-white/5 backdrop-blur-md">
-                <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-[var(--color-mind)] flex items-center justify-center shadow-glow">
-                        <span className="text-white text-sm">⚡</span>
-                    </div>
-                    <div className="flex flex-col">
-                        <span className="text-sm font-bold text-foreground tracking-tight">
-                            Donna
-                        </span>
-                        <span className="text-[10px] text-foreground/40 uppercase tracking-wider">
-                            AI Coach · Strategic Mode
-                        </span>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2">
-                    {minimalMode && (
-                        <div className="flex items-center space-x-1.5 bg-primary/10 px-2 py-1 rounded-full border border-primary/20">
-                            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></div>
-                            <span className="text-[9px] font-bold text-primary uppercase">Minimal</span>
-                        </div>
-                    )}
-                    {onClose && (
-                        <button
-                            onClick={onClose}
-                            className="p-1.5 rounded-lg hover:bg-white/5 transition-colors text-foreground/40 hover:text-foreground/70"
-                        >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    )}
-                </div>
+      {/* Header / Mode Indicator */}
+      <div className="z-10 px-6 py-4 flex justify-between items-center border-b border-white/5 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-[var(--color-mind)] flex items-center justify-center shadow-glow">
+            <span className="text-white text-sm">⚡</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-sm font-bold text-foreground tracking-tight">
+              Donna
+            </span>
+            <span className="text-[10px] text-foreground/40 uppercase tracking-wider">
+              AI Coach · Strategic Mode
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {minimalMode && (
+            <div className="flex items-center space-x-1.5 bg-primary/10 px-2 py-1 rounded-full border border-primary/20">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></div>
+              <span className="text-[9px] font-bold text-primary uppercase">Minimal</span>
             </div>
+          )}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg hover:bg-white/5 transition-colors text-foreground/40 hover:text-foreground/70"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
 
             {/* Error Banner */}
             {error && (

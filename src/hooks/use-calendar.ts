@@ -350,10 +350,6 @@ export function useCalendar(initialDate: Date = new Date()) {
             const uniqueDates = dates.sort();
             const isSingleDay = uniqueDates.length <= 1;
 
-            // "today_schedule" is from generate-today. Plan-week variants are: balanced/front-loaded/sustainable/fallback
-            const isFullReplacement = ['today_schedule', 'balanced', 'front-loaded', 'sustainable', 'fallback', 'momentum', 'recovery'].includes(option.id);
-
-            // For single-day operations, use clear_date; for multi-day, use clear_week
             const body: any = {
                 action: isSingleDay ? 'optimize_day' : 'plan_week',
                 variant_id: option.id,
@@ -364,7 +360,8 @@ export function useCalendar(initialDate: Date = new Date()) {
                 },
             };
 
-            if (isFullReplacement) {
+            // Force clear existing schedule when applying a full plan
+            if (body.action === 'plan_week' || option.id === 'today_schedule') {
                 if (isSingleDay) {
                     body.clear_date = uniqueDates[0] || format(selectedDate, 'yyyy-MM-dd');
                 } else {

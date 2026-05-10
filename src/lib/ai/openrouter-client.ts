@@ -39,7 +39,7 @@ export async function openRouterChat(
             headers: {
                 "Authorization": `Bearer ${apiKey}`,
                 "Content-Type": "application/json",
-                "HTTP-Referer": "https://plannrai.com", // OpenRouter requires this for rankings
+                "HTTP-Referer": "https://plannrai.in", // OpenRouter requires this for rankings
                 "X-Title": "PlannrAI Performance Engine"
             },
             body: JSON.stringify({
