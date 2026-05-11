@@ -63,9 +63,18 @@ export type PatchOperation =
     | { type: 'update_block'; block_id: string; changes: Partial<BlockData> }
     | { type: 'delete_block'; block_id: string }
     | { type: 'update_goal'; goal_id: string; changes: Partial<GoalData> }
+    | { type: 'create_goal'; data: NewGoalData }
+    | { type: 'delete_goal'; goal_id: string }
     | { type: 'create_todo'; data: NewTodoData }
     | { type: 'update_todo'; todo_id: string; changes: Partial<TodoData> }
     | { type: 'delete_todo'; todo_id: string };
+
+interface NewGoalData {
+    title: string;
+    pillar: string;
+    minutes_per_day: number;
+    days_per_week: number;
+}
 
 interface NewTodoData {
     title: string;
@@ -422,7 +431,9 @@ PATCH OPERATION TYPES:
 - move_block: { type: "move_block", block_id: "existing-id", title: "Block Title", new_start: "HH:MM", new_end: "HH:MM", new_date?: "YYYY-MM-DD" }
 - update_block: { type: "update_block", block_id: "existing-id", title: "Block Title", changes: { status?, title?, start_time?, end_time? } }
 - delete_block: { type: "delete_block", block_id: "existing-id", title: "Block Title" }
+- create_goal: { type: "create_goal", data: { title, pillar, minutes_per_day, days_per_week } }
 - update_goal: { type: "update_goal", goal_id: "existing-id", changes: { ... } }
+- delete_goal: { type: "delete_goal", goal_id: "existing-id", title: "Goal Title" }
 - create_todo: { type: "create_todo", data: { title, due_date?, priority? } }
 - update_todo: { type: "update_todo", todo_id: "existing-id", changes: { is_completed?, title?, due_date?, priority? } }
 - delete_todo: { type: "delete_todo", todo_id: "existing-id" }
@@ -445,7 +456,7 @@ PATCH OPERATION TYPES:
       "impact": "Concrete positive outcome (e.g., 'Reclaims 2 hours of peak focus')",
       "tradeoff": { "warning": "Any downsides", "severity": "info|caution|warning" },
       "operations": [
-        { "type": "create_block|move_block|update_block|delete_block|create_todo|update_todo|delete_todo", ... }
+        { "type": "create_block|move_block|update_block|delete_block|create_todo|update_todo|delete_todo|create_goal|update_goal|delete_goal", ... }
       ],
       "recommended": true
     }
@@ -523,9 +534,9 @@ Generate 2-3 actionable options with concrete patch operations. Return valid JSO
                 // Convert to CalendarPatchOp format for the UI card
                 const calendarOps = normalizedOps.map(convertToCalendarPatchOp);
                 // Compute preview counts from actual operations (don't trust AI)
-                const blocksAdded = normalizedOps.filter(o => o.type === 'create_block' || o.type === 'create_todo').length;
-                const blocksModified = normalizedOps.filter(o => o.type === 'move_block' || o.type === 'update_block' || o.type === 'update_todo').length;
-                const blocksRemoved = normalizedOps.filter(o => o.type === 'delete_block' || o.type === 'delete_todo').length;
+                const blocksAdded = normalizedOps.filter(o => o.type === 'create_block' || o.type === 'create_todo' || o.type === 'create_goal').length;
+                const blocksModified = normalizedOps.filter(o => o.type === 'move_block' || o.type === 'update_block' || o.type === 'update_todo' || o.type === 'update_goal').length;
+                const blocksRemoved = normalizedOps.filter(o => o.type === 'delete_block' || o.type === 'delete_todo' || o.type === 'delete_goal').length;
                 const dates = new Set<string>();
                 normalizedOps.forEach(o => {
                     if (o.type === 'create_block' && o.data?.date) dates.add(o.data.date);
@@ -634,11 +645,26 @@ function normalizeOperation(op: any): PatchOperation {
                 type: 'delete_block',
                 block_id: op.block_id || op.event_id || op.id,
             };
+        case 'create_goal':
+            return {
+                type: 'create_goal',
+                data: {
+                    title: op.data?.title || op.title,
+                    pillar: op.data?.pillar || op.pillar || 'General',
+                    minutes_per_day: op.data?.minutes_per_day || op.minutes_per_day || 60,
+                    days_per_week: op.data?.days_per_week || op.days_per_week || 5,
+                },
+            };
         case 'update_goal':
             return {
                 type: 'update_goal',
                 goal_id: op.goal_id || op.id,
                 changes: op.changes || op.fields || {},
+            };
+        case 'delete_goal':
+            return {
+                type: 'delete_goal',
+                goal_id: op.goal_id || op.id,
             };
         case 'create_todo':
             return {
@@ -704,11 +730,23 @@ function convertToCalendarPatchOp(op: PatchOperation): any {
                 event_id: op.block_id,
                 title: (op as any).title || 'Block',
             };
+        case 'create_goal':
+            return {
+                op: 'create_goal',
+                payload: op.data,
+                title: op.data?.title || 'Goal',
+            };
         case 'update_goal':
             return {
                 op: 'update_goal',
                 goal_id: op.goal_id,
                 fields: op.changes,
+            };
+        case 'delete_goal':
+            return {
+                op: 'delete_goal',
+                goal_id: op.goal_id,
+                title: (op as any).title || 'Goal',
             };
         case 'create_todo':
             return {

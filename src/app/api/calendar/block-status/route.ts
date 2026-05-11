@@ -1,6 +1,4 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
-import { createClient } from '@/lib/supabase/server';
-import { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
 /**
@@ -21,7 +19,7 @@ const StatusTransitionSchema = z.object({
 
 // Valid transitions — prevents going backwards
 const VALID_TRANSITIONS: Record<string, string[]> = {
-    planned: ['in_progress', 'cancelled', 'missed'],
+    planned: ['in_progress', 'done', 'cancelled', 'missed'],
     in_progress: ['done', 'partial', 'missed', 'cancelled'],
     done: [], // terminal state
     missed: ['planned'],  // allow retry
@@ -37,10 +35,10 @@ export const POST = secureApiRoute(
         }
 
         const { block_id, status, actual_start_time, actual_end_time, notes } = parsed.data;
-        const userId = context.user?.id;
+        const userId = context.userId;
         if (!userId) return apiError('Unauthorized', 401);
 
-        const supabase = await createClient() as unknown as SupabaseClient<any, "public", any>;
+        const supabase = context.supabase;
 
         // 1. Fetch existing block
         const { data: block, error: fetchError } = await supabase

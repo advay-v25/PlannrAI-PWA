@@ -50,10 +50,10 @@ export function HomeTodos() {
   const totalTasks = totalPending + totalDone;
 
   // Show top 3 pending tasks as a preview
-  const previewTasks: { title: string; priority: string; category?: string }[] = [];
+  const previewTasks: { title: string; priority: string }[] = [];
   for (const todo of todos) {
     if (!todo.is_completed && previewTasks.length < 3) {
-      previewTasks.push({ title: todo.title, priority: todo.priority || 'medium', category: todo.category });
+      previewTasks.push({ title: todo.title, priority: todo.priority || 'medium' });
     }
   }
 
@@ -210,11 +210,6 @@ export function HomeTodos() {
                     <span className="text-xs text-[var(--text-secondary)] truncate flex-1 group-hover/task:text-[var(--text-primary)] transition-colors">
                       {task.title}
                     </span>
-                    {task.category && (
-                      <span className="text-[9px] px-2 py-1 rounded-full bg-[var(--glass-bg)] text-[var(--text-tertiary)] uppercase tracking-wider" style={{ opacity: 0.7 }}>
-                        {task.category}
-                      </span>
-                    )}
                   </motion.div>
                 ))}
                 {totalPending > 3 && (

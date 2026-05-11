@@ -74,6 +74,8 @@ export interface ProactiveSuggestion {
     priority: 'high' | 'medium' | 'low';
     action_label: string;
     trigger_type?: string;
+    dismiss_uid?: string;
+    query?: string;
 }
 
 export interface CoachResponse {

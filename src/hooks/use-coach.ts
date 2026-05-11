@@ -1,375 +1,366 @@
 'use client';
 
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { apiClient } from '@/lib/api-client';
 import type { CoachResponse, CoachOption, CoachQuestion, CoachRefusal, ProactiveSuggestion } from '@/types/coach-v4';
 
-
 export interface CoachMessage {
-    id: string;
-    role: 'user' | 'assistant';
-    content: string;
-    mode?: string;
-    thinking?: string[];
-    contextUsed?: string[];
-    options?: CoachOption[];
-    question?: CoachQuestion;
-    refusal?: CoachRefusal;
-    suggestedActions?: string[];
-    isApplying?: boolean;
-    selected_option_id?: string;
-    undoToken?: string | null;
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  mode?: string;
+  thinking?: string[];
+  contextUsed?: string[];
+  options?: CoachOption[];
+  question?: CoachQuestion;
+  refusal?: CoachRefusal;
+  suggestedActions?: string[];
+  isApplying?: boolean;
+  selected_option_id?: string;
+  undoToken?: string | null;
+  timestamp?: number;
 }
 
-
-interface CoachState {
-    messages: CoachMessage[];
-    conversationId: string | null; // BUG 2 FIX: Track conversation_id
-    isLoading: boolean;
-    error: string | null;
-    minimalMode: boolean;
-    canUndo: boolean;
-    lastUndoToken: string | null;
-    suggestedActions: string[];
-    hasLoadedProactive: boolean;
-    proactiveSuggestion: ProactiveSuggestion | null; 
-
-    checkingProactive: boolean;
-    sendMessage: (text: string) => Promise<void>;
-
-    applyOption: (messageId: string, optionId: string) => Promise<boolean>;
-    undo: () => Promise<boolean>;
-    clearError: () => void;
-    loadProactiveInsight: () => Promise<void>;
-    loadHistory: () => Promise<void>;
-    dismissProactive: () => Promise<void>;
-    actOnProactive: () => void;
-    resetConversation: () => void;
+interface PersistentCoachData {
+  messages: CoachMessage[];
+  conversationId: string | null;
+  suggestedActions: string[];
+  lastSync: number | null;
 }
 
-/**
- * Extracts the CoachResponse from the API response,
- * handling both envelope formats:
- *   - { success, conversation_id, response: {...} }  (from /api/coach/message)
- *   - { ok, data: {...} }  (if apiClient auto-unwraps)
- *   - Direct CoachResponse  (if already unwrapped)
- */
+interface CoachState extends PersistentCoachData {
+  isLoading: boolean;
+  error: string | null;
+  minimalMode: boolean;
+  canUndo: boolean;
+  lastUndoToken: string | null;
+  hasLoadedProactive: boolean;
+  proactiveSuggestion: ProactiveSuggestion | null;
+  checkingProactive: boolean;
+  connectionStatus: 'connected' | 'disconnected' | 'connecting';
+  
+  sendMessage: (text: string) => Promise<{ success: boolean; error?: string }>;
+  applyOption: (messageId: string, optionId: string) => Promise<boolean>;
+  undo: () => Promise<boolean>;
+  clearError: () => void;
+  loadProactiveInsight: () => Promise<void>;
+  loadHistory: () => Promise<void>;
+  dismissProactive: () => Promise<void>;
+  actOnProactive: () => void;
+  clearConversation: () => void;
+  retryLastAction: () => void;
+}
+
 function extractCoachResponse(raw: any): { response: any; conversationId?: string } {
-    // Format: { success, conversation_id, response }
-    if (raw?.response && typeof raw.response === 'object') {
-        return { response: raw.response, conversationId: raw.conversation_id };
-    }
-    // Already unwrapped CoachResponse (has summary/mode directly)
-    if (raw?.summary || raw?.mode) {
-        return { response: raw, conversationId: raw.conversation_id };
-    }
-    // Fallback
-    return { response: raw };
+  // Format: { success, conversation_id, response }
+  if (raw?.response && typeof raw.response === 'object') {
+    return { response: raw.response, conversationId: raw.conversation_id };
+  }
+  // Already unwrapped CoachResponse (has summary/mode directly)
+  if (raw?.summary || raw?.mode) {
+    return { response: raw, conversationId: raw.conversation_id };
+  }
+  // Fallback
+  return { response: raw };
 }
 
-export const useCoach = create<CoachState>((set, get) => ({
-    messages: [],
-    conversationId: null,
-    isLoading: false,
-    error: null,
-    minimalMode: false,
-    canUndo: false,
-    lastUndoToken: null,
-    suggestedActions: [],
-    hasLoadedProactive: false,
-    proactiveSuggestion: null,
-    checkingProactive: false,
+const STORAGE_KEY = 'plannrai-coach-conversation';
 
+export const useCoach = create<CoachState>()(
+  persist(
+    (set, get) => ({
+      messages: [],
+      conversationId: null,
+      isLoading: false,
+      error: null,
+      minimalMode: false,
+      canUndo: false,
+      lastUndoToken: null,
+      suggestedActions: [],
+      hasLoadedProactive: false,
+      proactiveSuggestion: null,
+      checkingProactive: false,
+      lastSync: null,
+      connectionStatus: 'connecting',
 
-    sendMessage: async (text: string) => {
-
+      sendMessage: async (text: string) => {
         const userMsg: CoachMessage = {
-            id: crypto.randomUUID(),
-            role: 'user',
-            content: text
+          id: crypto.randomUUID(),
+          role: 'user',
+          content: text,
+          timestamp: Date.now()
         };
-        set(state => ({ 
-            messages: [...state.messages, userMsg], 
-            isLoading: true,
-            error: null 
+        
+        set(state => ({
+          messages: [...state.messages, userMsg],
+          isLoading: true,
+          error: null,
+          connectionStatus: 'connecting'
         }));
 
         try {
-            const raw = await apiClient.post('/api/coach/message', {
-                message: text,
-                conversation_id: get().conversationId, // Send tracked conversation_id
-                date: new Date().toISOString()
-            });
+          // Test connection first
+          const connectionTest = await fetch('/api/health', { method: 'HEAD' }).catch(() => null);
+          if (!connectionTest?.ok) {
+            throw new Error('Connection error. Please check your internet connection.');
+          }
 
-            const { response: coachRes, conversationId } = extractCoachResponse(raw);
+          const raw = await apiClient.post('/api/coach/message', {
+            message: text,
+            conversation_id: get().conversationId,
+            date: new Date().toISOString()
+          });
 
-            const assistantMsg: CoachMessage = {
-                id: crypto.randomUUID(),
-                role: 'assistant',
-                content: coachRes.summary || '',
-                mode: coachRes.mode,
-                thinking: coachRes.thinking,
-                contextUsed: coachRes.context_used,
-                options: coachRes.options,
-                question: coachRes.question,
-                refusal: coachRes.refusal,
-                suggestedActions: coachRes.suggested_actions
-            };
+          const { response: coachRes, conversationId } = extractCoachResponse(raw);
 
-            set(state => ({
-                messages: [...state.messages, assistantMsg],
-                conversationId: conversationId || state.conversationId, // Track it
-                isLoading: false,
-                minimalMode: coachRes.mode === 'ask' || (coachRes.thinking?.length === 0),
-                suggestedActions: coachRes.suggested_actions || state.suggestedActions,
-                canUndo: !!coachRes.undo_token,
-                lastUndoToken: coachRes.undo_token || state.lastUndoToken
-            }));
+          // Validate response
+          if (!coachRes.summary && !coachRes.mode) {
+            throw new Error('Invalid response from AI Coach. Please try again.');
+          }
 
-            // AUTO-EXECUTION: If mode is 'execute' and there is a recommended option, apply it immediately
-            if (coachRes.mode === 'execute' && coachRes.options?.length) {
-                const recommended = coachRes.options.find((o: any) => o.recommended) || coachRes.options[0];
-                if (recommended) {
-                    console.log('[Coach] Auto-executing directive:', recommended.title);
-                    get().applyOption(assistantMsg.id, recommended.id);
-                }
+          const assistantMsg: CoachMessage = {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: coachRes.summary || '',
+            mode: coachRes.mode,
+            thinking: coachRes.thinking,
+            contextUsed: coachRes.context_used,
+            options: coachRes.options,
+            question: coachRes.question,
+            refusal: coachRes.refusal,
+            suggestedActions: coachRes.suggested_actions,
+            timestamp: Date.now()
+          };
+
+          set(state => ({
+            messages: [...state.messages, assistantMsg],
+            conversationId: conversationId || state.conversationId,
+            isLoading: false,
+            connectionStatus: 'connected',
+            minimalMode: coachRes.mode === 'ask' || (coachRes.thinking?.length === 0),
+            suggestedActions: coachRes.suggested_actions || state.suggestedActions,
+            canUndo: !!coachRes.undo_token,
+            lastUndoToken: coachRes.undo_token || state.lastUndoToken,
+            lastSync: Date.now()
+          }));
+
+          // Auto-execute if mode is 'execute'
+          if (coachRes.mode === 'execute' && coachRes.options?.length) {
+            const recommended = coachRes.options.find((o: any) => o.recommended) || coachRes.options[0];
+            if (recommended) {
+              console.log('[Coach] Auto-executing directive:', recommended.title);
+              get().applyOption(assistantMsg.id, recommended.id);
             }
-        } catch (error: any) {
-            console.error("Coach Error", error);
-            set(state => ({
-                messages: state.messages.filter(m => m.id !== userMsg.id),
-                isLoading: false,
-                error: error.message || "Connection issue. Please try again."
-            }));
-        }
-    },
+          }
 
-    applyOption: async (messageId: string, optionId: string) => {
-        const { messages, conversationId } = get();
+          return { success: true };
+        } catch (error: any) {
+          console.error("Coach Error:", error);
+          const errorMessage = error.message || "Connection issue. Please try again.";
+          
+          set(state => ({
+            messages: state.messages.filter(m => m.id !== userMsg.id),
+            isLoading: false,
+            error: errorMessage,
+            connectionStatus: 'disconnected',
+            lastSync: Date.now()
+          }));
+
+          return { success: false, error: errorMessage };
+        }
+      },
+
+      applyOption: async (messageId: string, optionId: string) => {
+        const { messages } = get();
         const msg = messages.find(m => m.id === messageId);
         const option = msg?.options?.find(o => o.id === optionId);
+        
         if (!option) {
-            console.error('[Coach] Option not found:', optionId);
-            return false;
+          console.error('[Coach] Option not found:', optionId);
+          return false;
         }
 
-        // GUARD: Prevent re-applying an already applied option
-        if (msg?.selected_option_id) {
-            console.warn('[Coach] Option already applied for this message, skipping');
-            return true;
-        }
-
-        // GUARD: Prevent concurrent apply (double-click)
-        if (msg?.isApplying) {
-            console.warn('[Coach] Apply already in progress, skipping');
-            return false;
-        }
-
-        // Skip empty patches (e.g. "open calendar" option)
         const ops = (option.patch as any)?.operations || (option.patch as any)?.ops || [];
         if (ops.length === 0) {
-            set(state => ({
-                messages: state.messages.map(m =>
-                    m.id === messageId ? { ...m, selected_option_id: optionId } : m
-                ),
-            }));
-            return true;
+          set(state => ({
+            messages: state.messages.map(m => 
+              m.id === messageId 
+                ? { ...m, selected_option_id: optionId, isApplying: false }
+                : m
+            )
+          }));
+          return true;
         }
 
         set(state => ({
-            messages: state.messages.map(m =>
-                m.id === messageId ? { ...m, isApplying: true } : m
-            ),
-            error: null
+          messages: state.messages.map(m => 
+            m.id === messageId 
+              ? { ...m, selected_option_id: optionId, isApplying: true }
+              : m
+          )
         }));
 
         try {
-            const res = await apiClient.post<{ success: boolean; undo_token: string | null; applied_operations: number; error?: string }>(
-                '/api/coach/apply',
-                { 
-                    patch: option.patch, 
-                    option_id: optionId,
-                    conversation_id: conversationId
-                }
-            );
+          const batchRes = await fetch('/api/calendar/apply-schedule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              conversation_id: get().conversationId,
+              operations: ops,
+              option_id: optionId
+            })
+          });
 
-            // apiClient unwraps {ok, data} envelope — res is the inner data
-            if (res && res.success === false) {
-                throw new Error(res.error || 'Failed to apply changes');
-            }
+          if (!batchRes.ok) {
+            const errText = await batchRes.text();
+            throw new Error(errText || "Failed to apply option");
+          }
 
-            set(state => ({
-                messages: state.messages.map(m =>
-                    m.id === messageId
-                        ? { ...m, isApplying: false, selected_option_id: optionId, undoToken: res?.undo_token || null }
-                        : m
-                ),
-                lastUndoToken: res?.undo_token || null,
-                canUndo: !!res?.undo_token
-            }));
+          const batchData = await batchRes.json();
 
-            if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('calendar-refresh'));
-            }
-            return true;
+          set(state => ({
+            messages: state.messages.map(m => 
+              m.id === messageId 
+                ? { ...m, selected_option_id: optionId, isApplying: false, undoToken: batchData.undo_token }
+                : m
+            ),
+            canUndo: true,
+            lastUndoToken: batchData.undo_token
+          }));
+
+          return true;
         } catch (error: any) {
-            console.error("[Coach Apply] Failed:", error);
-            set(state => ({
-                messages: state.messages.map(m =>
-                    m.id === messageId ? { ...m, isApplying: false } : m
-                ),
-                error: error.message || "Failed to apply changes. Please try again."
-            }));
-            return false;
-        }
-    },
+          console.error('[Coach] Apply option error:', error);
+          
+          set(state => ({
+            messages: state.messages.map(m => 
+              m.id === messageId 
+                ? { ...m, selected_option_id: undefined, isApplying: false }
+                : m
+            ),
+            error: `Failed to apply option: ${error.message}`
+          }));
 
-    undo: async (): Promise<boolean> => {
+          return false;
+        }
+      },
+
+      undo: async () => {
         const { lastUndoToken } = get();
         if (!lastUndoToken) return false;
-        
-        set({ isLoading: true, error: null });
-        try {
-            await apiClient.post('/api/coach/undo', { undo_token: lastUndoToken });
-
-            set(state => ({
-                messages: [
-                    ...state.messages.map(m =>
-                        m.undoToken === lastUndoToken
-                            ? { ...m, selected_option_id: undefined, undoToken: null }
-                            : m
-                    ),
-                    // Add confirmation message
-                    {
-                        id: `undo_${Date.now()}`,
-                        role: 'assistant' as const,
-                        content: "**Done.** I've reverted the last change. Your schedule is back to how it was. What would you like to do instead?",
-                        mode: 'inform',
-                    }
-                ],
-                lastUndoToken: null,
-                canUndo: false,
-                isLoading: false
-            }));
-
-            if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('calendar-refresh'));
-            }
-            return true;
-        } catch (error: any) {
-            console.error("Undo Failed", error);
-            set({ isLoading: false, error: error.message || "Undo failed. The change may have already been reverted." });
-            return false;
-        }
-    },
-
-
-    loadHistory: async () => {
-        set({ isLoading: true, error: null });
-        try {
-            const raw = await apiClient.get<any>('/api/coach/history');
-            
-            // Format: { success: true, conversation_id: "...", messages: [...] }
-            if (raw && raw.success) {
-                const formattedMessages: CoachMessage[] = (raw.messages || []).map((m: any) => ({
-                    id: m.id,
-                    role: m.role,
-                    content: m.content,
-                    mode: m.mode,
-                    options: m.options,
-                    selected_option_id: m.selected_option_id,
-                    created_at: m.created_at
-                }));
-
-                set({
-                    messages: formattedMessages,
-                    conversationId: raw.conversation_id,
-                    isLoading: false
-                });
-            } else {
-                set({ isLoading: false });
-            }
-        } catch (error: any) {
-            console.error("Failed to load coach history", error);
-            set({ isLoading: false });
-        }
-    },
-
-    clearError: () => set({ error: null }),
-
-    loadProactiveInsight: async () => {
-        if (get().hasLoadedProactive) return;
-        set({ hasLoadedProactive: true, isLoading: true, error: null });
 
         try {
-            const raw = await apiClient.post('/api/coach/message', {
-                message: "What should I focus on right now?",
-                conversation_id: get().conversationId,
-                date: new Date().toISOString(),
-                proactive: true
-            });
+          const res = await fetch('/api/calendar/undo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: lastUndoToken })
+          });
 
-            // BUG 3 FIX: Use the same envelope extractor
-            const { response: coachRes, conversationId } = extractCoachResponse(raw);
+          if (!res.ok) throw new Error('Undo failed');
 
-            const insightMsg: CoachMessage = {
-                id: crypto.randomUUID(),
-                role: 'assistant',
-                content: coachRes.summary || '',
-                mode: coachRes.mode,
-                thinking: coachRes.thinking,
-                contextUsed: coachRes.context_used,
-                options: coachRes.options,
-                question: coachRes.question,
-                suggestedActions: coachRes.suggested_actions
-            };
-
-            set(state => ({
-                messages: [insightMsg],
-                conversationId: conversationId || state.conversationId,
-                isLoading: false,
-                suggestedActions: coachRes.suggested_actions || [],
-                canUndo: !!coachRes.undo_token,
-                lastUndoToken: coachRes.undo_token || state.lastUndoToken
-            }));
-        } catch (error: any) {
-            console.error("Proactive insight failed", error);
-            set({ isLoading: false });
+          set(state => ({ canUndo: false, lastUndoToken: null }));
+          return true;
+        } catch (error) {
+          console.error('[Coach] Undo error:', error);
+          return false;
         }
-    },
+      },
 
-    dismissProactive: async () => {
-        const { proactiveSuggestion } = get();
-        if (!proactiveSuggestion) return;
-        try {
-            await apiClient.post('/api/coach/dismiss', { suggestion_id: proactiveSuggestion.id });
-            set({ proactiveSuggestion: null });
-        } catch (e) {
-            console.error("Failed to dismiss proactive", e);
-            set({ proactiveSuggestion: null });
-        }
-    },
+      clearError: () => set({ error: null, connectionStatus: 'connected' }),
 
-    actOnProactive: () => {
-        const { proactiveSuggestion, sendMessage } = get();
-        if (!proactiveSuggestion) return;
-        sendMessage(proactiveSuggestion.action_label);
-        set({ proactiveSuggestion: null });
-    },
-
-    resetConversation: () => {
-        set({
-            messages: [],
-            conversationId: null,
-            isLoading: false,
-            error: null,
-            minimalMode: false,
-            canUndo: false,
-            lastUndoToken: null,
-            suggestedActions: [],
-            hasLoadedProactive: false,
-            proactiveSuggestion: null,
-            checkingProactive: false,
+      clearConversation: () => {
+        set({ 
+          messages: [], 
+          conversationId: null,
+          canUndo: false,
+          lastUndoToken: null,
+          lastSync: Date.now()
         });
-    },
-}));
+        
+        // Clear localStorage
+        localStorage.removeItem(STORAGE_KEY);
+      },
+
+      loadProactiveInsight: async () => {
+        if (get().checkingProactive) return;
+        
+        set({ checkingProactive: true });
+        
+        try {
+          const raw = await apiClient.get('/api/coach/proactive');
+          const { response: coachRes } = extractCoachResponse(raw);
+          set({
+            proactiveSuggestion: coachRes?.proactive || null,
+            hasLoadedProactive: true,
+            checkingProactive: false,
+            lastSync: Date.now()
+          });
+        } catch (error) {
+          console.error('[Coach] Proactive insight load error:', error);
+          set({ checkingProactive: false });
+        }
+      },
+
+      loadHistory: async () => {
+        // Load from local storage first for immediate feedback
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          try {
+            const data = JSON.parse(saved);
+            set(state => ({
+              messages: data.state.messages.slice(-50), // Last 50 messages
+              conversationId: data.state.conversationId,
+              suggestedActions: data.state.suggestedActions,
+              lastSync: data.state.lastSync
+            }));
+          } catch (error) {
+            console.error('[Coach] Failed to load history:', error);
+          }
+        }
+      },
+
+      dismissProactive: async () => {
+        const suggestion = get().proactiveSuggestion;
+        if (!suggestion?.dismiss_uid) return;
+
+        try {
+          await apiClient.post('/api/coach/proactive/dismiss', {
+            uid: suggestion.dismiss_uid
+          });
+          set({ proactiveSuggestion: null });
+        } catch (error) {
+          console.error('[Coach] Failed to dismiss proactive:', error);
+        }
+      },
+
+      actOnProactive: () => {
+        const suggestion = get().proactiveSuggestion;
+        if (!suggestion) return;
+        if (!suggestion?.query) return;
+        get().sendMessage(suggestion.query);
+        set({ proactiveSuggestion: null });
+      },
+
+      retryLastAction: () => {
+        const { error, messages } = get();
+        if (!error || messages.length === 0) return;
+        
+        // Retry the last user message
+        const lastUserMessage = [...messages].reverse().find(m => m.role === 'user');
+        if (lastUserMessage) {
+          get().sendMessage(lastUserMessage.content);
+        }
+      }
+    }),
+    {
+      name: STORAGE_KEY,
+      partialize: (state): Partial<PersistentCoachData> => ({
+        messages: state.messages.slice(-50),
+        conversationId: state.conversationId,
+        suggestedActions: state.suggestedActions.slice(-20),
+        lastSync: Date.now()
+      })
+    }
+  )
+);

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 
 export interface PremiumCalendarState {
@@ -88,6 +89,12 @@ export const getPremiumBlockColors = (block: any) => {
       text: "text-[var(--color-craft)]/90",
       accent: "from-[var(--color-craft)] to-[var(--color-craft)]/70",
     },
+    future: {
+      bg: "bg-gradient-to-br from-indigo-500/20 via-indigo-500/15 to-transparent",
+      border: "border-indigo-500/40",
+      text: "text-indigo-400/90",
+      accent: "from-indigo-500 to-indigo-500/70",
+    },
     anchor: {
       bg: "bg-gradient-to-br from-[var(--color-anchor)]/20 via-[var(--color-anchor)]/15 to-transparent",
       border: "border-[var(--color-anchor)]/40",
@@ -126,7 +133,7 @@ export const getPremiumBlockColors = (block: any) => {
     },
   };
   
-  return gradients[pillar] || gradients.default;
+  return (gradients as Record<string, typeof gradients.default>)[pillar] || gradients.default;
 };
 
 export const getStatusStyles = (status: string) => {
@@ -163,7 +170,7 @@ export const getStatusStyles = (status: string) => {
     },
   };
   
-  return styles[status] || { container: "", indicator: "", text: "", animation: "" };
+  return (styles as Record<string, typeof styles.done>)[status] || { container: "", indicator: "", text: "", animation: "" };
 };
 
 export const interpolateTimeProgress = (startTime: string, endTime: string): number => {

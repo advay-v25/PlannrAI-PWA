@@ -80,7 +80,7 @@ export default function ResetPasswordPage() {
                 transition={{ type: 'spring', stiffness: 100, damping: 20 }}
                 className="w-full max-w-md relative z-10"
             >
-                <GlassCard variant="glow" padding="xl" className="border-white/10 shadow-3xl relative overflow-hidden">
+                <GlassCard variant="glow" padding="lg" className="border-white/10 shadow-3xl relative overflow-hidden">
                     {/* Minimal geometric accent */}
                     <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-orange-500 to-transparent opacity-50" />
                     

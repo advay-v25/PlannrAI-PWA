@@ -1,4 +1,3 @@
-import { useSupabaseStore } from '@/stores/supabase-store';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -19,11 +18,8 @@ export function RealTimeIndicator({ className, showCountdown = true }: RealTimeI
       setLastSync(new Date(saved));
     }
 
-    // Example: Show indicator based on Supabase events
-    // Subscribe to changes
-    const { subscribe } = useSupabaseStore.getState();
-    
-    const unsubscribe = subscribe('*', (event) => {
+    // Listen for sync events dispatched elsewhere in the app
+    const handleSync = (event: CustomEvent) => {
       setShowIndicator(true);
       const now = new Date();
       setLastSync(now);
@@ -31,7 +27,9 @@ export function RealTimeIndicator({ className, showCountdown = true }: RealTimeI
       
       // Hide after 3 seconds
       setTimeout(() => setShowIndicator(false), 3000);
-    });
+    };
+
+    document.addEventListener('plannrai-sync', handleSync as EventListener);
 
     // Start countdown timer (30 second refresh cycle)
     if (showCountdown) {
@@ -44,12 +42,12 @@ export function RealTimeIndicator({ className, showCountdown = true }: RealTimeI
       }, 1000);
 
       return () => {
-        unsubscribe?.();
+        document.removeEventListener('plannrai-sync', handleSync as EventListener);
         clearInterval(interval);
       };
     }
 
-    return () => unsubscribe?.();
+    return () => document.removeEventListener('plannrai-sync', handleSync as EventListener);
   }, [lastSync, showCountdown]);
 
   if (!showCountdown && !showIndicator) return null;

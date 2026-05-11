@@ -27,7 +27,10 @@ export const POST = secureApiRoute(
             );
         }
 
-        const effectiveUserId = userId || '5eaf0087-f547-4d87-a235-facd3bd3b997';
+        const effectiveUserId = userId;
+        if (!effectiveUserId) {
+             return apiError('User ID not found in session', 401);
+        }
         console.log(`[API] Completing Onboarding for ${effectiveUserId}`);
 
         // 1. Update Profile (Identity + Rhythm + Failure Modes)
