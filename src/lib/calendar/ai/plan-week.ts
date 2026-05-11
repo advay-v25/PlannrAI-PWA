@@ -127,20 +127,35 @@ export async function generateWeekPlan(
         }
     }
 
+    // NEW: Load existing schedule blocks (fixed or done) into exclusion zones to prevent overwrites
+    for (const block of context.schedule.this_week) {
+        if (block.status === 'done' || block.is_fixed || block.commitment_id) {
+            const date = parseISO(block.date);
+            let d = date.getDay(); // 0=Sun
+            if (d === 0) d = 7;
+            commitmentsByDay.get(d)!.push({
+                start: timeToMinutes(block.start_time),
+                end: timeToMinutes(block.end_time),
+                title: block.title,
+                type: 'existing_block'
+            });
+        }
+    }
+
     // Generate Variants
     const variants: WeekPlanVariant[] = [];
 
     if (mode === 'balanced') {
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Standard Balanced', 'Evenly distributed across the week for steady, sustainable progress.', 'Consistency builds momentum.'));
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Standard Balanced', 'Optimized distribution based on your current goal progress.', 'Consistency builds momentum.'));
         if (allowWeekend) {
-            variants.push(generateVariant(context, weekStartDate, false, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Condensed Balanced', 'Balanced but strictly within weekdays.', 'Protects your weekends entirely.'));
+            variants.push(generateVariant(context, weekStartDate, false, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Workday Focus', 'Balanced but strictly within weekdays to protect your recovery time.', 'Protects your weekends entirely.'));
         }
     } else if (mode === 'momentum') {
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Standard Momentum', 'Aggressive start to the week, leaving more free time later.', 'Tackle the hardest things first.'));
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Momentum + Bonus', 'Fills any remaining free time with extra goal work.', 'Maximum output.', false, true));
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'High Momentum', 'Aggressive front-loading to finish your weekly targets by Thursday.', 'Tackle the hardest things first.'));
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Hyper-Productive', 'Packs tasks with zero buffers for maximum efficiency.', 'Maximum output.', false, true));
     } else if (mode === 'recovery') {
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Standard Recovery', 'Spaces out work maximally.', 'Slow and steady.'));
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Light Weekend Recovery', 'Spaces out work but enforces a strict 4PM cutoff on weekends.', 'Prioritizes weekend rest.', true));
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Gentle Recovery', 'Maximized gaps between sessions for mental resets.', 'Slow and steady.'));
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Quiet Weekend Recovery', 'Light load with a strict 4PM weekend cutoff.', 'Prioritizes weekend rest.', true));
     }
 
     return variants;
@@ -163,6 +178,10 @@ function generateVariant(
 ): WeekPlanVariant {
     const blocks: PlanBlock[] = [];
     const unscheduled_minutes: Record<string, number> = {};
+
+    // Track workload per day to intelligently distribute goals
+    const workloadPerDay = new Map<number, number>();
+    for (let i = 1; i <= 7; i++) workloadPerDay.set(i, 0);
 
     // 1. Add bio blocks directly to the schedule
     for (let day = 0; day < 7; day++) {
@@ -197,8 +216,14 @@ function generateVariant(
     });
 
     for (const goal of sortedGoals) {
-        const targetDays = goal.days_per_week || 5;
+        // NEW: Progress-aware scheduling. How much is ACTUALLY left to do?
+        const progress = ctx.goalProgress?.find(p => p.goal_id === goal.id);
+        const remainingMins = progress ? progress.remaining_minutes : (goal.days_per_week || 5) * (goal.minutes_per_day || 60);
+        
+        if (remainingMins <= 0) continue; // Goal already reached for the week!
+
         const targetMinsPerDay = goal.minutes_per_day || 60;
+        const targetDays = Math.max(1, Math.ceil(remainingMins / targetMinsPerDay));
         let daysPlaced = 0;
 
         // Determine preferred days based on strategy
@@ -206,15 +231,33 @@ function generateVariant(
         if (!allowWeekend) preferredDays = [1, 2, 3, 4, 5];
 
         if (strategyId === 'momentum') {
-            // Front load: prioritize Mon-Wed
-            preferredDays.sort((a, b) => a - b);
+            // Front load: prioritize Mon-Sun. If workloads are equal, go early.
+            // If Mon is full, Tue is next best.
+            preferredDays.sort((a, b) => {
+                const loadA = workloadPerDay.get(a) || 0;
+                const loadB = workloadPerDay.get(b) || 0;
+                // Primary sort by day index, but allow some load balancing if one day is already extremely heavy
+                const weightA = a * 1000 + loadA;
+                const weightB = b * 1000 + loadB;
+                return weightA - weightB;
+            });
         } else if (strategyId === 'recovery') {
-            // Space out: prioritize Wed-Sun
-            preferredDays.sort((a, b) => b - a);
+            // Space out: prioritize days with the absolute LEAST workload.
+            // This spreads 5 tasks across 7 days with massive gaps.
+            preferredDays.sort((a, b) => {
+                const loadA = workloadPerDay.get(a) || 0;
+                const loadB = workloadPerDay.get(b) || 0;
+                if (loadA !== loadB) return loadA - loadB;
+                return b - a; // Tie breaker: later in the week
+            });
         } else if (strategyId === 'balanced') {
-            // Try to spread out: e.g. 1, 3, 5, 2, 4, 6, 7
-            const spread = [1, 3, 5, 2, 4, 6, 7];
-            preferredDays = spread.filter(d => preferredDays.includes(d));
+            // Balanced: sort by workload, then by day index to keep it standard.
+            preferredDays.sort((a, b) => {
+                const loadA = workloadPerDay.get(a) || 0;
+                const loadB = workloadPerDay.get(b) || 0;
+                if (loadA !== loadB) return loadA - loadB;
+                return a - b;
+            });
         }
 
         let failedMins = 0;
@@ -258,16 +301,39 @@ function generateVariant(
 
             // Find a window that can fit dailyMins
             let placed = false;
+            
+            // NEW: Pillar-intelligent window sorting.
+            // Mind -> Morning, Body -> Afternoon/Peaks, Craft -> Morning/Afternoon.
+            windows.sort((a, b) => {
+                if (goal.pillar === 'mind') return a.start - b.start; // Prefer morning
+                if (goal.pillar === 'body') {
+                    const aIsAfternoon = a.start >= 720; // 12:00
+                    const bIsAfternoon = b.start >= 720;
+                    if (aIsAfternoon && !bIsAfternoon) return -1;
+                    if (!aIsAfternoon && bIsAfternoon) return 1;
+                    return a.start - b.start;
+                }
+                return a.start - b.start;
+            });
+
             for (const win of windows) {
                 if (win.end - win.start >= dailyMins) {
                     // Fit it here!
                     let start = win.start;
                     
-                    // If strategy is clustered, we push to the end of the window to pack things together,
-                    // otherwise place at the start of the window
-                    if (strategyId === 'clustered') {
-                        // pack tight to existing blocks
+                    // Pillar-specific placement within window
+                    if (goal.pillar === 'mind' && win.start < 720) {
+                         // Mind goals in morning windows should be pushed to the start
+                    } else if (goal.pillar === 'body') {
+                         // Body goals can be pushed slightly later in the window for digestion
+                         if (win.end - win.start > dailyMins + 30) start += 15;
                     }
+                    
+                    // Dynamic Buffer based on strategy (affects footprint on the calendar)
+                    let buffer = 10;
+                    if (strategyId === 'momentum') buffer = 0;
+                    else if (strategyId === 'balanced') buffer = 30;
+                    else if (strategyId === 'recovery') buffer = 90;
 
                     blocks.push({
                         date: dateStr,
@@ -280,13 +346,16 @@ function generateVariant(
                         checklist: goal.ai_strategy?.checklist || [{text: "Focus session"}, {text: "Review progress"}]
                     });
 
-                    // Add to exclusions for this day (with a 10m buffer after)
+                    // Add to exclusions for this day with strategy-specific buffer
                     dayExclusions.push({
                         start: start,
-                        end: start + dailyMins + 10,
+                        end: start + dailyMins + buffer,
                         title: goal.title,
                         type: 'goal'
                     });
+
+                    // Update workload tracker
+                    workloadPerDay.set(isoDay, (workloadPerDay.get(isoDay) || 0) + dailyMins);
 
                     daysPlaced++;
                     placed = true;
