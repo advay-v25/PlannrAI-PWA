@@ -48,7 +48,7 @@ export class GoalScheduler {
             }
 
             const dayContext = currentSchedule
-                .filter(s => isSameDay(parse(s.start_time, 'HH:mm', date), date))
+                .filter(s => s.date === format(date, 'yyyy-MM-dd'))
                 .map(s => ({
                     id: s.id || 'existing',
                     start: this.parseScheduleTime(date, s.start_time),

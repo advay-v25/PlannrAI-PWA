@@ -36,6 +36,16 @@ function formatOpLabel(op: any): { icon: string; label: string } {
         return { icon: '✕', label: `Remove task: "${op.title || 'Task'}"` };
     }
 
+    if (type.includes('create_goal')) {
+        return { icon: '🎯', label: `Add goal: "${op.payload?.title || op.title || 'Goal'}"` };
+    }
+    if (type.includes('update_goal')) {
+        return { icon: '✎', label: `Update goal: "${op.title || 'Goal'}"` };
+    }
+    if (type.includes('delete_goal')) {
+        return { icon: '✕', label: `Remove goal: "${op.title || 'Goal'}"` };
+    }
+
     if (type.includes('create')) {
         const event = op.event || op.payload || op.data || {};
         const title = event.title || op.title || 'New Block';

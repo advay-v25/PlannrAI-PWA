@@ -152,6 +152,15 @@ export async function POST(request: NextRequest) {
 
         console.log('[Coach Apply] Success:', result.changes, 'changes applied');
 
+        // Clear needs_rescheduling flag since the schedule was optimized
+        const { data: profile } = await supabase.from('profiles').select('bio_data').eq('id', user.id).single();
+        const bioData = (profile?.bio_data as any) || {};
+        if (bioData.needs_rescheduling) {
+            await supabase.from('profiles').update({
+                bio_data: { ...bioData, needs_rescheduling: false }
+            }).eq('id', user.id);
+        }
+
         return NextResponse.json({
             success: true,
             undo_token: result.undo_token,

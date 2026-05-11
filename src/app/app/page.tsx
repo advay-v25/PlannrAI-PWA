@@ -74,12 +74,8 @@ export default function HomePage() {
         }
     }, [loading, data, briefing]);
 
-    // Pipeline Trigger: Auto-route to Calendar Constraint Solver if a new goal was added
-    useEffect(() => {
-        if (!loading && data?.needs_rescheduling) {
-            router.push('/app/calendar?action=optimize_day');
-        }
-    }, [loading, data, router]);
+    // NOTE: needs_rescheduling is now handled via the proactive coach suggestion banner.
+    // Removed auto-redirect to prevent UX conflict with the suggestion UI.
 
     const handleRefresh = () => {
         fetchHomeData();

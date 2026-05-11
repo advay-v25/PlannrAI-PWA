@@ -35,7 +35,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { href: '/app', icon: LayoutDashboard, label: 'Home' },
         { href: '/app/goals', icon: Target, label: 'Goals' },
         { href: '/app/tasks', icon: ListTodo, label: 'Tasks' },
-        { href: '/app/calendar', icon: Calendar, label: 'Time' },
+        { href: '/app/calendar', icon: Calendar, label: 'Calendar' },
         { href: '/app/weekly-review', icon: Activity, label: 'Review' },
     ];
 

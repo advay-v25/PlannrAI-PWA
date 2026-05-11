@@ -65,10 +65,7 @@ export async function GET(request: NextRequest) {
                 priority: 'high',
             };
             
-            // Auto-clear the flag so we don't spam them if they ignore it
-            await supabase.from('profiles').update({
-                bio_data: { ...bioData, needs_rescheduling: false }
-            }).eq('id', user.id);
+            // Note: Flag is now cleared only upon user action (dismiss/apply)
 
         } else if (missedBlocks.length >= 3) {
             suggestion = {

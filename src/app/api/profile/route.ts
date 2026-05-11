@@ -74,6 +74,17 @@ export const PUT = secureApiRoute(
 
         const supabase = await createClient();
 
+        // If biological anchors changed, flag for rescheduling
+        if (updates.sleep_start || updates.sleep_end || updates.timezone) {
+            const { data: currentProfile } = await supabase.from('profiles').select('bio_data').eq('id', context.userId).single();
+            const bioData = (currentProfile?.bio_data as any) || {};
+            updates.bio_data = {
+                ...bioData,
+                needs_rescheduling: true,
+                pending_goal_update: 'your updated sleep/wake times'
+            };
+        }
+
         const { data: profile, error } = await supabase
             .from('profiles')
             .upsert({ id: context.userId, ...updates })

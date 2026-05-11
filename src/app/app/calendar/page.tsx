@@ -284,11 +284,17 @@ function CalendarPageInner() {
         try {
             switch (action) {
                 case 'done':
-                    await updateBlock(selectedBlock.id, { status: 'done' });
+                    await apiClient.schedule.updateBlockStatus({
+                        block_id: selectedBlock.id,
+                        status: 'done'
+                    });
                     showToast("✅ Block completed", 'success');
                     break;
                 case 'skip':
-                    await updateBlock(selectedBlock.id, { status: 'missed' });
+                    await apiClient.schedule.updateBlockStatus({
+                        block_id: selectedBlock.id,
+                        status: 'missed'
+                    });
                     showToast("Skipped", 'info');
                     break;
                 case 'delete':

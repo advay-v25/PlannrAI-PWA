@@ -75,7 +75,11 @@ export class CalendarEngine {
             .single();
 
         if (!original) throw new Error("Block not found");
-        if (original.commitment_id && (updates.start_time !== original.start_time || updates.end_time !== original.end_time)) {
+
+        const isStartTimeChanged = updates.start_time !== undefined && updates.start_time !== original.start_time;
+        const isEndTimeChanged = updates.end_time !== undefined && updates.end_time !== original.end_time;
+        
+        if (original.commitment_id && (isStartTimeChanged || isEndTimeChanged)) {
             throw new Error("Cannot move a locked Anchor. Edit the Commitment instead.");
         }
 

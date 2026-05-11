@@ -44,12 +44,25 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
     // Debounce for AI suggestions
     useEffect(() => {
         const fetchSuggestions = async () => {
-            if (title.length < 5) return;
+            if (title.length < 3) return;
             setLoadingSuggestions(true);
             try {
-                // Call generic AI suggestion or categorize API
-                // For now, simulate simple categorization or basic suggestions
-                // Ideally this would hit an API that returns { category, minutes, energy } based on title
+                const lowerTitle = title.toLowerCase();
+                
+                // Body Keywords
+                if (lowerTitle.match(/gym|run|workout|exercise|lift|swim|yoga|fitness|sport/)) {
+                    setCategory('body');
+                    setEnergy('heavy');
+                }
+                // Mind Keywords
+                else if (lowerTitle.match(/read|study|learn|code|book|course|math|science/)) {
+                    setCategory('mind');
+                    if (energy === 'heavy') setEnergy('medium'); // Optional adjustment
+                }
+                // Craft / Life Admin Keywords
+                else if (lowerTitle.match(/finance|budget|plan|invest|tax|work|project|business|build|create|write|app/)) {
+                    setCategory('craft');
+                }
             } catch (e) {
                 console.error(e);
             } finally {

@@ -27,7 +27,7 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
         undo,
         clearError,
         loadHistory,
-        resetConversation
+        clearConversation
     } = useCoach();
 
     // Load history on mount
@@ -126,7 +126,7 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
 
     // Handle new chat
     const handleNewChat = () => {
-        resetConversation();
+        clearConversation();
     };
 
     return (

@@ -8,7 +8,9 @@ export type PatchOpType =
     | 'update' | 'update_event'
     | 'delete' | 'delete_event'
     | 'move' | 'move_event'
+    | 'create_goal'
     | 'update_goal'
+    | 'delete_goal'
     | 'update_settings'
     | 'create_anchor'
     | 'delete_anchor'
@@ -113,6 +115,19 @@ export class PatchService {
                     preExecState = data.reduce((acc: any, block: any) => ({ ...acc, [block.id]: block }), {});
                 }
             }
+            const touchedGoalIds = patch.ops
+                .filter(op => op.goal_id)
+                .map(op => op.goal_id as string);
+            if (touchedGoalIds.length > 0) {
+                const { data } = await supabase
+                    .from('goals')
+                    .select('*')
+                    .in('id', touchedGoalIds)
+                    .eq('user_id', userId);
+                if (data) {
+                    preExecState = data.reduce((acc: any, goal: any) => ({ ...acc, [goal.id]: goal }), preExecState);
+                }
+            }
         } catch (e: any) {
             console.warn('[PatchService] Pre-exec state fetch failed:', e.message);
         }
@@ -120,7 +135,7 @@ export class PatchService {
         // 3. Execute Operations
         for (const op of patch.ops) {
             try {
-                await this.executeOp(userId, op, supabase);
+                await this.executeOp(userId, op, supabase, source);
                 changes++;
             } catch (e: any) {
                 errors.push(`${op.op}: ${e.message}`);
@@ -211,7 +226,7 @@ export class PatchService {
         // 2. Apply Inverse
         for (const op of inverse.ops) {
             try {
-                await this.executeOp(userId, op, supabase);
+                await this.executeOp(userId, op, supabase, 'undo');
                 changes++;
             } catch (e: any) {
                 console.error('[PatchService] Undo op failed:', op.op, e.message);
@@ -371,7 +386,7 @@ export class PatchService {
 
     // --- Internal Op Execution ---
 
-    private static async executeOp(userId: string, op: PatchOp, supabase: SupabaseClient) {
+    private static async executeOp(userId: string, op: PatchOp, supabase: SupabaseClient, source: string = 'ai') {
         const operation = op.op;
 
         switch (operation) {
@@ -476,7 +491,7 @@ export class PatchService {
                     .eq('user_id', userId)
                     .maybeSingle();
                 const IMMUTABLE_TYPES = ['sleep', 'meal', 'wind_down', 'anchor'];
-                if (existing && IMMUTABLE_TYPES.includes(existing.block_type)) {
+                if (existing && IMMUTABLE_TYPES.includes(existing.block_type) && source !== 'coach') {
                     console.log(`[PatchService] BLOCKED: Cannot modify immutable ${existing.block_type} block`);
                     break; // Skip silently rather than throwing
                 }
@@ -500,7 +515,7 @@ export class PatchService {
                     .eq('user_id', userId)
                     .maybeSingle();
                 const IMMUTABLE_DEL = ['sleep', 'meal', 'wind_down', 'anchor'];
-                if (delTarget && IMMUTABLE_DEL.includes(delTarget.block_type)) {
+                if (delTarget && IMMUTABLE_DEL.includes(delTarget.block_type) && source !== 'coach') {
                     console.log(`[PatchService] BLOCKED: Cannot delete immutable ${delTarget.block_type} block`);
                     break; // Skip silently
                 }
@@ -527,7 +542,7 @@ export class PatchService {
                     .eq('user_id', userId)
                     .maybeSingle();
                 const IMMUTABLE_MOVE = ['sleep', 'meal', 'wind_down', 'anchor'];
-                if (moveTarget && IMMUTABLE_MOVE.includes(moveTarget.block_type)) {
+                if (moveTarget && IMMUTABLE_MOVE.includes(moveTarget.block_type) && source !== 'coach') {
                     console.log(`[PatchService] BLOCKED: Cannot move immutable ${moveTarget.block_type} block`);
                     break; // Skip silently
                 }
@@ -539,6 +554,39 @@ export class PatchService {
                     .eq('id', id)
                     .eq('user_id', userId);
                 if (error) throw new Error(`Move failed: ${error.message}`);
+                break;
+            }
+            case 'create_goal': {
+                const payload = op.payload || {};
+                const insertData: any = {
+                    user_id: userId,
+                    title: payload.title || 'New Goal',
+                    pillar: payload.pillar || 'General',
+                    minutes_per_day: payload.minutes_per_day || 60,
+                    days_per_week: payload.days_per_week || 5,
+                    weekly_target_minutes: (payload.minutes_per_day || 60) * (payload.days_per_week || 5),
+                    is_active: true,
+                    priority: 5,
+                };
+                const { data, error } = await supabase
+                    .from('goals')
+                    .insert(insertData)
+                    .select('id')
+                    .single();
+                if (error) throw new Error(`Create goal failed: ${error.message}`);
+                if (data?.id) op.goal_id = data.id;
+                break;
+            }
+
+            case 'delete_goal': {
+                const id = op.goal_id;
+                if (!id) throw new Error('Delete goal requires goal_id');
+                const { error } = await supabase
+                    .from('goals')
+                    .delete()
+                    .eq('id', id)
+                    .eq('user_id', userId);
+                if (error) throw new Error(`Delete goal failed: ${error.message}`);
                 break;
             }
 
@@ -707,6 +755,29 @@ export class PatchService {
                 const id = op.todo_id;
                 if (id) {
                     inverseOps.push({ op: 'delete_todo', todo_id: id });
+                }
+            } else if (opType === 'create_goal') {
+                const id = op.goal_id;
+                if (id) {
+                    inverseOps.push({ op: 'delete_goal', goal_id: id });
+                }
+            } else if (opType === 'delete_goal') {
+                const original = preExecState[op.goal_id!];
+                if (original) {
+                    const { created_at, updated_at, ...goalData } = original;
+                    // We can reuse 'create_goal' or update_goal depending on our inverse capabilities
+                    // But our patch system doesn't directly support create_goal with a specific ID yet, 
+                    // though insert allows it if we supply it. 
+                    inverseOps.push({ op: 'create_goal', payload: goalData });
+                }
+            } else if (opType === 'update_goal') {
+                const original = preExecState[op.goal_id!];
+                if (original && op.fields) {
+                    const revertFields: any = {};
+                    for (const key of Object.keys(op.fields)) {
+                        revertFields[key] = original[key];
+                    }
+                    inverseOps.push({ op: 'update_goal', goal_id: op.goal_id, fields: revertFields });
                 }
             } else if (opType === 'delete_todo') {
                 // We don't have pre-exec state for todos in this path,

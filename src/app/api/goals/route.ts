@@ -81,11 +81,16 @@ export const GET = secureApiRoute(
         return apiSuccess({
             goals,
             capacity: {
+                total_minutes: available_min_per_day + committed_min_per_day,
+                used_minutes: committed_min_per_day,
+                available_minutes: available_min_per_day,
+                load_percentage: percentage,
+                // Legacy compat
                 available_min_per_day,
                 committed_min_per_day,
                 over_by_min_per_day,
-                totalGoalMinutes: committed_min_per_day, // Legacy compat
-                percentage // Legacy compat
+                totalGoalMinutes: committed_min_per_day,
+                percentage
             }
         });
     },
@@ -96,14 +101,17 @@ export const GET = secureApiRoute(
 export const POST = secureApiRoute(
     async (context, body) => {
         const GoalSchema = z.object({
-            title: zSanitizedString.min(1).max(200),
-            category: z.enum(['mind', 'body', 'future', 'craft']),
+            title: z.string().min(1).max(200),
+            category: z.enum(['mind', 'body', 'craft']),
             minutes_per_day: z.number().min(5).max(480).optional().default(30),
+            days_per_week: z.number().min(1).max(7).optional().default(7),
             importance: z.enum(['low', 'medium', 'high']).optional().default('medium'),
+            energy_demand: z.enum(['light', 'medium', 'heavy']).optional().default('medium'),
             parent_id: z.string().uuid().optional(),
-            constraints: z.record(z.unknown()).optional(),
-            non_negotiables: z.array(zSanitizedString).optional(),
+            constraints: z.record(z.string(), z.unknown()).optional(),
+            non_negotiables: z.array(z.string()).optional(),
             time_commitment_mins: z.number().optional(),
+            status: z.string().optional(),
         });
 
         const validation = validateWithZod(GoalSchema, body);
@@ -157,7 +165,11 @@ export const POST = secureApiRoute(
                 title: title,
                 category,
                 minutes_per_day,
+                days_per_week: validation.data.days_per_week,
+                weekly_target_minutes: minutes_per_day * (validation.data.days_per_week || 7),
                 importance,
+                energy_demand: validation.data.energy_demand,
+                status: validation.data.status || 'active',
                 parent_id: parent_id || null,
                 constraints: constraints || {},
                 non_negotiables: non_negotiables || [],
@@ -195,16 +207,17 @@ export const PUT = secureApiRoute(
     async (context, body) => {
         const UpdateGoalSchema = z.object({
             id: z.string().uuid(),
-            title: zSanitizedString.min(1).max(200).optional(),
-            category: z.enum(['mind', 'body', 'future', 'craft']).optional(),
+            title: z.string().min(1).max(200).optional(),
+            category: z.enum(['mind', 'body', 'craft']).optional(),
             minutes_per_day: z.number().min(5).max(1440).optional(),
+            days_per_week: z.number().min(1).max(7).optional(),
             importance: z.enum(['low', 'medium', 'high']).optional(),
             is_paused: z.boolean().optional(),
-            status: zSanitizedString.optional(),
+            status: z.string().optional(),
             weekly_target_minutes: z.number().optional(),
-            energy_demand: zSanitizedString.optional(),
-            constraints: z.record(z.unknown()).optional(),
-            non_negotiables: z.array(zSanitizedString).optional(),
+            energy_demand: z.string().optional(),
+            constraints: z.record(z.string(), z.unknown()).optional(),
+            non_negotiables: z.array(z.string()).optional(),
             time_commitment_mins: z.number().optional(),
             milestone_progress: z.number().optional(),
             sort_order: z.number().optional(),
