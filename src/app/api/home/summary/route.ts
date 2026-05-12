@@ -32,7 +32,7 @@ export const GET = secureApiRoute(
             }
         };
 
-        const [profile, userState, blocks, anchors, goals, habitStacks, weeklyBlocks, nextWeekBlocks] = await Promise.all([
+        const results = await Promise.all([
             safeQuery(() => supabase.from('profiles').select('*, bio_data').eq('id', userId).single(), null),
             safeQuery(() => supabase.from('user_states')
                 .select('*')
@@ -40,6 +40,10 @@ export const GET = secureApiRoute(
                 .order('updated_at', { ascending: false })
                 .limit(1)
                 .maybeSingle(), null),
+            safeQuery(() => supabase.from('profile_preferences')
+                .select('weekly_review_enabled')
+                .eq('user_id', userId)
+                .single(), null),
             safeQuery(() => supabase.from('schedule_blocks')
                 .select('*')
                 .eq('user_id', userId)
@@ -60,6 +64,16 @@ export const GET = secureApiRoute(
                 .lte('date', nextWeekEndStr)
                 .limit(1), [])
         ]);
+
+        const profile = results[0];
+        const userState = results[1];
+        const prefs = results[2];
+        const blocks = results[3];
+        const anchors = results[4];
+        const goals = results[5];
+        const habitStacks = results[6];
+        const weeklyBlocks = results[7];
+        const nextWeekBlocks = results[8];
 
         if (!profile) return apiError('Profile not found', 404);
 
@@ -165,6 +179,7 @@ export const GET = secureApiRoute(
             nextWeekPlanned: nextWeekBlocks && nextWeekBlocks.length > 0,
             ai_profile: (profile as any)?.bio_data?.ai_profile || null,
             needs_rescheduling: (profile as any)?.bio_data?.needs_rescheduling === true,
+            weekly_review_enabled: prefs?.weekly_review_enabled !== false,
             insight
         });
     },

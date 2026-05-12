@@ -37,27 +37,13 @@ Strict Output Contract (JSON):
 
 export const POST = secureApiRoute(
     async (context, body) => {
-        const { routine_type, scan_id, time_available, pain_level } = body as {
+        const { routine_type, time_available, pain_level } = body as {
             routine_type: 'morning' | 'night' | 'workout';
-            scan_id?: string;
             time_available?: number;
             pain_level?: number;
         };
 
         const supabase = await createClient();
-
-        // Fetch scan signals if ID provided
-        let scanSignals = 'None';
-        if (scan_id) {
-            const { data: scan } = await supabase
-                .from('scan_sessions')
-                .select('signals')
-                .eq('id', scan_id)
-                .single();
-            if (scan?.signals) {
-                scanSignals = JSON.stringify(scan.signals);
-            }
-        }
 
         // AI Logic
         let routine: RoutineOutput;
@@ -72,8 +58,7 @@ export const POST = secureApiRoute(
             const aiContext = {
                 routine_type,
                 time_available,
-                pain_level,
-                scan_signals: scanSignals
+                pain_level
             };
 
             const systemMsg = channelDef.systemPrompt(aiContext);
@@ -126,7 +111,7 @@ export const POST = secureApiRoute(
             .insert({
                 user_id: context.userId,
                 routine_type,
-                source: scan_id ? 'mixed' : 'context',
+                source: 'context',
                 routine,
                 accepted: false
             })

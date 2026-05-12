@@ -56,6 +56,9 @@ function formatOpLabel(op: any): { icon: string; label: string } {
         const dateStr = date ? ` (${date})` : '';
         return { icon: '+', label: `Add: "${title}"${timeRange}${dateStr}` };
     }
+    if (type.includes('replan_week')) {
+        return { icon: '🔄', label: `Regenerate schedule for the rest of the week` };
+    }
     if (type.includes('move')) {
         const title = op.title || 'Block';
         const start = op.to_start || op.new_start;

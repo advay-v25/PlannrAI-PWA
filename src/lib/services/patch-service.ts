@@ -1,5 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { CalendarEngine } from '@/lib/calendar/calendar-engine';
+import { buildCalendarContext } from '@/lib/calendar/context-builder';
+import { generateWeekPlan } from '@/lib/calendar/ai/plan-week';
 
 // --- Patch Op Types ---
 
@@ -16,7 +18,8 @@ export type PatchOpType =
     | 'delete_anchor'
     | 'create_todo'
     | 'update_todo'
-    | 'delete_todo';
+    | 'delete_todo'
+    | 'replan_week';
 
 export interface PatchOp {
     op: PatchOpType;
@@ -692,6 +695,93 @@ export class PatchService {
                 break;
             }
 
+            case 'replan_week': {
+                // 1. Build context
+                const calendarCtx = await buildCalendarContext(userId, supabase);
+                
+                // 2. Determine replan date (today)
+                const today = new Date();
+                const todayStr = today.toISOString().split('T')[0];
+                const nowTime = today.getHours() * 60 + today.getMinutes();
+
+                // 3. Generate new plan
+                const mode = op.payload?.mode || 'balanced';
+                const allowWeekend = op.payload?.allow_weekend !== false;
+                // Wait, generateWeekPlan expects a string like '2024-01-01'
+                const variants = await generateWeekPlan(calendarCtx, todayStr, mode, allowWeekend);
+                
+                if (!variants || variants.length === 0) {
+                    throw new Error('Replan failed to generate any variants');
+                }
+                
+                // We just take the first variant (which is the selected mode)
+                const newPlan = variants[0];
+                
+                // 4. Delete future non-immutable blocks
+                // We only delete blocks from today onwards that are NOT sleep, meal, wind_down, anchor, or already done
+                const { data: futureBlocks } = await supabase
+                    .from('schedule_blocks')
+                    .select('id, block_type, start_time, status, date')
+                    .eq('user_id', userId)
+                    .gte('date', todayStr);
+                    
+                if (futureBlocks) {
+                    const IMMUTABLE = ['sleep', 'meal', 'wind_down', 'anchor'];
+                    const idsToDelete = futureBlocks.filter((b: any) => {
+                        if (IMMUTABLE.includes(b.block_type)) return false;
+                        if (b.status === 'done') return false;
+                        // If it's today, only delete blocks that haven't started yet or are currently starting
+                        if (b.date === todayStr) {
+                            const [h, m] = b.start_time.split(':').map(Number);
+                            const startMins = h * 60 + m;
+                            if (startMins < nowTime) return false; // past blocks are safe
+                        }
+                        return true;
+                    }).map((b: any) => b.id);
+                    
+                    if (idsToDelete.length > 0) {
+                        const { error: delErr } = await supabase
+                            .from('schedule_blocks')
+                            .delete()
+                            .eq('user_id', userId)
+                            .in('id', idsToDelete);
+                        if (delErr) throw new Error(`Replan failed to clear old blocks: ${delErr.message}`);
+                    }
+                }
+                
+                // 5. Insert new generated blocks
+                // Only insert blocks from today onwards that haven't passed
+                const blocksToInsert = newPlan.blocks.filter((b: any) => {
+                    if (b.date < todayStr) return false;
+                    if (b.date === todayStr) {
+                        const [h, m] = b.start_time.split(':').map(Number);
+                        const startMins = h * 60 + m;
+                        if (startMins < nowTime) return false;
+                    }
+                    return true;
+                }).map((b: any) => ({
+                    user_id: userId,
+                    title: b.title,
+                    start_time: b.start_time,
+                    end_time: b.end_time,
+                    date: b.date,
+                    status: 'planned',
+                    block_type: b.block_type,
+                    pillar: b.pillar || null,
+                    goal_id: b.goal_id || null,
+                    checklist: b.checklist || null,
+                }));
+                
+                if (blocksToInsert.length > 0) {
+                    const { error: insErr } = await supabase
+                        .from('schedule_blocks')
+                        .insert(blocksToInsert);
+                    if (insErr) throw new Error(`Replan failed to insert new blocks: ${insErr.message}`);
+                }
+                
+                break;
+            }
+
             default:
                 console.warn(`[PatchService] Unknown op: ${operation}`);
         }
@@ -783,6 +873,11 @@ export class PatchService {
                 // We don't have pre-exec state for todos in this path,
                 // so we'd need to extend preExecState. For now, skip.
                 console.warn('[PatchService] Todo delete undo not fully supported yet');
+            } else if (opType === 'replan_week') {
+                // To undo a replan_week, the system will rely entirely on the snapshot
+                // created in step 1. Because the snapshot covers the whole week, 
+                // the undo function in restoreFromSnapshot will wipe and restore.
+                // We don't need inverse ops.
             }
         }
 

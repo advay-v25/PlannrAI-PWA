@@ -62,6 +62,7 @@ export type PatchOperation =
     | { type: 'move_block'; block_id: string; new_start: string; new_end: string; new_date?: string }
     | { type: 'update_block'; block_id: string; changes: Partial<BlockData> }
     | { type: 'delete_block'; block_id: string }
+    | { type: 'replan_week'; mode?: 'balanced' | 'momentum' | 'recovery'; allow_weekend?: boolean }
     | { type: 'update_goal'; goal_id: string; changes: Partial<GoalData> }
     | { type: 'create_goal'; data: NewGoalData }
     | { type: 'delete_goal'; goal_id: string }
@@ -431,6 +432,7 @@ PATCH OPERATION TYPES:
 - move_block: { type: "move_block", block_id: "existing-id", title: "Block Title", new_start: "HH:MM", new_end: "HH:MM", new_date?: "YYYY-MM-DD" }
 - update_block: { type: "update_block", block_id: "existing-id", title: "Block Title", changes: { status?, title?, start_time?, end_time? } }
 - delete_block: { type: "delete_block", block_id: "existing-id", title: "Block Title" }
+- replan_week: { type: "replan_week", mode: "balanced|momentum|recovery", allow_weekend: boolean } Use this when user wants to replan the rest of their week or accommodate missed blocks by regenerating future blocks.
 - create_goal: { type: "create_goal", data: { title, pillar, minutes_per_day, days_per_week } }
 - update_goal: { type: "update_goal", goal_id: "existing-id", changes: { ... } }
 - delete_goal: { type: "delete_goal", goal_id: "existing-id", title: "Goal Title" }
@@ -456,7 +458,7 @@ PATCH OPERATION TYPES:
       "impact": "Concrete positive outcome (e.g., 'Reclaims 2 hours of peak focus')",
       "tradeoff": { "warning": "Any downsides", "severity": "info|caution|warning" },
       "operations": [
-        { "type": "create_block|move_block|update_block|delete_block|create_todo|update_todo|delete_todo|create_goal|update_goal|delete_goal", ... }
+        { "type": "create_block|move_block|update_block|delete_block|replan_week|create_todo|update_todo|delete_todo|create_goal|update_goal|delete_goal", ... }
       ],
       "recommended": true
     }
@@ -645,6 +647,12 @@ function normalizeOperation(op: any): PatchOperation {
                 type: 'delete_block',
                 block_id: op.block_id || op.event_id || op.id,
             };
+        case 'replan_week':
+            return {
+                type: 'replan_week',
+                mode: op.mode || 'balanced',
+                allow_weekend: op.allow_weekend !== undefined ? op.allow_weekend : true
+            };
         case 'create_goal':
             return {
                 type: 'create_goal',
@@ -729,6 +737,12 @@ function convertToCalendarPatchOp(op: PatchOperation): any {
                 op: 'delete_event',
                 event_id: op.block_id,
                 title: (op as any).title || 'Block',
+            };
+        case 'replan_week':
+            return {
+                op: 'replan_week',
+                payload: { mode: op.mode, allow_weekend: op.allow_weekend },
+                title: 'Regenerate Week'
             };
         case 'create_goal':
             return {

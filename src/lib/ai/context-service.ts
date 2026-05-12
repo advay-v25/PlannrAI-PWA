@@ -97,6 +97,30 @@ export class ContextService {
         const energyLevel = dailyLog?.energy_level ?? 7;
         const mood = dailyLog?.mood ?? 'neutral';
 
+        // 5. Detect Schedule Conflicts
+        const detectConflicts = (blocks: any[], date: string) => {
+            const conflicts = [];
+            for (let i = 0; i < blocks.length - 1; i++) {
+                const current = blocks[i];
+                const next = blocks[i + 1];
+                // start_time and end_time are comparable strings like "09:00:00"
+                if (current.end_time > next.start_time) {
+                    conflicts.push({
+                        date,
+                        block1: current,
+                        block2: next,
+                        type: 'overlap'
+                    });
+                }
+            }
+            return conflicts;
+        };
+
+        const allConflicts = [
+            ...detectConflicts(todayBlocks, todayStr),
+            ...detectConflicts(tomorrowBlocks, tomorrowStr)
+        ];
+
         const validContext: LiquidContext = {
             user: {
                 id: userId,
@@ -113,7 +137,7 @@ export class ContextService {
             schedule: {
                 today: todayBlocks,
                 tomorrow: tomorrowBlocks,
-                conflicts: [], // TODO: Run conflict detection here
+                conflicts: allConflicts,
                 stats: {
                     total_focus_time: totalFocusMins,
                     meetings_count: todayBlocks.filter((b: any) => b.block_type !== 'goal' && b.block_type !== 'anchor').length

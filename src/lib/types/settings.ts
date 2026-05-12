@@ -44,6 +44,7 @@ export interface ProfilePreferences {
     max_ai_options: 1 | 2 | 3;
     low_energy_mode: boolean;
     overwhelm_mode: boolean;
+    weekly_review_enabled: boolean;
 
     // Permissions
     calendar_integration_enabled: boolean;
@@ -90,6 +91,7 @@ export const DEFAULT_PREFERENCES: Omit<ProfilePreferences, 'user_id' | 'updated_
     max_ai_options: 3,
     low_energy_mode: false,
     overwhelm_mode: false,
+    weekly_review_enabled: true,
 
     calendar_integration_enabled: false,
     notifications_enabled: false,
