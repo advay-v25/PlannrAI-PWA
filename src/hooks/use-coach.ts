@@ -202,13 +202,13 @@ export const useCoach = create<CoachState>()(
         }));
 
         try {
-          const batchRes = await fetch('/api/calendar/apply-schedule', {
+          const batchRes = await fetch('/api/coach/apply', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               conversation_id: get().conversationId,
-              operations: ops,
-              option_id: optionId
+              option_id: optionId,
+              patch: option.patch
             })
           });
 

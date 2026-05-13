@@ -219,6 +219,13 @@ function buildScheduleContextForAI(
     const tomorrowBlocks = coachCtx.schedule.tomorrow || [];
     const weekBlocks = coachCtx.schedule.this_week || [];
 
+    const wakeTime = coachCtx.user.sleep_end || '07:00';
+    const sleepTime = coachCtx.user.sleep_start || '23:00';
+    const tomorrowDate = addDays(now.date, 1);
+
+    const todayFreeSlots = findAvailableSlots(todayBlocks, now.date, 30, wakeTime, sleepTime, 8);
+    const tomorrowFreeSlots = findAvailableSlots(tomorrowBlocks, tomorrowDate, 30, wakeTime, sleepTime, 8);
+
     const todayText = todayBlocks.length > 0
         ? todayBlocks.map((b: any) =>
             `  ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${b.goal_id ? ` → Goal: ${b.goal_id}` : ''}${b.id ? ` ID:${b.id}` : ''}`
@@ -230,6 +237,12 @@ function buildScheduleContextForAI(
             `  ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${b.id ? ` ID:${b.id}` : ''}`
         ).join('\n')
         : '  (No blocks for tomorrow)';
+
+    const freeSlotsText = `
+━━━ VERIFIED FREE SLOTS (USE ONLY THESE — DO NOT SCHEDULE OUTSIDE THESE) ━━━
+Today (${now.date}): ${todayFreeSlots.length > 0 ? todayFreeSlots.map(s => `${s.start}–${s.end}`).join(', ') : 'NO FREE SLOTS — suggest tomorrow or replan_week'}
+Tomorrow (${tomorrowDate}): ${tomorrowFreeSlots.length > 0 ? tomorrowFreeSlots.map(s => `${s.start}–${s.end}`).join(', ') : 'NO FREE SLOTS'}
+⚠️ These slots are mathematically guaranteed to be empty. Any other time is OCCUPIED.`;
 
     const goalsText = coachCtx.goals.length > 0
         ? coachCtx.goals.map((g: any) =>
@@ -300,6 +313,7 @@ ${todayText}
 
 ━━━ TOMORROW'S SCHEDULE ━━━
 ${tomorrowText}
+${freeSlotsText}
 
 ━━━ THIS WEEK'S FULL SCHEDULE ━━━
 ${weekBlocks.length > 0
