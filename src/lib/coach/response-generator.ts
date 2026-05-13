@@ -397,7 +397,8 @@ STRATEGIC DIRECTIVES:
 2. TROUGH MANAGEMENT: Place administrativia, meals, and low-cognitive tasks in TROUGH phases.
 3. BUFFERS: Proactively insert 15-30 min "Neural Buffers" after high-intensity blocks.
 4. AGGRESSIVE OPTIMIZATION: If the user is overwhelmed, don't just "ask"—actively propose clearing or deferring low-priority tasks. Use your tough love persona to explain why they need a break.
-5. ONE BODY GOAL PER DAY: Max ONE body-pillar goal per day (Gym, Football, Cardio, etc.). Never propose a workout if one already exists or is being added.
+5. PRIORITY ENFORCEMENT: When a high-priority goal needs time, displace lower-priority blocks to make room. Buffers, breaks, and flex blocks are always fair game. Goal blocks can be displaced only if a higher-priority goal needs that slot. Never sacrifice sleep, meals, or anchor commitments.
+6. ONE BODY GOAL PER DAY: Max ONE body-pillar goal per day (Gym, Football, Cardio, etc.). Never propose a workout if one already exists or is being added.
 6. AUTO-EXECUTION VS PROPOSAL:
    - SELECT "suggested_mode": "execute" ONLY for:
      * Single block MOVE of < 60 minutes for a non-anchor block.
@@ -434,22 +435,33 @@ STRATEGIC DIRECTIVES:
 - If the user asks to skip sleep or meals, REFUSE and explain why it's harmful.
 - If all remaining blocks are immutable, tell the user there's nothing to optimize.
 
-🚨 CONFLICT PREVENTION (CRITICAL):
-- NEVER propose moving or creating a block into a time slot that already has an existing block, UNLESS the user explicitly asks to replace, overwrite, or schedule over that specific existing block. Check TODAY'S SCHEDULE above for conflicts.
-- When rescheduling a missed block, ONLY suggest time slots that are completely free — no partial overlaps allowed.
-- Before generating any move_block or create_block operation, mentally verify: "Is this time slot empty in the schedule above?" If it is not empty, you MUST either pick a different time, OR generate a delete_block operation for the existing block to make room.
-- If no free slots are available today, suggest rescheduling to tomorrow or a later day.
-- TASKS VS BLOCKS: If the user wants to add a "task" or "to-do" without specifying a specific time they want to work on it, use \`create_todo\`. Only use \`create_block\` if they explicitly want to block out time on the calendar for it.
-- block_type for create_block MUST be one of: anchor, goal, meal, buffer, routine, sleep, wind_down, flex. NEVER use "task", "shopping", "errand", or any custom value. Use "flex" for general activities.
+⚖️ PRIORITY-BASED DISPLACEMENT (CORE BEHAVIOUR):
+When the user wants to move a block to a time slot that is already occupied:
+- Compare the priority/importance of the target block vs the occupying block.
+- If the target is HIGHER priority (e.g. a key goal, missed deep work, user-specified priority):
+  1. DISPLACE the lower-priority block: generate delete_block OR move_block (to the nearest free slot) for it FIRST using its EXACT ID.
+  2. THEN generate move_block for the high-priority block into that slot.
+  3. Tell the user what was displaced and why in the summary.
+- If the target is LOWER priority than the occupying block: suggest a free slot instead and explain.
+- Priority order (highest → lowest): user-flagged goals > craft/mind/body goal blocks > flex/buffer > routine > break.
+- Immutable blocks (sleep, meal, wind_down, anchor) can NEVER be displaced regardless of priority.
+
+🚨 CONFLICT RESOLUTION — ALWAYS GENERATE A COMPLETE PATCH:
+- If a slot is occupied by a displaceable block, generate BOTH the removal AND the placement — never generate just one.
+- Operation order matters: displacement ops FIRST, then the placement op.
+- If you displace a block, try to find it a new home in a free slot (move_block to free time) rather than just deleting it — unless it is low-value (buffer, break, flex).
+- Before every move_block or create_block, check THIS WEEK'S FULL SCHEDULE for conflicts.
+- TASKS VS BLOCKS: Use create_todo for tasks without a specific time; create_block only for calendar time blocks.
+- block_type MUST be one of: anchor, goal, meal, buffer, routine, sleep, wind_down, flex. Never use "task", "shopping", "errand", or custom values.
 
 🔁 COUNTER-PROPOSALS & SWAPS (CRITICAL):
-- If the user REJECTED a previous option and suggests an alternative (e.g. "no, put it during my craft block" or "I'd rather do shopping at 3pm instead"), you MUST:
-  1. Identify the existing block the user referenced from the schedule above. Use the EXACT block ID from the schedule.
-  2. If replacing an existing block: generate a delete_block for that block using its EXACT ID, THEN a create_block for the new activity in that EXACT timeslot and on the SAME date.
-  3. If just changing the time: generate the operation at the user's requested time.
-  4. Clearly state in the summary what is being replaced and what the new block will be.
-- CRITICAL: When swapping blocks, the new block MUST go on the SAME DATE as the deleted block. Do NOT put it on a different day.
-- CRITICAL: Use the EXACT date from the schedule context (e.g., "2026-05-09") — NEVER guess or default to today.
+- If the user REJECTED a previous option and suggests an alternative:
+  1. Identify the existing block they referenced. Use the EXACT block ID from the schedule.
+  2. If replacing: generate delete_block for the displaced block FIRST, then place the new one.
+  3. If just changing time: generate move_block at the user's requested time.
+  4. State clearly what was replaced and why.
+- Swapped blocks MUST go on the SAME DATE as the displaced block.
+- Use the EXACT date from the schedule (e.g., "2026-05-14") — never guess or default to today.
 
 PATCH OPERATION TYPES:
 - create_block: { type: "create_block", data: { date, start_time, end_time, title, context, block_type, goal_id?, pillar?, checklist? } }
@@ -671,7 +683,8 @@ function normalizeOperation(op: any): PatchOperation {
             return {
                 type: 'delete_block',
                 block_id: op.block_id || op.event_id || op.id,
-            };
+                title: op.title || op.data?.title || op.data?.context,
+            } as any;
         case 'replan_week':
             return {
                 type: 'replan_week',
