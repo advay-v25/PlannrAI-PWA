@@ -489,14 +489,15 @@ export class PatchService {
                 // Protect immutable blocks from modification
                 const { data: existing } = await supabase
                     .from('schedule_blocks')
-                    .select('block_type')
+                    .select('id, block_type')
                     .eq('id', id)
                     .eq('user_id', userId)
                     .maybeSingle();
+                if (!existing) throw new Error(`Block not found for update: ${id}`);
                 const IMMUTABLE_TYPES = ['sleep', 'meal', 'wind_down', 'anchor'];
-                if (existing && IMMUTABLE_TYPES.includes(existing.block_type) && source !== 'coach') {
+                if (IMMUTABLE_TYPES.includes(existing.block_type) && source !== 'coach') {
                     console.log(`[PatchService] BLOCKED: Cannot modify immutable ${existing.block_type} block`);
-                    break; // Skip silently rather than throwing
+                    break;
                 }
                 const { error } = await supabase
                     .from('schedule_blocks')
@@ -537,26 +538,29 @@ export class PatchService {
                 const start = op.to_start || op.start_time;
                 const end = op.to_end || op.end_time;
                 if (!id || !start || !end) throw new Error('Move requires event_id, to_start, to_end');
-                // Protect immutable blocks from being moved
+                // Verify block exists and check immutability
                 const { data: moveTarget } = await supabase
                     .from('schedule_blocks')
-                    .select('block_type')
+                    .select('id, block_type')
                     .eq('id', id)
                     .eq('user_id', userId)
                     .maybeSingle();
+                if (!moveTarget) throw new Error(`Block not found: ${id} — the AI may have used a wrong or hallucinated ID`);
                 const IMMUTABLE_MOVE = ['sleep', 'meal', 'wind_down', 'anchor'];
-                if (moveTarget && IMMUTABLE_MOVE.includes(moveTarget.block_type) && source !== 'coach') {
+                if (IMMUTABLE_MOVE.includes(moveTarget.block_type) && source !== 'coach') {
                     console.log(`[PatchService] BLOCKED: Cannot move immutable ${moveTarget.block_type} block`);
-                    break; // Skip silently
+                    break;
                 }
                 const updateData: any = { start_time: start, end_time: end };
                 if (op.date) updateData.date = op.date;
-                const { error } = await supabase
+                const { data: moved, error } = await supabase
                     .from('schedule_blocks')
                     .update(updateData)
                     .eq('id', id)
-                    .eq('user_id', userId);
+                    .eq('user_id', userId)
+                    .select('id');
                 if (error) throw new Error(`Move failed: ${error.message}`);
+                if (!moved || moved.length === 0) throw new Error(`Move matched 0 rows for block ${id}`);
                 break;
             }
             case 'create_goal': {

@@ -91,13 +91,14 @@ export async function POST(request: NextRequest) {
         // Normalize the Coach's SchedulePatch format to CalendarPatch format for PatchService
         const normalizedPatch = normalizePatchForService(patch);
 
-        // Skip strict pre-flight validation for coach patches — AI may reference
-        // virtual or approximate block IDs that CalendarEngine.validatePatch rejects.
-        // PatchService will still handle individual op failures gracefully.
         normalizedPatch.undoable = true;
 
+        // Resolve block IDs: if the AI gave a wrong/hallucinated UUID, try to find the
+        // block by title+date so the operation can still succeed.
+        await resolveBlockIds(normalizedPatch, user.id, supabase);
+
         console.log('[Coach Apply] Applying patch with', normalizedPatch.ops?.length || 0, 'operations');
-        console.log('[Coach Apply] Ops:', JSON.stringify(normalizedPatch.ops?.map((o: any) => ({ op: o.op, title: o.payload?.title || o.title })), null, 2));
+        console.log('[Coach Apply] Ops:', JSON.stringify(normalizedPatch.ops?.map((o: any) => ({ op: o.op, event_id: o.event_id, title: o.payload?.title || o.title })), null, 2));
 
         const result = await PatchService.applyPatch(
             user.id,
@@ -283,4 +284,66 @@ function normalizePatchForService(patch: any): any {
         reason: patch.reason || 'Coach action',
         scope: patch.scope || 'day',
     };
+}
+
+/**
+ * For move_event / update_event / delete_event ops, verify the event_id exists.
+ * If it doesn't (AI hallucinated an ID), try to find the block by title on the
+ * op's date (or within ±3 days). Mutates ops in-place.
+ */
+async function resolveBlockIds(patch: any, userId: string, supabase: any) {
+    if (!patch.ops || !Array.isArray(patch.ops)) return;
+
+    for (const op of patch.ops) {
+        if (!['move_event', 'move', 'update_event', 'update', 'delete_event', 'delete'].includes(op.op)) continue;
+        if (!op.event_id) continue;
+
+        // Check if the ID actually exists
+        const { data: existing } = await supabase
+            .from('schedule_blocks')
+            .select('id')
+            .eq('id', op.event_id)
+            .eq('user_id', userId)
+            .maybeSingle();
+
+        if (existing) continue; // ID is valid — nothing to do
+
+        console.warn(`[Coach Apply] Block ID ${op.event_id} not found — attempting title-based resolution. title="${op.title}"`);
+
+        if (!op.title || op.title === 'Block') {
+            console.warn('[Coach Apply] No title to resolve by — skipping resolution');
+            continue;
+        }
+
+        // Build a date window to search: use op.date or today ±3 days
+        const baseDate = op.date ? new Date(op.date) : new Date();
+        const dates: string[] = [];
+        for (let d = -3; d <= 3; d++) {
+            const dt = new Date(baseDate);
+            dt.setDate(dt.getDate() + d);
+            dates.push(dt.toISOString().split('T')[0]);
+        }
+
+        // Try exact title match first, then partial match
+        const { data: candidates } = await supabase
+            .from('schedule_blocks')
+            .select('id, title, context, date, start_time')
+            .eq('user_id', userId)
+            .in('date', dates)
+            .or(`title.ilike.%${op.title}%,context.ilike.%${op.title}%`);
+
+        if (candidates && candidates.length > 0) {
+            // Prefer the closest date match
+            const sorted = candidates.sort((a: any, b: any) => {
+                const da = Math.abs(new Date(a.date).getTime() - baseDate.getTime());
+                const db = Math.abs(new Date(b.date).getTime() - baseDate.getTime());
+                return da - db;
+            });
+            const resolved = sorted[0];
+            console.log(`[Coach Apply] Resolved "${op.title}" → block ${resolved.id} on ${resolved.date} ${resolved.start_time}`);
+            op.event_id = resolved.id;
+        } else {
+            console.warn(`[Coach Apply] Could not resolve block for title="${op.title}" in dates ${dates.join(',')}`);
+        }
+    }
 }

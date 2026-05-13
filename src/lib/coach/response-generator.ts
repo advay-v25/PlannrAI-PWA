@@ -59,7 +59,7 @@ export interface SchedulePatch {
 
 export type PatchOperation =
     | { type: 'create_block'; data: NewBlockData }
-    | { type: 'move_block'; block_id: string; new_start: string; new_end: string; new_date?: string }
+    | { type: 'move_block'; block_id: string; title?: string; new_start: string; new_end: string; new_date?: string }
     | { type: 'update_block'; block_id: string; changes: Partial<BlockData> }
     | { type: 'delete_block'; block_id: string }
     | { type: 'replan_week'; mode?: 'balanced' | 'momentum' | 'recovery'; allow_weekend?: boolean }
@@ -652,6 +652,7 @@ function normalizeOperation(op: any): PatchOperation {
             return {
                 type: 'move_block',
                 block_id: op.block_id || op.event_id || op.id,
+                title: op.title || op.data?.title || op.data?.context,
                 new_start: op.new_start || op.to_start || op.start_time,
                 new_end: op.new_end || op.to_end || op.end_time,
                 new_date: op.new_date || op.date,
