@@ -169,7 +169,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       "overflow-hidden h-full transition-all duration-300",
       isCoachOpen ? "opacity-100" : "opacity-0 pointer-events-none"
     )}>
-      <CoachChat onClose={() => setIsCoachOpen(false)} />
+      <CoachChat
+        onClose={() => setIsCoachOpen(false)}
+        onCalendarUpdate={() => window.dispatchEvent(new Event('calendar-refresh'))}
+      />
     </aside>
   </div>
         </div>

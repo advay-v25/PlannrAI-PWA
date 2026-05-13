@@ -25,7 +25,10 @@ function CoachPageInner() {
         <div className="h-screen flex flex-col">
             <CoachChat
                 onClose={() => router.push('/app')}
-                onCalendarUpdate={() => router.refresh()}
+                onCalendarUpdate={() => {
+                    router.refresh();
+                    window.dispatchEvent(new Event('calendar-refresh'));
+                }}
             />
         </div>
     );

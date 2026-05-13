@@ -220,14 +220,18 @@ export const useCoach = create<CoachState>()(
           const batchData = await batchRes.json();
 
           set(state => ({
-            messages: state.messages.map(m => 
-              m.id === messageId 
+            messages: state.messages.map(m =>
+              m.id === messageId
                 ? { ...m, selected_option_id: optionId, isApplying: false, undoToken: batchData.undo_token }
                 : m
             ),
             canUndo: true,
             lastUndoToken: batchData.undo_token
           }));
+
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('calendar-refresh'));
+          }
 
           return true;
         } catch (error: any) {

@@ -144,7 +144,12 @@ export function DailyGrid({
                     };
 
                     const type = isAnchor ? 'anchor' : isRoutine ? 'routine' : block.goal?.category || 'default';
-                    const colorClasses = colors[type] || colors.default;
+                    const baseColorClasses = colors[type] || colors.default;
+                    const colorClasses = block.status === 'done'
+                        ? 'from-emerald-500/20 to-emerald-500/10 border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.15)] opacity-70'
+                        : block.status === 'missed'
+                            ? 'from-red-500/10 to-red-500/5 border-red-500/20 opacity-50'
+                            : baseColorClasses;
 
                     return (
                         <motion.div

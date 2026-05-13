@@ -64,14 +64,10 @@ export const POST = secureApiRoute(
         }
 
         // 3. Build update payload
-        const updates: Record<string, any> = {
-            status,
-            updated_at: new Date().toISOString(),
-        };
+        const updates: Record<string, any> = { status };
 
         if (actual_start_time) updates.actual_start_time = actual_start_time;
         if (actual_end_time) updates.actual_end_time = actual_end_time;
-        if (notes) updates.meta = { ...(block.meta || {}), status_notes: notes };
 
         // Auto-set actual times
         if (status === 'in_progress' && !actual_start_time) {
