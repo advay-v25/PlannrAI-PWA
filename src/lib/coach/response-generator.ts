@@ -519,6 +519,14 @@ PATCH OPERATION TYPES:
 - update_todo: { type: "update_todo", todo_id: "existing-id", changes: { is_completed?, title?, due_date?, priority? } }
 - delete_todo: { type: "delete_todo", todo_id: "existing-id" }
 
+--- FINAL VALIDATION CHECKLIST (CHECK EVERY OPTION BEFORE OUTPUTTING) ---
+For EACH option you generate, mentally verify ALL of the following BEFORE including it in your output:
+1. Does ANY move_block or create_block overlap with a sleep, meal, wind_down, or anchor block on that date? If YES -> DISCARD this option.
+2. Does the option delete a block belonging to the SAME GOAL as the block being rescheduled? If YES -> DISCARD this option. Replacing "PlannrAI" with "PlannrAI" or "Study" with "Study" is USELESS.
+3. Does the new_date in the operation JSON match the day described in the title/description? If "Thursday evening" is described, new_date MUST be Thursday's date. If they differ -> FIX the operation.
+4. Does the new time slot overlap with any existing block on that day (check the FULL SCHEDULE)? If YES and the overlapping block is not being deleted in a prior op -> DISCARD this option.
+5. Is the target time in the past (before the current time today)? If YES -> DISCARD this option.
+
 🚨 OUTPUT FORMAT (STRICT JSON ONLY):
 - Return a single valid JSON object.
 - NO markdown formatting (no \`\`\`json).

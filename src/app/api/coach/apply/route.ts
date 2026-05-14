@@ -97,6 +97,19 @@ export async function POST(request: NextRequest) {
         // block by title+date so the operation can still succeed.
         await resolveBlockIds(normalizedPatch, user.id, supabase);
 
+        // ── SERVER-SIDE VALIDATION ─────────────────────────────────────────
+        // Hard safety net: reject operations that violate immutable rules,
+        // even if the AI prompt failed to prevent them.
+        const validationErrors = await validateCoachOps(normalizedPatch, user.id, supabase);
+        if (validationErrors.length > 0) {
+            console.warn('[Coach Apply] Validation rejected ops:', validationErrors);
+            return NextResponse.json({
+                success: false,
+                error: validationErrors.join('; '),
+                validation_failures: validationErrors,
+            }, { status: 422 });
+        }
+
         console.log('[Coach Apply] Applying patch with', normalizedPatch.ops?.length || 0, 'operations');
         console.log('[Coach Apply] Ops:', JSON.stringify(normalizedPatch.ops?.map((o: any) => ({ op: o.op, event_id: o.event_id, title: o.payload?.title || o.title })), null, 2));
 
@@ -374,4 +387,99 @@ async function resolveBlockIds(patch: any, userId: string, supabase: any) {
             console.warn(`[Coach Apply] Could not resolve block for title="${op.title}" in dates ${dates.join(',')}`);
         }
     }
+}
+
+/**
+ * Server-side validation: reject coach operations that violate hard rules.
+ * Returns an array of error strings. Empty = all valid.
+ */
+async function validateCoachOps(patch: any, userId: string, supabase: any): Promise<string[]> {
+    if (!patch.ops || !Array.isArray(patch.ops)) return [];
+
+    const errors: string[] = [];
+    const IMMUTABLE_TYPES = ['sleep', 'meal', 'wind_down', 'anchor'];
+
+    // Collect all move/create target slots
+    const targetSlots: Array<{ op: string; date: string; start: string; end: string; title: string }> = [];
+
+    for (const op of patch.ops) {
+        if (op.op === 'move_event' || op.op === 'move') {
+            const date = op.date || op.new_date;
+            const start = op.to_start || op.new_start;
+            const end = op.to_end || op.new_end;
+            if (date && start && end) {
+                targetSlots.push({ op: 'move', date, start, end, title: op.title || '' });
+            }
+        }
+        if (op.op === 'create_event' || op.op === 'create') {
+            const p = op.payload || {};
+            if (p.date && p.start_time && p.end_time) {
+                targetSlots.push({ op: 'create', date: p.date, start: p.start_time, end: p.end_time, title: p.title || '' });
+            }
+        }
+    }
+
+    if (targetSlots.length === 0) return [];
+
+    // Get all unique dates we need to check
+    const dates = [...new Set(targetSlots.map(s => s.date))];
+
+    // Fetch all blocks on those dates
+    const { data: existingBlocks } = await supabase
+        .from('schedule_blocks')
+        .select('id, title, context, block_type, goal_id, date, start_time, end_time')
+        .eq('user_id', userId)
+        .in('date', dates);
+
+    if (!existingBlocks) return [];
+
+    // Helper: check if two time ranges overlap
+    const overlaps = (s1: string, e1: string, s2: string, e2: string): boolean => {
+        const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+        const a1 = toMin(s1), a2 = toMin(e1), b1 = toMin(s2), b2 = toMin(e2);
+        return a1 < b2 && b1 < a2;
+    };
+
+    // Check each target slot against immutable blocks
+    for (const slot of targetSlots) {
+        const dayBlocks = existingBlocks.filter((b: any) => b.date === slot.date);
+        for (const block of dayBlocks) {
+            if (!IMMUTABLE_TYPES.includes(block.block_type)) continue;
+            if (overlaps(slot.start, slot.end, block.start_time, block.end_time)) {
+                errors.push(
+                    `Cannot ${slot.op} "${slot.title}" at ${slot.start}-${slot.end} — overlaps with immutable ${block.block_type} block "${block.title}" (${block.start_time}-${block.end_time})`
+                );
+            }
+        }
+    }
+
+    // Check for same-goal swap: if there's a delete + move/create for the same goal, reject
+    const deleteOps = patch.ops.filter((o: any) => o.op === 'delete_event' || o.op === 'delete');
+    const moveCreateOps = patch.ops.filter((o: any) =>
+        ['move_event', 'move', 'create_event', 'create'].includes(o.op)
+    );
+
+    if (deleteOps.length > 0 && moveCreateOps.length > 0) {
+        // Resolve goal_ids for deleted blocks
+        for (const delOp of deleteOps) {
+            if (!delOp.event_id) continue;
+            const deletedBlock = existingBlocks.find((b: any) => b.id === delOp.event_id);
+            if (!deletedBlock || !deletedBlock.goal_id) continue;
+
+            // Check if any move/create targets the same goal
+            for (const mcOp of moveCreateOps) {
+                const mcId = mcOp.event_id || mcOp.block_id;
+                if (mcId) {
+                    const movedBlock = existingBlocks.find((b: any) => b.id === mcId);
+                    if (movedBlock && movedBlock.goal_id === deletedBlock.goal_id) {
+                        errors.push(
+                            `Same-goal swap rejected: removing "${deletedBlock.title}" and adding/moving "${movedBlock.title}" — both belong to the same goal. This results in no net change.`
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    return errors;
 }
