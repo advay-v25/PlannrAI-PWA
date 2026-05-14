@@ -212,12 +212,15 @@ export const useCoach = create<CoachState>()(
             })
           });
 
+          const batchData = await batchRes.json();
+
           if (!batchRes.ok) {
-            const errText = await batchRes.text();
-            throw new Error(errText || "Failed to apply option");
+            throw new Error(batchData?.error || "Failed to apply option");
           }
 
-          const batchData = await batchRes.json();
+          const partialWarning = batchData.partial
+            ? `${batchData.applied_operations} change(s) applied, ${batchData.failed_operations} failed: ${(batchData.errors || []).join('; ')}`
+            : undefined;
 
           set(state => ({
             messages: state.messages.map(m =>
@@ -225,8 +228,9 @@ export const useCoach = create<CoachState>()(
                 ? { ...m, selected_option_id: optionId, isApplying: false, undoToken: batchData.undo_token }
                 : m
             ),
-            canUndo: true,
-            lastUndoToken: batchData.undo_token
+            canUndo: !!batchData.undo_token,
+            lastUndoToken: batchData.undo_token,
+            ...(partialWarning ? { error: partialWarning } : {}),
           }));
 
           if (typeof window !== 'undefined') {

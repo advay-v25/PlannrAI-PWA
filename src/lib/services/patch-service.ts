@@ -426,7 +426,7 @@ export class PatchService {
 
                 if (existing) {
                     console.log(`[PatchService] Skipping duplicate block: "${insertData.title}" on ${insertData.date} ${insertData.start_time}-${insertData.end_time}`);
-                    op.event_id = existing.id;
+                    // Do NOT set op.event_id — inverse patch builder would otherwise delete a pre-existing block on undo
                     break;
                 }
 
@@ -462,8 +462,7 @@ export class PatchService {
                         const newBlockMins = Math.max(0, timeToMin(insertData.end_time) - timeToMin(insertData.start_time));
 
                         if (existingMins + newBlockMins > dailyLimit) {
-                            console.log(`[PatchService] BLOCKED over-allocation: "${insertData.title}" on ${insertData.date} would be ${existingMins + newBlockMins}min (limit: ${dailyLimit}min/day)`);
-                            break; // Skip this insert entirely
+                            throw new Error(`Daily limit reached for "${insertData.title}" on ${insertData.date}: ${existingMins + newBlockMins}min exceeds ${dailyLimit}min/day limit`);
                         }
                     }
                 }

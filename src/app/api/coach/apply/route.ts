@@ -188,16 +188,121 @@ export async function POST(request: NextRequest) {
 function normalizePatchForService(patch: any): any {
     const VALID_BLOCK_TYPES = ['anchor', 'goal', 'meal', 'buffer', 'routine', 'sleep', 'wind_down', 'flex'];
 
-    // Sanitize block_type in any op payload
     function sanitizeBlockType(payload: any) {
         if (payload?.block_type && !VALID_BLOCK_TYPES.includes(payload.block_type)) {
-            console.warn(`[Coach Apply] Sanitizing invalid block_type: "${payload.block_type}" → "flex"`);
             payload.block_type = 'flex';
         }
         return payload;
     }
 
-    // If it already has ops[], sanitize and return
+    // ALWAYS prefer operations[] — it is the primary typed output from the AI.
+    // ops[] (CalendarPatchOp format) is only for UI rendering and must NOT be sent to PatchService.
+    // When both exist, operations[] takes precedence so we get the full typed conversion below.
+    const rawOps = (patch.operations && Array.isArray(patch.operations) && patch.operations.length > 0)
+        ? patch.operations
+        : null;
+
+    if (rawOps) {
+        const ops = rawOps.map((operation: any) => {
+            const opType = operation.type || operation.op;
+            switch (opType) {
+                case 'create_block':
+                case 'create':
+                    return {
+                        op: 'create_event' as const,
+                        payload: sanitizeBlockType({
+                            date: operation.data?.date || operation.date,
+                            start_time: operation.data?.start_time || operation.start_time,
+                            end_time: operation.data?.end_time || operation.end_time,
+                            title: operation.data?.title || operation.data?.context || operation.title || 'New Block',
+                            block_type: VALID_BLOCK_TYPES.includes(operation.data?.block_type || operation.block_type)
+                                ? (operation.data?.block_type || operation.block_type) : 'flex',
+                            goal_id: operation.data?.goal_id || null,
+                            pillar: operation.data?.pillar || null,
+                            status: 'planned',
+                            checklist: operation.data?.checklist || [],
+                        }),
+                    };
+                case 'move_block':
+                case 'move':
+                    return {
+                        op: 'move_event' as const,
+                        event_id: operation.block_id || operation.event_id,
+                        title: operation.title || operation.data?.title || operation.data?.context,
+                        to_start: operation.new_start || operation.to_start,
+                        to_end: operation.new_end || operation.to_end,
+                        date: operation.new_date || operation.date,
+                    };
+                case 'update_block':
+                case 'update':
+                    return {
+                        op: 'update_event' as const,
+                        event_id: operation.block_id || operation.event_id,
+                        title: operation.title || operation.data?.title,
+                        fields: operation.changes || operation.fields || {},
+                    };
+                case 'delete_block':
+                case 'delete':
+                    return {
+                        op: 'delete_event' as const,
+                        event_id: operation.block_id || operation.event_id,
+                        title: operation.title || operation.data?.title || operation.data?.context,
+                    };
+                case 'replan_week':
+                    return {
+                        op: 'replan_week' as const,
+                        payload: {
+                            mode: operation.mode || 'balanced',
+                            allow_weekend: operation.allow_weekend !== undefined ? operation.allow_weekend : true,
+                        },
+                    };
+                case 'update_goal':
+                    return {
+                        op: 'update_goal' as const,
+                        goal_id: operation.goal_id,
+                        fields: operation.changes || operation.fields || {},
+                    };
+                case 'create_goal':
+                    return {
+                        op: 'create_goal' as const,
+                        payload: operation.data || {},
+                    };
+                case 'delete_goal':
+                    return {
+                        op: 'delete_goal' as const,
+                        goal_id: operation.goal_id,
+                    };
+                case 'create_todo':
+                    return {
+                        op: 'create_todo' as const,
+                        payload: operation.data || {},
+                    };
+                case 'update_todo':
+                    return {
+                        op: 'update_todo' as const,
+                        todo_id: operation.todo_id,
+                        fields: operation.changes || operation.fields || {},
+                    };
+                case 'delete_todo':
+                    return {
+                        op: 'delete_todo' as const,
+                        todo_id: operation.todo_id,
+                    };
+                default:
+                    console.warn('[Coach Apply] Unknown operation type:', opType);
+                    return null;
+            }
+        }).filter(Boolean);
+
+        return {
+            ops,
+            undoable: patch.undoable !== false,
+            reason: patch.reason || 'Coach action',
+            scope: ops.some((o: any) => o.op === 'replan_week') ? 'week' : (patch.scope || 'day'),
+        };
+    }
+
+    // Fallback: ops[] already in PatchService format (no operations[] present)
     if (patch.ops && Array.isArray(patch.ops)) {
         patch.ops.forEach((op: any) => {
             if (op.payload) sanitizeBlockType(op.payload);
@@ -206,84 +311,7 @@ function normalizePatchForService(patch: any): any {
         return patch;
     }
 
-    // Convert from Coach format (operations[]) to PatchService format (ops[])
-    const operations = patch.operations || [];
-    const ops = operations.map((operation: any) => {
-        const opType = operation.type || operation.op;
-
-        switch (opType) {
-            case 'create_block':
-            case 'create':
-                return {
-                    op: 'create_event' as const,
-                    payload: {
-                        date: operation.data?.date || operation.date,
-                        start_time: operation.data?.start_time || operation.start_time,
-                        end_time: operation.data?.end_time || operation.end_time,
-                        title: operation.data?.title || operation.data?.context || operation.title || 'New Block',
-                        block_type: ['anchor', 'goal', 'meal', 'buffer', 'routine', 'sleep', 'wind_down', 'flex'].includes(operation.data?.block_type || operation.block_type) ? (operation.data?.block_type || operation.block_type) : 'flex',
-                        goal_id: operation.data?.goal_id || null,
-                        pillar: operation.data?.pillar || null,
-                        status: 'planned',
-                        checklist: operation.data?.checklist || [],
-                    },
-                };
-            case 'move_block':
-            case 'move':
-                return {
-                    op: 'move_event' as const,
-                    event_id: operation.block_id || operation.event_id,
-                    to_start: operation.new_start || operation.to_start,
-                    to_end: operation.new_end || operation.to_end,
-                    date: operation.new_date || operation.date,
-                };
-            case 'update_block':
-            case 'update':
-                return {
-                    op: 'update_event' as const,
-                    event_id: operation.block_id || operation.event_id,
-                    fields: operation.changes || operation.fields || {},
-                };
-            case 'delete_block':
-            case 'delete':
-                return {
-                    op: 'delete_event' as const,
-                    event_id: operation.block_id || operation.event_id,
-                };
-            case 'update_goal':
-                return {
-                    op: 'update_goal' as const,
-                    goal_id: operation.goal_id,
-                    fields: operation.changes || operation.fields || {},
-                };
-            case 'create_todo':
-                return {
-                    op: 'create_todo' as const,
-                    payload: operation.data || {},
-                };
-            case 'update_todo':
-                return {
-                    op: 'update_todo' as const,
-                    todo_id: operation.todo_id,
-                    fields: operation.changes || operation.fields || {},
-                };
-            case 'delete_todo':
-                return {
-                    op: 'delete_todo' as const,
-                    todo_id: operation.todo_id,
-                };
-            default:
-                console.warn('[Coach Apply] Unknown operation type:', opType);
-                return operation;
-        }
-    });
-
-    return {
-        ops,
-        undoable: patch.undoable !== false,
-        reason: patch.reason || 'Coach action',
-        scope: patch.scope || 'day',
-    };
+    return { ops: [], undoable: true, reason: 'Coach action', scope: 'day' };
 }
 
 /**
