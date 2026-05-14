@@ -699,19 +699,27 @@ export class PatchService {
             }
 
             case 'replan_week': {
+                console.log('[PatchService] Starting replan_week...');
                 // 1. Build context
                 const calendarCtx = await buildCalendarContext(userId, supabase);
                 
-                // 2. Determine replan date (today)
+                // 2. Determine replan date (today) and correct week start (Monday)
                 const today = new Date();
                 const todayStr = today.toISOString().split('T')[0];
                 const nowTime = today.getHours() * 60 + today.getMinutes();
+                
+                // Calculate the Monday of the current week
+                const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ...
+                const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+                const monday = new Date(today);
+                monday.setDate(today.getDate() + mondayOffset);
+                const weekStartStr = monday.toISOString().split('T')[0];
+                console.log(`[PatchService] Week start: ${weekStartStr}, today: ${todayStr}`);
 
-                // 3. Generate new plan
+                // 3. Generate new plan using the CORRECT week start (Monday)
                 const mode = op.payload?.mode || 'balanced';
                 const allowWeekend = op.payload?.allow_weekend !== false;
-                // Wait, generateWeekPlan expects a string like '2024-01-01'
-                const variants = await generateWeekPlan(calendarCtx, todayStr, mode, allowWeekend);
+                const variants = await generateWeekPlan(calendarCtx, weekStartStr, mode, allowWeekend);
                 
                 if (!variants || variants.length === 0) {
                     throw new Error('Replan failed to generate any variants');
@@ -719,6 +727,7 @@ export class PatchService {
                 
                 // We just take the first variant (which is the selected mode)
                 const newPlan = variants[0];
+                console.log(`[PatchService] Generated ${newPlan.blocks.length} blocks for variant "${newPlan.label}"`);
                 
                 // 4. Delete future non-immutable blocks
                 // We only delete blocks from today onwards that are NOT sleep, meal, wind_down, anchor, or already done
@@ -742,6 +751,7 @@ export class PatchService {
                         return true;
                     }).map((b: any) => b.id);
                     
+                    console.log(`[PatchService] Deleting ${idsToDelete.length} future non-immutable blocks`);
                     if (idsToDelete.length > 0) {
                         const { error: delErr } = await supabase
                             .from('schedule_blocks')
@@ -761,6 +771,9 @@ export class PatchService {
                         const startMins = h * 60 + m;
                         if (startMins < nowTime) return false;
                     }
+                    // Skip bio blocks (sleep, meal, wind_down) — they already exist as immutables
+                    const BIO_TYPES = ['sleep', 'meal', 'wind_down'];
+                    if (BIO_TYPES.includes(b.block_type)) return false;
                     return true;
                 }).map((b: any) => ({
                     user_id: userId,
@@ -775,6 +788,7 @@ export class PatchService {
                     checklist: b.checklist || null,
                 }));
                 
+                console.log(`[PatchService] Inserting ${blocksToInsert.length} new blocks (after filtering past + bio)`);
                 if (blocksToInsert.length > 0) {
                     const { error: insErr } = await supabase
                         .from('schedule_blocks')

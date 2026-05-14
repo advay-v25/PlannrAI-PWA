@@ -400,15 +400,36 @@ async function validateCoachOps(patch: any, userId: string, supabase: any): Prom
     const IMMUTABLE_TYPES = ['sleep', 'meal', 'wind_down', 'anchor'];
 
     // Collect all move/create target slots
-    const targetSlots: Array<{ op: string; date: string; start: string; end: string; title: string }> = [];
+    const targetSlots: Array<{ op: string; date: string; start: string; end: string; title: string; blockId?: string }> = [];
+
+    // For move ops without a date, we need to look up the block's current date
+    const moveBlockIds: string[] = [];
+    for (const op of patch.ops) {
+        if ((op.op === 'move_event' || op.op === 'move') && op.event_id && !op.date) {
+            moveBlockIds.push(op.event_id);
+        }
+    }
+
+    // Fetch current dates for blocks being moved without a new_date
+    let blockDateMap: Record<string, string> = {};
+    if (moveBlockIds.length > 0) {
+        const { data: blocks } = await supabase
+            .from('schedule_blocks')
+            .select('id, date')
+            .eq('user_id', userId)
+            .in('id', moveBlockIds);
+        if (blocks) {
+            blockDateMap = blocks.reduce((acc: Record<string, string>, b: any) => ({ ...acc, [b.id]: b.date }), {});
+        }
+    }
 
     for (const op of patch.ops) {
         if (op.op === 'move_event' || op.op === 'move') {
-            const date = op.date || op.new_date;
+            const date = op.date || op.new_date || (op.event_id && blockDateMap[op.event_id]);
             const start = op.to_start || op.new_start;
             const end = op.to_end || op.new_end;
             if (date && start && end) {
-                targetSlots.push({ op: 'move', date, start, end, title: op.title || '' });
+                targetSlots.push({ op: 'move', date, start, end, title: op.title || '', blockId: op.event_id });
             }
         }
         if (op.op === 'create_event' || op.op === 'create') {
@@ -440,10 +461,22 @@ async function validateCoachOps(patch: any, userId: string, supabase: any): Prom
         return a1 < b2 && b1 < a2;
     };
 
+    // Collect IDs being deleted in this patch (they won't be there after)
+    const deletedIds = new Set(
+        patch.ops
+            .filter((o: any) => o.op === 'delete_event' || o.op === 'delete')
+            .map((o: any) => o.event_id)
+            .filter(Boolean)
+    );
+
     // Check each target slot against immutable blocks
     for (const slot of targetSlots) {
         const dayBlocks = existingBlocks.filter((b: any) => b.date === slot.date);
         for (const block of dayBlocks) {
+            // Skip the block being moved (it won't be in its old slot anymore)
+            if (slot.blockId && block.id === slot.blockId) continue;
+            // Skip blocks being deleted in the same patch
+            if (deletedIds.has(block.id)) continue;
             if (!IMMUTABLE_TYPES.includes(block.block_type)) continue;
             if (overlaps(slot.start, slot.end, block.start_time, block.end_time)) {
                 errors.push(
@@ -460,13 +493,11 @@ async function validateCoachOps(patch: any, userId: string, supabase: any): Prom
     );
 
     if (deleteOps.length > 0 && moveCreateOps.length > 0) {
-        // Resolve goal_ids for deleted blocks
         for (const delOp of deleteOps) {
             if (!delOp.event_id) continue;
             const deletedBlock = existingBlocks.find((b: any) => b.id === delOp.event_id);
             if (!deletedBlock || !deletedBlock.goal_id) continue;
 
-            // Check if any move/create targets the same goal
             for (const mcOp of moveCreateOps) {
                 const mcId = mcOp.event_id || mcOp.block_id;
                 if (mcId) {
