@@ -162,44 +162,56 @@ function addDays(date: string, days: number): string {
 
 // ============ REAL SLOT FINDER ============
 
+interface FreeSlot { start: string; end: string; duration_mins: number }
+
+function formatSlot(s: FreeSlot): string {
+    const h = Math.floor(s.duration_mins / 60);
+    const m = s.duration_mins % 60;
+    const dur = h > 0 && m > 0 ? `${h}h${m}min` : h > 0 ? `${h}h` : `${m}min`;
+    return `${s.start}–${s.end} (${dur} free)`;
+}
+
 function findAvailableSlots(
     blocks: Array<{ start_time: string; end_time: string; date: string }>,
     date: string,
-    durationMinutes: number,
+    minDurationMinutes: number,
     wakeTime: string,
     sleepTime: string,
-    count: number = 3
-): Array<{ start: string; end: string }> {
+    count: number = 8,
+    notBeforeTime?: string
+): FreeSlot[] {
     const dayBlocks = blocks
         .filter(b => b.date === date)
         .sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
 
     const wakeMin = timeToMinutes(wakeTime);
     const sleepMin = timeToMinutes(sleepTime);
-    const results: Array<{ start: string; end: string }> = [];
+    const notBeforeMin = notBeforeTime ? timeToMinutes(notBeforeTime) : 0;
+    const results: FreeSlot[] = [];
 
-    // Find gaps between existing blocks
-    let cursor = wakeMin;
+    let cursor = Math.max(wakeMin, notBeforeMin);
     for (const block of dayBlocks) {
         const blockStart = timeToMinutes(block.start_time);
         const blockEnd = timeToMinutes(block.end_time);
 
-        if (blockStart - cursor >= durationMinutes) {
-            results.push({
-                start: minutesToTime(cursor),
-                end: minutesToTime(cursor + durationMinutes),
-            });
+        // Advance cursor past blocks that are entirely before our start
+        if (blockEnd <= cursor) { cursor = Math.max(cursor, blockEnd); continue; }
+
+        const gapStart = cursor;
+        const gapEnd = Math.min(blockStart, sleepMin);
+        const gapMins = gapEnd - gapStart;
+
+        if (gapMins >= minDurationMinutes) {
+            results.push({ start: minutesToTime(gapStart), end: minutesToTime(gapEnd), duration_mins: gapMins });
             if (results.length >= count) return results;
         }
         cursor = Math.max(cursor, blockEnd);
     }
 
-    // Check end of day gap
-    if (sleepMin - cursor >= durationMinutes) {
-        results.push({
-            start: minutesToTime(cursor),
-            end: minutesToTime(cursor + durationMinutes),
-        });
+    // Final gap before sleep
+    const finalGapMins = sleepMin - cursor;
+    if (finalGapMins >= minDurationMinutes) {
+        results.push({ start: minutesToTime(cursor), end: minutesToTime(sleepMin), duration_mins: finalGapMins });
     }
 
     return results.slice(0, count);
@@ -223,7 +235,8 @@ function buildScheduleContextForAI(
     const sleepTime = coachCtx.user.sleep_start || '23:00';
     const tomorrowDate = addDays(now.date, 1);
 
-    const todayFreeSlots = findAvailableSlots(todayBlocks, now.date, 30, wakeTime, sleepTime, 8);
+    // Free slots for today: only show future slots (don't offer times already past)
+    const todayFreeSlots = findAvailableSlots(todayBlocks, now.date, 30, wakeTime, sleepTime, 8, now.time);
     const tomorrowFreeSlots = findAvailableSlots(tomorrowBlocks, tomorrowDate, 30, wakeTime, sleepTime, 8);
 
     const todayText = todayBlocks.length > 0
@@ -240,8 +253,9 @@ function buildScheduleContextForAI(
 
     const freeSlotsText = `
 ━━━ VERIFIED FREE SLOTS (USE ONLY THESE — DO NOT SCHEDULE OUTSIDE THESE) ━━━
-Today (${now.date}): ${todayFreeSlots.length > 0 ? todayFreeSlots.map(s => `${s.start}–${s.end}`).join(', ') : 'NO FREE SLOTS — suggest tomorrow or replan_week'}
-Tomorrow (${tomorrowDate}): ${tomorrowFreeSlots.length > 0 ? tomorrowFreeSlots.map(s => `${s.start}–${s.end}`).join(', ') : 'NO FREE SLOTS'}
+Each slot shows the FULL unoccupied window. Never place a block that extends beyond the slot's end time.
+Today (${now.date}): ${todayFreeSlots.length > 0 ? todayFreeSlots.map(formatSlot).join(', ') : 'NO FREE SLOTS — suggest tomorrow or replan_week'}
+Tomorrow (${tomorrowDate}): ${tomorrowFreeSlots.length > 0 ? tomorrowFreeSlots.map(formatSlot).join(', ') : 'NO FREE SLOTS'}
 ⚠️ These slots are mathematically guaranteed to be empty. Any other time is OCCUPIED.`;
 
     const goalsText = coachCtx.goals.length > 0
@@ -315,10 +329,9 @@ ${todayText}
 ${tomorrowText}
 ${freeSlotsText}
 
-━━━ THIS WEEK'S FULL SCHEDULE ━━━
+━━━ THIS WEEK'S FULL SCHEDULE + FREE SLOTS ━━━
 ${weekBlocks.length > 0
     ? (() => {
-        // Group by date
         const byDate = new Map<string, any[]>();
         weekBlocks.forEach((b: any) => {
             const d = b.date;
@@ -332,7 +345,13 @@ ${weekBlocks.length > 0
                 const lines = blocks.map((b: any) =>
                     `    ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${b.goal_id ? ` → Goal: ${b.goal_id}` : ''}${b.id ? ` ID:${b.id}` : ''}`
                 ).join('\n');
-                return `  ${dayName} (${date}):\n${lines}`;
+                // Free slots: for today, skip past times; for future days, full day
+                const notBefore = date === now.date ? now.time : undefined;
+                const dayFreeSlots = findAvailableSlots(weekBlocks, date, 30, wakeTime, sleepTime, 8, notBefore);
+                const freeLine = dayFreeSlots.length > 0
+                    ? `    FREE SLOTS: ${dayFreeSlots.map(formatSlot).join(' | ')}`
+                    : `    FREE SLOTS: NONE (fully booked)`;
+                return `  ${dayName} (${date}):\n${lines}\n${freeLine}`;
             }).join('\n');
     })()
     : '  (No blocks this week)'}
@@ -526,6 +545,7 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
 3. Does the new_date in the operation JSON match the day described in the title/description? If "Thursday evening" is described, new_date MUST be Thursday's date. If they differ -> FIX the operation.
 4. Does the new time slot overlap with any existing block on that day (check the FULL SCHEDULE)? If YES and the overlapping block is not being deleted in a prior op -> DISCARD this option.
 5. Is the target time in the past (before the current time today)? If YES -> DISCARD this option.
+6. Does the block FIT entirely within the free slot shown? Free slots show the FULL gap (e.g., "10:00–12:00 (2h free)"). If the block's end_time exceeds the slot's end, it overlaps the next block -> DISCARD this option.
 
 🚨 OUTPUT FORMAT (STRICT JSON ONLY):
 - Return a single valid JSON object.
