@@ -1,6 +1,7 @@
 'use client';
 
 import { CoachOption } from '@/types/coach-v4';
+import { format, parseISO } from 'date-fns';
 
 
 interface CoachOptionCardProps {
@@ -17,6 +18,15 @@ function formatTime(time: string | undefined): string {
     const ampm = hour >= 12 ? 'pm' : 'am';
     const hour12 = hour % 12 || 12;
     return `${hour12}:${m}${ampm}`;
+}
+
+function formatDayStr(dateStr: string | undefined): string {
+    if (!dateStr) return '';
+    try {
+        return ` (${format(parseISO(dateStr), 'EEEE')})`;
+    } catch {
+        return ` (${dateStr})`;
+    }
 }
 
 function formatOpLabel(op: any): { icon: string; label: string } {
@@ -53,15 +63,18 @@ function formatOpLabel(op: any): { icon: string; label: string } {
         const end = event.end_time || op.end_time;
         const date = event.date || op.date;
         const timeRange = start && end ? ` → ${formatTime(start)}–${formatTime(end)}` : '';
-        const dateStr = date ? ` (${date})` : '';
+        const dateStr = formatDayStr(date);
         return { icon: '+', label: `Add: "${title}"${timeRange}${dateStr}` };
+    }
+    if (type.includes('replan_week')) {
+        return { icon: '🔄', label: `Regenerate schedule for the rest of the week` };
     }
     if (type.includes('move')) {
         const title = op.title || 'Block';
         const start = op.to_start || op.new_start;
         const end = op.to_end || op.new_end;
         const timeRange = start && end ? ` → ${formatTime(start)}–${formatTime(end)}` : '';
-        const dateStr = op.date || op.new_date ? ` (${op.date || op.new_date})` : '';
+        const dateStr = formatDayStr(op.date || op.new_date);
         return { icon: '↔', label: `Move: "${title}"${timeRange}${dateStr}` };
     }
     if (type.includes('delete')) {

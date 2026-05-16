@@ -272,11 +272,11 @@ export const apiClient = {
 
     get habitStacks() {
         return {
-            list: () => this.get<{ success: boolean; data: { stacks: HabitStack[] } }>('/api/habit-stacks'),
+            list: () => this.get<{ stacks: HabitStack[] }>('/api/habit-stacks'),
             create: (data: { trigger_habit: string; action_habit: string; goal_id?: string; action_duration_mins: number }) =>
-                this.post<{ success: boolean; data: { stack: HabitStack } }>('/api/habit-stacks', data),
+                this.post<{ stack: HabitStack }>('/api/habit-stacks', data),
             complete: (id: string) =>
-                this.put<{ success: boolean; data: { stack: HabitStack; streakInfo: { isNewRecord: boolean } } }>('/api/habit-stacks', { id, mark_complete: true }),
+                this.put<{ stack: HabitStack; streakInfo: { isNewRecord: boolean } }>('/api/habit-stacks', { id, mark_complete: true }),
             delete: (id: string) => this.delete(`/api/habit-stacks/${id}`)
         };
     },

@@ -91,13 +91,27 @@ export async function POST(request: NextRequest) {
         // Normalize the Coach's SchedulePatch format to CalendarPatch format for PatchService
         const normalizedPatch = normalizePatchForService(patch);
 
-        // Skip strict pre-flight validation for coach patches — AI may reference
-        // virtual or approximate block IDs that CalendarEngine.validatePatch rejects.
-        // PatchService will still handle individual op failures gracefully.
         normalizedPatch.undoable = true;
 
+        // Resolve block IDs: if the AI gave a wrong/hallucinated UUID, try to find the
+        // block by title+date so the operation can still succeed.
+        await resolveBlockIds(normalizedPatch, user.id, supabase);
+
+        // ── SERVER-SIDE VALIDATION ─────────────────────────────────────────
+        // Hard safety net: reject operations that violate immutable rules,
+        // even if the AI prompt failed to prevent them.
+        const validationErrors = await validateCoachOps(normalizedPatch, user.id, supabase);
+        if (validationErrors.length > 0) {
+            console.warn('[Coach Apply] Validation rejected ops:', validationErrors);
+            return NextResponse.json({
+                success: false,
+                error: validationErrors.join('; '),
+                validation_failures: validationErrors,
+            }, { status: 422 });
+        }
+
         console.log('[Coach Apply] Applying patch with', normalizedPatch.ops?.length || 0, 'operations');
-        console.log('[Coach Apply] Ops:', JSON.stringify(normalizedPatch.ops?.map((o: any) => ({ op: o.op, title: o.payload?.title || o.title })), null, 2));
+        console.log('[Coach Apply] Ops:', JSON.stringify(normalizedPatch.ops?.map((o: any) => ({ op: o.op, event_id: o.event_id, title: o.payload?.title || o.title })), null, 2));
 
         const result = await PatchService.applyPatch(
             user.id,
@@ -187,16 +201,121 @@ export async function POST(request: NextRequest) {
 function normalizePatchForService(patch: any): any {
     const VALID_BLOCK_TYPES = ['anchor', 'goal', 'meal', 'buffer', 'routine', 'sleep', 'wind_down', 'flex'];
 
-    // Sanitize block_type in any op payload
     function sanitizeBlockType(payload: any) {
         if (payload?.block_type && !VALID_BLOCK_TYPES.includes(payload.block_type)) {
-            console.warn(`[Coach Apply] Sanitizing invalid block_type: "${payload.block_type}" → "flex"`);
             payload.block_type = 'flex';
         }
         return payload;
     }
 
-    // If it already has ops[], sanitize and return
+    // ALWAYS prefer operations[] — it is the primary typed output from the AI.
+    // ops[] (CalendarPatchOp format) is only for UI rendering and must NOT be sent to PatchService.
+    // When both exist, operations[] takes precedence so we get the full typed conversion below.
+    const rawOps = (patch.operations && Array.isArray(patch.operations) && patch.operations.length > 0)
+        ? patch.operations
+        : null;
+
+    if (rawOps) {
+        const ops = rawOps.map((operation: any) => {
+            const opType = operation.type || operation.op;
+            switch (opType) {
+                case 'create_block':
+                case 'create':
+                    return {
+                        op: 'create_event' as const,
+                        payload: sanitizeBlockType({
+                            date: operation.data?.date || operation.date,
+                            start_time: operation.data?.start_time || operation.start_time,
+                            end_time: operation.data?.end_time || operation.end_time,
+                            title: operation.data?.title || operation.data?.context || operation.title || 'New Block',
+                            block_type: VALID_BLOCK_TYPES.includes(operation.data?.block_type || operation.block_type)
+                                ? (operation.data?.block_type || operation.block_type) : 'flex',
+                            goal_id: operation.data?.goal_id || null,
+                            pillar: operation.data?.pillar || null,
+                            status: 'planned',
+                            checklist: operation.data?.checklist || [],
+                        }),
+                    };
+                case 'move_block':
+                case 'move':
+                    return {
+                        op: 'move_event' as const,
+                        event_id: operation.block_id || operation.event_id,
+                        title: operation.title || operation.data?.title || operation.data?.context,
+                        to_start: operation.new_start || operation.to_start,
+                        to_end: operation.new_end || operation.to_end,
+                        date: operation.new_date || operation.date,
+                    };
+                case 'update_block':
+                case 'update':
+                    return {
+                        op: 'update_event' as const,
+                        event_id: operation.block_id || operation.event_id,
+                        title: operation.title || operation.data?.title,
+                        fields: operation.changes || operation.fields || {},
+                    };
+                case 'delete_block':
+                case 'delete':
+                    return {
+                        op: 'delete_event' as const,
+                        event_id: operation.block_id || operation.event_id,
+                        title: operation.title || operation.data?.title || operation.data?.context,
+                    };
+                case 'replan_week':
+                    return {
+                        op: 'replan_week' as const,
+                        payload: {
+                            mode: operation.mode || 'balanced',
+                            allow_weekend: operation.allow_weekend !== undefined ? operation.allow_weekend : true,
+                        },
+                    };
+                case 'update_goal':
+                    return {
+                        op: 'update_goal' as const,
+                        goal_id: operation.goal_id,
+                        fields: operation.changes || operation.fields || {},
+                    };
+                case 'create_goal':
+                    return {
+                        op: 'create_goal' as const,
+                        payload: operation.data || {},
+                    };
+                case 'delete_goal':
+                    return {
+                        op: 'delete_goal' as const,
+                        goal_id: operation.goal_id,
+                    };
+                case 'create_todo':
+                    return {
+                        op: 'create_todo' as const,
+                        payload: operation.data || {},
+                    };
+                case 'update_todo':
+                    return {
+                        op: 'update_todo' as const,
+                        todo_id: operation.todo_id,
+                        fields: operation.changes || operation.fields || {},
+                    };
+                case 'delete_todo':
+                    return {
+                        op: 'delete_todo' as const,
+                        todo_id: operation.todo_id,
+                    };
+                default:
+                    console.warn('[Coach Apply] Unknown operation type:', opType);
+                    return null;
+            }
+        }).filter(Boolean);
+
+        return {
+            ops,
+            undoable: patch.undoable !== false,
+            reason: patch.reason || 'Coach action',
+            scope: ops.some((o: any) => o.op === 'replan_week') ? 'week' : (patch.scope || 'day'),
+        };
+    }
+
+    // Fallback: ops[] already in PatchService format (no operations[] present)
     if (patch.ops && Array.isArray(patch.ops)) {
         patch.ops.forEach((op: any) => {
             if (op.payload) sanitizeBlockType(op.payload);
@@ -205,82 +324,193 @@ function normalizePatchForService(patch: any): any {
         return patch;
     }
 
-    // Convert from Coach format (operations[]) to PatchService format (ops[])
-    const operations = patch.operations || [];
-    const ops = operations.map((operation: any) => {
-        const opType = operation.type || operation.op;
+    return { ops: [], undoable: true, reason: 'Coach action', scope: 'day' };
+}
 
-        switch (opType) {
-            case 'create_block':
-            case 'create':
-                return {
-                    op: 'create_event' as const,
-                    payload: {
-                        date: operation.data?.date || operation.date,
-                        start_time: operation.data?.start_time || operation.start_time,
-                        end_time: operation.data?.end_time || operation.end_time,
-                        title: operation.data?.title || operation.data?.context || operation.title || 'New Block',
-                        block_type: ['anchor', 'goal', 'meal', 'buffer', 'routine', 'sleep', 'wind_down', 'flex'].includes(operation.data?.block_type || operation.block_type) ? (operation.data?.block_type || operation.block_type) : 'flex',
-                        goal_id: operation.data?.goal_id || null,
-                        pillar: operation.data?.pillar || null,
-                        status: 'planned',
-                        checklist: operation.data?.checklist || [],
-                    },
-                };
-            case 'move_block':
-            case 'move':
-                return {
-                    op: 'move_event' as const,
-                    event_id: operation.block_id || operation.event_id,
-                    to_start: operation.new_start || operation.to_start,
-                    to_end: operation.new_end || operation.to_end,
-                    date: operation.new_date || operation.date,
-                };
-            case 'update_block':
-            case 'update':
-                return {
-                    op: 'update_event' as const,
-                    event_id: operation.block_id || operation.event_id,
-                    fields: operation.changes || operation.fields || {},
-                };
-            case 'delete_block':
-            case 'delete':
-                return {
-                    op: 'delete_event' as const,
-                    event_id: operation.block_id || operation.event_id,
-                };
-            case 'update_goal':
-                return {
-                    op: 'update_goal' as const,
-                    goal_id: operation.goal_id,
-                    fields: operation.changes || operation.fields || {},
-                };
-            case 'create_todo':
-                return {
-                    op: 'create_todo' as const,
-                    payload: operation.data || {},
-                };
-            case 'update_todo':
-                return {
-                    op: 'update_todo' as const,
-                    todo_id: operation.todo_id,
-                    fields: operation.changes || operation.fields || {},
-                };
-            case 'delete_todo':
-                return {
-                    op: 'delete_todo' as const,
-                    todo_id: operation.todo_id,
-                };
-            default:
-                console.warn('[Coach Apply] Unknown operation type:', opType);
-                return operation;
+/**
+ * For move_event / update_event / delete_event ops, verify the event_id exists.
+ * If it doesn't (AI hallucinated an ID), try to find the block by title on the
+ * op's date (or within ±3 days). Mutates ops in-place.
+ */
+async function resolveBlockIds(patch: any, userId: string, supabase: any) {
+    if (!patch.ops || !Array.isArray(patch.ops)) return;
+
+    for (const op of patch.ops) {
+        if (!['move_event', 'move', 'update_event', 'update', 'delete_event', 'delete'].includes(op.op)) continue;
+        if (!op.event_id) continue;
+
+        // Check if the ID actually exists
+        const { data: existing } = await supabase
+            .from('schedule_blocks')
+            .select('id')
+            .eq('id', op.event_id)
+            .eq('user_id', userId)
+            .maybeSingle();
+
+        if (existing) continue; // ID is valid — nothing to do
+
+        console.warn(`[Coach Apply] Block ID ${op.event_id} not found — attempting title-based resolution. title="${op.title}"`);
+
+        if (!op.title || op.title === 'Block') {
+            console.warn('[Coach Apply] No title to resolve by — skipping resolution');
+            continue;
         }
-    });
 
-    return {
-        ops,
-        undoable: patch.undoable !== false,
-        reason: patch.reason || 'Coach action',
-        scope: patch.scope || 'day',
+        // Build a date window to search: use op.date or today ±3 days
+        const baseDate = op.date ? new Date(op.date) : new Date();
+        const dates: string[] = [];
+        for (let d = -3; d <= 3; d++) {
+            const dt = new Date(baseDate);
+            dt.setDate(dt.getDate() + d);
+            dates.push(dt.toISOString().split('T')[0]);
+        }
+
+        // Try exact title match first, then partial match
+        const { data: candidates } = await supabase
+            .from('schedule_blocks')
+            .select('id, title, context, date, start_time')
+            .eq('user_id', userId)
+            .in('date', dates)
+            .or(`title.ilike.%${op.title}%,context.ilike.%${op.title}%`);
+
+        if (candidates && candidates.length > 0) {
+            // Prefer the closest date match
+            const sorted = candidates.sort((a: any, b: any) => {
+                const da = Math.abs(new Date(a.date).getTime() - baseDate.getTime());
+                const db = Math.abs(new Date(b.date).getTime() - baseDate.getTime());
+                return da - db;
+            });
+            const resolved = sorted[0];
+            console.log(`[Coach Apply] Resolved "${op.title}" → block ${resolved.id} on ${resolved.date} ${resolved.start_time}`);
+            op.event_id = resolved.id;
+        } else {
+            console.warn(`[Coach Apply] Could not resolve block for title="${op.title}" in dates ${dates.join(',')}`);
+        }
+    }
+}
+
+/**
+ * Server-side validation: reject coach operations that violate hard rules.
+ * Returns an array of error strings. Empty = all valid.
+ */
+async function validateCoachOps(patch: any, userId: string, supabase: any): Promise<string[]> {
+    if (!patch.ops || !Array.isArray(patch.ops)) return [];
+
+    const errors: string[] = [];
+    const IMMUTABLE_TYPES = ['sleep', 'meal', 'wind_down', 'anchor'];
+
+    // Collect all move/create target slots
+    const targetSlots: Array<{ op: string; date: string; start: string; end: string; title: string; blockId?: string }> = [];
+
+    // For move ops without a date, we need to look up the block's current date
+    const moveBlockIds: string[] = [];
+    for (const op of patch.ops) {
+        if ((op.op === 'move_event' || op.op === 'move') && op.event_id && !op.date) {
+            moveBlockIds.push(op.event_id);
+        }
+    }
+
+    // Fetch current dates for blocks being moved without a new_date
+    let blockDateMap: Record<string, string> = {};
+    if (moveBlockIds.length > 0) {
+        const { data: blocks } = await supabase
+            .from('schedule_blocks')
+            .select('id, date')
+            .eq('user_id', userId)
+            .in('id', moveBlockIds);
+        if (blocks) {
+            blockDateMap = blocks.reduce((acc: Record<string, string>, b: any) => ({ ...acc, [b.id]: b.date }), {});
+        }
+    }
+
+    for (const op of patch.ops) {
+        if (op.op === 'move_event' || op.op === 'move') {
+            const date = op.date || op.new_date || (op.event_id && blockDateMap[op.event_id]);
+            const start = op.to_start || op.new_start;
+            const end = op.to_end || op.new_end;
+            if (date && start && end) {
+                targetSlots.push({ op: 'move', date, start, end, title: op.title || '', blockId: op.event_id });
+            }
+        }
+        if (op.op === 'create_event' || op.op === 'create') {
+            const p = op.payload || {};
+            if (p.date && p.start_time && p.end_time) {
+                targetSlots.push({ op: 'create', date: p.date, start: p.start_time, end: p.end_time, title: p.title || '' });
+            }
+        }
+    }
+
+    if (targetSlots.length === 0) return [];
+
+    // Get all unique dates we need to check
+    const dates = [...new Set(targetSlots.map(s => s.date))];
+
+    // Fetch all blocks on those dates
+    const { data: existingBlocks } = await supabase
+        .from('schedule_blocks')
+        .select('id, title, context, block_type, goal_id, date, start_time, end_time')
+        .eq('user_id', userId)
+        .in('date', dates);
+
+    if (!existingBlocks) return [];
+
+    // Helper: check if two time ranges overlap
+    const overlaps = (s1: string, e1: string, s2: string, e2: string): boolean => {
+        const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+        const a1 = toMin(s1), a2 = toMin(e1), b1 = toMin(s2), b2 = toMin(e2);
+        return a1 < b2 && b1 < a2;
     };
+
+    // Collect IDs being deleted in this patch (they won't be there after)
+    const deletedIds = new Set(
+        patch.ops
+            .filter((o: any) => o.op === 'delete_event' || o.op === 'delete')
+            .map((o: any) => o.event_id)
+            .filter(Boolean)
+    );
+
+    // Check each target slot against immutable blocks
+    for (const slot of targetSlots) {
+        const dayBlocks = existingBlocks.filter((b: any) => b.date === slot.date);
+        for (const block of dayBlocks) {
+            // Skip the block being moved (it won't be in its old slot anymore)
+            if (slot.blockId && block.id === slot.blockId) continue;
+            // Skip blocks being deleted in the same patch
+            if (deletedIds.has(block.id)) continue;
+            if (!IMMUTABLE_TYPES.includes(block.block_type)) continue;
+            if (overlaps(slot.start, slot.end, block.start_time, block.end_time)) {
+                errors.push(
+                    `Cannot ${slot.op} "${slot.title}" at ${slot.start}-${slot.end} — overlaps with immutable ${block.block_type} block "${block.title}" (${block.start_time}-${block.end_time})`
+                );
+            }
+        }
+    }
+
+    // Check for same-goal swap: if there's a delete + move/create for the same goal, reject
+    const deleteOps = patch.ops.filter((o: any) => o.op === 'delete_event' || o.op === 'delete');
+    const moveCreateOps = patch.ops.filter((o: any) =>
+        ['move_event', 'move', 'create_event', 'create'].includes(o.op)
+    );
+
+    if (deleteOps.length > 0 && moveCreateOps.length > 0) {
+        for (const delOp of deleteOps) {
+            if (!delOp.event_id) continue;
+            const deletedBlock = existingBlocks.find((b: any) => b.id === delOp.event_id);
+            if (!deletedBlock || !deletedBlock.goal_id) continue;
+
+            for (const mcOp of moveCreateOps) {
+                const mcId = mcOp.event_id || mcOp.block_id;
+                if (mcId) {
+                    const movedBlock = existingBlocks.find((b: any) => b.id === mcId);
+                    if (movedBlock && movedBlock.goal_id === deletedBlock.goal_id) {
+                        errors.push(
+                            `Same-goal swap rejected: removing "${deletedBlock.title}" and adding/moving "${movedBlock.title}" — both belong to the same goal. This results in no net change.`
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    return errors;
 }

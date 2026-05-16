@@ -59,9 +59,10 @@ export interface SchedulePatch {
 
 export type PatchOperation =
     | { type: 'create_block'; data: NewBlockData }
-    | { type: 'move_block'; block_id: string; new_start: string; new_end: string; new_date?: string }
+    | { type: 'move_block'; block_id: string; title?: string; new_start: string; new_end: string; new_date?: string }
     | { type: 'update_block'; block_id: string; changes: Partial<BlockData> }
     | { type: 'delete_block'; block_id: string }
+    | { type: 'replan_week'; mode?: 'balanced' | 'momentum' | 'recovery'; allow_weekend?: boolean }
     | { type: 'update_goal'; goal_id: string; changes: Partial<GoalData> }
     | { type: 'create_goal'; data: NewGoalData }
     | { type: 'delete_goal'; goal_id: string }
@@ -161,44 +162,56 @@ function addDays(date: string, days: number): string {
 
 // ============ REAL SLOT FINDER ============
 
+interface FreeSlot { start: string; end: string; duration_mins: number }
+
+function formatSlot(s: FreeSlot): string {
+    const h = Math.floor(s.duration_mins / 60);
+    const m = s.duration_mins % 60;
+    const dur = h > 0 && m > 0 ? `${h}h${m}min` : h > 0 ? `${h}h` : `${m}min`;
+    return `${s.start}–${s.end} (${dur} free)`;
+}
+
 function findAvailableSlots(
     blocks: Array<{ start_time: string; end_time: string; date: string }>,
     date: string,
-    durationMinutes: number,
+    minDurationMinutes: number,
     wakeTime: string,
     sleepTime: string,
-    count: number = 3
-): Array<{ start: string; end: string }> {
+    count: number = 8,
+    notBeforeTime?: string
+): FreeSlot[] {
     const dayBlocks = blocks
         .filter(b => b.date === date)
         .sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
 
     const wakeMin = timeToMinutes(wakeTime);
     const sleepMin = timeToMinutes(sleepTime);
-    const results: Array<{ start: string; end: string }> = [];
+    const notBeforeMin = notBeforeTime ? timeToMinutes(notBeforeTime) : 0;
+    const results: FreeSlot[] = [];
 
-    // Find gaps between existing blocks
-    let cursor = wakeMin;
+    let cursor = Math.max(wakeMin, notBeforeMin);
     for (const block of dayBlocks) {
         const blockStart = timeToMinutes(block.start_time);
         const blockEnd = timeToMinutes(block.end_time);
 
-        if (blockStart - cursor >= durationMinutes) {
-            results.push({
-                start: minutesToTime(cursor),
-                end: minutesToTime(cursor + durationMinutes),
-            });
+        // Advance cursor past blocks that are entirely before our start
+        if (blockEnd <= cursor) { cursor = Math.max(cursor, blockEnd); continue; }
+
+        const gapStart = cursor;
+        const gapEnd = Math.min(blockStart, sleepMin);
+        const gapMins = gapEnd - gapStart;
+
+        if (gapMins >= minDurationMinutes) {
+            results.push({ start: minutesToTime(gapStart), end: minutesToTime(gapEnd), duration_mins: gapMins });
             if (results.length >= count) return results;
         }
         cursor = Math.max(cursor, blockEnd);
     }
 
-    // Check end of day gap
-    if (sleepMin - cursor >= durationMinutes) {
-        results.push({
-            start: minutesToTime(cursor),
-            end: minutesToTime(cursor + durationMinutes),
-        });
+    // Final gap before sleep
+    const finalGapMins = sleepMin - cursor;
+    if (finalGapMins >= minDurationMinutes) {
+        results.push({ start: minutesToTime(cursor), end: minutesToTime(sleepMin), duration_mins: finalGapMins });
     }
 
     return results.slice(0, count);
@@ -218,6 +231,14 @@ function buildScheduleContextForAI(
     const tomorrowBlocks = coachCtx.schedule.tomorrow || [];
     const weekBlocks = coachCtx.schedule.this_week || [];
 
+    const wakeTime = coachCtx.user.sleep_end || '07:00';
+    const sleepTime = coachCtx.user.sleep_start || '23:00';
+    const tomorrowDate = addDays(now.date, 1);
+
+    // Free slots for today: only show future slots (don't offer times already past)
+    const todayFreeSlots = findAvailableSlots(todayBlocks, now.date, 30, wakeTime, sleepTime, 8, now.time);
+    const tomorrowFreeSlots = findAvailableSlots(tomorrowBlocks, tomorrowDate, 30, wakeTime, sleepTime, 8);
+
     const todayText = todayBlocks.length > 0
         ? todayBlocks.map((b: any) =>
             `  ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${b.goal_id ? ` → Goal: ${b.goal_id}` : ''}${b.id ? ` ID:${b.id}` : ''}`
@@ -229,6 +250,13 @@ function buildScheduleContextForAI(
             `  ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${b.id ? ` ID:${b.id}` : ''}`
         ).join('\n')
         : '  (No blocks for tomorrow)';
+
+    const freeSlotsText = `
+━━━ VERIFIED FREE SLOTS (USE ONLY THESE — DO NOT SCHEDULE OUTSIDE THESE) ━━━
+Each slot shows the FULL unoccupied window. Never place a block that extends beyond the slot's end time.
+Today (${now.date}): ${todayFreeSlots.length > 0 ? todayFreeSlots.map(formatSlot).join(', ') : 'NO FREE SLOTS — suggest tomorrow or replan_week'}
+Tomorrow (${tomorrowDate}): ${tomorrowFreeSlots.length > 0 ? tomorrowFreeSlots.map(formatSlot).join(', ') : 'NO FREE SLOTS'}
+⚠️ These slots are mathematically guaranteed to be empty. Any other time is OCCUPIED.`;
 
     const goalsText = coachCtx.goals.length > 0
         ? coachCtx.goals.map((g: any) =>
@@ -299,11 +327,11 @@ ${todayText}
 
 ━━━ TOMORROW'S SCHEDULE ━━━
 ${tomorrowText}
+${freeSlotsText}
 
-━━━ THIS WEEK'S FULL SCHEDULE ━━━
+━━━ THIS WEEK'S FULL SCHEDULE + FREE SLOTS ━━━
 ${weekBlocks.length > 0
     ? (() => {
-        // Group by date
         const byDate = new Map<string, any[]>();
         weekBlocks.forEach((b: any) => {
             const d = b.date;
@@ -317,7 +345,13 @@ ${weekBlocks.length > 0
                 const lines = blocks.map((b: any) =>
                     `    ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${b.goal_id ? ` → Goal: ${b.goal_id}` : ''}${b.id ? ` ID:${b.id}` : ''}`
                 ).join('\n');
-                return `  ${dayName} (${date}):\n${lines}`;
+                // Free slots: for today, skip past times; for future days, full day
+                const notBefore = date === now.date ? now.time : undefined;
+                const dayFreeSlots = findAvailableSlots(weekBlocks, date, 30, wakeTime, sleepTime, 8, notBefore);
+                const freeLine = dayFreeSlots.length > 0
+                    ? `    FREE SLOTS: ${dayFreeSlots.map(formatSlot).join(' | ')}`
+                    : `    FREE SLOTS: NONE (fully booked)`;
+                return `  ${dayName} (${date}):\n${lines}\n${freeLine}`;
             }).join('\n');
     })()
     : '  (No blocks this week)'}
@@ -382,7 +416,8 @@ STRATEGIC DIRECTIVES:
 2. TROUGH MANAGEMENT: Place administrativia, meals, and low-cognitive tasks in TROUGH phases.
 3. BUFFERS: Proactively insert 15-30 min "Neural Buffers" after high-intensity blocks.
 4. AGGRESSIVE OPTIMIZATION: If the user is overwhelmed, don't just "ask"—actively propose clearing or deferring low-priority tasks. Use your tough love persona to explain why they need a break.
-5. ONE BODY GOAL PER DAY: Max ONE body-pillar goal per day (Gym, Football, Cardio, etc.). Never propose a workout if one already exists or is being added.
+5. PRIORITY ENFORCEMENT: When a high-priority goal needs time, displace lower-priority blocks to make room. Buffers, breaks, and flex blocks are always fair game. Goal blocks can be displaced only if a higher-priority goal needs that slot. Never sacrifice sleep, meals, or anchor commitments.
+6. ONE BODY GOAL PER DAY: Max ONE body-pillar goal per day (Gym, Football, Cardio, etc.). Never propose a workout if one already exists or is being added.
 6. AUTO-EXECUTION VS PROPOSAL:
    - SELECT "suggested_mode": "execute" ONLY for:
      * Single block MOVE of < 60 minutes for a non-anchor block.
@@ -402,41 +437,115 @@ STRATEGIC DIRECTIVES:
      * Any change spanning multiple days.
      * Large-scale optimizations or deletions.
 
+🔀 MOVING EXISTING BLOCKS (CRITICAL — READ CAREFULLY):
+- When the user asks to "move", "reschedule", "shift", or "put [block] at [time]":
+  1. Search THIS WEEK'S FULL SCHEDULE for the block they mentioned by title/context.
+  2. Copy its EXACT ID value from the "ID:xxxxx" part of the schedule listing.
+  3. Use ONLY move_block with that exact ID — NEVER create_block for a move.
+  4. Always include new_date when moving to a different day (format: YYYY-MM-DD).
+  5. NEVER move a block to a date or time that is in the past (before TODAY). Blocks can only be moved to the current day or any day after in the week.
+  6. If you cannot find the block ID in the schedule, say so — do NOT invent an ID.
+- create_block is ONLY for adding a brand-new block that doesn't already exist.
+- If you use create_block when move_block was needed, you will duplicate the block and leave the original in place — this is WRONG.
+
 🚫 IMMUTABLE BLOCKS (ABSOLUTE — NEVER VIOLATE):
 - NEVER move, delete, modify, or reschedule blocks of type: sleep, meal, wind_down, anchor.
 - These are biological necessities and fixed commitments. They are SACRED.
+- A replanned or rescheduled block should NEVER be scheduled for a time that is covered by anchors, sleep, meal, or wind_down. These slots are completely off-limits for new or moved blocks.
 - To free up time, you MUST work around goal blocks, buffer blocks, routine blocks, or flex blocks ONLY.
 - If the user asks to skip sleep or meals, REFUSE and explain why it's harmful.
 - If all remaining blocks are immutable, tell the user there's nothing to optimize.
 
-🚨 CONFLICT PREVENTION (CRITICAL):
-- NEVER propose moving or creating a block into a time slot that already has an existing block, UNLESS the user explicitly asks to replace, overwrite, or schedule over that specific existing block. Check TODAY'S SCHEDULE above for conflicts.
-- When rescheduling a missed block, ONLY suggest time slots that are completely free — no partial overlaps allowed.
-- Before generating any move_block or create_block operation, mentally verify: "Is this time slot empty in the schedule above?" If it is not empty, you MUST either pick a different time, OR generate a delete_block operation for the existing block to make room.
-- If no free slots are available today, suggest rescheduling to tomorrow or a later day.
-- TASKS VS BLOCKS: If the user wants to add a "task" or "to-do" without specifying a specific time they want to work on it, use \`create_todo\`. Only use \`create_block\` if they explicitly want to block out time on the calendar for it.
-- block_type for create_block MUST be one of: anchor, goal, meal, buffer, routine, sleep, wind_down, flex. NEVER use "task", "shopping", "errand", or any custom value. Use "flex" for general activities.
+🔄 MISSED BLOCK WATERFALL PROTOCOL (STRICT EXECUTION ORDER):
+When the user says they missed or will miss a block and want to reschedule, you MUST follow these exact steps in order:
+
+--- ABSOLUTE RULES (APPLY TO ALL STEPS BELOW) ---
+A) SAME-GOAL PROTECTION: NEVER delete, move, or sacrifice a block that belongs to the SAME GOAL as the missed block. Doing so is USELESS — removing one block for a goal and adding another back results in NO net change. The whole point is to INCREASE the total blocks for that goal. Skip any candidate that shares the same goal_id or title as the missed block.
+B) IMMUTABLE TIME WINDOWS: A rescheduled block must NEVER overlap with any of these: sleep, meal, wind_down, anchor. These time windows are completely off-limits. Treat them like walls — you cannot place anything inside them.
+C) CALENDAR GENERATION RULES: When placing a rescheduled block, follow the SAME rules as regular calendar generation:
+   - Respect buffer times between blocks (15-30 min gaps after high-intensity blocks).
+   - Do NOT place blocks during meal windows, sleep windows, or wind-down periods.
+   - The most you can do is OFFER to shorten buffer times between existing blocks to create space — but only with user permission.
+D) DATE/TIME CONSISTENCY: The date and time in each operation's JSON fields MUST exactly match what you describe in the option's summary/description. If you say "move to Thursday evening at 7pm", the operation MUST have new_date matching Thursday's date and new_start: "19:00". NEVER describe one thing and generate a different date/time in the operation.
+E) FORWARD ONLY: Blocks can only be moved to the current day or any day AFTER. Never schedule into the past.
+F) ALWAYS INCLUDE new_date: Every move_block operation MUST include the new_date field (format: YYYY-MM-DD), even if moving within the same day.
+
+--- WATERFALL STEPS ---
+
+1. FREE SLOT (Ideal):
+   - Search the rest of the week for a verified free time slot that does NOT overlap with any immutable block.
+   - Move the missed block there using move_block with the EXACT new_date and new_start/new_end.
+   - In your summary, explicitly say the day of the week (e.g. "Moving to Thursday at 7:00pm").
+
+2. LOWER PRIORITY DISPLACEMENT (No free slots):
+   - Find a block scheduled *after* the missed time that has a LOWER priority.
+   - Priority order: user-flagged goals > craft/mind/body goal blocks > flex/buffer > routine > break.
+   - REMEMBER RULE A: Skip any block belonging to the SAME goal.
+   - Generate a delete_block for the lower-priority block (it is removed from the week entirely).
+   - Generate a move_block putting the missed block exactly in that newly freed slot.
+
+3. SAME PILLAR (Multiple Blocks):
+   - If no lower priority blocks exist, look for a DIFFERENT goal under the SAME PILLAR that has multiple blocks scheduled later in the week.
+   - REMEMBER RULE A: The candidate must NOT be the same goal as the missed block.
+   - Do NOT execute immediately. Use 'suggested_mode: "propose"' to ask the user if they are okay with sacrificing one of these blocks.
+
+4. SISTER PILLAR (Craft <-> Mind):
+   - If the above fails, look for a block under the "sister" pillar that has multiple blocks in the week.
+   - If the missed block is Craft, look at Mind. If the missed block is Mind, look at Craft.
+   - CRITICAL RULE: The BODY pillar is the absolute last resort. Avoid touching it entirely unless explicitly instructed by the user.
+   - Use 'suggested_mode: "propose"' to ask the user.
+
+5. MANUAL NEGOTIATION:
+   - If all targeted lookups fail, use 'suggested_mode: "clarify"' to explicitly ask the user: "Which pillar or goal are you okay with reducing by one block for the week?"
+   - When proposing *any* displacement, clearly explain what is being removed and where the missed block is going.
+
+6. FULL WEEK REPLAN:
+   - If the user denies the options or no slots exist at all, propose a full 'replan_week' operation to regenerate the remainder of the week and perfectly fit the missed block back in.
+
+⚖️ PRIORITY-BASED DISPLACEMENT (GENERAL BEHAVIOUR):
+When the user wants to move a block to a time slot that is already occupied (NOT following the missed block waterfall):
+- Compare the priority/importance of the target block vs the occupying block.
+- If the target is HIGHER priority: generate delete_block OR move_block for the occupying block FIRST, THEN move_block for the high-priority block.
+- Immutable blocks (sleep, meal, wind_down, anchor) can NEVER be displaced regardless of priority.
+- Meal times can NEVER be moved, shortened, or overlapped.
+
+🚨 CONFLICT RESOLUTION — ALWAYS GENERATE A COMPLETE PATCH:
+- If a slot is occupied by a displaceable block, generate BOTH the removal AND the placement — never generate just one.
+- Operation order matters: displacement ops FIRST, then the placement op.
+- Before every move_block or create_block, check THIS WEEK'S FULL SCHEDULE for conflicts with ALL existing blocks, especially immutables.
+- TASKS VS BLOCKS: Use create_todo for tasks without a specific time; create_block only for calendar time blocks.
+- block_type MUST be one of: anchor, goal, meal, buffer, routine, sleep, wind_down, flex. Never use custom values.
 
 🔁 COUNTER-PROPOSALS & SWAPS (CRITICAL):
-- If the user REJECTED a previous option and suggests an alternative (e.g. "no, put it during my craft block" or "I'd rather do shopping at 3pm instead"), you MUST:
-  1. Identify the existing block the user referenced from the schedule above. Use the EXACT block ID from the schedule.
-  2. If replacing an existing block: generate a delete_block for that block using its EXACT ID, THEN a create_block for the new activity in that EXACT timeslot and on the SAME date.
-  3. If just changing the time: generate the operation at the user's requested time.
-  4. Clearly state in the summary what is being replaced and what the new block will be.
-- CRITICAL: When swapping blocks, the new block MUST go on the SAME DATE as the deleted block. Do NOT put it on a different day.
-- CRITICAL: Use the EXACT date from the schedule context (e.g., "2026-05-09") — NEVER guess or default to today.
+- If the user REJECTED a previous option and suggests an alternative:
+  1. Identify the existing block they referenced. Use the EXACT block ID from the schedule.
+  2. If replacing: generate delete_block for the displaced block FIRST, then place the new one.
+  3. If just changing time: generate move_block at the user's requested time.
+  4. State clearly what was replaced and why.
+- Swapped blocks MUST go on the SAME DATE as the displaced block.
+- Use the EXACT date from the schedule (e.g., "2026-05-14") — never guess or default to today.
 
 PATCH OPERATION TYPES:
 - create_block: { type: "create_block", data: { date, start_time, end_time, title, context, block_type, goal_id?, pillar?, checklist? } }
 - move_block: { type: "move_block", block_id: "existing-id", title: "Block Title", new_start: "HH:MM", new_end: "HH:MM", new_date?: "YYYY-MM-DD" }
 - update_block: { type: "update_block", block_id: "existing-id", title: "Block Title", changes: { status?, title?, start_time?, end_time? } }
 - delete_block: { type: "delete_block", block_id: "existing-id", title: "Block Title" }
+- replan_week: { type: "replan_week", mode: "balanced|momentum|recovery", allow_weekend: boolean } Use this when user wants to replan the rest of their week or accommodate missed blocks by regenerating future blocks.
 - create_goal: { type: "create_goal", data: { title, pillar, minutes_per_day, days_per_week } }
 - update_goal: { type: "update_goal", goal_id: "existing-id", changes: { ... } }
 - delete_goal: { type: "delete_goal", goal_id: "existing-id", title: "Goal Title" }
 - create_todo: { type: "create_todo", data: { title, due_date?, priority? } }
 - update_todo: { type: "update_todo", todo_id: "existing-id", changes: { is_completed?, title?, due_date?, priority? } }
 - delete_todo: { type: "delete_todo", todo_id: "existing-id" }
+
+--- FINAL VALIDATION CHECKLIST (CHECK EVERY OPTION BEFORE OUTPUTTING) ---
+For EACH option you generate, mentally verify ALL of the following BEFORE including it in your output:
+1. Does ANY move_block or create_block overlap with a sleep, meal, wind_down, or anchor block on that date? If YES -> DISCARD this option.
+2. Does the option delete a block belonging to the SAME GOAL as the block being rescheduled? If YES -> DISCARD this option. Replacing "PlannrAI" with "PlannrAI" or "Study" with "Study" is USELESS.
+3. Does the new_date in the operation JSON match the day described in the title/description? If "Thursday evening" is described, new_date MUST be Thursday's date. If they differ -> FIX the operation.
+4. Does the new time slot overlap with any existing block on that day (check the FULL SCHEDULE)? If YES and the overlapping block is not being deleted in a prior op -> DISCARD this option.
+5. Is the target time in the past (before the current time today)? If YES -> DISCARD this option.
+6. Does the block FIT entirely within the free slot shown? Free slots show the FULL gap (e.g., "10:00–12:00 (2h free)"). If the block's end_time exceeds the slot's end, it overlaps the next block -> DISCARD this option.
 
 🚨 OUTPUT FORMAT (STRICT JSON ONLY):
 - Return a single valid JSON object.
@@ -456,7 +565,7 @@ PATCH OPERATION TYPES:
       "impact": "Concrete positive outcome (e.g., 'Reclaims 2 hours of peak focus')",
       "tradeoff": { "warning": "Any downsides", "severity": "info|caution|warning" },
       "operations": [
-        { "type": "create_block|move_block|update_block|delete_block|create_todo|update_todo|delete_todo|create_goal|update_goal|delete_goal", ... }
+        { "type": "create_block|move_block|update_block|delete_block|replan_week|create_todo|update_todo|delete_todo|create_goal|update_goal|delete_goal", ... }
       ],
       "recommended": true
     }
@@ -626,6 +735,7 @@ function normalizeOperation(op: any): PatchOperation {
             return {
                 type: 'move_block',
                 block_id: op.block_id || op.event_id || op.id,
+                title: op.title || op.data?.title || op.data?.context,
                 new_start: op.new_start || op.to_start || op.start_time,
                 new_end: op.new_end || op.to_end || op.end_time,
                 new_date: op.new_date || op.date,
@@ -644,6 +754,13 @@ function normalizeOperation(op: any): PatchOperation {
             return {
                 type: 'delete_block',
                 block_id: op.block_id || op.event_id || op.id,
+                title: op.title || op.data?.title || op.data?.context,
+            } as any;
+        case 'replan_week':
+            return {
+                type: 'replan_week',
+                mode: op.mode || 'balanced',
+                allow_weekend: op.allow_weekend !== undefined ? op.allow_weekend : true
             };
         case 'create_goal':
             return {
@@ -729,6 +846,12 @@ function convertToCalendarPatchOp(op: PatchOperation): any {
                 op: 'delete_event',
                 event_id: op.block_id,
                 title: (op as any).title || 'Block',
+            };
+        case 'replan_week':
+            return {
+                op: 'replan_week',
+                payload: { mode: op.mode, allow_weekend: op.allow_weekend },
+                title: 'Regenerate Week'
             };
         case 'create_goal':
             return {

@@ -204,6 +204,13 @@ function CalendarPageInner() {
         }
     }, [searchParams, isLoading, autoPlanned]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Keep selectedBlock in sync with latest block data after refreshes
+    useEffect(() => {
+        if (!selectedBlock) return;
+        const updated = blocks.find(b => b.id === selectedBlock.id);
+        if (updated) setSelectedBlock(updated);
+    }, [blocks]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // ── Day Stats ────────────────────────────────────────────────
     const viewDayBlocks = useMemo(() =>
         blocks.filter(b => b.date === viewDateStr), [blocks, viewDateStr]
@@ -310,8 +317,8 @@ function CalendarPageInner() {
                     break;
             }
             await refresh();
-        } catch {
-            showToast("Action failed", 'error');
+        } catch (e: any) {
+            showToast(e?.message || "Action failed", 'error');
         }
     };
 

@@ -95,20 +95,16 @@ export function HabitStackWizard({ isOpen, onClose, onSuccess }: HabitStackWizar
             const action = stack.steps?.[0]?.title || stack.name;
             const duration = stack.steps?.[0]?.minutes || 5;
 
-            // TODO: Use actual API client for habit stacks
-            // const result = await apiClient.post('/api/habit-stacks', ...); 
-            // Emulating via existing method or direct API call if no specialized client method:
-
-            const createRes = await apiClient.post<any>('/api/habit-stacks', {
+            const createRes = await apiClient.habitStacks.create({
                 trigger_habit: trigger,
                 action_habit: action,
                 action_duration_mins: duration,
-                goal_id: null // optional
+                goal_id: undefined // optional
             });
 
             if (createRes && createRes.stack) {
                 const newStack = createRes.stack;
-                addStack(newStack);
+                addStack(newStack as any);
 
                 // B. Apply Placement (if selected)
                 if (placementIdx !== undefined && placements[placementIdx]) {

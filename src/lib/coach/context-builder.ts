@@ -43,7 +43,7 @@ export interface CoachContext {
 
     user_state: {
         is_minimal_mode: boolean;
-        last_energy_checkin?: string;
+        last_energy_checkin?: number;
         recent_missed_blocks: number;
     };
 
@@ -193,7 +193,7 @@ export async function buildCoachContext(
     const missedCount = missedBlocksRes.count || 0;
     const todos = todosRes.data || [];
 
-    const isMinimalMode = determineMinimalMode(lastEnergy?.energy_level?.toString(), missedCount);
+    const isMinimalMode = determineMinimalMode(lastEnergy?.energy_level, missedCount);
 
     const todayWithLocks = markLockedBlocks(todayBlocks, commitments, today);
     const tomorrowWithLocks = markLockedBlocks(tomorrowBlocks, commitments, tomorrow);
@@ -220,7 +220,7 @@ export async function buildCoachContext(
         },
         user_state: {
             is_minimal_mode: isMinimalMode,
-            last_energy_checkin: lastEnergy?.level,
+            last_energy_checkin: lastEnergy?.energy_level,
             recent_missed_blocks: missedCount,
         },
         learned_preferences: preferences,
@@ -232,8 +232,9 @@ export async function buildCoachContext(
     };
 }
 
-function determineMinimalMode(energyLevel?: string, missedBlocks?: number): boolean {
-    if (energyLevel === 'exhausted' || energyLevel === 'low') {
+function determineMinimalMode(energyLevel?: number, missedBlocks?: number): boolean {
+    // energy_level is stored as 1-10; ≤3 = low energy, trigger minimal mode
+    if (energyLevel !== undefined && energyLevel !== null && energyLevel <= 3) {
         return true;
     }
     if (missedBlocks && missedBlocks >= 4) {

@@ -1,773 +1,355 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { createClient } from '@/lib/supabase/client';
-import { useToast } from '@/components/ui/toast';
-import {
-    TrendingUp, TrendingDown, Check, Loader2, ArrowRight, ArrowLeft, Zap, Brain,
-    RotateCcw, AlertTriangle, Target, BarChart3, Calendar, Clock, Flame,
-    MessageCircle, Sparkles, BookOpen, Shield, ChevronRight, PieChart, Trophy
-} from 'lucide-react';
-import { format, startOfWeek, endOfWeek, subWeeks } from 'date-fns';
+import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
+import { toast } from 'sonner';
+import { Loader2, ArrowRight, ArrowLeft, Brain, Zap, Target, Star, AlertTriangle, MessageCircle, X } from 'lucide-react';
 
-// --- Types ---
-
-interface DayBreakdown { planned: number; completed: number; cancelled: number; }
-interface WeeklyMetrics {
-    plannedMinutes: number; actualMinutes: number; completionRate: number;
-    totalBlocks: number; completedBlocks: number; cancelledBlocks: number;
-    topPillar: string; neglectedPillar: string;
-    pillarMinutes?: Record<string, number>;
-    habitCompletionRate?: number; brainDumpCount?: number; avgStress?: number;
-}
-interface Pattern { title: string; evidence: string; }
-interface Lever { label: string; explanation?: string; patch?: any; }
-interface WeeklyReviewData {
-    reality: string; metrics?: WeeklyMetrics; patterns: Pattern[];
-    lever: Lever; note: string; dayBreakdown?: Record<string, DayBreakdown>;
+interface Goal {
+    id: string;
+    title: string;
+    category: string;
 }
 
-const STEPS = ['Score', 'Patterns', 'Reflect', 'Plan Next Week', 'Insights'] as const;
-type Step = typeof STEPS[number];
+const STEPS = [
+    'Accomplishments',
+    'Best Performance',
+    'Struggles',
+    'Priorities',
+    'Feedback',
+    'Execution'
+] as const;
 
-const PILLAR_COLORS: Record<string, string> = {
-    mind: '#818cf8', body: '#34d399', craft: '#f59e0b', anchor: '#f472b6', meal: '#a78bfa',
-};
-const PILLAR_LABELS: Record<string, string> = {
-    mind: 'Mind', body: 'Body', craft: 'Craft', anchor: 'Anchors', meal: 'Meals',
-};
-
-export default function WeeklyReviewPage() {
-    const supabase = createClient();
-    const { showToast } = useToast();
-
+export default function WeeklyReviewSurvey() {
+    const router = useRouter();
     const [currentStep, setCurrentStep] = useState(0);
-    const [review, setReview] = useState<WeeklyReviewData | null>(null);
-    const [metrics, setMetrics] = useState<WeeklyMetrics | null>(null);
-    const [dayBreakdown, setDayBreakdown] = useState<Record<string, DayBreakdown>>({});
+    const [goals, setGoals] = useState<Goal[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [isApplying, setIsApplying] = useState(false);
-    const [leverApplied, setLeverApplied] = useState(false);
-    const [undoToken, setUndoToken] = useState<string | null>(null);
+    const [isExecuting, setIsExecuting] = useState(false);
 
-    // Reflection inputs
-    const [whatWorked, setWhatWorked] = useState('');
-    const [challenges, setChallenges] = useState('');
-    const [overallEnergy, setOverallEnergy] = useState<string>('');
-    const [newRules, setNewRules] = useState<string[]>([]);
-    const [ruleInput, setRuleInput] = useState('');
+    // Survey State
+    const [accomplished, setAccomplished] = useState<'yes' | 'no' | 'partially' | null>(null);
+    const [bestGoalId, setBestGoalId] = useState<string>('');
+    const [worstGoalId, setWorstGoalId] = useState<string>('');
+    const [priorityChange, setPriorityChange] = useState<'increase' | 'decrease' | 'no' | null>(null);
+    const [feedbackText, setFeedbackText] = useState('');
 
-    // Analytics / Insights state
-    const [analyticsData, setAnalyticsData] = useState<any>(null);
-    const [analyticsLoading, setAnalyticsLoading] = useState(false);
-
-    // Week navigation — offset 1 = last week, 2 = two weeks ago, etc.
-    const [weekOffset, setWeekOffset] = useState(1);
-    const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-    const selectedWeekStart = subWeeks(currentWeekStart, weekOffset);
-    const selectedWeekEnd = endOfWeek(selectedWeekStart, { weekStartsOn: 1 });
-    const weekStartStr = format(selectedWeekStart, 'yyyy-MM-dd');
-    const weekEndStr = format(selectedWeekEnd, 'yyyy-MM-dd');
-
-    useEffect(() => { 
-        // Reset state when week changes
-        setReview(null);
-        setMetrics(null);
-        setDayBreakdown({});
-        setCurrentStep(0);
-        setAnalyticsData(null);
-        setLeverApplied(false);
-        checkExistingReview(); 
-    }, [weekOffset]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    // Fetch analytics when user reaches Insights step
     useEffect(() => {
-        if (currentStep === 4 && !analyticsData && !analyticsLoading) {
-            setAnalyticsLoading(true);
-            apiClient.get<any>('/api/analytics/overview?days=14')
-                .then(setAnalyticsData)
-                .catch(e => console.error('Analytics load failed:', e))
-                .finally(() => setAnalyticsLoading(false));
-        }
-    }, [currentStep, analyticsData, analyticsLoading]);
+        // Fetch active goals
+        apiClient.get<{ goals: Goal[] }>('/api/goals')
+            .then(res => setGoals(res.goals || []))
+            .catch(err => console.error(err))
+            .finally(() => setIsLoading(false));
+    }, []);
 
-    const checkExistingReview = async () => {
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-            const { data } = await supabase
-                .from('weekly_reviews')
-                .select('*')
-                .eq('user_id', user.id)
-                .eq('week_start', weekStartStr)
-                .maybeSingle();
-            if (data) {
-                setReview({
-                    reality: data.what_worked || data.ai_patterns?.reality || '',
-                    patterns: data.ai_patterns?.patterns || [],
-                    lever: data.ai_suggestions?.lever || { label: 'No lever', patch: {} },
-                    note: data.ai_suggestions?.note || '',
-                    metrics: {
-                        plannedMinutes: 0, actualMinutes: 0,
-                        completionRate: data.completion_percent || 0,
-                        totalBlocks: data.total_blocks || 0,
-                        completedBlocks: data.completed_blocks || 0,
-                        cancelledBlocks: data.skipped_blocks || 0,
-                        topPillar: '', neglectedPillar: ''
-                    }
-                });
-                setMetrics({
-                    plannedMinutes: 0, actualMinutes: 0,
-                    completionRate: data.completion_percent || 0,
-                    totalBlocks: data.total_blocks || 0,
-                    completedBlocks: data.completed_blocks || 0,
-                    cancelledBlocks: data.skipped_blocks || 0,
-                    topPillar: '', neglectedPillar: ''
-                });
-                setWhatWorked(data.what_worked || '');
-                setChallenges(data.challenges || '');
-                setOverallEnergy(data.overall_energy || '');
-            }
-        } catch (e) { console.error(e); }
-        finally { setIsLoading(false); }
-    };
+    const wordCount = feedbackText.trim() ? feedbackText.trim().split(/\s+/).length : 0;
 
-    const [genPhase, setGenPhase] = useState('');
-
-    const handleGenerate = async () => {
-        setIsGenerating(true);
-        setGenPhase('Gathering your data...');
-        try {
-            // Phase animation for better UX feedback
-            const phaseTimer = setTimeout(() => setGenPhase('Analyzing patterns...'), 4000);
-            const phaseTimer2 = setTimeout(() => setGenPhase('Building your review...'), 10000);
-            const phaseTimer3 = setTimeout(() => setGenPhase('Almost there...'), 20000);
-
-            const res: any = await apiClient.post<any>('/api/weekly-review/generate', {
-                week_start: weekStartStr, week_end: weekEndStr
-            }, { timeout: 120000 }); // 2-minute timeout for Claude analysis
-
-            clearTimeout(phaseTimer);
-            clearTimeout(phaseTimer2);
-            clearTimeout(phaseTimer3);
-
-            setMetrics(res.metrics || {});
-            setDayBreakdown(res.dayBreakdown || {});
-            setReview({
-                reality: res.reality || 'No analysis generated.',
-                metrics: res.metrics,
-                patterns: res.patterns || [],
-                lever: res.lever || { label: 'Review Goals', patch: {} },
-                note: res.note || '',
-                dayBreakdown: res.dayBreakdown
-            });
-            setCurrentStep(0);
-        } catch (e) {
-            console.error(e);
-            showToast('Failed to generate review. Please try again.', 'error');
-        } finally {
-            setIsGenerating(false);
-            setGenPhase('');
+    const handleNext = () => {
+        if (currentStep === 2 && worstGoalId === 'none') {
+            setCurrentStep(4); // Skip priority question if no worst goal
+        } else {
+            setCurrentStep(prev => prev + 1);
         }
     };
 
-    const handleApplyLever = async () => {
-        if (!review) return;
-        setIsApplying(true);
+    const handleBack = () => {
+        if (currentStep === 4 && worstGoalId === 'none') {
+            setCurrentStep(2); // Go back to worst goal question
+        } else {
+            setCurrentStep(prev => prev - 1);
+        }
+    };
+
+    const handleExecute = async (mode: 'auto' | 'semi-auto' | 'manual') => {
+        setIsExecuting(true);
+        const payload = {
+            accomplished,
+            bestGoalId,
+            worstGoalId,
+            priorityChange,
+            feedbackText,
+            mode
+        };
+
         try {
-            const res: any = await apiClient.post('/api/weekly-review/apply', {
-                review: {
-                    week_start: weekStartStr, week_end: weekEndStr,
-                    planned_minutes: metrics?.plannedMinutes || 0,
-                    actual_minutes: metrics?.actualMinutes || 0,
-                    friction_patterns: review.patterns,
-                    suggested_adjustment: review.reality,
-                    lever_action: review.lever, lever_note: review.note,
-                    what_worked: whatWorked, challenges,
-                    overall_energy: overallEnergy, new_rules: newRules
+            if (mode === 'auto') {
+                toast.loading('Regenerating schedule with AI...', { id: 'exec' });
+                await apiClient.post('/api/weekly-review/execute', payload);
+                toast.success('Schedule regenerated successfully!', { id: 'exec' });
+                router.push('/app/calendar');
+            } else if (mode === 'semi-auto') {
+                toast.loading('Updating priorities...', { id: 'exec' });
+                await apiClient.post('/api/weekly-review/execute', payload);
+                toast.success('Priorities updated. Please refine your goals.', { id: 'exec' });
+                router.push('/app/goals');
+            } else {
+                // Manual
+                toast.success('Review completed.', { id: 'exec' });
+                if (feedbackText.trim()) {
+                    localStorage.setItem('manual_review_feedback', feedbackText.trim());
                 }
-            });
-            setLeverApplied(true);
-            setUndoToken(res.undo_token || null);
-            showToast('Weekly review saved & lever applied!', 'success');
+                router.push('/app');
+            }
         } catch (e) {
-            console.error(e);
-            showToast('Failed to apply lever', 'error');
-        } finally { setIsApplying(false); }
-    };
-
-    const handleUndo = async () => {
-        if (!undoToken) return;
-        try {
-            await apiClient.post('/api/coach/undo', { undo_token: undoToken });
-            setLeverApplied(false); setUndoToken(null);
-            showToast('Lever reverted', 'success');
-        } catch (e) { showToast('Failed to undo', 'error'); }
-    };
-
-    const addRule = () => {
-        if (ruleInput.trim()) {
-            setNewRules(prev => [...prev, ruleInput.trim()]);
-            setRuleInput('');
+            toast.error('Failed to execute review actions.', { id: 'exec' });
+            setIsExecuting(false);
         }
     };
 
-    // --- Loading ---
+    const exitReview = () => {
+        router.push('/app');
+    };
+
     if (isLoading) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh]">
+            <div className="flex h-[60vh] items-center justify-center">
                 <Loader2 className="w-8 h-8 animate-spin text-[var(--color-primary)]" />
             </div>
         );
     }
 
-    // --- Start Screen ---
-    if (!review) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[70vh] space-y-8 p-4">
-                <div className="text-center space-y-2">
-                    <h1 className="text-3xl font-bold tracking-tight">Weekly Review</h1>
-                    <div className="flex items-center justify-center gap-3 mt-2">
-                        <button 
-                            onClick={() => setWeekOffset(prev => prev + 1)}
-                            className="p-1.5 rounded-lg hover:bg-white/10 text-[var(--text-tertiary)] hover:text-white transition-colors"
-                        >
-                            <ArrowLeft className="w-4 h-4" />
-                        </button>
-                        <p className="text-[var(--text-secondary)] text-sm font-medium">
-                            Week of {format(selectedWeekStart, 'MMM d')} – {format(selectedWeekEnd, 'MMM d')}
-                        </p>
-                        <button 
-                            onClick={() => setWeekOffset(prev => Math.max(1, prev - 1))}
-                            disabled={weekOffset <= 1}
-                            className="p-1.5 rounded-lg hover:bg-white/10 text-[var(--text-tertiary)] hover:text-white transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
-                        >
-                            <ArrowRight className="w-4 h-4" />
-                        </button>
-                    </div>
-                </div>
-                <div className="max-w-md w-full text-center space-y-6 p-8 rounded-2xl bg-[var(--glass-bg)] border border-[var(--glass-border)]">
-                    <div className="flex justify-center">
-                        <div className="p-4 rounded-full bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20">
-                            <Brain className="w-8 h-8 text-[var(--color-primary)]" />
-                        </div>
-                    </div>
-                    <div>
-                        <h2 className="text-xl font-bold">4-Step Review</h2>
-                        <p className="text-sm text-[var(--text-secondary)] mt-2">
-                            Score → Patterns → Reflect → Plan Next Week
-                        </p>
-                    </div>
-                    <div className="grid grid-cols-4 gap-1.5">
-                        {STEPS.map((step, i) => (
-                            <div key={step} className="flex flex-col items-center gap-1">
-                                <div className="w-8 h-8 rounded-full bg-[var(--glass-bg)] border border-[var(--glass-border)] flex items-center justify-center text-xs font-bold text-[var(--text-secondary)]">{i + 1}</div>
-                                <span className="text-[10px] text-[var(--text-tertiary)]">{step}</span>
-                            </div>
-                        ))}
-                    </div>
-                    <button
-                        onClick={handleGenerate}
-                        disabled={isGenerating}
-                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm
-                            bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-mind)]
-                            text-white shadow-lg shadow-[var(--color-primary)]/20
-                            disabled:opacity-50 disabled:cursor-not-allowed
-                            hover:brightness-110 active:scale-[0.98] transition-all"
-                    >
-                        {isGenerating ? (
-                            <><Loader2 className="w-4 h-4 animate-spin" /> {genPhase || 'Crunching Data...'}</>
-                        ) : (
-                            <><Zap className="w-4 h-4" /> Start Review</>
-                        )}
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    // --- Wizard UI ---
-    const completionRate = metrics?.completionRate || 0;
-    const missedHours = metrics ? Math.round((metrics.plannedMinutes - metrics.actualMinutes) / 60) : 0;
+    const isStepValid = () => {
+        switch (currentStep) {
+            case 0: return accomplished !== null;
+            case 1: return bestGoalId !== '';
+            case 2: return worstGoalId !== '';
+            case 3: return priorityChange !== null;
+            case 4: return wordCount <= 100;
+            default: return true;
+        }
+    };
 
     return (
-        <div className="max-w-2xl mx-auto pb-20 p-4 md:p-6">
-            {/* Header & Progress */}
-            <header className="mb-6">
-                <div className="flex items-center justify-between mb-4">
-                    <div>
-                        <h1 className="text-xl font-bold tracking-tight">Weekly Review</h1>
-                        <p className="text-xs text-[var(--text-tertiary)]">
-                            {format(selectedWeekStart, 'MMM d')} - {format(selectedWeekEnd, 'MMM d')}
-                        </p>
-                    </div>
-                    <div className="text-xs font-medium text-[var(--text-secondary)]">
-                        Step {currentStep + 1} of {STEPS.length}
-                    </div>
+        <div className="max-w-2xl mx-auto pb-20 p-4 md:p-6 min-h-screen flex flex-col">
+            <header className="mb-8 flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold tracking-tight">Weekly Review</h1>
+                    <p className="text-sm text-[var(--text-tertiary)]">Reflect and recalibrate</p>
                 </div>
-                {/* Progress Bar */}
-                <div className="flex gap-1.5">
-                    {STEPS.map((step, i) => (
-                        <button
-                            key={step}
-                            onClick={() => setCurrentStep(i)}
-                            className="flex-1 group"
-                        >
-                            <div className={`h-1.5 rounded-full transition-all ${i <= currentStep
-                                    ? 'bg-[var(--color-primary)]'
-                                    : 'bg-[var(--glass-border)]'
-                                }`} />
-                            <span className={`text-[10px] mt-1 block text-center transition-colors ${i === currentStep ? 'text-[var(--color-primary)] font-bold' : 'text-[var(--text-tertiary)]'
-                                }`}>{step}</span>
-                        </button>
-                    ))}
-                </div>
+                <button
+                    onClick={exitReview}
+                    className="p-2 rounded-xl bg-[var(--glass-bg)] hover:bg-[var(--glass-bg-hover)] border border-[var(--glass-border)] text-[var(--text-secondary)] transition-colors flex items-center gap-2 text-sm font-medium"
+                >
+                    <X className="w-4 h-4" /> Exit
+                </button>
             </header>
 
-            {/* Step Content */}
-            <AnimatePresence mode="wait">
-                <motion.div
-                    key={currentStep}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.25 }}
-                >
-                    {/* STEP 1: SCORE */}
-                    {currentStep === 0 && (
-                        <div className="space-y-4">
-                            {/* Big Score */}
-                            <div className="text-center py-8">
-                                <div className={`text-6xl font-black ${completionRate >= 70 ? 'text-[var(--color-success)]' :
-                                        completionRate >= 40 ? 'text-[var(--color-warning)]' :
-                                            'text-[var(--color-error)]'
-                                    }`}>
-                                    {completionRate}%
+            {/* Progress Bar */}
+            <div className="flex gap-1.5 mb-8">
+                {STEPS.map((step, i) => (
+                    <div key={step} className="flex-1">
+                        <div className={`h-1.5 rounded-full transition-all ${i <= currentStep ? 'bg-[var(--color-primary)]' : 'bg-[var(--glass-border)]'}`} />
+                        <span className={`text-[10px] mt-1.5 block text-center hidden md:block transition-colors ${i === currentStep ? 'text-[var(--color-primary)] font-bold' : 'text-[var(--text-tertiary)]'}`}>
+                            {step}
+                        </span>
+                    </div>
+                ))}
+            </div>
+
+            <div className="flex-1 flex flex-col justify-center">
+                <AnimatePresence mode="wait">
+                    <motion.div
+                        key={currentStep}
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ duration: 0.2 }}
+                        className="space-y-8"
+                    >
+                        {/* Question 1: Accomplishments */}
+                        {currentStep === 0 && (
+                            <div className="space-y-6 text-center max-w-md mx-auto">
+                                <div className="w-16 h-16 mx-auto rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center">
+                                    <Target className="w-8 h-8 text-[var(--color-primary)]" />
                                 </div>
-                                <p className="text-sm text-[var(--text-secondary)] mt-1">completion rate</p>
-                            </div>
-
-                            {/* Metrics Grid */}
-                            <div className="grid grid-cols-2 gap-3">
-                                <MetricCard icon={<Target className="w-4 h-4" />} label="Blocks Done" value={`${metrics?.completedBlocks || 0}/${metrics?.totalBlocks || 0}`} color="var(--color-primary)" />
-                                <MetricCard icon={<Clock className="w-4 h-4" />} label="Missed" value={`${Math.max(0, missedHours)}h`} color="var(--color-error)" />
-                                <MetricCard icon={<TrendingUp className="w-4 h-4" />} label="Top Pillar" value={metrics?.topPillar || '—'} color="var(--color-mind)" />
-                                <MetricCard icon={<TrendingDown className="w-4 h-4" />} label="Neglected" value={metrics?.neglectedPillar || '—'} color="var(--color-warning)" />
-                            </div>
-
-                            {/* Day Strip */}
-                            {Object.keys(dayBreakdown).length > 0 && (
-                                <div className="space-y-2">
-                                    <h3 className="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Day by Day</h3>
-                                    <div className="flex gap-1.5 overflow-x-auto pb-1">
-                                        {Object.entries(dayBreakdown).sort().map(([date, info]) => {
-                                            const rate = info.planned > 0 ? Math.round((info.completed / info.planned) * 100) : 0;
-                                            return (
-                                                <div key={date} className="flex-shrink-0 flex flex-col items-center gap-1 px-2.5 py-2 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] min-w-[50px]">
-                                                    <span className="text-[10px] text-[var(--text-tertiary)] font-medium">
-                                                        {format(new Date(date + 'T00:00:00'), 'EEE')}
-                                                    </span>
-                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${rate >= 80 ? 'bg-[var(--color-success)]/10 text-[var(--color-success)]' :
-                                                            rate >= 40 ? 'bg-[var(--color-warning)]/10 text-[var(--color-warning)]' :
-                                                                'bg-[var(--color-error)]/10 text-[var(--color-error)]'
-                                                        }`}>{rate}%</div>
-                                                    <span className="text-[9px] text-[var(--text-tertiary)]">{info.completed}/{info.planned}</span>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Reality */}
-                            <div className="p-4 rounded-2xl bg-[var(--glass-bg)] border border-[var(--glass-border)]">
-                                <div className="flex items-center gap-1.5 mb-2">
-                                    <BarChart3 className="w-3.5 h-3.5 text-[var(--text-secondary)]" />
-                                    <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">AI Summary</span>
-                                </div>
-                                <p className="text-sm leading-relaxed text-[var(--text-primary)]">{review.reality}</p>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* STEP 2: PATTERNS */}
-                    {currentStep === 1 && (
-                        <div className="space-y-4">
-                            <div className="text-center py-4">
-                                <div className="w-12 h-12 mx-auto rounded-full bg-[var(--color-warning)]/10 flex items-center justify-center mb-2">
-                                    <AlertTriangle className="w-5 h-5 text-[var(--color-warning)]" />
-                                </div>
-                                <h2 className="text-lg font-bold">Friction Points</h2>
-                                <p className="text-xs text-[var(--text-secondary)]">Where you lost momentum</p>
-                            </div>
-
-                            <div className="space-y-3">
-                                {review.patterns.map((pattern, i) => (
-                                    <motion.div
-                                        key={i}
-                                        initial={{ opacity: 0, y: 10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: i * 0.1 }}
-                                        className="p-4 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)]"
-                                    >
-                                        <h4 className="font-semibold text-sm text-[var(--text-primary)] flex items-center gap-2">
-                                            <span className="w-5 h-5 rounded-full bg-[var(--color-warning)]/10 flex items-center justify-center text-[10px] font-bold text-[var(--color-warning)]">{i + 1}</span>
-                                            {pattern.title}
-                                        </h4>
-                                        <p className="text-xs text-[var(--text-secondary)] mt-1.5 pl-7">{pattern.evidence}</p>
-                                    </motion.div>
-                                ))}
-                                {review.patterns.length === 0 && (
-                                    <div className="text-center py-8 text-[var(--text-tertiary)] text-sm">
-                                        No patterns detected — great week! 🎉
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* STEP 3: REFLECT */}
-                    {currentStep === 2 && (
-                        <div className="space-y-5">
-                            <div className="text-center py-4">
-                                <div className="w-12 h-12 mx-auto rounded-full bg-[var(--color-mind)]/10 flex items-center justify-center mb-2">
-                                    <BookOpen className="w-5 h-5 text-[var(--color-mind)]" />
-                                </div>
-                                <h2 className="text-lg font-bold">Reflect</h2>
-                                <p className="text-xs text-[var(--text-secondary)]">Your thoughts on this week</p>
-                            </div>
-
-                            {/* Energy Check */}
-                            <div className="space-y-2">
-                                <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Overall Energy</label>
-                                <div className="flex gap-2">
-                                    {['low', 'okay', 'good', 'great'].map(level => (
+                                <h2 className="text-2xl font-bold">Did you accomplish all you wanted to this week?</h2>
+                                <div className="grid gap-3">
+                                    {(['yes', 'partially', 'no'] as const).map(option => (
                                         <button
-                                            key={level}
-                                            onClick={() => setOverallEnergy(level)}
-                                            className={`flex-1 py-2 rounded-xl text-xs font-bold capitalize transition-all ${overallEnergy === level
-                                                    ? 'bg-[var(--color-primary)] text-white'
-                                                    : 'bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-hover)]'
-                                                }`}
+                                            key={option}
+                                            onClick={() => setAccomplished(option)}
+                                            className={`p-4 rounded-xl border text-sm font-bold capitalize transition-all ${
+                                                accomplished === option
+                                                    ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]'
+                                                    : 'bg-[var(--glass-bg)] border-[var(--glass-border)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-hover)]'
+                                            }`}
                                         >
-                                            {level === 'low' && '😩'} {level === 'okay' && '😐'}
-                                            {level === 'good' && '😊'} {level === 'great' && '🔥'}
-                                            <span className="block mt-0.5">{level}</span>
+                                            {option}
                                         </button>
                                     ))}
                                 </div>
                             </div>
+                        )}
 
-                            {/* What Worked */}
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">What Worked</label>
-                                <textarea
-                                    value={whatWorked}
-                                    onChange={e => setWhatWorked(e.target.value)}
-                                    placeholder="What went well? What should you keep doing?"
-                                    className="w-full h-20 p-3 text-sm text-[var(--text-primary)]
-                                        bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-xl
-                                        placeholder:text-[var(--text-tertiary)] outline-none resize-none
-                                        focus:border-[var(--color-primary)]/30 transition-all"
-                                />
+                        {/* Question 2: Best Performance */}
+                        {currentStep === 1 && (
+                            <div className="space-y-6 text-center max-w-md mx-auto">
+                                <div className="w-16 h-16 mx-auto rounded-full bg-yellow-500/10 flex items-center justify-center">
+                                    <Star className="w-8 h-8 text-yellow-500" />
+                                </div>
+                                <h2 className="text-2xl font-bold">What did you do best on?</h2>
+                                <div className="space-y-3 text-left">
+                                    <select
+                                        value={bestGoalId}
+                                        onChange={(e) => setBestGoalId(e.target.value)}
+                                        className="w-full p-4 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] text-sm font-medium text-[var(--text-primary)] outline-none focus:border-[var(--color-primary)]/50 transition-all appearance-none"
+                                    >
+                                        <option value="" disabled>Select a goal...</option>
+                                        <option value="none">None / Not listed</option>
+                                        {goals.map(g => (
+                                            <option key={g.id} value={g.id}>{g.title}</option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
+                        )}
 
-                            {/* Challenges */}
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">Challenges</label>
-                                <textarea
-                                    value={challenges}
-                                    onChange={e => setChallenges(e.target.value)}
-                                    placeholder="What was hard? What got in the way?"
-                                    className="w-full h-20 p-3 text-sm text-[var(--text-primary)]
-                                        bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-xl
-                                        placeholder:text-[var(--text-tertiary)] outline-none resize-none
-                                        focus:border-[var(--color-primary)]/30 transition-all"
-                                />
+                        {/* Question 3: Worst Performance */}
+                        {currentStep === 2 && (
+                            <div className="space-y-6 text-center max-w-md mx-auto">
+                                <div className="w-16 h-16 mx-auto rounded-full bg-red-500/10 flex items-center justify-center">
+                                    <AlertTriangle className="w-8 h-8 text-red-500" />
+                                </div>
+                                <h2 className="text-2xl font-bold">What do you feel you did worst on?</h2>
+                                <div className="space-y-3 text-left">
+                                    <select
+                                        value={worstGoalId}
+                                        onChange={(e) => setWorstGoalId(e.target.value)}
+                                        className="w-full p-4 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] text-sm font-medium text-[var(--text-primary)] outline-none focus:border-[var(--color-primary)]/50 transition-all appearance-none"
+                                    >
+                                        <option value="" disabled>Select a goal...</option>
+                                        <option value="none">None / Not listed</option>
+                                        {goals.map(g => (
+                                            <option key={g.id} value={g.id}>{g.title}</option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
+                        )}
 
-                            {/* Personal Rules */}
-                            <div className="space-y-2">
-                                <label className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider flex items-center gap-1.5">
-                                    <Shield className="w-3 h-3" /> New Personal Rules
-                                </label>
-                                <p className="text-[10px] text-[var(--text-tertiary)]">Rules that guide AI scheduling. e.g. &quot;Gym must be before noon&quot;</p>
-                                <div className="flex gap-2">
-                                    <input
-                                        value={ruleInput}
-                                        onChange={e => setRuleInput(e.target.value)}
-                                        onKeyDown={e => { if (e.key === 'Enter') addRule(); }}
-                                        placeholder="Add a rule..."
-                                        className="flex-1 px-3 py-2 text-xs bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-lg
-                                            text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none
-                                            focus:border-[var(--color-primary)]/30 transition-all"
+                        {/* Question 4: Priority Adjustment */}
+                        {currentStep === 3 && (
+                            <div className="space-y-6 text-center max-w-md mx-auto">
+                                <div className="w-16 h-16 mx-auto rounded-full bg-[var(--color-mind)]/10 flex items-center justify-center">
+                                    <Zap className="w-8 h-8 text-[var(--color-mind)]" />
+                                </div>
+                                <h2 className="text-2xl font-bold">Would you like to change the priority order of this goal?</h2>
+                                <p className="text-sm text-[var(--text-tertiary)]">
+                                    Goal: {goals.find(g => g.id === worstGoalId)?.title || 'Unknown'}
+                                </p>
+                                <div className="grid gap-3">
+                                    {(['increase', 'decrease', 'no'] as const).map(option => (
+                                        <button
+                                            key={option}
+                                            onClick={() => setPriorityChange(option)}
+                                            className={`p-4 rounded-xl border text-sm font-bold capitalize transition-all ${
+                                                priorityChange === option
+                                                    ? 'bg-[var(--color-primary)] text-white border-[var(--color-primary)]'
+                                                    : 'bg-[var(--glass-bg)] border-[var(--glass-border)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-hover)]'
+                                            }`}
+                                        >
+                                            {option === 'no' ? 'No changes' : `${option} priority`}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Question 5: Feedback / Prompt */}
+                        {currentStep === 4 && (
+                            <div className="space-y-6 text-center max-w-md mx-auto">
+                                <div className="w-16 h-16 mx-auto rounded-full bg-emerald-500/10 flex items-center justify-center">
+                                    <MessageCircle className="w-8 h-8 text-emerald-500" />
+                                </div>
+                                <h2 className="text-2xl font-bold">What would you like to change about your week?</h2>
+                                <div className="space-y-2 text-left">
+                                    <textarea
+                                        value={feedbackText}
+                                        onChange={(e) => setFeedbackText(e.target.value)}
+                                        placeholder="Tell the AI Coach how to improve your schedule next week..."
+                                        className="w-full h-32 p-4 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] text-sm text-[var(--text-primary)] outline-none focus:border-[var(--color-primary)]/50 transition-all resize-none"
                                     />
-                                    <button onClick={addRule} className="px-3 py-2 rounded-lg text-xs font-bold bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/20 transition-all">
-                                        Add
+                                    <div className={`text-xs text-right font-medium ${wordCount > 100 ? 'text-red-500' : 'text-[var(--text-tertiary)]'}`}>
+                                        {wordCount} / 100 words
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Question 6: Execution */}
+                        {currentStep === 5 && (
+                            <div className="space-y-6 max-w-lg mx-auto">
+                                <div className="text-center space-y-2 mb-8">
+                                    <div className="w-16 h-16 mx-auto rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center mb-4">
+                                        <Brain className="w-8 h-8 text-[var(--color-primary)]" />
+                                    </div>
+                                    <h2 className="text-2xl font-bold">Review Complete</h2>
+                                    <p className="text-[var(--text-secondary)] text-sm">How would you like to implement your feedback?</p>
+                                </div>
+
+                                <div className="grid gap-4">
+                                    <button
+                                        onClick={() => handleExecute('auto')}
+                                        disabled={isExecuting}
+                                        className="flex flex-col items-start p-5 rounded-2xl bg-gradient-to-br from-[var(--color-primary)]/20 to-transparent border border-[var(--color-primary)]/30 hover:brightness-110 transition-all text-left group"
+                                    >
+                                        <span className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+                                            <Zap className="w-4 h-4 text-[var(--color-primary)]" /> Automatically input feedback
+                                        </span>
+                                        <span className="text-xs text-[var(--text-secondary)] mt-1.5">
+                                            Generates a new schedule for next week using your feedback and auto-adjusts your goals.
+                                        </span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => handleExecute('semi-auto')}
+                                        disabled={isExecuting}
+                                        className="flex flex-col items-start p-5 rounded-2xl bg-[var(--glass-bg)] hover:bg-[var(--glass-bg-hover)] border border-[var(--glass-border)] transition-all text-left"
+                                    >
+                                        <span className="text-sm font-bold text-[var(--text-primary)]">Semi-automatically input feedback</span>
+                                        <span className="text-xs text-[var(--text-tertiary)] mt-1.5">
+                                            Auto-adjusts your goals, then redirects you to the goals page to manually review and change what you deem necessary.
+                                        </span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => handleExecute('manual')}
+                                        disabled={isExecuting}
+                                        className="flex flex-col items-start p-5 rounded-2xl bg-[var(--glass-bg)] hover:bg-[var(--glass-bg-hover)] border border-[var(--glass-border)] transition-all text-left"
+                                    >
+                                        <span className="text-sm font-bold text-[var(--text-primary)]">Manually make changes</span>
+                                        <span className="text-xs text-[var(--text-tertiary)] mt-1.5">
+                                            Redirects to the dashboard leaving you to manually make changes based on your reflection.
+                                        </span>
                                     </button>
                                 </div>
-                                {newRules.length > 0 && (
-                                    <div className="space-y-1.5">
-                                        {newRules.map((rule, i) => (
-                                            <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)]">
-                                                <Shield className="w-3 h-3 text-[var(--color-primary)] flex-shrink-0" />
-                                                <span className="text-xs text-[var(--text-primary)] flex-1">&quot;{rule}&quot;</span>
-                                                <button
-                                                    onClick={() => setNewRules(prev => prev.filter((_, j) => j !== i))}
-                                                    className="text-[var(--text-tertiary)] hover:text-[var(--color-error)] transition-colors text-xs"
-                                                >✕</button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </motion.div>
+                </AnimatePresence>
+            </div>
 
-                    {/* STEP 4: PLAN NEXT WEEK */}
-                    {currentStep === 3 && (
-                        <div className="space-y-5">
-                            <div className="text-center py-4">
-                                <div className="w-12 h-12 mx-auto rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center mb-2">
-                                    <Zap className="w-5 h-5 text-[var(--color-primary)]" />
-                                </div>
-                                <h2 className="text-lg font-bold">The Lever</h2>
-                                <p className="text-xs text-[var(--text-secondary)]">One high-leverage change for next week</p>
-                            </div>
-
-                            {/* The Lever Card */}
-                            <div className="rounded-2xl relative overflow-hidden border border-[var(--color-primary)]/20 bg-gradient-to-br from-[var(--color-primary)]/5 to-transparent shadow-lg shadow-[var(--color-primary)]/5 p-5 space-y-3">
-                                <h4 className="text-lg font-bold leading-tight">{review.lever.label}</h4>
-                                <p className="text-xs text-[var(--text-secondary)]">
-                                    {review.lever.explanation || review.note || "Apply this high-leverage change to optimize next week."}
-                                </p>
-
-                                <div className="pt-3 border-t border-[var(--glass-border)]">
-                                    {leverApplied ? (
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-8 h-8 rounded-full bg-[var(--color-success)]/10 flex items-center justify-center">
-                                                    <Check className="w-4 h-4 text-[var(--color-success)]" />
-                                                </div>
-                                                <span className="text-sm font-bold text-[var(--color-success)]">Applied!</span>
-                                            </div>
-                                            {undoToken && (
-                                                <button
-                                                    onClick={handleUndo}
-                                                    className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs
-                                                        bg-[var(--glass-bg)] border border-[var(--glass-border)]
-                                                        hover:bg-[var(--glass-bg-hover)] text-[var(--text-secondary)] transition-all"
-                                                >
-                                                    <RotateCcw className="w-3 h-3" /> Undo
-                                                </button>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <button
-                                            onClick={handleApplyLever}
-                                            disabled={isApplying}
-                                            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm
-                                                bg-[var(--color-primary)] text-white
-                                                disabled:opacity-50 disabled:cursor-not-allowed
-                                                hover:brightness-110 active:scale-[0.98] transition-all"
-                                        >
-                                            {isApplying ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Complete Review & Apply <ArrowRight className="w-3.5 h-3.5" /></>}
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Summary */}
-                            {(whatWorked || challenges) && (
-                                <div className="p-4 rounded-2xl bg-[var(--glass-bg)] border border-[var(--glass-border)] space-y-3">
-                                    <h4 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Your Reflections</h4>
-                                    {whatWorked && <div className="text-xs text-[var(--text-primary)]"><span className="text-[var(--color-success)] font-bold">✓ Worked:</span> {whatWorked}</div>}
-                                    {challenges && <div className="text-xs text-[var(--text-primary)]"><span className="text-[var(--color-error)] font-bold">✗ Challenge:</span> {challenges}</div>}
-                                </div>
-                            )}
-
-                            {/* Rules Summary */}
-                            {newRules.length > 0 && (
-                                <div className="p-4 rounded-2xl bg-[var(--glass-bg)] border border-[var(--glass-border)] space-y-2">
-                                    <h4 className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">New Rules ({newRules.length})</h4>
-                                    {newRules.map((rule, i) => (
-                                        <div key={i} className="text-xs text-[var(--text-primary)] flex items-center gap-1.5">
-                                            <Shield className="w-3 h-3 text-[var(--color-primary)]" /> &quot;{rule}&quot;
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {review.note && (
-                                <div className="p-3 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] text-center">
-                                    <p className="text-xs text-[var(--text-secondary)] italic">{review.note}</p>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* STEP 5: INSIGHTS */}
-                    {currentStep === 4 && (
-                        <div className="space-y-5">
-                            <div className="text-center py-4">
-                                <div className="w-12 h-12 mx-auto rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center mb-2">
-                                    <BarChart3 className="w-5 h-5 text-[var(--color-primary)]" />
-                                </div>
-                                <h2 className="text-lg font-bold">Insights</h2>
-                                <p className="text-xs text-[var(--text-secondary)]">Your patterns and trends (14 days)</p>
-                            </div>
-
-                            {analyticsLoading ? (
-                                <div className="flex justify-center py-12">
-                                    <Loader2 className="w-6 h-6 animate-spin text-[var(--color-primary)]" />
-                                </div>
-                            ) : analyticsData ? (
-                                <div className="space-y-5">
-                                    {/* Summary Stats */}
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <MetricCard icon={<Target className="w-4 h-4" />} label="Adherence" value={`${analyticsData.summary?.overall_adherence || 0}%`} color="var(--color-primary)" />
-                                        <MetricCard icon={<TrendingUp className="w-4 h-4" />} label="Completed" value={`${analyticsData.summary?.total_completed_hours || 0}h`} color="var(--color-success)" />
-                                        <MetricCard icon={<Flame className="w-4 h-4" />} label="Streak" value={`${analyticsData.summary?.current_streak || 0}`} color="var(--color-error)" />
-                                        <MetricCard icon={<Trophy className="w-4 h-4" />} label="Goals" value={`${analyticsData.summary?.goals_count || 0}`} color="var(--color-mind)" />
-                                    </div>
-
-                                    {/* Adherence Trend */}
-                                    {analyticsData.adherence_trend?.length > 0 && (() => {
-                                        const maxP = Math.max(...analyticsData.adherence_trend.map((d: any) => d.planned), 1);
-                                        return (
-                                            <div className="p-4 rounded-2xl bg-[var(--glass-bg)] border border-[var(--glass-border)]">
-                                                <div className="flex items-center gap-2 mb-4">
-                                                    <BarChart3 className="w-3.5 h-3.5 text-[var(--text-secondary)]" />
-                                                    <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">Daily Adherence</span>
-                                                </div>
-                                                <div className="h-32 flex items-end gap-[2px]">
-                                                    {analyticsData.adherence_trend.map((day: any, i: number) => {
-                                                        const pH = (day.planned / maxP) * 100;
-                                                        const cPct = day.planned > 0 ? (day.completed / day.planned) * 100 : 0;
-                                                        return (
-                                                            <div key={day.date} className="flex-1 flex flex-col items-center group relative" style={{ height: '100%' }}>
-                                                                <div className="w-full mt-auto relative rounded-t-sm overflow-hidden" style={{ height: `${pH}%`, minHeight: '2px' }}>
-                                                                    <div className="absolute inset-0 bg-white/10" />
-                                                                    <motion.div
-                                                                        initial={{ height: 0 }}
-                                                                        animate={{ height: `${cPct}%` }}
-                                                                        transition={{ duration: 0.5, delay: i * 0.02 }}
-                                                                        className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[var(--color-primary)] to-[var(--color-mind)] rounded-t-sm"
-                                                                    />
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        );
-                                    })()}
-
-                                    {/* Pillar Distribution */}
-                                    {analyticsData.pillar_distribution?.length > 0 && (() => {
-                                        const totalMin = analyticsData.pillar_distribution.reduce((s: number, p: any) => s + p.minutes, 0);
-                                        return (
-                                            <div className="p-4 rounded-2xl bg-[var(--glass-bg)] border border-[var(--glass-border)]">
-                                                <div className="flex items-center gap-2 mb-4">
-                                                    <PieChart className="w-3.5 h-3.5 text-[var(--text-secondary)]" />
-                                                    <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">Pillar Distribution</span>
-                                                </div>
-                                                <div className="space-y-2.5">
-                                                    {analyticsData.pillar_distribution.sort((a: any, b: any) => b.minutes - a.minutes).map((p: any) => {
-                                                        const pct = totalMin > 0 ? Math.round((p.minutes / totalMin) * 100) : 0;
-                                                        const color = PILLAR_COLORS[p.pillar] || '#6b7280';
-                                                        return (
-                                                            <div key={p.pillar}>
-                                                                <div className="flex items-center justify-between mb-1">
-                                                                    <span className="text-xs font-semibold text-[var(--text-primary)]">{PILLAR_LABELS[p.pillar] || p.pillar}</span>
-                                                                    <span className="text-[10px] text-[var(--text-tertiary)] font-mono">{Math.round(p.minutes / 60)}h {p.minutes % 60}m · {pct}%</span>
-                                                                </div>
-                                                                <div className="h-1.5 w-full bg-[var(--glass-border)] rounded-full overflow-hidden">
-                                                                    <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8 }} className="h-full rounded-full" style={{ backgroundColor: color }} />
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        );
-                                    })()}
-
-                                    {/* Weekday Heatmap */}
-                                    {analyticsData.weekday_pattern?.length > 0 && (
-                                        <div className="p-4 rounded-2xl bg-[var(--glass-bg)] border border-[var(--glass-border)]">
-                                            <div className="flex items-center gap-2 mb-4">
-                                                <Calendar className="w-3.5 h-3.5 text-[var(--text-secondary)]" />
-                                                <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">Weekday Pattern</span>
-                                            </div>
-                                            <div className="grid grid-cols-7 gap-2">
-                                                {analyticsData.weekday_pattern.map((d: any) => {
-                                                    let bg = 'bg-white/5';
-                                                    if (d.adherence > 75) bg = 'bg-emerald-500/30';
-                                                    else if (d.adherence > 50) bg = 'bg-emerald-500/20';
-                                                    else if (d.adherence > 25) bg = 'bg-yellow-500/20';
-                                                    else if (d.adherence > 0) bg = 'bg-red-500/15';
-                                                    return (
-                                                        <div key={d.day} className="flex flex-col items-center gap-1.5">
-                                                            <span className="text-[10px] text-[var(--text-tertiary)] font-bold uppercase">{d.day}</span>
-                                                            <div className={`w-full aspect-square rounded-xl ${bg} flex items-center justify-center`}>
-                                                                <span className="text-[10px] font-bold text-[var(--text-secondary)]">{d.adherence}%</span>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="text-center py-8 text-[var(--text-tertiary)] text-sm">
-                                    No analytics data available yet.
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </motion.div>
-            </AnimatePresence>
-
-            {/* Navigation */}
-            <div className="flex justify-between mt-8 pt-4 border-t border-[var(--glass-border)]">
-                <button
-                    onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
-                    disabled={currentStep === 0}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium
-                        bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--text-secondary)]
-                        hover:bg-[var(--glass-bg-hover)] disabled:opacity-30 transition-all"
-                >
-                    <ArrowLeft className="w-3.5 h-3.5" /> Back
-                </button>
-                {currentStep < STEPS.length - 1 && (
+            {/* Navigation Footer */}
+            {currentStep < 5 && (
+                <div className="flex justify-between items-center pt-6 border-t border-[var(--glass-border)] max-w-md mx-auto w-full">
                     <button
-                        onClick={() => setCurrentStep(currentStep + 1)}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold
-                            bg-[var(--color-primary)] text-white
-                            hover:brightness-110 active:scale-[0.98] transition-all"
+                        onClick={handleBack}
+                        disabled={currentStep === 0}
+                        className="px-4 py-2.5 rounded-xl text-sm font-medium text-[var(--text-secondary)] bg-[var(--glass-bg)] border border-[var(--glass-border)] hover:bg-[var(--glass-bg-hover)] disabled:opacity-30 transition-all flex items-center gap-2"
                     >
-                        Next <ArrowRight className="w-3.5 h-3.5" />
+                        <ArrowLeft className="w-4 h-4" /> Back
                     </button>
-                )}
-            </div>
-        </div>
-    );
-}
-
-// --- Sub-Components ---
-function MetricCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string; color: string }) {
-    return (
-        <div className="p-3 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)]">
-            <div className="flex items-center gap-1.5 mb-1" style={{ color }}>
-                {icon}
-                <span className="text-[10px] font-bold uppercase tracking-wider">{label}</span>
-            </div>
-            <div className="text-xl font-bold" style={{ color }}>{value}</div>
+                    <button
+                        onClick={handleNext}
+                        disabled={!isStepValid()}
+                        className="px-6 py-2.5 rounded-xl text-sm font-bold text-white bg-[var(--color-primary)] hover:brightness-110 disabled:opacity-30 transition-all flex items-center gap-2 shadow-lg shadow-[var(--color-primary)]/20"
+                    >
+                        Next <ArrowRight className="w-4 h-4" />
+                    </button>
+                </div>
+            )}
         </div>
     );
 }

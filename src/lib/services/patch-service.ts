@@ -1,5 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { CalendarEngine } from '@/lib/calendar/calendar-engine';
+import { buildCalendarContext } from '@/lib/calendar/context-builder';
+import { generateWeekPlan } from '@/lib/calendar/ai/plan-week';
 
 // --- Patch Op Types ---
 
@@ -16,7 +18,8 @@ export type PatchOpType =
     | 'delete_anchor'
     | 'create_todo'
     | 'update_todo'
-    | 'delete_todo';
+    | 'delete_todo'
+    | 'replan_week';
 
 export interface PatchOp {
     op: PatchOpType;
@@ -423,7 +426,7 @@ export class PatchService {
 
                 if (existing) {
                     console.log(`[PatchService] Skipping duplicate block: "${insertData.title}" on ${insertData.date} ${insertData.start_time}-${insertData.end_time}`);
-                    op.event_id = existing.id;
+                    // Do NOT set op.event_id — inverse patch builder would otherwise delete a pre-existing block on undo
                     break;
                 }
 
@@ -459,8 +462,7 @@ export class PatchService {
                         const newBlockMins = Math.max(0, timeToMin(insertData.end_time) - timeToMin(insertData.start_time));
 
                         if (existingMins + newBlockMins > dailyLimit) {
-                            console.log(`[PatchService] BLOCKED over-allocation: "${insertData.title}" on ${insertData.date} would be ${existingMins + newBlockMins}min (limit: ${dailyLimit}min/day)`);
-                            break; // Skip this insert entirely
+                            throw new Error(`Daily limit reached for "${insertData.title}" on ${insertData.date}: ${existingMins + newBlockMins}min exceeds ${dailyLimit}min/day limit`);
                         }
                     }
                 }
@@ -486,14 +488,15 @@ export class PatchService {
                 // Protect immutable blocks from modification
                 const { data: existing } = await supabase
                     .from('schedule_blocks')
-                    .select('block_type')
+                    .select('id, block_type')
                     .eq('id', id)
                     .eq('user_id', userId)
                     .maybeSingle();
+                if (!existing) throw new Error(`Block not found for update: ${id}`);
                 const IMMUTABLE_TYPES = ['sleep', 'meal', 'wind_down', 'anchor'];
-                if (existing && IMMUTABLE_TYPES.includes(existing.block_type) && source !== 'coach') {
+                if (IMMUTABLE_TYPES.includes(existing.block_type) && source !== 'coach') {
                     console.log(`[PatchService] BLOCKED: Cannot modify immutable ${existing.block_type} block`);
-                    break; // Skip silently rather than throwing
+                    break;
                 }
                 const { error } = await supabase
                     .from('schedule_blocks')
@@ -534,26 +537,29 @@ export class PatchService {
                 const start = op.to_start || op.start_time;
                 const end = op.to_end || op.end_time;
                 if (!id || !start || !end) throw new Error('Move requires event_id, to_start, to_end');
-                // Protect immutable blocks from being moved
+                // Verify block exists and check immutability
                 const { data: moveTarget } = await supabase
                     .from('schedule_blocks')
-                    .select('block_type')
+                    .select('id, block_type')
                     .eq('id', id)
                     .eq('user_id', userId)
                     .maybeSingle();
+                if (!moveTarget) throw new Error(`Block not found: ${id} — the AI may have used a wrong or hallucinated ID`);
                 const IMMUTABLE_MOVE = ['sleep', 'meal', 'wind_down', 'anchor'];
-                if (moveTarget && IMMUTABLE_MOVE.includes(moveTarget.block_type) && source !== 'coach') {
+                if (IMMUTABLE_MOVE.includes(moveTarget.block_type) && source !== 'coach') {
                     console.log(`[PatchService] BLOCKED: Cannot move immutable ${moveTarget.block_type} block`);
-                    break; // Skip silently
+                    break;
                 }
                 const updateData: any = { start_time: start, end_time: end };
                 if (op.date) updateData.date = op.date;
-                const { error } = await supabase
+                const { data: moved, error } = await supabase
                     .from('schedule_blocks')
                     .update(updateData)
                     .eq('id', id)
-                    .eq('user_id', userId);
+                    .eq('user_id', userId)
+                    .select('id');
                 if (error) throw new Error(`Move failed: ${error.message}`);
+                if (!moved || moved.length === 0) throw new Error(`Move matched 0 rows for block ${id}`);
                 break;
             }
             case 'create_goal': {
@@ -692,6 +698,107 @@ export class PatchService {
                 break;
             }
 
+            case 'replan_week': {
+                console.log('[PatchService] Starting replan_week...');
+                // 1. Build context
+                const calendarCtx = await buildCalendarContext(userId, supabase);
+                
+                // 2. Determine replan date (today) and correct week start (Monday)
+                const today = new Date();
+                const todayStr = today.toISOString().split('T')[0];
+                const nowTime = today.getHours() * 60 + today.getMinutes();
+                
+                // Calculate the Monday of the current week
+                const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ...
+                const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+                const monday = new Date(today);
+                monday.setDate(today.getDate() + mondayOffset);
+                const weekStartStr = monday.toISOString().split('T')[0];
+                console.log(`[PatchService] Week start: ${weekStartStr}, today: ${todayStr}`);
+
+                // 3. Generate new plan using the CORRECT week start (Monday)
+                const mode = op.payload?.mode || 'balanced';
+                const allowWeekend = op.payload?.allow_weekend !== false;
+                const variants = await generateWeekPlan(calendarCtx, weekStartStr, mode, allowWeekend);
+                
+                if (!variants || variants.length === 0) {
+                    throw new Error('Replan failed to generate any variants');
+                }
+                
+                // We just take the first variant (which is the selected mode)
+                const newPlan = variants[0];
+                console.log(`[PatchService] Generated ${newPlan.blocks.length} blocks for variant "${newPlan.label}"`);
+                
+                // 4. Delete future non-immutable blocks
+                // We only delete blocks from today onwards that are NOT sleep, meal, wind_down, anchor, or already done
+                const { data: futureBlocks } = await supabase
+                    .from('schedule_blocks')
+                    .select('id, block_type, start_time, status, date')
+                    .eq('user_id', userId)
+                    .gte('date', todayStr);
+                    
+                if (futureBlocks) {
+                    const IMMUTABLE = ['sleep', 'meal', 'wind_down', 'anchor'];
+                    const idsToDelete = futureBlocks.filter((b: any) => {
+                        if (IMMUTABLE.includes(b.block_type)) return false;
+                        if (b.status === 'done') return false;
+                        // If it's today, only delete blocks that haven't started yet or are currently starting
+                        if (b.date === todayStr) {
+                            const [h, m] = b.start_time.split(':').map(Number);
+                            const startMins = h * 60 + m;
+                            if (startMins < nowTime) return false; // past blocks are safe
+                        }
+                        return true;
+                    }).map((b: any) => b.id);
+                    
+                    console.log(`[PatchService] Deleting ${idsToDelete.length} future non-immutable blocks`);
+                    if (idsToDelete.length > 0) {
+                        const { error: delErr } = await supabase
+                            .from('schedule_blocks')
+                            .delete()
+                            .eq('user_id', userId)
+                            .in('id', idsToDelete);
+                        if (delErr) throw new Error(`Replan failed to clear old blocks: ${delErr.message}`);
+                    }
+                }
+                
+                // 5. Insert new generated blocks
+                // Only insert blocks from today onwards that haven't passed
+                const blocksToInsert = newPlan.blocks.filter((b: any) => {
+                    if (b.date < todayStr) return false;
+                    if (b.date === todayStr) {
+                        const [h, m] = b.start_time.split(':').map(Number);
+                        const startMins = h * 60 + m;
+                        if (startMins < nowTime) return false;
+                    }
+                    // Skip bio blocks (sleep, meal, wind_down) — they already exist as immutables
+                    const BIO_TYPES = ['sleep', 'meal', 'wind_down'];
+                    if (BIO_TYPES.includes(b.block_type)) return false;
+                    return true;
+                }).map((b: any) => ({
+                    user_id: userId,
+                    title: b.title,
+                    start_time: b.start_time,
+                    end_time: b.end_time,
+                    date: b.date,
+                    status: 'planned',
+                    block_type: b.block_type,
+                    pillar: b.pillar || null,
+                    goal_id: b.goal_id || null,
+                    checklist: b.checklist || null,
+                }));
+                
+                console.log(`[PatchService] Inserting ${blocksToInsert.length} new blocks (after filtering past + bio)`);
+                if (blocksToInsert.length > 0) {
+                    const { error: insErr } = await supabase
+                        .from('schedule_blocks')
+                        .insert(blocksToInsert);
+                    if (insErr) throw new Error(`Replan failed to insert new blocks: ${insErr.message}`);
+                }
+                
+                break;
+            }
+
             default:
                 console.warn(`[PatchService] Unknown op: ${operation}`);
         }
@@ -783,6 +890,11 @@ export class PatchService {
                 // We don't have pre-exec state for todos in this path,
                 // so we'd need to extend preExecState. For now, skip.
                 console.warn('[PatchService] Todo delete undo not fully supported yet');
+            } else if (opType === 'replan_week') {
+                // To undo a replan_week, the system will rely entirely on the snapshot
+                // created in step 1. Because the snapshot covers the whole week, 
+                // the undo function in restoreFromSnapshot will wipe and restore.
+                // We don't need inverse ops.
             }
         }
 

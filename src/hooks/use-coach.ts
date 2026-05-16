@@ -202,32 +202,40 @@ export const useCoach = create<CoachState>()(
         }));
 
         try {
-          const batchRes = await fetch('/api/calendar/apply-schedule', {
+          const batchRes = await fetch('/api/coach/apply', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               conversation_id: get().conversationId,
-              operations: ops,
-              option_id: optionId
+              option_id: optionId,
+              patch: option.patch
             })
           });
 
-          if (!batchRes.ok) {
-            const errText = await batchRes.text();
-            throw new Error(errText || "Failed to apply option");
-          }
-
           const batchData = await batchRes.json();
 
+          if (!batchRes.ok) {
+            throw new Error(batchData?.error || "Failed to apply option");
+          }
+
+          const partialWarning = batchData.partial
+            ? `${batchData.applied_operations} change(s) applied, ${batchData.failed_operations} failed: ${(batchData.errors || []).join('; ')}`
+            : undefined;
+
           set(state => ({
-            messages: state.messages.map(m => 
-              m.id === messageId 
+            messages: state.messages.map(m =>
+              m.id === messageId
                 ? { ...m, selected_option_id: optionId, isApplying: false, undoToken: batchData.undo_token }
                 : m
             ),
-            canUndo: true,
-            lastUndoToken: batchData.undo_token
+            canUndo: !!batchData.undo_token,
+            lastUndoToken: batchData.undo_token,
+            ...(partialWarning ? { error: partialWarning } : {}),
           }));
+
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('calendar-refresh'));
+          }
 
           return true;
         } catch (error: any) {

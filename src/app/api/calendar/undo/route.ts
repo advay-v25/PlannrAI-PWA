@@ -8,6 +8,7 @@ import { addDays, format, parseISO } from 'date-fns';
 import { z } from 'zod';
 
 const UndoBodySchema = z.object({
+    token: z.string().optional(), // Direct patch_run ID returned by coach apply
     version_id: z.string().uuid().optional(),
     range: z.object({
         start: z.string(),
@@ -23,7 +24,7 @@ export const POST = secureApiRoute(
             return apiError('Invalid undo request', 400, parsed.error.format());
         }
 
-        const { version_id, range } = parsed.data;
+        const { token, version_id, range } = parsed.data;
         const userId = context.user?.id || context.userId;
 
         if (!userId) {
@@ -32,10 +33,23 @@ export const POST = secureApiRoute(
 
         const supabase = await createClient() as unknown as SupabaseClient<any, "public", any>;
 
+        // 2a. Direct patch_run undo (used by coach apply undo)
+        if (token) {
+            try {
+                const { PatchService: PS } = await import('@/lib/services/patch-service');
+                const result = await PS.undoPatch(userId, token, supabase);
+                if (!result.success) return apiError('Nothing to undo or already reverted', 400);
+                return apiSuccess({ success: true, changes: result.changes });
+            } catch (err: any) {
+                console.error('[undo] patch token undo failed:', err.message);
+                return apiError('Undo failed: ' + err.message, 500);
+            }
+        }
+
         let targetRange = range;
         let targetVersionId = version_id;
 
-        // 2. Infer Range if missing
+        // 2b. Infer Range if missing (legacy schedule_versions path)
         if (!targetRange) {
             let query = supabase.from('schedule_versions').select('id, week_start').eq('user_id', userId);
 
