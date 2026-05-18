@@ -128,7 +128,7 @@ export const CalendarPatchSchema = z.object({
     // Metadata
     reasoning: z.string().optional(),
     confidence_score: z.number().min(0).max(1).optional(),
-    source: z.enum(['coach', 'calendar', 'brain_dump', 'system']).default('coach')
+    source: z.enum(['coach', 'calendar', 'system']).default('coach')
 });
 
 // ============================================

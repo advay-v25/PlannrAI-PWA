@@ -103,11 +103,6 @@ export interface CalendarContext {
         emotional_state: string;
     } | null;
 
-    recentBrainDumps: Array<{
-        content: string;
-        category: string;
-        status: string;
-    }>;
 
     goalProgress: Array<{
         goal_id: string;
@@ -164,7 +159,7 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
 
     // ── Parallel Fetch ───────────────────────────────────────────
 
-    const [profileRes, profilePrefsRes, goalsRes, commitmentsRes, habitStacksRes, todayBlocksRes, weekBlocksRes, perfBlocksRes, coachLearningsRes, behaviorPatternsRes, energyStateRes, brainDumpItemsRes] = await Promise.all([
+    const [profileRes, profilePrefsRes, goalsRes, commitmentsRes, habitStacksRes, todayBlocksRes, weekBlocksRes, perfBlocksRes, coachLearningsRes, behaviorPatternsRes, energyStateRes] = await Promise.all([
         // 1. Profile
         db.from('profiles')
             .select('id, first_name, preferred_name, sleep_start, sleep_end, wind_down_mins, wind_down_minutes, energy_level, stress_level, meals_per_day, meal_windows, meal_times, body_preferences, bio_data, peak_windows, low_windows, weekend_intensity')
@@ -242,14 +237,6 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
             .select('energy_level, emotional_state')
             .eq('user_id', userId)
             .maybeSingle(),
-
-        // 11. Pending Brain Dump Items
-        db.from('brain_dump_items')
-            .select('content, category, status')
-            .eq('user_id', userId)
-            .in('status', ['pending', 'extracted'])
-            .order('created_at', { ascending: false })
-            .limit(10),
     ]);
 
     // ── Process Results ──────────────────────────────────────────
@@ -356,11 +343,6 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
         emotional_state: energyStateRaw.emotional_state || 'neutral',
     } : null;
 
-    const recentBrainDumps = (brainDumpItemsRes.data || []).map((b: any) => ({
-        content: b.content || '',
-        category: b.category || 'task',
-        status: b.status || 'pending',
-    }));
 
     // ── New: Goal Progress (weekly tracking) ─────────────────────
 
@@ -453,7 +435,6 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
         coachLearnings,
         behaviorPatterns,
         dailyEnergyState,
-        recentBrainDumps,
         goalProgress,
     };
 }

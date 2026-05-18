@@ -88,18 +88,6 @@ Behavior:
 - Max 3 options.
 `.trim(),
 
-  brain_dump: `
-Channel: brain_dump
-Goal: Extreme Extraction & Triage.
-Extract every task (kind: task), recurring commitment (kind: commitment), vague worry (kind: worry), fleeting idea (kind: idea), and hard time constraint (kind: constraint).
-
-Instructions:
-1. SUMMARY: Supportive acknowledgement of their mental state.
-2. SIGNALS: energy (1-5), overwhelm (0-1), stress (0-1), motivation (0-1).
-3. EXTRACTED: Map everything to 'items'. 
-4. OPTIONS: 2-3 high-leverage actions (add_task, rebalance_day, start_coaching).
-5. POTENTIAL_GOALS: If they mention a recurring ambition, flag it in extraction.
-`.trim(),
 
   weekly_review: `
 Channel: weekly_review
@@ -156,12 +144,6 @@ Goal: Routine Sequence.
 - Mode: "propose".
 `.trim(),
 
-  "scans.analyze": `
-Channel: scans.analyze
-Goal: Extract Insights.
-- Mode: "execute".
-- Summary: Analysis.
-`.trim(),
 
   "system.translate": `
 Channel: system.translate

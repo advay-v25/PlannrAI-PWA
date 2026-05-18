@@ -55,7 +55,18 @@ export const POST = secureApiRoute(
                     .select()
                     .single();
                 if (error) throw error;
-                return apiSuccess(data);
+
+                // Cross-feature hint: If high-priority + due today → suggest blocking time
+                const today = new Date().toISOString().split('T')[0];
+                const isUrgentToday = (priority === 'high') && dueDate === today;
+
+                return apiSuccess({
+                    ...data,
+                    calendar_suggestion: isUrgentToday,
+                    calendar_suggestion_message: isUrgentToday
+                        ? `High-priority task "${title}" is due today. Want to block time for it?`
+                        : null,
+                });
             }
 
             if (action === 'toggle_todo') {
@@ -67,7 +78,19 @@ export const POST = secureApiRoute(
                     .select()
                     .single();
                 if (error) throw error;
-                return apiSuccess(data);
+
+                // Cross-feature sync: If todo has an assigned calendar block, mark it done/planned
+                if (data?.assigned_block_id) {
+                    const blockStatus = isCompleted ? 'done' : 'planned';
+                    await supabase
+                        .from('schedule_blocks')
+                        .update({ status: blockStatus })
+                        .eq('id', data.assigned_block_id)
+                        .eq('user_id', userId);
+                    console.log(`[Todos] Auto-${blockStatus} calendar block ${data.assigned_block_id} for todo ${todoId}`);
+                }
+
+                return apiSuccess({ ...data, calendar_synced: !!data?.assigned_block_id });
             }
 
             if (action === 'update_todo') {

@@ -5,8 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
 import {
-    Zap, Brain, X, Activity, Send, Loader2,
-    ArrowRight, Undo2, CheckCircle2, AlertCircle
+    Zap, X, Activity, Send, Loader2,
+    ArrowRight, Undo2, CheckCircle2, AlertCircle, Sparkles
 } from 'lucide-react';
 import Link from 'next/link';
 import type { ScheduleBlock, Goal } from '@/types/database';
@@ -72,7 +72,7 @@ export function RealityIntake({
 
         try {
             const aiData = await apiClient.ai.execute({
-                channel: 'brain_dump',
+                channel: 'coach',
                 input: textInput,
                 context: {
                     current_schedule: todayBlocks.map(b => ({
@@ -381,10 +381,10 @@ export function RealityIntake({
 
                                     {/* Actions */}
                                     <div className="grid grid-cols-2 gap-3 pt-2">
-                                        <Link href="/app/brain-dump" className="w-full">
+                                        <Link href="/app/coach" className="w-full">
                                             <button className="w-full py-3.5 px-4 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] flex items-center justify-center gap-2 hover:bg-[var(--glass-bg-hover)] transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
-                                                <Brain className="w-4 h-4" />
-                                                <span className="text-sm font-medium">Brain Dump</span>
+                                                <Sparkles className="w-4 h-4" />
+                                                <span className="text-sm font-medium">Ask Donna</span>
                                             </button>
                                         </Link>
                                         <button

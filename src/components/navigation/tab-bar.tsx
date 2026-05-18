@@ -8,17 +8,17 @@ import {
     House,
     Target,
     Calendar,
-    Brain,
     Sparkles,
     LineChart,
-    Settings
+    Settings,
+    ListTodo
 } from 'lucide-react';
 
 const TABS = [
     { id: 'home', href: '/app', icon: House, label: 'Today' },
     { id: 'goals', href: '/app/goals', icon: Target, label: 'Goals' },
     { id: 'calendar', href: '/app/calendar', icon: Calendar, label: 'Calendar' },
-    { id: 'brain-dump', href: '/app/brain-dump', icon: Brain, label: 'Dump' },
+    { id: 'tasks', href: '/app/tasks', icon: ListTodo, label: 'Tasks' },
     { id: 'coach', href: '/app/coach', icon: Sparkles, label: 'Coach' },
     { id: 'weekly-review', href: '/app/weekly-review', icon: LineChart, label: 'Review' },
     { id: 'settings', href: '/app/settings', icon: Settings, label: 'Settings' },

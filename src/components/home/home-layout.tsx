@@ -16,6 +16,7 @@ export interface HomeLayoutProps {
     todos?: React.ReactNode;
     progressBars?: React.ReactNode;
     pillarBalance?: React.ReactNode;
+    nextMove?: React.ReactNode;
 }
 
 export function HomeLayout({
@@ -31,7 +32,8 @@ export function HomeLayout({
     insights,
     todos,
     progressBars,
-    pillarBalance
+    pillarBalance,
+    nextMove
 }: HomeLayoutProps) {
     return (
         <div className="mx-auto max-w-6xl px-4 md:px-6 py-6 md:py-10 space-y-8 md:space-y-12 pb-32">
@@ -61,6 +63,13 @@ export function HomeLayout({
                     <section>
                         {timeline}
                     </section>
+
+                    {/* Next Move */}
+                    {nextMove && (
+                        <section>
+                            {nextMove}
+                        </section>
+                    )}
                 </div>
 
                 {/* Right Column (Secondary / Context) - 5 cols */}

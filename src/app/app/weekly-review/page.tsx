@@ -28,6 +28,7 @@ export default function WeeklyReviewSurvey() {
     const [goals, setGoals] = useState<Goal[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isExecuting, setIsExecuting] = useState(false);
+    const [executingMode, setExecutingMode] = useState<'auto' | 'semi-auto' | 'manual' | null>(null);
 
     // Survey State
     const [accomplished, setAccomplished] = useState<'yes' | 'no' | 'partially' | null>(null);
@@ -64,6 +65,7 @@ export default function WeeklyReviewSurvey() {
 
     const handleExecute = async (mode: 'auto' | 'semi-auto' | 'manual') => {
         setIsExecuting(true);
+        setExecutingMode(mode);
         const payload = {
             accomplished,
             bestGoalId,
@@ -95,6 +97,7 @@ export default function WeeklyReviewSurvey() {
         } catch (e) {
             toast.error('Failed to execute review actions.', { id: 'exec' });
             setIsExecuting(false);
+            setExecutingMode(null);
         }
     };
 
@@ -293,10 +296,10 @@ export default function WeeklyReviewSurvey() {
                                     <button
                                         onClick={() => handleExecute('auto')}
                                         disabled={isExecuting}
-                                        className="flex flex-col items-start p-5 rounded-2xl bg-gradient-to-br from-[var(--color-primary)]/20 to-transparent border border-[var(--color-primary)]/30 hover:brightness-110 transition-all text-left group"
+                                        className="flex flex-col items-start p-5 rounded-2xl bg-gradient-to-br from-[var(--color-primary)]/20 to-transparent border border-[var(--color-primary)]/30 hover:brightness-110 transition-all text-left group disabled:opacity-50"
                                     >
                                         <span className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
-                                            <Zap className="w-4 h-4 text-[var(--color-primary)]" /> Automatically input feedback
+                                            {executingMode === 'auto' ? <Loader2 className="w-4 h-4 text-[var(--color-primary)] animate-spin" /> : <Zap className="w-4 h-4 text-[var(--color-primary)]" />} Automatically input feedback
                                         </span>
                                         <span className="text-xs text-[var(--text-secondary)] mt-1.5">
                                             Generates a new schedule for next week using your feedback and auto-adjusts your goals.
@@ -306,9 +309,11 @@ export default function WeeklyReviewSurvey() {
                                     <button
                                         onClick={() => handleExecute('semi-auto')}
                                         disabled={isExecuting}
-                                        className="flex flex-col items-start p-5 rounded-2xl bg-[var(--glass-bg)] hover:bg-[var(--glass-bg-hover)] border border-[var(--glass-border)] transition-all text-left"
+                                        className="flex flex-col items-start p-5 rounded-2xl bg-[var(--glass-bg)] hover:bg-[var(--glass-bg-hover)] border border-[var(--glass-border)] transition-all text-left disabled:opacity-50"
                                     >
-                                        <span className="text-sm font-bold text-[var(--text-primary)]">Semi-automatically input feedback</span>
+                                        <span className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+                                            {executingMode === 'semi-auto' && <Loader2 className="w-4 h-4 animate-spin text-[var(--text-primary)]" />} Semi-automatically input feedback
+                                        </span>
                                         <span className="text-xs text-[var(--text-tertiary)] mt-1.5">
                                             Auto-adjusts your goals, then redirects you to the goals page to manually review and change what you deem necessary.
                                         </span>
@@ -317,9 +322,11 @@ export default function WeeklyReviewSurvey() {
                                     <button
                                         onClick={() => handleExecute('manual')}
                                         disabled={isExecuting}
-                                        className="flex flex-col items-start p-5 rounded-2xl bg-[var(--glass-bg)] hover:bg-[var(--glass-bg-hover)] border border-[var(--glass-border)] transition-all text-left"
+                                        className="flex flex-col items-start p-5 rounded-2xl bg-[var(--glass-bg)] hover:bg-[var(--glass-bg-hover)] border border-[var(--glass-border)] transition-all text-left disabled:opacity-50"
                                     >
-                                        <span className="text-sm font-bold text-[var(--text-primary)]">Manually make changes</span>
+                                        <span className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+                                            {executingMode === 'manual' && <Loader2 className="w-4 h-4 animate-spin text-[var(--text-primary)]" />} Manually make changes
+                                        </span>
                                         <span className="text-xs text-[var(--text-tertiary)] mt-1.5">
                                             Redirects to the dashboard leaving you to manually make changes based on your reflection.
                                         </span>

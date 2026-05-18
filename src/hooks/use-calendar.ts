@@ -82,7 +82,7 @@ export function useCalendar(initialDate: Date = new Date()) {
         loadData();
     }, [loadData]);
 
-    // Listen for calendar-refresh events (from coach/brain-dump undo)
+    // Listen for calendar-refresh events (from coach undo)
     useEffect(() => {
         const handler = () => loadData();
         window.addEventListener('calendar-refresh', handler);

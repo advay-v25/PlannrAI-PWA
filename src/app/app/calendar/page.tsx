@@ -485,8 +485,8 @@ function CalendarPageInner() {
 
                 {/* Grid Area */}
                 <main className="flex-1 overflow-hidden relative">
-                    {/* Empty State for Today — only in Day view */}
-                    {viewMode === 'day' && !hasScheduleToday && !isLoading && viewDateStr === todayStr && (
+                    {/* Empty State for Day view (any empty day) */}
+                    {viewMode === 'day' && viewDayBlocks.length === 0 && !isLoading && (
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -497,21 +497,21 @@ function CalendarPageInner() {
                                 <div className="w-14 h-14 rounded-2xl bg-orange-500/10 flex items-center justify-center mx-auto mb-4">
                                     <Calendar className="w-7 h-7 text-orange-400" />
                                 </div>
-                                <h3 className="text-white font-bold text-lg mb-2">No schedule for today</h3>
+                                <h3 className="text-white font-bold text-lg mb-2">No schedule for {viewDateStr === todayStr ? 'today' : 'this day'}</h3>
                                 <p className="text-white/40 text-sm mb-5">
                                     Let AI plan your entire day based on your goals, energy, and commitments.
                                 </p>
                                 <button
-                                    onClick={() => handleGenerateToday(todayStr)}
+                                    onClick={() => handleGenerateToday(viewDateStr)}
                                     disabled={isGeneratingToday}
                                     className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold mx-auto
                                         bg-orange-500 text-black hover:bg-orange-400
                                         disabled:opacity-50 disabled:cursor-wait transition-all shadow-lg shadow-orange-500/25"
                                 >
                                     {isGeneratingToday ? (
-                                        <><Loader2 className="w-4 h-4 animate-spin" /> Planning your day...</>
+                                        <><Loader2 className="w-4 h-4 animate-spin" /> Planning...</>
                                     ) : (
-                                        <><Sparkles className="w-4 h-4" /> Plan Today with AI</>
+                                        <><Sparkles className="w-4 h-4" /> Plan {viewDateStr === todayStr ? 'Today' : 'This Day'} with AI</>
                                     )}
                                 </button>
                             </div>

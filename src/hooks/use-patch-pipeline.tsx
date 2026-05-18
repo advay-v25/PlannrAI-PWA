@@ -50,7 +50,7 @@ export function usePatchPipeline() {
         setIsApplying(true);
 
         try {
-            const res = await fetch('/api/calendar/apply-patch', {
+            const res = await fetch('/api/patch/apply', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ patch: pendingPatch, range: pendingRange })

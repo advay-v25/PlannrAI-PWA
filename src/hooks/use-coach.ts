@@ -333,7 +333,7 @@ export const useCoach = create<CoachState>()(
         if (!suggestion?.dismiss_uid) return;
 
         try {
-          await apiClient.post('/api/coach/proactive/dismiss', {
+          await apiClient.post('/api/coach/dismiss', {
             uid: suggestion.dismiss_uid
           });
           set({ proactiveSuggestion: null });

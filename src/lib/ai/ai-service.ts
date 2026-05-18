@@ -87,7 +87,7 @@ function clipContext(ctx: any) {
 }
 
 function channelRequiresOptions(channel: string) {
-    return ['coach', 'brain_dump', 'weekly_review', 'calendar_optimize', 'plan_week', 'optimize_week', 'habit_stack.optimize'].includes(channel);
+    return ['coach', 'weekly_review', 'calendar_optimize', 'plan_week', 'optimize_week', 'habit_stack.optimize'].includes(channel);
 }
 
 function safeFallback(channel: string, requestId: string) {
@@ -142,13 +142,6 @@ function safeFallback(channel: string, requestId: string) {
         fallback.patch = { ops: [], undoable: false, reason: "fallback" };
     }
 
-    if (channel === 'brain_dump') {
-        fallback.extracted = {
-            summary: "AI analysis temporarily unavailable.",
-            signals: { energy: 50, mood: "neutral" },
-            items: []
-        };
-    }
 
     if (channel === 'goal_decomposition') {
         fallback.plan = {
@@ -223,7 +216,7 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
 
             // FEATURE-SPECIFIC CONTEXT — all AI channels get schedule/goal/capacity enrichment
             const ENRICHED_CHANNELS = [
-                'coach', 'goal_strategy', 'habit_stack', 'brain_dump',
+                'coach', 'goal_strategy', 'habit_stack',
                 'weekly_review', 'calendar_plan_week', 'calendar_optimize_day'
             ];
 
@@ -232,7 +225,7 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
                 const featureSupabase = await createClient();
                 const featureCtx = await buildFeatureContext(userId, featureSupabase, {
                     includeChatHistory: channel === 'coach',
-                    includeRecentDumps: channel === 'coach' || channel === 'brain_dump',
+                    includeRecentDumps: false,
                     weekDays: channel === 'weekly_review' ? 7 : channel.startsWith('calendar_') ? 7 : 3
                 });
                 richContext = { ...richContext, ...featureCtx };

@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { toast } from 'sonner';
 
 export interface TodoItem {
     id: string;
@@ -48,13 +49,35 @@ export function useTodos() {
         if (data && data.id) {
             setTodos(prev => [...prev, data]);
             window.dispatchEvent(new CustomEvent('calendar-refresh'));
+
+            // Cross-feature: Suggest blocking time for high-priority today-due todos
+            if (data.calendar_suggestion && data.calendar_suggestion_message) {
+                toast(data.calendar_suggestion_message, {
+                    action: {
+                        label: 'Block Time',
+                        onClick: () => {
+                            window.dispatchEvent(new CustomEvent('schedule-recompute', {
+                                detail: { trigger: 'todo_block_time', todoId: data.id, todoTitle: title }
+                            }));
+                        },
+                    },
+                    duration: 8000,
+                });
+            }
         }
     };
 
     const toggleTodo = async (todoId: string, isCompleted: boolean) => {
         setTodos(prev => prev.map(t => t.id === todoId ? { ...t, is_completed: isCompleted } : t));
-        await apiClient.post('/api/todos', { action: 'toggle_todo', todoId, isCompleted });
+        const result = await apiClient.post<any>('/api/todos', { action: 'toggle_todo', todoId, isCompleted });
         window.dispatchEvent(new CustomEvent('calendar-refresh'));
+
+        // Cross-feature: If calendar block was synced, dispatch recompute
+        if (result?.calendar_synced) {
+            window.dispatchEvent(new CustomEvent('schedule-recompute', {
+                detail: { trigger: 'todo_completed', todoId }
+            }));
+        }
     };
 
     const updateTodo = async (todoId: string, updates: { title?: string, description?: string, dueDate?: string, priority?: 'low' | 'medium' | 'high', isCompleted?: boolean }) => {

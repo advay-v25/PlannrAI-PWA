@@ -1,5 +1,6 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { createClient } from '@supabase/supabase-js';
+import { SchedulingProtocol, type MoodLevel } from '@/lib/scheduling/protocol';
 
 export const POST = secureApiRoute(
     async (context, body) => {
@@ -51,7 +52,18 @@ export const POST = secureApiRoute(
             return apiError('Failed to save check-in', 500);
         }
 
-        return apiSuccess({ saved: true });
+        // SCHEDULING PROTOCOL: Compute mode and return actionable banner
+        const clampedEnergy = Math.min(5, Math.max(1, energy_level));
+        const mood = emotional_state as MoodLevel;
+        const scheduleMode = SchedulingProtocol.computeMode({ energy: clampedEnergy, mood });
+        const bannerResponse = SchedulingProtocol.getBannerResponse(scheduleMode);
+
+        console.log(`[EnergyCheckin] User ${userId}: energy=${clampedEnergy}, mood=${mood} → ${scheduleMode.strategy}`);
+
+        return apiSuccess({
+            saved: true,
+            ...bannerResponse,
+        });
     },
     { requireAuth: true, auditAction: 'energy_checkin' }
 );

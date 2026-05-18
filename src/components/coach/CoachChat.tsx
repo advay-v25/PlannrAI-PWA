@@ -339,7 +339,7 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        placeholder="Define strategy..."
+                        placeholder={messages.length > 0 ? "Ask a follow-up..." : "Define strategy..."}
                         disabled={isLoading}
                         className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all placeholder:text-foreground/20 text-foreground"
                     />

@@ -12,7 +12,6 @@ export const ChannelEnum = z.enum([
     "calendar",
     "calendar.optimize",
     "coach",
-    "brain_dump",
     "weekly_review",
     "settings",
     "habit_stack",
@@ -21,7 +20,6 @@ export const ChannelEnum = z.enum([
     "goal_decomposition", // kept for legacy if needed
     "goals.suggest",
     "routines.generate",
-    "scans.analyze",
     "system.translate",
     "onboarding_architect",
     "calendar_plan_week",
@@ -313,50 +311,6 @@ export const CoachResponseSchema = z.object({
     refusal: z.object({
         reason: z.string(),
         next_best: z.string()
-    }).optional()
-});
-
-export const BrainDumpResponseSchema = z.object({
-    channel: z.literal('brain_dump'),
-    summary: z.string().max(120).describe('Short impact summary (max 120 chars)'),
-    mode: z.enum(['execute', 'propose', 'ask']).describe('Interaction mode'),
-    options: z.array(z.object({
-        id: z.string(),
-        title: z.string().max(40),
-        impact: z.string().max(80),
-        patch: PatchSchema
-    })).min(1).max(3).describe('Actionable options (1-3)'),
-    extracted: z.object({
-        items: z.array(z.object({
-            kind: z.enum(['task', 'commitment', 'note', 'worry', 'idea', 'habit', 'constraint']),
-            title: z.string(),
-            est_min: z.number().optional(),
-            pillar: z.enum(['mind', 'body', 'craft', 'uncategorized']).optional(),
-            urgency: z.number().min(1).max(3).optional(),
-            importance: z.number().min(1).max(3).optional(),
-            due: z.string().optional(), // YYYY-MM-DD or 'today'
-            fixed_time: z.string().optional(), // HH:MM
-            tags: z.array(z.string()).optional()
-        })),
-        signals: z.object({
-            overwhelm: z.number().min(0).max(1),
-            stress: z.number().min(0).max(1),
-            motivation: z.number().min(0).max(1),
-            energy: z.number().min(1).max(5),
-            health_flag: z.boolean()
-        }),
-        constraints: z.array(z.object({
-            type: z.enum(['busy', 'cannot_do', 'reduce_intensity']),
-            date: z.string().optional(),
-            start: z.string().optional(),
-            end: z.string().optional(),
-            reason: z.string().optional()
-        })).optional()
-    }),
-    question: z.object({
-        prompt: z.string(),
-        type: z.enum(['text', 'confirm', 'choice']),
-        choices: z.array(z.string()).optional()
     }).optional()
 });
 
