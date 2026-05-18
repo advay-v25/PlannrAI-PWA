@@ -58,10 +58,12 @@ export async function GET(request: NextRequest) {
         if (needsRescheduling) {
             suggestion = {
                 id: 'goal-sync-needed',
+                dismiss_uid: `goal-sync-${today}`,
                 trigger_type: 'goal_added',
                 title: 'Schedule Optimization Required',
                 message: `I noticed you updated "${pendingGoal}". Should I re-optimize your week to fit it in?`,
                 action_label: 'Optimize Schedule',
+                query: `I just updated "${pendingGoal}". Please re-optimize my week to fit it in properly.`,
                 priority: 'high',
             };
             
@@ -70,28 +72,34 @@ export async function GET(request: NextRequest) {
         } else if (missedBlocks.length >= 3) {
             suggestion = {
                 id: 'missed-blocks',
+                dismiss_uid: `missed-${today}`,
                 trigger_type: 'missed_blocks',
                 title: `${missedBlocks.length} blocks missed today`,
                 message: `You've missed ${missedBlocks.length} scheduled blocks today. Want me to help you adapt the rest of your day?`,
                 action_label: 'Adjust Day',
+                query: `I missed ${missedBlocks.length} blocks today. Help me adapt the rest of my day.`,
                 priority: 'high',
             };
         } else if (blocks.length === 0 && currentHour >= 8) {
             suggestion = {
                 id: 'no-schedule',
+                dismiss_uid: `empty-${today}`,
                 trigger_type: 'empty_day',
                 title: 'No schedule for today',
                 message: 'Your day is unplanned. Want me to build a schedule based on your goals?',
                 action_label: 'Plan Today',
+                query: 'Plan my day based on my goals and energy.',
                 priority: 'medium',
             };
         } else if (completedBlocks.length > 0 && completedBlocks.length === blocks.length) {
             suggestion = {
                 id: 'all-done',
+                dismiss_uid: `done-${today}`,
                 trigger_type: 'all_complete',
                 title: 'You\'ve completed everything!',
                 message: 'You\'ve finished all your planned blocks. Want to add something productive to the rest of your day?',
                 action_label: 'Add More',
+                query: 'I finished everything. What productive things can I add to the rest of my day?',
                 priority: 'low',
             };
         }

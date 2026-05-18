@@ -55,8 +55,13 @@ export const GET = secureApiRoute(
             .eq('user_id', userId)
             .eq('is_active', true);
 
+        const { data: userData } = await supabase.auth.getUser();
+
         return apiSuccess({
-            profile,
+            profile: {
+                ...profile,
+                email: userData?.user?.email
+            },
             preferences,
             habit_stacks_summary: stacks || [],
             integrations_status: {

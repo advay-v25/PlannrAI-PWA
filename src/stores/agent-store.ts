@@ -231,7 +231,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
         try {
             // Use standard Apply Patch endpoint
-            const data = await apiClient.post<{ success: boolean; patch_run_id: string }>('/api/calendar/apply-patch', {
+            const data = await apiClient.post<{ success: boolean; patch_run_id: string }>('/api/patch/apply', {
                 patch: selectedOption.patch
             });
 

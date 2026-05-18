@@ -62,13 +62,22 @@ function safeAddMins(hhmm: string, mins: number) {
     return `${Math.floor(total / 60).toString().padStart(2, '0')}:${(total % 60).toString().padStart(2, '0')}`;
 }
 
+// ── Protocol Config (from SchedulingProtocol) ───────────────────
+
+export interface ProtocolConfig {
+    bufferMinutes?: number;
+    maxGoalBlocksPerDay?: number;
+    maxDeepWorkMins?: number;
+}
+
 // ── Main Deterministic Generator ─────────────────────────────────
 
 export async function generateWeekPlan(
     context: CalendarContext,
     weekStartDate: string,
     mode: 'balanced' | 'momentum' | 'recovery' = 'balanced',
-    allowWeekend: boolean = true
+    allowWeekend: boolean = true,
+    protocolConfig?: ProtocolConfig
 ): Promise<WeekPlanVariant[]> {
     const windDown = calculateWindDown(context);
     const wakeMins = timeToMinutes(context.user.sleep_end || '07:00');
@@ -146,16 +155,16 @@ export async function generateWeekPlan(
     const variants: WeekPlanVariant[] = [];
 
     if (mode === 'balanced') {
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Standard Balanced', 'Optimized distribution based on your current goal progress.', 'Consistency builds momentum.'));
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Standard Balanced', 'Optimized distribution based on your current goal progress.', 'Consistency builds momentum.', false, false, protocolConfig));
         if (allowWeekend) {
-            variants.push(generateVariant(context, weekStartDate, false, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Workday Focus', 'Balanced but strictly within weekdays to protect your recovery time.', 'Protects your weekends entirely.'));
+            variants.push(generateVariant(context, weekStartDate, false, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Workday Focus', 'Balanced but strictly within weekdays to protect your recovery time.', 'Protects your weekends entirely.', false, false, protocolConfig));
         }
     } else if (mode === 'momentum') {
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'High Momentum', 'Aggressive front-loading to finish your weekly targets by Thursday.', 'Tackle the hardest things first.'));
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Hyper-Productive', 'Packs tasks with zero buffers for maximum efficiency.', 'Maximum output.', false, true));
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'High Momentum', 'Aggressive front-loading to finish your weekly targets by Thursday.', 'Tackle the hardest things first.', false, false, protocolConfig));
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Hyper-Productive', 'Packs tasks with zero buffers for maximum efficiency.', 'Maximum output.', false, true, protocolConfig));
     } else if (mode === 'recovery') {
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Gentle Recovery', 'Maximized gaps between sessions for mental resets.', 'Slow and steady.'));
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Quiet Weekend Recovery', 'Light load with a strict 4PM weekend cutoff.', 'Prioritizes weekend rest.', true));
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Gentle Recovery', 'Maximized gaps between sessions for mental resets.', 'Slow and steady.', false, false, protocolConfig));
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Quiet Weekend Recovery', 'Light load with a strict 4PM weekend cutoff.', 'Prioritizes weekend rest.', true, false, protocolConfig));
     }
 
     return variants;
@@ -174,7 +183,8 @@ function generateVariant(
     description: string,
     philosophy: string,
     forceLightWeekend: boolean = false,
-    forceBonusFill: boolean = false
+    forceBonusFill: boolean = false,
+    protocolConfig?: ProtocolConfig
 ): WeekPlanVariant {
     const blocks: PlanBlock[] = [];
     const unscheduled_minutes: Record<string, number> = {};
@@ -330,10 +340,13 @@ function generateVariant(
                     }
                     
                     // Dynamic Buffer based on strategy (affects footprint on the calendar)
-                    let buffer = 10;
-                    if (strategyId === 'momentum') buffer = 0;
-                    else if (strategyId === 'balanced') buffer = 30;
-                    else if (strategyId === 'recovery') buffer = 90;
+                    // Use protocolConfig if provided, otherwise fall back to strategy defaults
+                    let buffer = protocolConfig?.bufferMinutes ?? 10;
+                    if (!protocolConfig?.bufferMinutes) {
+                        if (strategyId === 'momentum') buffer = 0;
+                        else if (strategyId === 'balanced') buffer = 30;
+                        else if (strategyId === 'recovery') buffer = 90;
+                    }
 
                     blocks.push({
                         date: dateStr,

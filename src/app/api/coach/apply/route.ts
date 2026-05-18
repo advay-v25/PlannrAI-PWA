@@ -47,7 +47,10 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Validate conversation ownership if provided (optional for auto-execution)
+        // Validate conversation ownership if provided (advisory — non-blocking)
+        // If the conversation_id doesn't exist (e.g. transient sidebar session), we still
+        // allow the patch to proceed so the action is never silently swallowed.
+        let conversationVerified = false;
         if (conversation_id) {
             const { data: conversation } = await supabase
                 .from('coach_conversations')
@@ -57,33 +60,33 @@ export async function POST(request: NextRequest) {
                 .single();
 
             if (!conversation) {
-                return NextResponse.json(
-                    { success: false, error: 'Conversation not found' },
-                    { status: 404 }
-                );
-            }
+                // Warn but continue — don't hard-reject on missing conversation
+                console.warn(`[Coach Apply] Conversation ${conversation_id} not found for user ${user.id} — proceeding without conversation-level validation.`);
+            } else {
+                conversationVerified = true;
 
-            // Also check option expiry within this conversation
-            const { data: lastMessage } = await supabase
-                .from('coach_messages')
-                .select('created_at, options')
-                .eq('conversation_id', conversation_id)
-                .eq('role', 'assistant')
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .single();
+                // Also check option expiry within this conversation
+                const { data: lastMessage } = await supabase
+                    .from('coach_messages')
+                    .select('created_at, options')
+                    .eq('conversation_id', conversation_id)
+                    .eq('role', 'assistant')
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .single();
 
-            if (lastMessage) {
-                const messageAge = Date.now() - new Date(lastMessage.created_at).getTime();
-                const expiryTime = 60 * 60 * 1000; // 60 minutes
+                if (lastMessage) {
+                    const messageAge = Date.now() - new Date(lastMessage.created_at).getTime();
+                    const expiryTime = 60 * 60 * 1000; // 60 minutes
 
-                if (messageAge > expiryTime) {
-                    console.log(`[Coach Apply] Option expired. Age: ${messageAge}ms`);
-                    return NextResponse.json({
-                        success: false,
-                        error: 'Options expired. Please ask again for fresh options.',
-                        expired: true,
-                    }, { status: 400 });
+                    if (messageAge > expiryTime) {
+                        console.log(`[Coach Apply] Option expired. Age: ${messageAge}ms`);
+                        return NextResponse.json({
+                            success: false,
+                            error: 'Options expired. Please ask again for fresh options.',
+                            expired: true,
+                        }, { status: 400 });
+                    }
                 }
             }
         }
@@ -124,7 +127,7 @@ export async function POST(request: NextRequest) {
         if (result.changes > 0 && result.errors.length > 0) {
             console.warn('[Coach Apply] Partial success:', result.changes, 'applied,', result.errors.length, 'failed:', result.errors);
             
-            if (result.undo_token) {
+            if (result.undo_token && conversationVerified) {
                 await PatchService.recordCoachAction(
                     user.id,
                     conversation_id,
@@ -154,7 +157,7 @@ export async function POST(request: NextRequest) {
             }, { status: 409 });
         }
 
-        if (result.undo_token) {
+        if (result.undo_token && conversationVerified) {
             await PatchService.recordCoachAction(
                 user.id,
                 conversation_id,

@@ -6,9 +6,9 @@ import {
     buildFlowPromptFragment,
     buildBehaviorInsights,
     buildGoalProgressFragment,
-    buildBrainDumpFragment,
     validateFlowConstraints,
 } from '@/lib/calendar/flow-protocol';
+import { SchedulingProtocol, type MoodLevel } from '@/lib/scheduling/protocol';
 import { format } from 'date-fns';
 
 export const maxDuration = 60;
@@ -74,7 +74,7 @@ export const POST = secureApiRoute(
             const flowFragment = buildFlowPromptFragment(phases, ctx);
             const behaviorFragment = buildBehaviorInsights(ctx);
             const progressFragment = buildGoalProgressFragment(ctx);
-            const brainDumpFragment = buildBrainDumpFragment(ctx);
+
 
             // 4. Build goals text with priority ordering
             // Sort goals: weekly progress behind → high energy demand → importance
@@ -123,22 +123,24 @@ export const POST = secureApiRoute(
 
             // Bio-context from today's check-in or profile defaults
             const todayEnergy = ctx.dailyEnergyState?.energy_level ?? Math.round(ctx.user.energy_level / 2); // profile is 1-10, check-in is 1-5
-            const todayMood = ctx.dailyEnergyState?.emotional_state ?? 'not checked in';
+            const todayMood: MoodLevel = (ctx.dailyEnergyState?.emotional_state as MoodLevel) ?? 'neutral';
             const userStress = ctx.user.stress_level || 3;
             const mealsPerDay = ctx.user.meals_per_day || 3;
             const mealWindows = ctx.user.meal_windows || {};
 
-            // Compute energy-based scheduling density
-            let scheduleIntensity: string;
-            if (todayEnergy >= 4 && ctx.performance.last_7_days_completion_rate > 70) {
-                scheduleIntensity = 'HIGH — User has strong energy and is consistent. Schedule a productive day with 3-4 deep work blocks.';
-            } else if (todayEnergy >= 3 && ctx.performance.last_7_days_completion_rate > 40) {
-                scheduleIntensity = 'MODERATE — Standard day. 2-3 deep work blocks, adequate breaks.';
-            } else if (userStress >= 7 || todayEnergy <= 2) {
-                scheduleIntensity = 'LOW/STRESSED — User needs a lighter day. Max 1-2 short deep work blocks, extra recovery time, longer breaks.';
-            } else {
-                scheduleIntensity = 'LOW — User is struggling. Gentle day: 1-2 goal blocks max, lots of rest and self-care.';
-            }
+            // SCHEDULING PROTOCOL: Compute mode from energy + mood
+            const scheduleMode = SchedulingProtocol.computeMode({
+                energy: todayEnergy,
+                mood: todayMood,
+                completionRate7d: ctx.performance.last_7_days_completion_rate,
+            });
+            const scheduleIntensity = SchedulingProtocol.getIntensityDescription(
+                scheduleMode,
+                todayEnergy,
+                ctx.performance.last_7_days_completion_rate
+            );
+
+            console.log(`[GenerateToday] Protocol Mode: ${scheduleMode.strategy} (energy=${todayEnergy}, mood=${todayMood})`);
 
             // 5. Construct the AI prompt
             const systemPrompt = `You are PlannrAI's Day Architect — an expert in chronobiology, flow state management, and high-performance scheduling. Your job is to create a science-backed daily schedule that helps ${ctx.user.first_name} achieve their goals while maintaining deep focus and sustainable energy.
@@ -203,7 +205,7 @@ ${habitStacksText}
 
 ━━━ EXISTING BLOCKS ━━━
 ${existingText}
-${behaviorFragment}${brainDumpFragment}
+${behaviorFragment}
 ━━━ CAPACITY ━━━
 - Awake hours: ${ctx.capacity.daily_awake_hours}h
 - 7-day completion rate: ${ctx.performance.last_7_days_completion_rate}%

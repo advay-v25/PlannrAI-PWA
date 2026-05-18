@@ -20,9 +20,9 @@ export function RealityIntake({ onUpdate }: RealityIntakeProps) {
         setLoading(true);
         // Optimistic UI could show a "Processing..." card
         try {
-            // Using the brain dump endpoint which handles signal processing
-            await apiClient.post('/api/brain-dump/submit', {
-                content: text,
+            // Send to coach for processing
+            await apiClient.post('/api/coach/message', {
+                message: text,
                 source: 'home_reality_intake'
             });
 

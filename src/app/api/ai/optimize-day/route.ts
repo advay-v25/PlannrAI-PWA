@@ -5,8 +5,8 @@ import { createClient } from '@/lib/supabase/server';
 import { groqChat } from '@/lib/ai/groq-client';
 import { JSONReliability } from '@/lib/ai/json-reliability';
 import { addMinutes, format, parse, set, isBefore, isAfter, getDay } from 'date-fns';
-import { BioRegulator } from '@/lib/scheduling/bio-regulator';
 import { z } from 'zod';
+import { SchedulingProtocol, type MoodLevel } from '@/lib/scheduling/protocol';
 
 const OptimizeDayOutputSchema = z.object({
     optimizedBlocks: z.array(z.object({
@@ -51,8 +51,21 @@ export const POST = secureApiRoute(
 
         console.log(`[Optimization] Resonance Mode: ${intel.computedMode}, Capacity: ${intel.energyCapacity}%`);
 
-        // BIO-REGULATOR: FILTER GOALS
-        const validGoals = BioRegulator.filterGoalsByBioState(intel.goals || [], energyLevel);
+        // SCHEDULING PROTOCOL: Fetch mood from user_states and compute mode
+        const { data: userState } = await supabase
+            .from('user_states')
+            .select('energy_level, emotional_state')
+            .eq('user_id', context.userId)
+            .maybeSingle();
+
+        const currentEnergy = energyLevel || userState?.energy_level || 3;
+        const currentMood: MoodLevel = (userState?.emotional_state as MoodLevel) || 'neutral';
+        const scheduleMode = SchedulingProtocol.computeMode({ energy: currentEnergy, mood: currentMood });
+
+        console.log(`[Optimization] Protocol Mode: ${scheduleMode.strategy} (energy=${currentEnergy}, mood=${currentMood})`);
+
+        // PROTOCOL-DRIVEN GOAL FILTERING
+        const validGoals = SchedulingProtocol.filterGoals(intel.goals || [], scheduleMode);
         const droppedGoalsCount = (intel.goals?.length || 0) - validGoals.length;
 
         const skeleton: TimeBlock[] = [];
@@ -139,7 +152,7 @@ export const POST = secureApiRoute(
         // 3. AI TETRIS (Step 3, 4, 5)
         // ---------------------------------------------------------
 
-        const bioFragment = BioRegulator.getAIPromptFragment(energyLevel);
+        const bioFragment = SchedulingProtocol.buildPromptFragment(scheduleMode, currentEnergy, currentMood);
 
         // Calculate Weekly Resonance Summary
         const weeklyResonance = intel.goals.map(g => {
@@ -171,9 +184,10 @@ STRICT SCHEDULING RULES:
 1. TARGETS: Do NOT schedule a goal if its weekly target is already reached (unless it is High Importance and the day is sparse).
 2. BODY COHERENCE: Max TWO body-related activities per day (Gym, Football, Cardio). If there are two body goals scheduled, they CANNOT be scheduled consecutively (one after the other); they must be placed on the ends of the day (e.g. one in the morning, one in the evening).
 3. BODY PILLAR BUFFER: NEVER schedule 'body' pillar activities within 2 HOURS after any meal (Breakfast, Lunch, Dinner).
-4. WHITESPACE: Do not pack blocks back-to-back. Leave 15-30m "whitespace" gaps for cognitive breathing. 
+4. WHITESPACE: Leave at least ${scheduleMode.bufferBetweenBlocks} minutes between goal blocks for cognitive breathing. 
 5. MEAL PROTECTION: Do NOT overlap goals with Meal blocks. Meals are flexible in time but must remain uninterrupted.
 6. DAY SPREAD: Spread goals throughout the day. Avoid clustering everything at the start or end. Aim for a balanced distribution (e.g. 1 morning, 1 afternoon, 1 evening).
+6b. MAX BLOCKS: Schedule at most ${scheduleMode.maxGoalBlocksPerDay} goal blocks and ${scheduleMode.maxDeepWorkMins} minutes of total deep work today.
 7. WEEKEND LEVERAGE: If the user has unfinished goals and today is Sat/Sun, prioritize finishing them.
 8. NO HALLUCINATIONS: Respect the skeleton EXACTLY. Do not invent anchors that are not listed.
 9. DEDUPLICATION: Do NOT generate your own Breakfast, Lunch, or Dinner blocks if they are already in the skeleton. Use them as anchors.

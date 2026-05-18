@@ -136,6 +136,34 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context }: PlanWeekM
                                 <p className="text-sm text-[var(--text-secondary)]">
                                     How do you want to approach this week?
                                 </p>
+
+                                {/* Energy-aware mode suggestion */}
+                                {context?.user_state?.energy_level && (
+                                    <div className={`text-xs px-3 py-2 rounded-lg flex items-center gap-2 ${
+                                        context.user_state.energy_level >= 4
+                                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                            : context.user_state.energy_level <= 2
+                                            ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
+                                            : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                                    }`}>
+                                        {context.user_state.energy_level >= 4 ? (
+                                            <>
+                                                <Zap className="w-3 h-3" />
+                                                <span>High energy detected — <strong>Momentum</strong> recommended</span>
+                                            </>
+                                        ) : context.user_state.energy_level <= 2 ? (
+                                            <>
+                                                <Battery className="w-3 h-3" />
+                                                <span>Low energy — <strong>Recovery</strong> recommended</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Activity className="w-3 h-3" />
+                                                <span>Moderate energy — <strong>Balanced</strong> works well</span>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
                                 <div className="space-y-3">
                                     <ModeCard
                                         mode="balanced"

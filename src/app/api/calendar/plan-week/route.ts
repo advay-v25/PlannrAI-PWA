@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { buildCalendarContext } from '@/lib/calendar/context-builder';
 import { generateWeekPlan } from '@/lib/calendar/ai/plan-week';
 import { format, startOfWeek, addDays } from 'date-fns';
+import { SchedulingProtocol, type MoodLevel } from '@/lib/scheduling/protocol';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -39,8 +40,30 @@ export const POST = secureApiRoute(
             // 3. Build context
             const calendarCtx = await buildCalendarContext(userId, supabase);
 
-            // 4. Generate AI variants
-            const variants = await generateWeekPlan(calendarCtx, weekStart, mode, allowWeekend);
+            // 3b. SCHEDULING PROTOCOL: Auto-select mode if user didn't choose explicitly
+            const { data: userState } = await supabase
+                .from('user_states')
+                .select('energy_level, emotional_state')
+                .eq('user_id', userId)
+                .maybeSingle();
+
+            const currentEnergy = userState?.energy_level || 3;
+            const currentMood: MoodLevel = (userState?.emotional_state as MoodLevel) || 'neutral';
+            const effectiveMode = SchedulingProtocol.getWeekModeOverride(
+                mode === 'balanced' ? undefined : mode,  // treat default 'balanced' as auto-select
+                currentEnergy,
+                currentMood
+            );
+            const scheduleMode = SchedulingProtocol.computeMode({ energy: currentEnergy, mood: currentMood });
+
+            console.log(`[PlanWeek] Protocol: ${effectiveMode} (energy=${currentEnergy}, mood=${currentMood})`);
+
+            // 4. Generate AI variants with protocol-aware buffer config
+            const variants = await generateWeekPlan(calendarCtx, weekStart, effectiveMode, allowWeekend, {
+                bufferMinutes: scheduleMode.bufferBetweenBlocks,
+                maxGoalBlocksPerDay: scheduleMode.maxGoalBlocksPerDay,
+                maxDeepWorkMins: scheduleMode.maxDeepWorkMins,
+            });
 
             // 5. Convert to option format expected by frontend
             const options = variants.map(v => ({

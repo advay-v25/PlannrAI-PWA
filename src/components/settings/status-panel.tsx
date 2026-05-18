@@ -3,12 +3,11 @@
 
 import { useEffect, useState } from 'react';
 import { GlassCard } from '@/components/ui/glass-card';
-import { Check, X, Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
+import { RefreshCw, AlertTriangle } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 
 export function StatusPanel() {
     const [health, setHealth] = useState<any>(null);
-    const [smoke, setSmoke] = useState<any>(null);
     const [loading, setLoading] = useState(false);
 
     const checkStatus = async () => {
@@ -16,11 +15,6 @@ export function StatusPanel() {
         try {
             const h = await apiClient.get('/api/health', { skipAuth: true });
             setHealth(h);
-
-            // Only check smoke if auth might be valid, but apiClient injects auth automatically.
-            // If smoke fails 401, it handles it.
-            const s = await apiClient.get('/api/debug/smoke').catch(err => ({ error: err }));
-            setSmoke(s);
         } catch (e) {
             console.error(e);
         } finally {
@@ -58,40 +52,14 @@ export function StatusPanel() {
             </div>
 
             <div className="space-y-1">
-                {/* Health Checks */}
                 <StatusRow label="Supabase Connection" ok={health?.supabase_ok} />
                 <StatusRow label="AI Provider (Groq)" ok={health?.ai_ok} detail={!health?.env?.groq_key_present ? 'Missing Key' : undefined} />
-
-                {/* Env Checks */}
                 <StatusRow label="Env: Supabase URL" ok={health?.env?.supabase_url_present} />
                 <StatusRow label="Env: Anon Key" ok={health?.env?.supabase_anon_present} />
 
-                {/* Smoke Data */}
-                {smoke && !smoke.error ? (
-                    <>
-                        <StatusRow label="Auth User" ok={true} detail={smoke.user?.email || smoke.user?.id?.slice(0, 8)} />
-                        <StatusRow label="Active Goals" ok={true} detail={String(smoke.counts?.goals_active ?? 0)} />
-                        <StatusRow label="Schedule Blocks (Week)" ok={true} detail={String(smoke.counts?.schedule_blocks_week ?? 0)} />
-                        <StatusRow label="Anchors (Week)" ok={true} detail={String(smoke.counts?.anchors_week ?? 0)} />
-                    </>
-                ) : (
-                    <StatusRow label="Smoke Test" ok={false} error={smoke?.error?.message || 'Auth Required'} />
-                )}
-
-                {/* Warnings */}
-                {smoke?.warnings?.length > 0 && (
-                    <div className="p-2 bg-orange-500/10 rounded-lg text-xs text-orange-400 mt-2">
-                        <div className="flex items-center gap-2 mb-1 font-bold">
-                            <AlertTriangle className="w-3 h-3" /> Warnings
-                        </div>
-                        {smoke.warnings.map((w: string, i: number) => <div key={i}>{w}</div>)}
-                    </div>
-                )}
-
-                {/* Request IDs */}
+                {/* Request ID */}
                 <div className="pt-2 text-[10px] text-[var(--text-tertiary)] font-mono opacity-50 text-right">
-                    {health?.request_id && <div>Health Req: {health.request_id.slice(0, 8)}...</div>}
-                    {smoke?.request_id && <div>Smoke Req: {smoke.request_id.slice(0, 8)}...</div>}
+                    {health?.request_id && <div>Health: {health.request_id.slice(0, 8)}...</div>}
                 </div>
             </div>
         </GlassCard>

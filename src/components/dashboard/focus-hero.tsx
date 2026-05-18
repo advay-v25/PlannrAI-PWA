@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
-import { Sparkles, Play, Clock, CheckCircle, ArrowRight, Brain, Coffee, Calendar } from 'lucide-react';
+import { Sparkles, Play, Clock, CheckCircle, ArrowRight, Coffee, Calendar } from 'lucide-react';
 import type { ScheduleBlock, Goal } from '@/types/database';
 import { differenceInMinutes, format } from 'date-fns';
 import Link from 'next/link';
@@ -137,18 +137,18 @@ export function FocusHero({ blocks, onCompleteBlock }: FocusHeroProps) {
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 mt-4">
-                            <Link href="/app/brain-dump" className="block">
+                            <Link href="/app/coach" className="block">
                                 <div className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/5 flex items-center gap-3">
-                                    <Brain className="w-5 h-5 text-[var(--color-mind)]" />
+                                    <Sparkles className="w-5 h-5 text-[var(--color-mind)]" />
                                     <div className="text-left">
-                                        <p className="text-sm font-bold">Clear Mind</p>
-                                        <p className="text-[10px] text-[var(--text-tertiary)]">Quick brain dump</p>
+                                        <p className="text-sm font-bold">Ask Donna</p>
+                                        <p className="text-[10px] text-[var(--text-tertiary)]">Get suggestions</p>
                                     </div>
                                 </div>
                             </Link>
                             <Link href="/app/calendar" className="block">
                                 <div className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/5 flex items-center gap-3">
-                                    <Sparkles className="w-5 h-5 text-[var(--color-future)]" />
+                                    <Calendar className="w-5 h-5 text-[var(--color-future)]" />
                                     <div className="text-left">
                                         <p className="text-sm font-bold">Fill Gap</p>
                                         <p className="text-[10px] text-[var(--text-tertiary)]">Add a quick session</p>

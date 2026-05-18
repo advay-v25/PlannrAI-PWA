@@ -44,7 +44,7 @@ export function InterventionCard({ intervention, onDismiss }: InterventionCardPr
             // Navigate based on type
             if (intervention.type === 'stagnation') router.push('/app/goals');
             if (intervention.type === 'burnout') router.push('/app/coach');
-            if (intervention.type === 'disengagement') router.push('/app/brain-dump');
+            if (intervention.type === 'disengagement') router.push('/app/coach');
         }
     };
 

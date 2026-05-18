@@ -34,6 +34,13 @@ export function useGoalsManager() {
             // Refresh to get updated capacity if schedule changed or goal updated
             fetchGoals();
             window.dispatchEvent(new CustomEvent('calendar-refresh'));
+
+            // Cross-feature: Notify schedule sync when goal is paused/resumed
+            if ('status' in updates || 'is_paused' in updates) {
+                window.dispatchEvent(new CustomEvent('schedule-recompute', {
+                    detail: { trigger: 'goal_paused', goalId: id }
+                }));
+            }
             
             showToast('✅ Changes saved. Calendar updated.', 'success');
         } catch (error) {
@@ -68,6 +75,10 @@ export function useGoalsManager() {
                 showToast('✅ Goal created! Calendar updated.', 'success');
                 fetchGoals(); // Refresh capacity
                 window.dispatchEvent(new CustomEvent('calendar-refresh'));
+                // Cross-feature: Notify schedule sync about new goal
+                window.dispatchEvent(new CustomEvent('schedule-recompute', {
+                    detail: { trigger: 'goal_created', goalId: response.goal.id, goalTitle: response.goal.title }
+                }));
                 return response.goal;
             }
         } catch (error) {

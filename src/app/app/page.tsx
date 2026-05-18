@@ -15,9 +15,11 @@ import { HomeTodos } from '@/components/home/home-todos';
 import { ProgressBars } from '@/components/home/progress-bars';
 import { PillarBalance } from '@/components/home/pillar-balance';
 import { NotificationScheduler } from '@/components/home/notification-scheduler';
+import { NextMoveCard } from '@/components/next-move';
+import { useScheduleSync } from '@/hooks/use-schedule-sync';
 import { apiClient } from '@/lib/api-client';
 import { format } from 'date-fns';
-import { Settings } from 'lucide-react';
+import { Settings, Zap, Shield, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
@@ -37,6 +39,11 @@ export default function HomePage() {
     const [proactiveSuggestion, setProactiveSuggestion] = useState<any>(null);
     const [showWeeklyReviewPrompt, setShowWeeklyReviewPrompt] = useState(false);
     const [manualFeedback, setManualFeedback] = useState<string | null>(null);
+
+    // Schedule Sync: Energy/Mood → Calendar mode banner
+    const { currentMode, isReoptimizing, handleReoptimize, clearMode } = useScheduleSync({
+        onCalendarRefresh: () => fetchHomeData(),
+    });
 
     const fetchHomeData = async () => {
         try {
@@ -231,7 +238,50 @@ export default function HomePage() {
     return (
         <>
             <NotificationScheduler blocks={effectiveData.schedule_blocks} date={today} />
-            
+
+            {/* Scheduling Mode Banner (from energy check-in) */}
+            {currentMode && currentMode.type && (
+                <div className={`mb-6 rounded-2xl border p-4 flex items-center justify-between ${
+                    currentMode.type === 'recovery'
+                        ? 'bg-orange-500/10 border-orange-500/20'
+                        : 'bg-emerald-500/10 border-emerald-500/20'
+                }`}>
+                    <div className="flex items-center gap-3">
+                        {currentMode.type === 'recovery' ? (
+                            <Shield className={`h-5 w-5 text-orange-400`} />
+                        ) : (
+                            <Zap className={`h-5 w-5 text-emerald-400`} />
+                        )}
+                        <div>
+                            <h4 className={`font-bold text-sm ${
+                                currentMode.type === 'recovery' ? 'text-orange-400' : 'text-emerald-400'
+                            }`}>{currentMode.label}</h4>
+                            <p className={`text-xs mt-0.5 ${
+                                currentMode.type === 'recovery' ? 'text-orange-400/70' : 'text-emerald-400/70'
+                            }`}>{currentMode.message}</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={clearMode}
+                            className="text-[10px] text-white/30 hover:text-white/60 transition-colors"
+                        >Dismiss</button>
+                        <button
+                            onClick={handleReoptimize}
+                            disabled={isReoptimizing}
+                            className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 ${
+                                currentMode.type === 'recovery'
+                                    ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30'
+                                    : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+                            }`}
+                        >
+                            <RefreshCw className={`h-3 w-3 ${isReoptimizing ? 'animate-spin' : ''}`} />
+                            {isReoptimizing ? 'Optimizing...' : currentMode.actionLabel}
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {effectiveData.nextWeekPlanned === false && !showWeeklyReviewPrompt && (
                 <div className="mb-6 bg-orange-500/10 border border-orange-500/20 rounded-2xl p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -444,6 +494,7 @@ export default function HomePage() {
                     onUpdate={handleRefresh}
                 />
             }
+            nextMove={<NextMoveCard />}
             />
         </>
     );

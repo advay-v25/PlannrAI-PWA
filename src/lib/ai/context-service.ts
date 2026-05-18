@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@/types/database';
 import { startOfDay, endOfDay, addDays, format } from 'date-fns';
+import { SchedulingProtocol, type MoodLevel, type ScheduleStrategy } from '@/lib/scheduling/protocol';
 
 export interface LiquidContext {
     user: {
@@ -32,6 +33,8 @@ export interface LiquidContext {
     };
     anchors: any[];
     ai_profile?: any;
+    schedule_mode?: ScheduleStrategy;
+    schedule_mode_label?: string;
     _debug_sizes?: any;
 }
 
@@ -71,7 +74,8 @@ export class ContextService {
             tomorrowBlocks,
             goals,
             commitments,
-            dailyLog
+            dailyLog,
+            userState
         ] = await Promise.all([
             safeQuery(() => supabase.from('profiles').select('full_name, timezone, bio_data').eq('id', userId).single(), { full_name: 'User', timezone: 'UTC', bio_data: null }),
             safeQuery(() => supabase.from('profile_preferences').select('*').eq('user_id', userId).single(), {}),
@@ -79,7 +83,8 @@ export class ContextService {
             safeQuery(() => supabase.from('schedule_blocks').select('id, title, start_time, end_time, block_type').eq('user_id', userId).eq('date', tomorrowStr).order('start_time'), []),
             safeQuery(() => supabase.from('goals').select('id, title, category, importance').eq('user_id', userId).eq('status', 'active').limit(10), []),
             safeQuery(() => supabase.from('commitments').select('id, title, start_time, end_time, days_of_week').eq('user_id', userId).eq('is_active', true).limit(20), []),
-            safeQuery(() => supabase.from('daily_logs').select('energy_level, mood, created_at').eq('user_id', userId).eq('log_date', todayStr).single(), null)
+            safeQuery(() => supabase.from('daily_logs').select('energy_level, mood, created_at').eq('user_id', userId).eq('log_date', todayStr).single(), null),
+            safeQuery(() => supabase.from('user_states').select('energy_level, emotional_state, updated_at').eq('user_id', userId).order('updated_at', { ascending: false }).limit(1).single(), null)
         ]);
 
         // 2. Process User & Preferences
@@ -93,9 +98,22 @@ export class ContextService {
             return acc + (end - start);
         }, 0);
 
-        // 4. Process Bio-State (from Daily Log or defaults)
-        const energyLevel = dailyLog?.energy_level ?? 7;
-        const mood = dailyLog?.mood ?? 'neutral';
+        // 4. Process Bio-State: Use energy check-in (user_states) if available, else fall back to daily_log
+        // user_states is the newer check-in system; daily_logs is the legacy approach
+        const checkinEnergy = userState?.energy_level;
+        const checkinMood = userState?.emotional_state;
+        const logEnergy = dailyLog?.energy_level;
+        const logMood = dailyLog?.mood;
+
+        // Prefer check-in data (1-5 scale), convert daily_log (1-10) to 1-5 if needed
+        const energyLevel = checkinEnergy || (logEnergy ? Math.round(logEnergy / 2) : 3);
+        const mood = checkinMood || logMood || 'neutral';
+
+        // Compute schedule mode from energy/mood
+        const scheduleMode = SchedulingProtocol.computeMode({
+            energy: energyLevel,
+            mood: mood as MoodLevel,
+        });
 
         // 5. Detect Schedule Conflicts
         const detectConflicts = (blocks: any[], date: string) => {
@@ -148,7 +166,9 @@ export class ContextService {
                 pending_action: goals.length
             },
             anchors: commitments,
-            ai_profile: aiProfile
+            ai_profile: aiProfile,
+            schedule_mode: scheduleMode.strategy,
+            schedule_mode_label: scheduleMode.label,
         };
 
         const sizes = {
@@ -158,7 +178,7 @@ export class ContextService {
             goals: JSON.stringify(validContext.goals).length,
             anchors: JSON.stringify(validContext.anchors).length
         };
-        console.log('[ContextService] Sizes:', sizes);
+        console.log('[ContextService] Sizes:', sizes, `| Mode: ${scheduleMode.strategy}`);
 
         return { ...validContext, _debug_sizes: sizes };
     }

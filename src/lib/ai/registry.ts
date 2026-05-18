@@ -50,51 +50,9 @@ export const CoachOutputSchema = z.object({
   suggested_actions: z.array(z.string().max(50)).max(3).optional().describe('Context-aware follow-up actions the user can take')
 });
 
-// 2. Brain Dump
-export const BrainDumpOutputSchema = z.object({
-  extracted: z.object({
-    summary: z.string().max(200).optional(),
-    items: z.array(z.object({
-      title: z.string(),
-      kind: z.enum(['task', 'commitment', 'note', 'worry', 'idea', 'habit', 'constraint']),
-      est_min: z.number().nullish(),
-      due_date: z.string().nullish(),
-      eisenhower: z.object({
-        urgent: z.boolean().describe('Requires immediate action today/tomorrow'),
-        important: z.boolean().describe('High long-term value or severe consequence if missed')
-      }).nullish().describe('IQ Check: Eisenhower matrix categorization'),
-      pillar: z.string().nullish()
-    })).optional().default([]),
-    constraints: z.array(z.object({
-      type: z.enum(['time_block', 'deadline', 'unavailable', 'health', 'travel']),
-      description: z.string(),
-      start_time: z.string().optional(),
-      end_time: z.string().optional(),
-      date: z.string().optional()
-    })).optional().default([]),
-    signals: z.object({
-      energy: z.number().min(1).max(5).optional(),
-      sentiment: z.number().min(-1).max(1).optional(),
-      overwhelm: z.number().min(0).max(1).optional(),
-      motivation: z.number().min(0).max(1).optional(),
-      stress: z.number().min(0).max(1).optional(),
-      health_flag: z.string().nullish()
-    })
-  }),
-  mode: z.enum(['execute', 'propose', 'ask']),
-  summary: z.string().max(120),
-  options: z.array(z.object({
-    id: z.string(),
-    title: z.string().max(40),
-    impact: z.string().max(80),
-    patch: PatchSchema
-  })).min(1).max(3),
-  question: z.object({
-    prompt: z.string().max(160),
-    type: z.enum(['text', 'confirm', 'choice']),
-    choices: z.array(z.string()).max(5).optional()
-  }).optional()
-});
+
+// (BrainDumpOutputSchema removed — feature deprecated)
+
 
 // 3. Onboarding Plan
 export const OnboardingPlanOutputSchema = z.object({
@@ -303,7 +261,6 @@ User State: ${JSON.stringify(ctx.userState || {})}
 Capacity: ${JSON.stringify(ctx.capacity || {})}
 Recent Logs: ${JSON.stringify((ctx.recentLogs || []).slice(0, 2))}
 Chat History: ${JSON.stringify((ctx.chatHistory || []).slice(-6))}
-${ctx.recentDumps?.length ? `Recent Brain Dumps: ${JSON.stringify(ctx.recentDumps.slice(0, 2))}` : ''}
 ${ctx.proposals?.length ? `Pending System Proposals: ${JSON.stringify(ctx.proposals)}` : ''}
 
 THINKING (Required):
@@ -379,121 +336,6 @@ If mode="refuse", refusal is REQUIRED, options should be omitted.`.trim();
     userPrompt: (input) => input
   },
 
-  brain_dump: {
-    schema: BrainDumpOutputSchema,
-    config: {
-      model: 'llama-3.3-70b-versatile',
-      temperature: 0.2,
-      maxTokens: 1000,
-      tier: 'fast'
-    },
-    fallback: (input: string) => {
-      const lines = input.split('\n').filter(l => l.trim().length > 0);
-      const hasFatigue = /tired|exhausted|burnt|overwhelmed|sleepy/i.test(input);
-      const tasks = lines.map(l => ({ kind: 'task' as const, title: l.slice(0, 50) }));
-
-      return {
-        mode: 'propose' as const,
-        summary: "AI temporarily limited. I've extracted basic actions.",
-        extracted: {
-          summary: "Partial extraction based on text lines.",
-          items: tasks.length > 0 ? tasks : [{ kind: 'note' as const, title: (input || '').slice(0, 50) }],
-          constraints: [],
-          signals: { overwhelm: hasFatigue ? 0.8 : 0, sentiment: 0, energy: hasFatigue ? 2 : 3, health_flag: '' }
-        },
-        options: [
-          {
-            id: 'fallback_1',
-            title: 'Add To Tomorrow',
-            impact: `Move items to tomorrow`,
-            patch: { ops: [], reason: "Fallback scheduling", undoable: true }
-          },
-          {
-            id: 'fallback_2',
-            title: 'Add Recovery Block',
-            impact: 'Add 60m buffer & push non-urgent',
-            patch: { ops: [], reason: "Fallback recovery", undoable: true }
-          }
-        ]
-      };
-    },
-    systemPrompt: (ctx) => {
-      const isLowEnergy = ctx.userState?.is_low_energy;
-      const isOverwhelmed = ctx.userState?.is_overwhelmed;
-
-      return `You are PlannrAI's Elite Chaos Intake Engine (Executive IO).
-Your job: ingest messy human thoughts and execute HIGH-IQ sensemaking + HIGH-EQ triage.
-You are NOT a chatbot. You are the user's cognitive filter. Every dump must produce strategic clarity and tangible schedule execution.
-
-${BASE_RULES}
-
-CONTEXT:
-Current Time: ${ctx.now}
-Schedule (today + upcoming): ${JSON.stringify(ctx.schedule || [])}
-Anchors (LOCKED): ${JSON.stringify(ctx.anchors || [])}
-Goals: ${JSON.stringify(ctx.goals || [])}
-User State: ${JSON.stringify(ctx.userState || {})}
-Capacity: ${JSON.stringify(ctx.capacity || {})}
-Preferences: ${JSON.stringify(ctx.preferences || {})}
-${ctx.recentDumps?.length ? `Recent Dumps: ${JSON.stringify(ctx.recentDumps.slice(0, 2))}` : ''}
-
-EXTRACTION RULES (HIGH IQ SENSEMAKING):
-A) TASKS: "Buy milk", "Submit assignment" → kind=task. YOU MUST evaluate the Eisenhower Matrix:
-   - Urgent: Needs action in 24-48 hours.
-   - Important: Drives goals or has severe consequences if ignored.
-B) COMMITMENTS: "I have a meeting at 4" → kind=commitment, extract time → add to constraints.
-C) CONSTRAINTS: "busy at 2pm", "can't today" → constraints array.
-D) SIGNALS (HIGH EQ): "I'm exhausted" → energy=1. "overwhelmed" → overwhelm=0.9.
-E) HEALTH: "I'm sick" → health_flag="sick".
-F) WORRIES: "stressed about deadline" → kind=worry.
-G) NOTES/IDEAS: Everything else → kind=note.
-
-OPTION RULES (STRATEGIC OPTIONALITY):
-- ALWAYS produce 2-3 distinct strategic options with REAL patches.
-- Options MUST include at least one action if:
-  - any task is detected
-  - any time constraint is detected
-  - fatigue/overwhelm is detected
-- DO NOT give three variations of the same idea. Provide distinct tactical paths.
-  - Option 1 ("The Push"): If they have capacity, how do we conquer this optimally?
-  - Option 2 ("The Recovery/Buffer"): If they are stressed, how do we protect them? (High EQ pivot)
-- If user reports fatigue/sickness (energy <= 2) or overwhelm (> 0.7):
-  YOUR PRIMARY MISSION IS PROTECTION. Options MUST aggressively clear non-urgent blocks, add buffers, and prioritize sleep/recovery.
-- If user adds a NEW must-do: use spatial intelligence to slot it where it won't trigger context-switching penalties.
-- Never override LOCKED anchors.
-
-ASK RULE:
-- Ask ONE clarifying question ONLY if execution is completely paralyzed without it (e.g., "Which project is the urgent meeting for?"). Otherwise, act.
-
-OUTPUT FORMAT (Strict JSON, No Markdown):
-{
-  "mode": "propose|ask",
-  "summary": "<= 120 chars impact summary",
-  "extracted": {
-    "summary": "<= 200 chars",
-    "items": [
-      { "kind": "task|commitment|note|worry|idea|habit|constraint", "title": "string", "est_min": 30, "due_date": "today|tomorrow|YYYY-MM-DD", "eisenhower": {"urgent": true, "important": false}, "pillar": "string" }
-    ],
-    "constraints": [
-      { "type": "time_block|deadline|unavailable|health|travel", "description": "string", "start_time": "HH:MM", "end_time": "HH:MM", "date": "YYYY-MM-DD" }
-    ],
-    "signals": { "energy": 1-5, "sentiment": -1 to 1, "overwhelm": 0-1, "motivation": 0-1, "stress": 0-1, "health_flag": "string or null" }
-  },
-  "options": [{
-    "id": "opt_1",
-    "title": "<= 40 chars",
-    "impact": "<= 80 chars",
-    "tradeoff": "<= 80 chars about what is sacrificed",
-    "patch": { "ops": [{ "op": "create_event", "payload": { "title": "...", "start_time": "HH:MM", "end_time": "HH:MM", "date": "YYYY-MM-DD", "block_type": "task" } }], "undoable": true, "reason": "string" }
-  }],
-  "question": { "prompt": "string", "type": "text|confirm|choice", "choices": ["A","B"] }
-}
-
-If mode="propose", options is REQUIRED.
-If mode="ask", question is REQUIRED, options can be omitted.`.trim();
-    },
-    userPrompt: (input: string) => `Brain dump:\n${input}`
-  },
 
   onboarding_plan: {
     schema: OnboardingPlanOutputSchema,

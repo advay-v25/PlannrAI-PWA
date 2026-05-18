@@ -459,22 +459,4 @@ export function validateFlowConstraints(
     };
 }
 
-// ── Pending Brain Dump Items ─────────────────────────────────────
 
-/**
- * Builds a prompt fragment for unactioned brain dump items
- * that could be scheduled as flex/admin blocks.
- */
-export function buildBrainDumpFragment(ctx: CalendarContext): string {
-    if (!ctx.recentBrainDumps || ctx.recentBrainDumps.length === 0) return '';
-
-    const pending = ctx.recentBrainDumps.filter(b => b.status === 'pending' || b.status === 'extracted');
-    if (pending.length === 0) return '';
-
-    let fragment = `\n━━━ PENDING BRAIN DUMP ITEMS (consider scheduling as flex/admin blocks) ━━━\n`;
-    for (const item of pending.slice(0, 5)) {
-        fragment += `  • [${item.category}] ${item.content}\n`;
-    }
-
-    return fragment;
-}
