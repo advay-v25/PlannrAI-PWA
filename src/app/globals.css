@@ -50,12 +50,12 @@
   --color-routine: hsl(280, 67%, 55%);
   --color-routine-glow: hsla(280, 67%, 55%, 0.2);
 
-  /* Luxury Overlays (Darkened) */
+  /* Atmospheric orb gradient — visible depth */
   --mesh-gradient:
-    radial-gradient(at 0% 0%, hsla(16, 100%, 60%, 0.05) 0, transparent 50%),
-    radial-gradient(at 100% 0%, hsla(270, 80%, 60%, 0.04) 0, transparent 50%),
-    radial-gradient(at 100% 100%, hsla(150, 80%, 40%, 0.03) 0, transparent 50%),
-    radial-gradient(at 0% 100%, hsla(330, 80%, 60%, 0.04) 0, transparent 50%);
+    radial-gradient(ellipse 80vw 60vh at -10% -5%, hsla(16, 100%, 60%, 0.15) 0%, transparent 60%),
+    radial-gradient(ellipse 60vw 50vh at 110% 8%,  hsla(270, 91%, 65%, 0.11) 0%, transparent 60%),
+    radial-gradient(ellipse 70vw 45vh at 50% 108%, hsla(160, 84%, 50%, 0.09) 0%, transparent 60%),
+    radial-gradient(ellipse 40vw 35vh at 92% 52%,  hsla(349, 89%, 60%, 0.07) 0%, transparent 55%);
 
   /* Status Colors */
   --color-success: #10B981;
@@ -191,24 +191,18 @@ body {
   overflow-x: hidden;
 }
 
-/* Luxury Mesh Background */
+/* Layer 1: Atmospheric orbs + dot grid */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -2;
-  background: var(--mesh-gradient);
   background-color: var(--color-bg-primary);
-  opacity: 1;
-}
-
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background: radial-gradient(circle at 50% 50%, transparent 20%, var(--color-bg-primary) 100%);
-  opacity: 0.85;
+  background-image:
+    var(--mesh-gradient),
+    radial-gradient(circle, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+  /* 4 orb layers (auto = full viewport) + 1 dot-grid layer (tiled at 28px) */
+  background-size: auto, auto, auto, auto, 28px 28px;
   pointer-events: none;
 }
 
@@ -243,14 +237,13 @@ body::after {
   }
 }
 
-/* Noise Texture Overlay */
+/* Layer 2: Film grain — adds grit without competing with content */
 body::after {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -1;
-  opacity: 0.03;
-  /* Slightly more noise for grit */
+  opacity: 0.04;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
   pointer-events: none;
 }
