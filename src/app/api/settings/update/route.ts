@@ -34,12 +34,18 @@ export const POST = secureApiRoute(
             return apiError('Failed to update settings', 500);
         }
 
-        // 4. If schedule-affecting fields changed, flag for rescheduling
+        // 4. If schedule-affecting fields changed, flag for rescheduling and sync critical fields
         if (affectsSchedule) {
             try {
+                const profileUpdate: any = { needs_rescheduling: true };
+                
+                // Sync wake/sleep times back to profiles table as a robust safety net
+                if (patch.wake_time) profileUpdate.sleep_end = patch.wake_time;
+                if (patch.sleep_start) profileUpdate.sleep_start = patch.sleep_start;
+
                 await supabase
                     .from('profiles')
-                    .update({ needs_rescheduling: true })
+                    .update(profileUpdate)
                     .eq('id', userId);
                 console.log(`[Settings] Flagged needs_rescheduling for user ${userId}`);
             } catch (flagError) {

@@ -81,18 +81,46 @@ export async function generateWeekPlan(
 ): Promise<WeekPlanVariant[]> {
     const windDown = calculateWindDown(context);
     const wakeMins = timeToMinutes(context.user.sleep_end || '07:00');
-    const windDownMins = timeToMinutes(windDown);
+    let windDownMins = timeToMinutes(windDown);
+    
+    // If the wind-down time is mathematically smaller than the wake time (e.g. 00:30 AM < 08:00 AM),
+    // it means they sleep after midnight. The available scheduling time for the current calendar day
+    // should just extend to the very end of the day (23:59).
+    if (windDownMins < wakeMins) {
+        windDownMins = 1439; 
+    }
 
     // 1. Build Base Bio Blocks
     const bioTemplates = [];
     const mealsPerDay = context.user.meals_per_day || 3;
     const mealWindows = context.user.meal_windows || {};
     
-    bioTemplates.push({ title: 'Sleep', block_type: 'sleep', start: '00:00', end: context.user.sleep_end || '07:00' });
-    bioTemplates.push({ title: 'Sleep', block_type: 'sleep', start: context.user.sleep_start || '22:30', end: '23:59' });
+    const sleepStart = context.user.sleep_start || '23:00';
+    const sleepEnd = context.user.sleep_end || '07:00';
+
+    if (timeToMinutes(sleepStart) < timeToMinutes(sleepEnd)) {
+        // Sleep happens entirely within the same calendar day (e.g., 01:00 to 08:00 or 00:00 to 08:00)
+        bioTemplates.push({ title: 'Sleep', block_type: 'sleep', start: sleepStart, end: sleepEnd });
+    } else {
+        // Sleep crosses midnight (e.g., 23:00 to 07:00)
+        bioTemplates.push({ title: 'Sleep', block_type: 'sleep', start: '00:00', end: sleepEnd });
+        if (timeToMinutes(sleepStart) < 1439) { // 1439 is 23:59
+            bioTemplates.push({ title: 'Sleep', block_type: 'sleep', start: sleepStart, end: '23:59' });
+        }
+    }
 
     if (mealsPerDay >= 1) {
-        const start = (mealWindows as any)?.breakfast?.start || '08:00';
+        let start = '08:00';
+        if (typeof (mealWindows as any)?.breakfast === 'string') {
+            start = (mealWindows as any).breakfast;
+        } else if ((mealWindows as any)?.breakfast?.start) {
+            start = (mealWindows as any).breakfast.start;
+        }
+        // Ensure breakfast doesn't overlap with sleep
+        const wakeTime = context.user.sleep_end || '07:00';
+        if (timeToMinutes(start) < timeToMinutes(wakeTime)) {
+            start = wakeTime;
+        }
         bioTemplates.push({ title: 'Breakfast', block_type: 'meal', start, end: safeAddMins(start, 30) });
     }
     if (mealsPerDay >= 2) {

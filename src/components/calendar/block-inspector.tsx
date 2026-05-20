@@ -354,7 +354,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                                     : "bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 active:scale-95"
                             )}
                         >
-                            <SkipForward className="w-4 h-4" /> Skip
+                            <X className="w-4 h-4" /> Incomplete
                         </button>
                     </div>
                 )}

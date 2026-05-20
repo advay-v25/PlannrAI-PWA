@@ -140,54 +140,59 @@ export const GET = secureApiRoute(
                 let sleepMins = timeToMinutes(sleepTime);
                 if (sleepMins < wakeMins) sleepMins += 24 * 60;
 
-                if (currentMins >= sleepMins || currentMins < wakeMins) {
-                    currentState = currentMins >= sleepMins ? 'DAY_COMPLETE' : 'MORNING_ROUTINE';
-                }
-                else if (currentMins >= wakeMins && currentMins < timeToMinutes(firstBlock.start_time)) {
-                    currentState = 'MORNING_ROUTINE';
-                    nextBlock = firstBlock;
-                    timeUntilNextBlock = timeToMinutes(firstBlock.start_time) - currentMins;
-                }
-                else if (currentMins > timeToMinutes(lastBlock.end_time)) {
-                    currentState = 'DAY_COMPLETE';
-                }
-                else {
-                    let foundState = false;
-                    for (let i = 0; i < blocks.length; i++) {
-                        const block = blocks[i];
-                        const startMins = timeToMinutes(block.start_time);
-                        const endMins = timeToMinutes(block.end_time);
+                // PRIORITY 1: Check if we are inside or between any scheduled blocks.
+                // This takes precedence over generic sleep/wake boundaries so that
+                // blocks like "Work 09:00–19:00" always win over a misconfigured sleep_start.
+                let foundState = false;
+                for (let i = 0; i < blocks.length; i++) {
+                    const block = blocks[i];
+                    const startMins = timeToMinutes(block.start_time);
+                    const endMins = timeToMinutes(block.end_time);
 
-                        if (currentMins >= startMins && currentMins < endMins) {
-                            currentState = 'IN_BLOCK';
-                            activeBlock = block;
-                            timeRemainingInBlock = endMins - currentMins;
-                            if (i + 1 < blocks.length) nextBlock = blocks[i + 1];
+                    if (currentMins >= startMins && currentMins < endMins) {
+                        currentState = 'IN_BLOCK';
+                        activeBlock = block;
+                        timeRemainingInBlock = endMins - currentMins;
+                        if (i + 1 < blocks.length) nextBlock = blocks[i + 1];
+                        foundState = true;
+                        break;
+                    }
+                    else if (currentMins >= endMins && i + 1 < blocks.length) {
+                        const nextStartMins = timeToMinutes(blocks[i + 1].start_time);
+                        if (currentMins < nextStartMins) {
+                            currentState = 'BETWEEN_BLOCKS';
+                            nextBlock = blocks[i + 1];
+                            timeUntilNextBlock = nextStartMins - currentMins;
                             foundState = true;
                             break;
                         }
-                        else if (currentMins >= endMins && i + 1 < blocks.length) {
-                            const nextStartMins = timeToMinutes(blocks[i + 1].start_time);
-                            if (currentMins < nextStartMins) {
-                                currentState = 'BETWEEN_BLOCKS';
-                                nextBlock = blocks[i + 1];
-                                timeUntilNextBlock = nextStartMins - currentMins;
-                                foundState = true;
-                                break;
-                            }
-                        }
                     }
-                    if (!foundState && currentMins >= timeToMinutes(lastBlock.end_time)) {
+                }
+
+                // PRIORITY 2: Fall back to sleep/wake/morning/day-complete boundaries
+                if (!foundState) {
+                    if (currentMins >= sleepMins || currentMins < wakeMins) {
+                        currentState = currentMins >= sleepMins ? 'DAY_COMPLETE' : 'MORNING_ROUTINE';
+                        if (currentState === 'DAY_COMPLETE') activeBlock = lastBlock;
+                    }
+                    else if (currentMins >= wakeMins && currentMins < timeToMinutes(firstBlock.start_time)) {
+                        currentState = 'MORNING_ROUTINE';
+                        nextBlock = firstBlock;
+                        timeUntilNextBlock = timeToMinutes(firstBlock.start_time) - currentMins;
+                    }
+                    else if (currentMins >= timeToMinutes(lastBlock.end_time)) {
                         currentState = 'DAY_COMPLETE';
+                        activeBlock = lastBlock;
                     }
                 }
 
                 // Check for BEHIND_SCHEDULE: if blocks with end_time < currentTime are still 'planned'
+                // Never override IN_BLOCK — the active block always takes priority.
                 const missedBlocks = blocks.filter((b: any) => {
                     const endMins = timeToMinutes(b.end_time);
                     return endMins < currentMins && b.status === 'planned';
                 });
-                if (missedBlocks.length >= 2 && currentState !== 'DAY_COMPLETE') {
+                if (missedBlocks.length >= 2 && currentState !== 'DAY_COMPLETE' && currentState !== 'IN_BLOCK') {
                     currentState = 'BEHIND_SCHEDULE';
                 }
             }

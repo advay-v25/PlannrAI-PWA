@@ -17,13 +17,13 @@ const StatusTransitionSchema = z.object({
     notes: z.string().max(500).optional(),
 });
 
-// Valid transitions — prevents going backwards
+// Valid transitions — prevents going backwards, but allows manual corrections
 const VALID_TRANSITIONS: Record<string, string[]> = {
     planned: ['in_progress', 'done', 'cancelled', 'missed'],
     in_progress: ['done', 'partial', 'missed', 'cancelled'],
-    done: [], // terminal state
-    missed: ['planned'],  // allow retry
-    cancelled: ['planned'], // allow retry
+    done: ['missed'],  // allow manual correction (user tapped wrong button)
+    missed: ['planned', 'done'],  // allow retry or manual correction
+    cancelled: ['planned', 'done'], // allow retry or manual correction
     partial: ['in_progress', 'done', 'missed'],
 };
 
@@ -52,8 +52,17 @@ export const POST = secureApiRoute(
             return apiError('Block not found', 404);
         }
 
-        // 2. Validate transition
+        // 2. Idempotency: if already in the requested status, return success immediately
         const currentStatus = block.status || 'planned';
+        if (currentStatus === status) {
+            return apiSuccess({
+                success: true,
+                block,
+                transition: { from: currentStatus, to: status, idempotent: true },
+            });
+        }
+
+        // 3. Validate transition
         const allowed = VALID_TRANSITIONS[currentStatus] || [];
 
         if (!allowed.includes(status)) {
