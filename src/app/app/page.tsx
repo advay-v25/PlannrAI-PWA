@@ -389,7 +389,7 @@ export default function HomePage() {
                         <div>
                             <h4 className="text-emerald-500 font-bold text-sm">Weekly Review Notes</h4>
                             <p className="text-emerald-500/70 text-xs mt-1 italic max-w-lg">
-                                "{manualFeedback}"
+                            &ldquo;{manualFeedback}&rdquo;
                             </p>
                         </div>
                     </div>
