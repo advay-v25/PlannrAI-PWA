@@ -18,7 +18,6 @@ import { GoalCard } from '@/components/goals/goal-card';
 import { GoalStrategyWizard } from '@/components/goals/goal-strategy-wizard';
 import { AddGoalModal } from '@/components/goals/add-goal-modal';
 import type { Goal } from '@/types/database';
-import { PageBackground } from '@/components/ui/PageBackground';
 
 export default function GoalsPage() {
     const { goals, capacity, updateGoal, deleteGoal, fetchGoals } = useGoalsManager();
@@ -46,7 +45,34 @@ export default function GoalsPage() {
 
     return (
         <div className="pb-24 space-y-8">
-            <PageBackground color="pink" />
+            {/* Flowing gradient background — sweeping diagonal, no motion */}
+            <div aria-hidden style={{ position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none', overflow: 'hidden' }}>
+              {/* Main pink diagonal sweep — top-right */}
+              <div style={{
+                position: 'absolute', right: '-8%', top: '-18%',
+                width: '72vw', height: '85vh',
+                background: 'radial-gradient(ellipse 55% 50% at 62% 28%, hsla(346, 86%, 62%, 0.22) 0%, hsla(350, 90%, 46%, 0.14) 40%, transparent 68%)',
+                filter: 'blur(55px)',
+                borderRadius: '58% 42% 52% 48% / 46% 56% 44% 54%',
+              }} />
+              {/* Purple secondary — bottom-left counterpoint */}
+              <div style={{
+                position: 'absolute', left: '-10%', bottom: '5%',
+                width: '45vw', height: '50vh',
+                background: 'radial-gradient(ellipse at 28% 75%, hsla(270, 82%, 60%, 0.14) 0%, transparent 65%)',
+                filter: 'blur(60px)',
+              }} />
+              {/* Diagonal accent band */}
+              <div style={{
+                position: 'absolute', top: '-5%', left: '-10%', right: '-10%', height: '40vh',
+                background: 'linear-gradient(135deg, hsla(346, 86%, 62%, 0.06) 0%, transparent 50%, hsla(270, 82%, 60%, 0.04) 100%)',
+              }} />
+              {/* Top shimmer line */}
+              <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0, height: '1px',
+                background: 'linear-gradient(to right, transparent, hsla(346, 86%, 62%, 0.55) 40%, hsla(270, 82%, 65%, 0.42) 65%, transparent)',
+              }} />
+            </div>
             {/* 1. Header & Quick Actions */}
             <header className="flex items-center justify-between">
                 <div>

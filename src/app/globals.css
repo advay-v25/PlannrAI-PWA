@@ -664,3 +664,41 @@ body::after {
     transform: translateX(100%);
   }
 }
+
+/* ── PageBackground animation keyframes ───────────────────── */
+@keyframes pb-drift-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(2%, -1.5%) scale(1.04); }
+  66%       { transform: translate(-1%, 1.5%) scale(0.97); }
+}
+@keyframes pb-drift-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  40%       { transform: translate(-2.5%, 1%) scale(1.05); }
+  75%       { transform: translate(1.5%, -1%) scale(0.96); }
+}
+@keyframes pb-drift-3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%       { transform: translate(1%, 2%) scale(1.03); }
+}
+@keyframes pb-blob-float {
+  0%, 100% { transform: rotate(-18deg) translateY(0); }
+  50%       { transform: rotate(-14deg) translateY(-2.5%); }
+}
+@keyframes pb-arc-breathe {
+  0%, 100% { transform: scaleX(1) translateY(0); opacity: 0.85; }
+  50%       { transform: scaleX(1.03) translateY(-1.5%); opacity: 1; }
+}
+
+/* ── Page entry animations ─────────────────────────────────── */
+@keyframes pb-entry-rise {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-entry-rise {
+  animation: pb-entry-rise 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-entry-delay-1 { animation-delay: 0.08s; }
+.animate-entry-delay-2 { animation-delay: 0.18s; }
+.animate-entry-delay-3 { animation-delay: 0.30s; }
+.animate-entry-delay-4 { animation-delay: 0.44s; }

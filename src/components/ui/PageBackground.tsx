@@ -71,6 +71,7 @@ function BlobBackground({ color, m }: { color: PageBgColor; m: number }) {
         borderRadius: '52% 61% 48% 56% / 46% 54% 68% 47%',
         transform:    'rotate(-18deg)',
         filter:       'blur(52px)',
+        animation:    'pb-blob-float 16s ease-in-out infinite',
       }} />
 
       {/* Specular highlight — directional light on the peak */}
@@ -140,33 +141,35 @@ function AuroraBackground({ m }: { m: number }) {
         position: 'absolute',
         left:  '-5%',
         top:   '-20%',
-        width:  '55vw',
-        height: '70vh',
+        width:  '60vw',
+        height: '75vh',
         background: `
           radial-gradient(
             ellipse 70% 55% at 25% 28%,
-            hsla(16, 100%, 58%, ${0.18 * m})   0%,
-            hsla(16, 100%, 40%, ${0.10 * m})  45%,
+            hsla(16, 100%, 58%, ${0.22 * m})   0%,
+            hsla(16, 100%, 40%, ${0.12 * m})  45%,
             transparent 72%
           )`,
-        filter: 'blur(55px)',
+        filter: 'blur(50px)',
+        animation: 'pb-drift-1 22s ease-in-out infinite',
       }} />
 
       {/* Purple sweep — centre, slightly lower */}
       <div style={{
         position: 'absolute',
-        left:  '30%',
+        left:  '28%',
         top:   '-18%',
-        width:  '50vw',
-        height: '65vh',
+        width:  '52vw',
+        height: '68vh',
         background: `
           radial-gradient(
             ellipse 65% 50% at 50% 30%,
-            hsla(270, 85%, 62%, ${0.16 * m})   0%,
-            hsla(270, 85%, 40%, ${0.08 * m})  48%,
+            hsla(270, 85%, 62%, ${0.20 * m})   0%,
+            hsla(270, 85%, 40%, ${0.10 * m})  48%,
             transparent 72%
           )`,
-        filter: 'blur(60px)',
+        filter: 'blur(56px)',
+        animation: 'pb-drift-2 28s ease-in-out infinite',
       }} />
 
       {/* Teal sweep — right side */}
@@ -174,16 +177,17 @@ function AuroraBackground({ m }: { m: number }) {
         position: 'absolute',
         right: '-8%',
         top:   '-16%',
-        width:  '48vw',
-        height: '60vh',
+        width:  '50vw',
+        height: '62vh',
         background: `
           radial-gradient(
             ellipse 62% 48% at 65% 26%,
-            hsla(158, 80%, 48%, ${0.14 * m})   0%,
-            hsla(158, 80%, 28%, ${0.07 * m})  50%,
+            hsla(158, 80%, 48%, ${0.18 * m})   0%,
+            hsla(158, 80%, 28%, ${0.09 * m})  50%,
             transparent 74%
           )`,
-        filter: 'blur(58px)',
+        filter: 'blur(54px)',
+        animation: 'pb-drift-3 18s ease-in-out infinite',
       }} />
 
       {/* Thin shimmer line at very top — the "aurora edge" */}
@@ -192,16 +196,16 @@ function AuroraBackground({ m }: { m: number }) {
         top:         0,
         left:        0,
         right:       0,
-        height:     '2px',
+        height:     '1.5px',
         background: `linear-gradient(
           to right,
           transparent                          0%,
-          hsla(16,  100%, 65%, ${0.45 * m})  20%,
-          hsla(270, 85%,  68%, ${0.45 * m})  50%,
-          hsla(158, 80%,  55%, ${0.40 * m})  80%,
+          hsla(16,  100%, 65%, ${0.55 * m})  20%,
+          hsla(270, 85%,  68%, ${0.55 * m})  50%,
+          hsla(158, 80%,  55%, ${0.50 * m})  80%,
           transparent                          100%
         )`,
-        filter: 'blur(1px)',
+        filter: 'blur(0.5px)',
       }} />
 
       {/* Hard fade-to-dark mask — keeps lower content clean */}
@@ -214,8 +218,8 @@ function AuroraBackground({ m }: { m: number }) {
         background: `linear-gradient(
           to bottom,
           transparent  0%,
-          transparent  30%,
-          var(--color-bg-primary) 68%
+          transparent  28%,
+          var(--color-bg-primary) 65%
         )`,
       }} />
     </>

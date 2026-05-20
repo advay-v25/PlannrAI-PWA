@@ -3,7 +3,6 @@
 import { ActionCenter } from '@/components/todos/ActionCenter';
 import { useTodos } from '@/hooks/use-todos';
 import { motion } from 'framer-motion';
-import { PageBackground } from '@/components/ui/PageBackground';
 
 function AllTimeProgress() {
     const { todos, isLoading } = useTodos();
@@ -51,12 +50,40 @@ function AllTimeProgress() {
 export default function TasksPage() {
     return (
         <div className="flex flex-col h-[calc(100vh-8rem)]">
-            <PageBackground color="orange" />
-            <header className="mb-6">
-                <h1 className="text-3xl font-bold tracking-tight text-white">Tasks</h1>
-                <p className="text-[var(--text-secondary)] mt-1">
-                    Keep Track of your Tasks and Deadlines Using a Customisable Board.
-                </p>
+            {/* Background accents sit outside the card — visible in header + margins */}
+            <div aria-hidden style={{ position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none', overflow: 'hidden' }}>
+              {/* Orange glow — top-right, stays above the card */}
+              <div style={{
+                position: 'absolute', top: '-8%', right: '-8%',
+                width: '48vw', height: '55vh',
+                background: 'radial-gradient(ellipse 62% 52% at 72% 22%, hsla(22, 100%, 60%, 0.22) 0%, hsla(14, 100%, 44%, 0.12) 42%, transparent 68%)',
+                filter: 'blur(55px)',
+              }} />
+              {/* Warm secondary — bottom-left corner */}
+              <div style={{
+                position: 'absolute', bottom: '10%', left: '-10%',
+                width: '35vw', height: '40vh',
+                background: 'radial-gradient(ellipse at 28% 75%, hsla(22, 100%, 55%, 0.10) 0%, transparent 65%)',
+                filter: 'blur(50px)',
+              }} />
+              {/* Top accent line */}
+              <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0, height: '1px',
+                background: 'linear-gradient(to right, transparent, hsla(22, 100%, 60%, 0.55) 35%, hsla(14, 100%, 55%, 0.40) 60%, transparent)',
+              }} />
+            </div>
+
+            <header className="mb-6 relative">
+              {/* Orange underline accent on title */}
+              <div style={{
+                position: 'absolute', bottom: '-10px', left: 0,
+                width: '80px', height: '1px',
+                background: 'linear-gradient(to right, hsla(22, 100%, 60%, 0.7), transparent)',
+              }} />
+              <h1 className="text-3xl font-bold tracking-tight text-white">Tasks</h1>
+              <p className="text-[var(--text-secondary)] mt-1">
+                  Keep Track of your Tasks and Deadlines Using a Customisable Board.
+              </p>
             </header>
 
             <div className="flex-1 flex gap-3 min-h-0">

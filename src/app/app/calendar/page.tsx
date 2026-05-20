@@ -109,6 +109,50 @@ function DailyGoalRing({ pct }: { pct: number }) {
     );
 }
 
+// ── Weekly Progress Sidebar ──────────────────────────────────────
+function WeeklyProgressBar({ blocks, weekStart }: { blocks: any[]; weekStart: Date }) {
+    const weekStats = useMemo(() => {
+        const weekEnd = addDays(weekStart, 6);
+        const ws = format(weekStart, 'yyyy-MM-dd');
+        const we = format(weekEnd, 'yyyy-MM-dd');
+        const wb = blocks.filter(b =>
+            b.date >= ws && b.date <= we &&
+            b.block_type !== 'sleep' && b.block_type !== 'meal'
+        );
+        if (wb.length === 0) return { pct: 0, done: 0, total: 0 };
+        const done = wb.filter(b => b.status === 'done').length;
+        return { pct: Math.round((done / wb.length) * 100), done, total: wb.length };
+    }, [blocks, weekStart]);
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="hidden lg:flex flex-col items-center gap-3 w-11 shrink-0 border-r border-white/[0.04] py-8"
+        >
+            <span
+                className="text-[9px] font-bold text-white/30 uppercase tracking-widest"
+                style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
+            >
+                Week
+            </span>
+            <div className="flex-1 w-1.5 bg-white/[0.04] rounded-full overflow-hidden relative min-h-[100px]">
+                <motion.div
+                    initial={{ height: 0 }}
+                    animate={{ height: `${weekStats.pct}%` }}
+                    transition={{ duration: 1.2, ease: 'easeOut', delay: 0.3 }}
+                    className="absolute bottom-0 left-0 right-0 rounded-full"
+                    style={{ background: 'linear-gradient(to top, hsla(158, 76%, 50%, 1), hsla(158, 76%, 50%, 0.35))' }}
+                />
+            </div>
+            <div className="flex flex-col items-center gap-0.5">
+                <span className="text-xs font-bold text-white/70">{weekStats.pct}%</span>
+                <span className="text-[8px] text-white/25 font-medium">{weekStats.done}/{weekStats.total}</span>
+            </div>
+        </motion.div>
+    );
+}
+
 // ── Task Category Summary ────────────────────────────────────────
 function TaskCategories({ blocks }: { blocks: any[] }) {
     const categories = useMemo(() => {
@@ -484,6 +528,9 @@ function CalendarPageInner() {
 
             {/* ── Main Content ──────────────────────────────────── */}
             <div className="flex flex-1 overflow-hidden">
+
+                {/* Weekly progress bar — left of grid */}
+                <WeeklyProgressBar blocks={blocks} weekStart={weekStart} />
 
                 {/* Grid Area */}
                 <main className="flex-1 overflow-hidden relative">
