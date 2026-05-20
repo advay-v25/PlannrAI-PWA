@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import { useRef, useEffect } from 'react';
@@ -7,8 +6,8 @@ import { Check, X, Clock, Sparkles, ChevronRight } from 'lucide-react';
 import type { ScheduleBlock, Goal } from '@/types/database';
 
 interface TimelineStripProps {
-    blocks: ScheduleBlock[];
-    onBlockClick?: (block: ScheduleBlock) => void;
+    blocks: (ScheduleBlock & { goal?: Goal | null })[];
+    onBlockClick?: (block: ScheduleBlock & { goal?: Goal | null }) => void;
 }
 
 export function TimelineStrip({ blocks, onBlockClick }: TimelineStripProps) {
@@ -71,7 +70,7 @@ export function TimelineStrip({ blocks, onBlockClick }: TimelineStripProps) {
                     const isCurrent = index === currentIndex;
                     const isNext = index === nextIndex;
                     const isActive = isCurrent || isNext;
-                    const goal = block.goal as Goal | undefined;
+                    const goal = block.goal;
 
                     // Neural Category Colors
                     const accentColor =

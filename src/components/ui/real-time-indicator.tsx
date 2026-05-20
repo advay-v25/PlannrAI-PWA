@@ -55,13 +55,13 @@ export function RealTimeIndicator({ className, showCountdown = true }: RealTimeI
   return (
     <div className={cn(
       "fixed top-20 right-6 z-50 glass-card p-2 transition-all",
-      showIndicator ? "opacity-100 translate-y-0" : "opacity-100 translate-y-0",
+      (showIndicator || showCountdown) ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2",
       className
     )}>
       <div className="flex items-center gap-2">
         <div className={cn(
           "w-2 h-2 rounded-full",
-          showIndicator ? "bg-[var(--color-success)] animate-pulse" : "bg-[var(--color-primary)]"
+          showIndicator ? "bg-[var(--color-success)] animate-pulse" : "bg-[var(--color-primary)] animate-scifi-blink"
         )} />
         <span className="text-xs text-[var(--text-secondary)]">
           {showIndicator 

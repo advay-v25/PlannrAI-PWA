@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldAlert, Check, X, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { LiquidGlassButton } from '@/components/ui/liquid-glass-button';
 import type { ConflictError } from '@/hooks/use-calendar';
 import type { Patch } from '@/lib/ai/schemas';
 
@@ -28,7 +29,7 @@ export function ConflictModal({ error, onClose, onConfirmOption }: ConflictModal
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xl p-4"
                 onClick={onClose}
             >
                 <motion.div
@@ -36,7 +37,7 @@ export function ConflictModal({ error, onClose, onConfirmOption }: ConflictModal
                     animate={{ scale: 1, opacity: 1, y: 0 }}
                     exit={{ scale: 0.95, opacity: 0, y: 20 }}
                     onClick={(e) => e.stopPropagation()}
-                    className="w-full max-w-lg bg-[#111] border border-red-500/20 rounded-2xl shadow-2xl overflow-hidden"
+                    className="w-full max-w-lg glass-panel-elevated rounded-2xl shadow-2xl overflow-hidden"
                 >
                     {/* Header */}
                     <div className="bg-red-500/10 p-5 flex items-start gap-4 border-b border-red-500/20">
@@ -64,7 +65,7 @@ export function ConflictModal({ error, onClose, onConfirmOption }: ConflictModal
                                 <button
                                     key={i}
                                     onClick={() => onConfirmOption(opt)}
-                                    className="w-full text-left p-4 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/10 transition-all group"
+                                    className="w-full text-left p-4 rounded-xl glass-panel hover:bg-white/[0.08] hover:border-white/[0.15] transition-all duration-300 hover:scale-[1.02] group"
                                 >
                                     <div className="flex items-center justify-between mb-2">
                                         <div className="font-bold text-white text-sm">
@@ -86,14 +87,15 @@ export function ConflictModal({ error, onClose, onConfirmOption }: ConflictModal
                                 </button>
                             ))
                         ) : (
-                            <div className="p-4 text-center">
+                            <div className="p-4 text-center flex flex-col items-center">
                                 <p className="text-sm text-white/40 mb-4">No automatic resolution available.</p>
-                                <button
+                                <LiquidGlassButton
                                     onClick={onClose}
-                                    className="px-6 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-medium text-sm transition-colors"
+                                    variant="ghost"
+                                    size="md"
                                 >
                                     Cancel Changes
-                                </button>
+                                </LiquidGlassButton>
                             </div>
                         )}
                     </div>

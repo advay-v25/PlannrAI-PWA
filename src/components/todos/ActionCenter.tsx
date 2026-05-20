@@ -134,6 +134,7 @@ export function ActionCenter() {
     const [description, setDescription] = useState('');
     const [dueDate, setDueDate] = useState('');
     const [selectedColor, setSelectedColor] = useState('none');
+    const [pendingColor, setPendingColor] = useState<string | null>(null);
 
     // Edit State
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -175,7 +176,7 @@ export function ActionCenter() {
         e.preventDefault();
         if (!title.trim()) return;
         await addTodo(title, description || undefined, dueDate || undefined, 'medium');
-        (window as any).__pendingTaskColor = selectedColor;
+        setPendingColor(selectedColor);
         setTitle('');
         setDescription('');
         setDueDate('');
@@ -184,16 +185,15 @@ export function ActionCenter() {
     };
 
     useEffect(() => {
-        const pending = (window as any).__pendingTaskColor;
-        if (pending && pending !== 'none' && todos.length > 0) {
+        if (pendingColor && pendingColor !== 'none' && todos.length > 0) {
             const newest = todos[todos.length - 1];
             if (newest && getTaskColor(newest.id) === 'none') {
-                setTaskColor(newest.id, pending);
+                setTaskColor(newest.id, pendingColor);
                 setColorRevision(r => r + 1);
             }
-            (window as any).__pendingTaskColor = null;
+            setPendingColor(null);
         }
-    }, [todos]);
+    }, [todos, pendingColor]);
 
     const startEdit = useCallback((todo: TodoItem) => {
         setEditingId(todo.id);
@@ -322,7 +322,7 @@ export function ActionCenter() {
                         animate={{ opacity: 1, height: 'auto', y: 0 }}
                         exit={{ opacity: 0, height: 0, y: -20, overflow: 'hidden' }}
                         onSubmit={handleAddTask}
-                        className="bg-[#1c1c1e] border border-orange-500/30 rounded-2xl p-4 flex flex-col gap-3 shadow-xl relative z-10"
+                        className="bg-white/5 backdrop-blur-xl border border-orange-500/30 rounded-2xl p-4 flex flex-col gap-3 shadow-xl relative z-10"
                     >
                         <input
                             autoFocus
@@ -387,7 +387,7 @@ export function ActionCenter() {
                                 key={todo.id}
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                className="bg-[#1c1c1e] border border-blue-500/30 rounded-2xl p-4 flex flex-col gap-3 shadow-xl shadow-blue-500/5"
+                                className="bg-white/5 backdrop-blur-xl border border-blue-500/30 rounded-2xl p-4 flex flex-col gap-3 shadow-xl shadow-blue-500/5"
                             >
                                 <div className="flex items-center gap-2 mb-1">
                                     <Pencil className="w-3.5 h-3.5 text-blue-400" />
@@ -462,8 +462,8 @@ export function ActionCenter() {
                             onDrop={(e) => handleDrop(e, index)}
                             onDragEnd={() => setDraggedIndex(null)}
                             className={cn(
-                                "group relative bg-[#1c1c1e] border border-white/5 rounded-[1.5rem] flex flex-col shadow-lg transition-all cursor-grab active:cursor-grabbing overflow-hidden",
-                                isDragging ? "opacity-30 scale-95" : "hover:border-white/10 hover:-translate-y-0.5 hover:shadow-xl",
+                                "group relative bg-white/5 backdrop-blur-xl border border-white/10 rounded-[1.5rem] flex flex-col shadow-lg transition-all cursor-grab active:cursor-grabbing overflow-hidden",
+                                isDragging ? "opacity-30 scale-95" : "hover:border-white/20 hover:-translate-y-0.5 hover:shadow-xl",
                                 todo.is_completed && "opacity-50 grayscale",
                                 isOverdue && "border-red-500/20"
                             )}

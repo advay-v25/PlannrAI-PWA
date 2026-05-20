@@ -108,12 +108,15 @@ export function CoachMessageBubble({ message }: CoachMessageBubbleProps) {
     return (
         <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} animate-fade-in`}>
             <div
-                className={`max-w-[85%] px-4 py-3 rounded-2xl shadow-sm ${isUser
-                        ? 'bg-primary text-white ml-12 rounded-tr-none'
-                        : 'glass border-l-2 border-l-primary/50 text-foreground mr-12 rounded-tl-none'
+                className={`max-w-[85%] px-5 py-4 rounded-3xl shadow-sm relative overflow-hidden group ${isUser
+                        ? 'bg-gradient-to-tr from-purple-600/90 to-orange-500/90 backdrop-blur-md border border-white/20 text-white ml-12 rounded-tr-sm shadow-[0_8px_32px_rgba(249,115,22,0.25)]'
+                        : 'bg-black/60 backdrop-blur-xl border border-white/10 border-l-2 border-l-purple-500 shadow-[0_8px_32px_rgba(168,85,247,0.15)] text-foreground mr-12 rounded-tl-sm'
                     }`}
             >
-                <div className="flex flex-col space-y-1">
+                {/* Subtle inner reflection */}
+                <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent opacity-50 pointer-events-none" />
+                
+                <div className="flex flex-col space-y-1 relative z-10">
                     {!isUser && (
                         <span className="text-[10px] font-bold uppercase tracking-widest text-primary/80 mb-1">
                             Donna · Strategic Lead

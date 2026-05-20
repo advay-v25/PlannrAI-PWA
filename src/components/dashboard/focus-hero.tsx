@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -11,7 +10,7 @@ import { differenceInMinutes, format } from 'date-fns';
 import Link from 'next/link';
 
 interface FocusHeroProps {
-    blocks: ScheduleBlock[];
+    blocks: (ScheduleBlock & { goal?: Goal | null })[];
     onCompleteBlock: (id: string) => void;
 }
 
@@ -86,20 +85,20 @@ export function FocusHero({ blocks, onCompleteBlock }: FocusHeroProps) {
 
                         <div>
                             <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-2">
-                                {(currentBlock.goal as Goal)?.title || currentBlock.context}
+                                {currentBlock.goal?.title || currentBlock.context}
                             </h2>
                             {/* AI Strategy Integration */}
-                            {(currentBlock.goal as Goal)?.ai_strategy?.routine?.steps?.[0] ? (
+                            {(currentBlock.goal?.ai_strategy as any)?.routine?.steps?.[0] ? (
                                 <div className="flex items-start gap-3 p-3 bg-white/5 rounded-xl border border-white/10 mt-4">
                                     <Sparkles className="w-5 h-5 text-[var(--color-primary)] flex-shrink-0 mt-0.5" />
                                     <div>
                                         <p className="text-xs text-[var(--color-primary)] font-bold uppercase mb-1">Expert Step</p>
-                                        <p className="text-sm">{(currentBlock.goal as Goal).ai_strategy.routine.steps[0]}</p>
+                                        <p className="text-sm">{(currentBlock.goal?.ai_strategy as any).routine.steps[0]}</p>
                                     </div>
                                 </div>
                             ) : (
                                 <p className="text-[var(--text-secondary)]">
-                                    {(currentBlock.goal as Goal)?.category ? `Focus on your ${(currentBlock.goal as Goal).category} pillar.` : 'Stay focused on the task at hand.'}
+                                    {currentBlock.goal?.category ? `Focus on your ${currentBlock.goal.category} pillar.` : 'Stay focused on the task at hand.'}
                                 </p>
                             )}
                         </div>
@@ -132,7 +131,7 @@ export function FocusHero({ blocks, onCompleteBlock }: FocusHeroProps) {
                                 You have a gap.
                             </h2>
                             <p className="text-[var(--text-secondary)]">
-                                Your next block <span className="text-white font-medium">"{nextBlock.context || (nextBlock.goal as Goal)?.title}"</span> starts at {nextBlock.start_time.slice(0, 5)}.
+                                Your next block <span className="text-white font-medium">"{nextBlock.context || nextBlock.goal?.title}"</span> starts at {nextBlock.start_time.slice(0, 5)}.
                             </p>
                         </div>
 

@@ -37,13 +37,34 @@ export const POST = secureApiRoute(
         // 4. If schedule-affecting fields changed, flag for rescheduling
         if (affectsSchedule) {
             try {
+                // Instantly update future sleep blocks so the calendar reflects it immediately
+                const today = new Date().toISOString().split('T')[0];
+                if (patch.wake_time) {
+                    await supabase
+                        .from('schedule_blocks')
+                        .update({ end_time: patch.wake_time })
+                        .eq('user_id', userId)
+                        .eq('block_type', 'sleep')
+                        .eq('start_time', '00:00')
+                        .gte('date', today);
+                }
+                if (patch.sleep_start) {
+                    await supabase
+                        .from('schedule_blocks')
+                        .update({ start_time: patch.sleep_start })
+                        .eq('user_id', userId)
+                        .eq('block_type', 'sleep')
+                        .eq('end_time', '23:59')
+                        .gte('date', today);
+                }
+
                 await supabase
                     .from('profiles')
                     .update({ needs_rescheduling: true })
                     .eq('id', userId);
                 console.log(`[Settings] Flagged needs_rescheduling for user ${userId}`);
             } catch (flagError) {
-                console.warn('[Settings] Failed to flag rescheduling:', flagError);
+                console.warn('[Settings] Failed to update sleep blocks or flag rescheduling:', flagError);
             }
         }
 

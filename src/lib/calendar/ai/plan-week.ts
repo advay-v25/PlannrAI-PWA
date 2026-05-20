@@ -284,9 +284,17 @@ function generateVariant(
             const dayExclusions = exclusions.get(isoDay)!;
             const dateStr = format(addDays(parseISO(weekStart), isoDay - 1), 'yyyy-MM-dd');
 
-            // Check if there is already a block for this goal on this day (to avoid double-booking the same goal on same day)
-            const alreadyHasGoal = blocks.some(b => b.date === dateStr && b.goal_id === goal.id);
-            if (alreadyHasGoal) continue;
+            // Check if there is already a block for this goal on this day
+            // Modified: Allow multiple non-body blocks on the same day if the total weekly minutes is very high,
+            // but NEVER allow multiple body blocks on the same day to prevent physical over-taxing.
+            const blocksThisDayForGoal = blocks.filter(b => b.date === dateStr && b.goal_id === goal.id);
+            if (blocksThisDayForGoal.length > 0) {
+                if (goal.pillar === 'body') continue;
+                // Max 2 blocks per day for the same non-body goal
+                if (blocksThisDayForGoal.length >= 2) continue; 
+                // Only allow double booking if total weekly target is high (>120 mins)
+                if (goal.weekly_target_minutes <= 120) continue;
+            }
 
             // Find available windows
             dayExclusions.sort((a, b) => a.start - b.start);

@@ -52,10 +52,10 @@
 
   /* Atmospheric orb gradient — visible depth */
   --mesh-gradient:
-    radial-gradient(ellipse 80vw 60vh at -10% -5%, hsla(16, 100%, 60%, 0.15) 0%, transparent 60%),
-    radial-gradient(ellipse 60vw 50vh at 110% 8%,  hsla(270, 91%, 65%, 0.11) 0%, transparent 60%),
-    radial-gradient(ellipse 70vw 45vh at 50% 108%, hsla(160, 84%, 50%, 0.09) 0%, transparent 60%),
-    radial-gradient(ellipse 40vw 35vh at 92% 52%,  hsla(349, 89%, 60%, 0.07) 0%, transparent 55%);
+    radial-gradient(ellipse 80vw 60vh at -10% -5%, hsla(275, 100%, 25%, 0.3) 0%, transparent 60%),
+    radial-gradient(ellipse 60vw 50vh at 110% 8%,  hsla(320, 100%, 50%, 0.2) 0%, transparent 60%),
+    radial-gradient(ellipse 70vw 45vh at 50% 108%, hsla(260, 100%, 40%, 0.2) 0%, transparent 60%),
+    radial-gradient(ellipse 40vw 35vh at 92% 52%,  hsla(35, 100%, 50%, 0.15) 0%, transparent 55%);
 
   /* Status Colors */
   --color-success: #10B981;
@@ -689,6 +689,16 @@ body::after {
   50%       { transform: scaleX(1.03) translateY(-1.5%); opacity: 1; }
 }
 
+.animate-pb-drift-1 {
+  animation: pb-drift-1 18s ease-in-out infinite;
+}
+.animate-pb-drift-2 {
+  animation: pb-drift-2 22s ease-in-out infinite;
+}
+.animate-pb-drift-3 {
+  animation: pb-drift-3 26s ease-in-out infinite;
+}
+
 /* ── Page entry animations ─────────────────────────────────── */
 @keyframes pb-entry-rise {
   from { opacity: 0; transform: translateY(28px); }
@@ -702,3 +712,218 @@ body::after {
 .animate-entry-delay-2 { animation-delay: 0.18s; }
 .animate-entry-delay-3 { animation-delay: 0.30s; }
 .animate-entry-delay-4 { animation-delay: 0.44s; }
+
+/* ── Sci-fi tactical blinking and flickering indicators ────── */
+@keyframes scifi-blink {
+  0%, 100% {
+    opacity: 0.25;
+    filter: drop-shadow(0 0 1px rgba(255, 91, 34, 0.2));
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 6px rgba(255, 91, 34, 0.7));
+  }
+}
+
+.animate-scifi-blink {
+  animation: scifi-blink 1.8s infinite ease-in-out;
+}
+
+@keyframes scifi-flicker {
+  0%, 19.999%, 22%, 62.999%, 64%, 64.999%, 70%, 100% {
+    opacity: 0.99;
+    filter: drop-shadow(0 0 2px rgba(255, 91, 34, 0.4));
+  }
+  20%, 21.999%, 63%, 63.999%, 65%, 69.999% {
+    opacity: 0.3;
+    filter: none;
+  }
+}
+
+.animate-scifi-flicker {
+  animation: scifi-flicker 5s infinite ease-in-out;
+}
+
+/* ═══════════════════════════════════════
+   CALENDAR OVERHAUL — Premium Animations
+   ═══════════════════════════════════════ */
+
+/* Galaxy star field background */
+@keyframes galaxy-drift {
+  0%   { transform: translateY(0) rotate(0deg); }
+  100% { transform: translateY(-50%) rotate(0.5deg); }
+}
+
+@keyframes star-twinkle {
+  0%, 100% { opacity: 0.15; }
+  50%      { opacity: 0.6; }
+}
+
+.calendar-galaxy-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.calendar-galaxy-bg::before {
+  content: '';
+  position: absolute;
+  inset: -50% -10%;
+  width: 120%;
+  height: 200%;
+  background-image:
+    radial-gradient(1px 1px at 10% 20%, rgba(249,115,22,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 25% 35%, rgba(168,85,247,0.3) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 40% 60%, rgba(249,115,22,0.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 55% 15%, rgba(168,85,247,0.4) 0%, transparent 100%),
+    radial-gradient(2px 2px at 70% 45%, rgba(249,115,22,0.35) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 85% 75%, rgba(168,85,247,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 15% 80%, rgba(255,255,255,0.3) 0%, transparent 100%),
+    radial-gradient(1px 1px at 50% 90%, rgba(249,115,22,0.4) 0%, transparent 100%),
+    radial-gradient(2px 2px at 30% 50%, rgba(168,85,247,0.25) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 65% 30%, rgba(255,255,255,0.55) 0%, transparent 100%),
+    radial-gradient(1px 1px at 80% 10%, rgba(249,115,22,0.3) 0%, transparent 100%),
+    radial-gradient(1px 1px at 45% 70%, rgba(168,85,247,0.4) 0%, transparent 100%),
+    radial-gradient(1px 1px at 90% 55%, rgba(255,255,255,0.3) 0%, transparent 100%),
+    radial-gradient(2px 2px at 5% 45%, rgba(249,115,22,0.45) 0%, transparent 100%),
+    radial-gradient(1px 1px at 60% 85%, rgba(168,85,247,0.35) 0%, transparent 100%),
+    radial-gradient(1px 1px at 35% 5%, rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 75% 65%, rgba(249,115,22,0.3) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 20% 95%, rgba(168,85,247,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 95% 40%, rgba(255,255,255,0.35) 0%, transparent 100%),
+    radial-gradient(2px 2px at 8% 60%, rgba(249,115,22,0.3) 0%, transparent 100%);
+  animation: galaxy-drift 120s linear infinite;
+}
+
+.calendar-galaxy-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 50% at 30% 60%, rgba(249,115,22,0.03) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 40% at 80% 30%, rgba(168,85,247,0.02) 0%, transparent 70%),
+    radial-gradient(ellipse 80% 60% at 50% 90%, rgba(217,4,121,0.015) 0%, transparent 70%);
+  animation: star-twinkle 8s ease-in-out infinite alternate;
+}
+
+/* Purple shimmer for skeleton loading */
+@keyframes shimmer-purple {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-lg);
+}
+
+.skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(168, 85, 247, 0.08) 40%,
+    rgba(217, 4, 121, 0.06) 60%,
+    transparent 100%
+  );
+  animation: shimmer-purple 2s ease-in-out infinite;
+}
+
+/* Pulsing glow for active elements */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(168, 85, 247, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.3), 0 0 40px rgba(168, 85, 247, 0.1);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+/* Rotating gradient border */
+@keyframes gradient-border-spin {
+  0%   { --angle: 0deg; }
+  100% { --angle: 360deg; }
+}
+
+/* Concentric rings loading */
+@keyframes ring-pulse-1 {
+  0%, 100% { transform: scale(0.8); opacity: 0.3; }
+  50%      { transform: scale(1.2); opacity: 0.7; }
+}
+@keyframes ring-pulse-2 {
+  0%, 100% { transform: scale(1); opacity: 0.2; }
+  50%      { transform: scale(1.4); opacity: 0.5; }
+}
+@keyframes ring-pulse-3 {
+  0%, 100% { transform: scale(1.2); opacity: 0.1; }
+  50%      { transform: scale(1.6); opacity: 0.4; }
+}
+
+.ring-loader-1 {
+  animation: ring-pulse-1 2s ease-in-out infinite;
+}
+.ring-loader-2 {
+  animation: ring-pulse-2 2s ease-in-out infinite 0.3s;
+}
+.ring-loader-3 {
+  animation: ring-pulse-3 2s ease-in-out infinite 0.6s;
+}
+
+/* Glass panel utility */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(40px) saturate(1.2);
+  -webkit-backdrop-filter: blur(40px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-xl);
+}
+
+.glass-panel-elevated {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(48px) saturate(1.3);
+  -webkit-backdrop-filter: blur(48px) saturate(1.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-2xl);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* Calendar block hover glow per pillar */
+.block-glow-mind:hover { box-shadow: 0 0 20px rgba(168, 85, 247, 0.25), inset 0 1px 0 rgba(168, 85, 247, 0.15); }
+.block-glow-body:hover { box-shadow: 0 0 20px rgba(52, 211, 153, 0.25), inset 0 1px 0 rgba(52, 211, 153, 0.15); }
+.block-glow-craft:hover { box-shadow: 0 0 20px rgba(251, 191, 36, 0.25), inset 0 1px 0 rgba(251, 191, 36, 0.15); }
+.block-glow-anchor:hover { box-shadow: 0 0 20px rgba(234, 179, 8, 0.25), inset 0 1px 0 rgba(234, 179, 8, 0.15); }
+.block-glow-routine:hover { box-shadow: 0 0 20px rgba(167, 139, 250, 0.25), inset 0 1px 0 rgba(167, 139, 250, 0.15); }
+
+/* Current hour row highlight */
+@keyframes current-hour-pulse {
+  0%, 100% { background-color: rgba(255, 255, 255, 0.01); }
+  50%      { background-color: rgba(255, 255, 255, 0.025); }
+}
+
+.current-hour-row {
+  animation: current-hour-pulse 4s ease-in-out infinite;
+}
+
+/* Crossfade text animation */
+@keyframes text-crossfade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes text-crossfade-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-8px); }
+}
+
+.animate-crossfade-in {
+  animation: text-crossfade-in 0.3s ease-out both;
+}

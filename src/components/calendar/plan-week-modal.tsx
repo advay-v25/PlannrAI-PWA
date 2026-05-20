@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GlassCard } from '@/components/ui/glass-card';
-import { GlassButton } from '@/components/ui/glass-button';
+import { LiquidGlassButton } from '@/components/ui/liquid-glass-button';
 import type { Patch } from '@/lib/ai/schemas';
 import {
     Calendar, Sparkles, X, Check, Loader2, ArrowRight, Zap, Battery, Activity, AlertTriangle
@@ -83,9 +82,9 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context }: PlanWeekM
     const ModeCard = ({ mode, icon: Icon, title, desc }: any) => (
         <button
             onClick={() => setSelectedMode(mode)}
-            className={`w-full p-4 rounded-xl border text-left transition-all ${selectedMode === mode
-                ? 'bg-[var(--color-primary)]/10 border-[var(--color-primary)] shadow-lg shadow-[var(--color-primary)]/20'
-                : 'bg-white/5 border-white/5 hover:bg-white/10'
+            className={`w-full p-4 rounded-xl text-left transition-all duration-300 hover:scale-[1.02] ${selectedMode === mode
+                ? 'glass-panel bg-[var(--color-primary)]/10 border-[var(--color-primary)] shadow-lg shadow-[var(--color-primary)]/20'
+                : 'glass-panel hover:bg-white/[0.08] hover:border-white/[0.15]'
                 }`}
         >
             <div className="flex items-center gap-3 mb-2">
@@ -99,7 +98,7 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context }: PlanWeekM
     );
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xl" onClick={onClose}>
             <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -107,7 +106,7 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context }: PlanWeekM
                 className="w-full max-w-lg"
                 onClick={e => e.stopPropagation()}
             >
-                <GlassCard padding="lg" className="space-y-6">
+                <div className="glass-panel-elevated p-6 space-y-6 rounded-2xl">
                     {/* Header */}
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -184,9 +183,9 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context }: PlanWeekM
                                         desc="Prioritize rest, lighten load, focus on essentials."
                                     />
                                 </div>
-                                <GlassButton variant="primary" className="w-full mt-4" onClick={handleGenerate}>
+                                <LiquidGlassButton variant="primary" size="md" className="w-full mt-4" onClick={handleGenerate}>
                                     Generate Plan <ArrowRight className="w-4 h-4 ml-2" />
-                                </GlassButton>
+                                </LiquidGlassButton>
                             </motion.div>
                         )}
 
@@ -198,17 +197,18 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context }: PlanWeekM
                                 exit={{ opacity: 0 }}
                                 className="py-12 text-center space-y-4"
                             >
-                                <div className="relative w-16 h-16 mx-auto">
-                                    <div className="absolute inset-0 rounded-full border-4 border-[var(--color-primary)]/30" />
-                                    <div className="absolute inset-0 rounded-full border-4 border-t-[var(--color-primary)] animate-spin" />
-                                    <Sparkles className="absolute inset-0 m-auto w-6 h-6 text-[var(--color-primary)] animate-pulse" />
+                                <div className="relative w-20 h-20 mx-auto">
+                                    <div className="absolute inset-0 rounded-full border border-purple-500/30 ring-loader-1" />
+                                    <div className="absolute inset-2 rounded-full border border-[#d90479]/25 ring-loader-2" />
+                                    <div className="absolute inset-4 rounded-full border border-amber-500/20 ring-loader-3" />
+                                    <Sparkles className="absolute inset-0 m-auto w-5 h-5 text-purple-400 animate-pulse" />
                                 </div>
                                 <motion.p 
                                     key={loadingStage}
                                     initial={{ opacity: 0, y: 5 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -5 }}
-                                    className="font-medium animate-pulse"
+                                    className="text-sm font-medium animate-crossfade-in"
                                 >
                                     {loadingTexts[loadingStage]}
                                 </motion.p>
@@ -231,9 +231,9 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context }: PlanWeekM
                                         <button
                                             key={i}
                                             onClick={() => setSelectedOption(opt)}
-                                            className={`w-full p-4 rounded-xl border text-left transition-all ${selectedOption === opt
-                                                ? 'bg-[var(--color-success)]/10 border-[var(--color-success)] shadow-lg shadow-[var(--color-success)]/10'
-                                                : 'bg-white/5 border-white/5 hover:bg-white/10'
+                                            className={`w-full p-4 rounded-xl text-left transition-all duration-300 hover:scale-[1.02] ${selectedOption === opt
+                                                ? 'glass-panel bg-[var(--color-success)]/10 border-[var(--color-success)] shadow-lg shadow-[var(--color-success)]/10'
+                                                : 'glass-panel hover:bg-white/[0.08] hover:border-white/[0.15]'
                                                 }`}
                                         >
                                             <div className="flex justify-between items-start mb-1">
@@ -268,17 +268,17 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context }: PlanWeekM
                                     ))}
                                 </div>
                                 <div className="flex gap-3 pt-2">
-                                    <GlassButton variant="ghost" className="flex-1" onClick={() => setStep('mode')}>
+                                    <LiquidGlassButton variant="ghost" size="md" className="flex-1" onClick={() => setStep('mode')}>
                                         Back
-                                    </GlassButton>
-                                    <GlassButton variant="primary" className="flex-[2]" onClick={handleApply} disabled={!selectedOption}>
+                                    </LiquidGlassButton>
+                                    <LiquidGlassButton variant="primary" size="md" className="flex-[2]" onClick={handleApply} disabled={!selectedOption}>
                                         Apply Plan
-                                    </GlassButton>
+                                    </LiquidGlassButton>
                                 </div>
                             </motion.div>
                         )}
                     </AnimatePresence>
-                </GlassCard>
+                </div>
             </motion.div>
         </div>
     );

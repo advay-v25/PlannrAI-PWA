@@ -47,23 +47,23 @@ export async function GET(request: NextRequest) {
         const completedBlocks = blocks.filter((b: any) => b.status === 'completed');
 
         // Check for needs_rescheduling flag in profile
-        const { data: profile } = await supabase.from('profiles').select('bio_data').eq('id', user.id).single();
+        const { data: profile } = await supabase.from('profiles').select('needs_rescheduling, bio_data').eq('id', user.id).single();
+        const needsRescheduling = profile?.needs_rescheduling === true;
         const bioData = (profile?.bio_data as any) || {};
-        const needsRescheduling = bioData.needs_rescheduling === true;
-        const pendingGoal = bioData.pending_goal_update || 'your new goal';
+        const pendingGoal = bioData.pending_goal_update || 'your settings';
 
         // Generate a proactive suggestion based on schedule state
         let suggestion = null;
 
         if (needsRescheduling) {
             suggestion = {
-                id: 'goal-sync-needed',
-                dismiss_uid: `goal-sync-${today}`,
-                trigger_type: 'goal_added',
-                title: 'Schedule Optimization Required',
-                message: `I noticed you updated "${pendingGoal}". Should I re-optimize your week to fit it in?`,
-                action_label: 'Optimize Schedule',
-                query: `I just updated "${pendingGoal}". Please re-optimize my week to fit it in properly.`,
+                id: 'settings-sync-needed',
+                dismiss_uid: `settings-sync-${today}`,
+                trigger_type: 'settings_updated',
+                title: 'Schedule Synchronization Required',
+                message: `I noticed you updated ${pendingGoal}. Should I re-optimize your calendar to fit the new anchors in?`,
+                action_label: 'Sync Calendar',
+                query: `I just updated ${pendingGoal}. Please re-optimize my week to fit the new anchors properly.`,
                 priority: 'high',
             };
             
