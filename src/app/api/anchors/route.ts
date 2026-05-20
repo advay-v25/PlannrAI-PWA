@@ -100,6 +100,7 @@ export const POST = secureApiRoute(
 
         // MATERIALIZE BLOCKS (Phase 3 Requirement)
         // Immediately project this anchor onto the calendar for the next 30 days
+        let materializationWarning = null;
         try {
             const { AnchorService } = await import('@/lib/calendar/anchor-service'); // dynamic import or top-level is fine
             const today = new Date();
@@ -110,13 +111,13 @@ export const POST = secureApiRoute(
             console.log("ANCHOR MATERIALIZED");
         } catch (matError) {
             console.error("ANCHOR MATERIALIZATION FAILED", matError);
-            // Non-blocking? Or warning? 
-            // We should arguably return a warning, but for now just log. 
-            // The constraint is that the API "must materialize", so if it fails, the user experience is broken.
-            // But rolling back the commitment insert is also complex.
+            materializationWarning = "Commitment saved, but failed to immediately project blocks onto your calendar. They will appear upon your next weekly review.";
         }
 
         console.log(`[ANCHOR] Success ${data.id}`);
+        if (materializationWarning) {
+             return apiSuccess({ commitment: data, warning: materializationWarning }, 201);
+        }
         return apiSuccess({ commitment: data }, 201);
     },
     { requireAuth: true, auditAction: 'anchor_create' }

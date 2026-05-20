@@ -233,29 +233,3 @@ export const PUT = secureApiRoute(
     { requireAuth: true, auditAction: 'habit_stack_update' }
 );
 
-// DELETE - Delete a habit stack
-export const DELETE = secureApiRoute(
-    async (context, body) => {
-        const validation = validateRequiredFields(body, ['id']);
-        if (!validation.valid) {
-            return apiError(`Missing required fields: ${validation.missing.join(', ')}`);
-        }
-
-        const { id } = body as { id: string };
-
-        const supabase = await createClient();
-
-        const { error } = await supabase
-            .from('habit_stacks')
-            .delete()
-            .eq('id', id)
-            .eq('user_id', context.userId);
-
-        if (error) {
-            return apiError('Failed to delete habit stack', 500);
-        }
-
-        return apiSuccess({ success: true });
-    },
-    { requireAuth: true, auditAction: 'habit_stack_delete' }
-);

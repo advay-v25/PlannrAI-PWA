@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { useGoalsStore } from '@/stores';
 import { GlassButton } from '@/components/ui/glass-button';
+import { LiquidGlassButton } from '@/components/ui/liquid-glass-button';
 import { GlassInput } from '@/components/ui/glass-input'; // Ensure this exists or use html input
 import {
     Brain, Dumbbell, Briefcase, // Pillars
@@ -256,8 +257,7 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
                         </div>
                     </div>
 
-                    <GlassButton
-                        variant="primary"
+                    <LiquidGlassButton
                         className="w-full py-4 text-base"
                         onClick={handleSubmit}
                         disabled={!title || isSubmitting}
@@ -271,7 +271,7 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
                                 <Plus className="w-4 h-4 mr-2" /> Add Goal
                             </>
                         )}
-                    </GlassButton>
+                    </LiquidGlassButton>
                 </div>
             </motion.div>
         </div>

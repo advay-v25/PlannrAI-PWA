@@ -18,7 +18,7 @@ interface WeekGridProps {
 }
 
 const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 6am - 11pm
-const CELL_HEIGHT = 72;
+const CELL_HEIGHT = 120;
 
 // Premium pastel colors matching reference images (black/orange theme)
 const PILLAR_COLORS: Record<string, { bg: string; border: string; text: string; dot: string; glow: string }> = {
