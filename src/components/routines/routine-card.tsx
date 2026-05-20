@@ -1,11 +1,15 @@
-// @ts-nocheck
 'use client';
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { GlassButton } from '@/components/ui/glass-button';
 import { Clock, Check, CalendarPlus, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
-import type { RoutineOutput, RoutineRecommendation } from '@/types/database';
+
+export interface RoutineRecommendation {
+    routine: any;
+    source?: string;
+    accepted?: boolean;
+}
 
 interface RoutineCardProps {
     recommendation: RoutineRecommendation;
@@ -15,7 +19,10 @@ interface RoutineCardProps {
 export function RoutineCard({ recommendation, onSchedule }: RoutineCardProps) {
     const r = recommendation.routine;
     const [isScheduling, setIsScheduling] = useState(false);
-    const [selectedTime, setSelectedTime] = useState('08:00'); // Default, would be dynamic
+    const defaultTime = r.best_time_window?.toLowerCase().includes('morning') ? '08:00' :
+                        r.best_time_window?.toLowerCase().includes('afternoon') ? '14:00' :
+                        r.best_time_window?.toLowerCase().includes('evening') ? '20:00' : '09:00';
+    const [selectedTime, setSelectedTime] = useState(defaultTime);
     const [isExpanded, setIsExpanded] = useState(true);
 
     const handleConfirmSchedule = async () => {
@@ -78,7 +85,7 @@ export function RoutineCard({ recommendation, onSchedule }: RoutineCardProps) {
 
                         {/* Steps */}
                         <div className="space-y-3">
-                            {r.steps.map((step, i) => (
+                            {r.steps.map((step: string, i: number) => (
                                 <div key={i} className="flex gap-3">
                                     <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center text-xs font-mono shrink-0 mt-0.5">
                                         {i + 1}

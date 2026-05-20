@@ -141,7 +141,8 @@ If no changes are needed, leave proposed_goal_changes empty.`;
             systemPrompt: 'You are an AI coach that outputs ONLY valid JSON matching the schema.',
             prompt: systemPrompt,
             requireJSON: true,
-            useNvidia: true
+            useNvidia: true,
+            timeout: 85000 // 85 seconds to prevent 55s abort, matching frontend 90s max
         });
 
         if (!aiRes.success) {

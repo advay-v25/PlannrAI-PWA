@@ -1,4 +1,3 @@
-// @ts-nocheck
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -8,7 +7,7 @@ import { AlertCircle, CheckCircle2, Activity, ShieldCheck, Server } from 'lucide
 import { createClient } from '@/lib/supabase/client';
 
 export function ApiDiagnostics() {
-    const [health, setHealth] = useState<{ ok: boolean; env: string; time?: string } | null>(null);
+    const [health, setHealth] = useState<{ ok: boolean; env?: string; status?: string; time?: string } | null>(null);
     const [auth, setAuth] = useState<{ status: string; userId?: string } | null>(null);
     const [isVisible, setIsVisible] = useState(false);
 

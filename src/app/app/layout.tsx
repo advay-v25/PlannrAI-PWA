@@ -45,10 +45,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
             {/* Desktop Sidebar */}
             <aside className="hidden md:flex flex-col w-64 border-r border-[var(--glass-border)] bg-[var(--color-bg-secondary)]/30 backdrop-blur-xl z-30">
-                <div className="h-14 flex items-center px-6 border-b border-[var(--glass-border)]">
+                <div className="h-14 flex items-center justify-between px-6 border-b border-[var(--glass-border)]">
                     <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-mind)] bg-clip-text text-transparent">
                         PlannrAI
                     </span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-scifi-blink" />
                 </div>
 
                 <nav className="flex-1 p-4 space-y-2">
@@ -83,6 +84,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     >
                         <Sparkles className={cn("w-5 h-5", isCoachOpen ? "text-[var(--color-primary)]" : "text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]")} />
                         <span className="font-medium">AI Coach</span>
+                        <span className="relative flex h-1.5 w-1.5 ml-auto">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-orange-500 animate-scifi-blink"></span>
+                        </span>
                     </button>
                 </nav>
 

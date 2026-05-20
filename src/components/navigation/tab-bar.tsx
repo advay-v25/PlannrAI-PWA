@@ -37,8 +37,12 @@ export function TabBar() {
 
     return (
         <nav className="fixed bottom-0 left-0 right-0 z-50 safe-bottom">
-            <div className="mx-auto max-w-lg">
-                <div className="mx-2 mb-2 rounded-2xl bg-[var(--color-bg-secondary)]/80 backdrop-blur-xl border border-[var(--glass-border)] shadow-lg">
+            <div className="mx-auto max-w-lg relative">
+                {/* Sci-Fi Decorative Blinking Dots */}
+                <div className="absolute -top-1 right-6 w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse shadow-[0_0_8px_rgba(249,115,22,0.8)] z-50" />
+                <div className="absolute top-4 left-4 w-1 h-1 rounded-full bg-purple-500 animate-pulse shadow-[0_0_6px_rgba(168,85,247,0.8)] z-50 delay-75" />
+                
+                <div className="mx-2 mb-2 rounded-2xl bg-[var(--color-bg-secondary)]/80 backdrop-blur-xl border border-[var(--glass-border)] shadow-lg relative">
                     <div className="flex items-center justify-around py-2">
                         {TABS.map((tab) => {
                             const isActive = activeTab === tab.id;
@@ -91,11 +95,16 @@ export function SideNav() {
     return (
         <nav className="hidden md:flex flex-col w-64 h-screen fixed left-0 top-0 bg-[var(--color-bg-secondary)]/50 backdrop-blur-xl border-r border-[var(--glass-border)] p-4">
             {/* Logo */}
-            <div className="flex items-center gap-2 px-3 py-4 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-[var(--color-primary)]/20 flex items-center justify-center">
-                    <Sparkles className="w-5 h-5 text-[var(--color-primary)]" />
+            <div className="flex items-center gap-2 px-3 py-4 mb-6 relative">
+                <div className="w-10 h-10 rounded-xl bg-[var(--color-primary)]/20 flex items-center justify-center relative group">
+                    <Sparkles className="w-5 h-5 text-[var(--color-primary)] group-hover:animate-pulse" />
+                    {/* Blinking Sci-Fi Dot */}
+                    <div className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-orange-500 animate-pulse shadow-[0_0_12px_rgba(249,115,22,0.8)]" />
                 </div>
-                <span className="text-lg font-bold text-gradient">PlannrAI</span>
+                <span className="text-lg font-bold text-gradient relative">
+                    PlannrAI
+                    <div className="absolute top-1.5 -right-3 w-1 h-1 rounded-full bg-purple-500 animate-pulse shadow-[0_0_6px_rgba(168,85,247,0.8)] delay-150" />
+                </span>
             </div>
 
             {/* Nav Items */}

@@ -8,6 +8,7 @@ import {
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useHabitStacksStore } from '@/stores';
+import { LiquidGlassButton } from '@/components/ui/liquid-glass-button';
 
 interface BlockInspectorProps {
     block: any;
@@ -122,13 +123,13 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
     };
 
     return (
-        <div className="h-full flex flex-col">
+        <div className="h-full flex flex-col glass-panel-elevated">
             {/* Header — accent colored */}
             <div className={cn(
                 "px-5 py-4 flex items-start justify-between",
-                pillarStyle ? pillarStyle.bg : 'bg-zinc-800/50',
+                'bg-gradient-to-br from-white/[0.06] to-white/[0.02] backdrop-blur-2xl',
                 "border-b",
-                pillarStyle ? pillarStyle.border : 'border-white/5'
+                'border-white/[0.08]'
             )}>
                 <div className="flex-1 min-w-0">
                     {/* Block type tag */}
@@ -197,7 +198,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                 <div className="p-5 space-y-4">
 
                     {/* Time — clean card */}
-                    <div className="p-4 rounded-xl bg-zinc-800/40 border border-white/5">
+                    <div className="p-4 rounded-xl glass-panel">
                         <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2 text-white/50">
                                 <Clock className="w-3.5 h-3.5" />
@@ -214,10 +215,10 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                         {isEditingTime ? (
                             <div className="flex items-center gap-2">
                                 <input type="time" value={editStart} onChange={e => setEditStart(e.target.value)}
-                                    className="flex-1 px-3 py-2 rounded-lg bg-black/30 border border-white/10 text-sm text-white [color-scheme:dark] focus:outline-none focus:border-violet-500/40" />
+                                    className="flex-1 px-3 py-2 rounded-lg bg-black/30 border border-white/10 text-sm text-white [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-purple-500/30" />
                                 <span className="text-white/30 text-sm">→</span>
                                 <input type="time" value={editEnd} onChange={e => setEditEnd(e.target.value)}
-                                    className="flex-1 px-3 py-2 rounded-lg bg-black/30 border border-white/10 text-sm text-white [color-scheme:dark] focus:outline-none focus:border-violet-500/40" />
+                                    className="flex-1 px-3 py-2 rounded-lg bg-black/30 border border-white/10 text-sm text-white [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-purple-500/30" />
                             </div>
                         ) : (
                             <div className="flex items-baseline gap-3">
@@ -237,7 +238,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
 
                     {/* Checklist / Habit Stacks */}
                     {hasSubTasks && (
-                        <div className="rounded-xl bg-zinc-800/40 border border-white/5 overflow-hidden">
+                        <div className="rounded-xl glass-panel overflow-hidden">
                             <div className="px-4 py-3 flex items-center justify-between border-b border-white/5">
                                 <div className="flex items-center gap-2 text-white/50">
                                     <ListTodo className="w-3.5 h-3.5" />
@@ -254,28 +255,32 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
 
                             <div className="p-2 space-y-0.5">
                                 {checklist.map((item: any, i: number) => (
-                                    <button
+                                    <motion.div
                                         key={`task-${i}`}
-                                        onClick={() => {
-                                            const newChecklist = [...checklist];
-                                            newChecklist[i] = { ...item, completed: !item.completed };
-                                            onAction('update', { checklist: newChecklist });
-                                        }}
-                                        className="w-full flex items-start gap-2.5 px-3 py-2.5 rounded-lg
-                                            hover:bg-white/5 transition-colors text-left"
+                                        initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
                                     >
-                                        {item.completed ? (
-                                            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                                        ) : (
-                                            <Circle className="w-4 h-4 text-white/20 shrink-0 mt-0.5" />
-                                        )}
-                                        <span className={cn(
-                                            "text-sm leading-tight",
-                                            item.completed ? "text-white/30 line-through" : "text-white/80"
-                                        )}>
-                                            {item.text}
-                                        </span>
-                                    </button>
+                                        <button
+                                            onClick={() => {
+                                                const newChecklist = [...checklist];
+                                                newChecklist[i] = { ...item, completed: !item.completed };
+                                                onAction('update', { checklist: newChecklist });
+                                            }}
+                                            className="w-full flex items-start gap-2.5 px-3 py-2.5 rounded-lg
+                                                hover:bg-white/5 transition-colors text-left"
+                                        >
+                                            {item.completed ? (
+                                                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                                            ) : (
+                                                <Circle className="w-4 h-4 text-white/20 shrink-0 mt-0.5" />
+                                            )}
+                                            <span className={cn(
+                                                "text-sm leading-tight",
+                                                item.completed ? "text-white/30 line-through" : "text-white/80"
+                                            )}>
+                                                {item.text}
+                                            </span>
+                                        </button>
+                                    </motion.div>
                                 ))}
 
                                 {relatedStacks.map(stack => {
@@ -308,59 +313,50 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
 
                     {/* Generate Sub-tasks (when empty) */}
                     {!hasSubTasks && block.block_type !== 'sleep' && block.block_type !== 'break' && block.block_type !== 'meal' && (
-                        <button
+                        <LiquidGlassButton
                             onClick={generateSubtasks}
                             disabled={isGenerating}
-                            className="w-full flex items-center justify-center gap-2 p-4 rounded-xl text-sm font-bold
-                                bg-gradient-to-r from-violet-600/10 to-indigo-600/10
-                                border border-violet-500/20 text-violet-400
-                                hover:from-violet-600/20 hover:to-indigo-600/20
-                                disabled:opacity-50 disabled:cursor-wait transition-all"
+                            className="w-full"
+                            variant="primary"
                         >
                             {isGenerating ? (
                                 <><Loader2 className="w-4 h-4 animate-spin" /> Generating...</>
                             ) : (
                                 <><Sparkles className="w-4 h-4" /> Generate Action Steps</>
                             )}
-                        </button>
+                        </LiquidGlassButton>
                     )}
                 </div>
             </div>
 
             {/* Actions — bottom pinned */}
-            <div className="shrink-0 border-t border-white/5 bg-zinc-900/80 backdrop-blur-sm p-4 space-y-2">
+            <div className="shrink-0 border-t border-white/5 bg-black/40 backdrop-blur-2xl p-4 space-y-2">
                 {/* Status actions */}
                 {!isAnchor && (
-                    <div className="grid grid-cols-2 gap-2">
-                        <button
+                    <div className="flex gap-2">
+                        <LiquidGlassButton
                             onClick={() => onAction('done')}
                             disabled={isDone}
-                            className={cn(
-                                "flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all",
-                                isDone
-                                    ? "bg-emerald-500/20 text-emerald-400 opacity-50 cursor-not-allowed"
-                                    : "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 active:scale-95"
-                            )}
+                            variant="primary"
+                            size="sm"
+                            className="flex-1"
                         >
                             <Check className="w-4 h-4" /> Done
-                        </button>
-                        <button
+                        </LiquidGlassButton>
+                        <LiquidGlassButton
                             onClick={() => onAction('skip')}
                             disabled={isMissed}
-                            className={cn(
-                                "flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all",
-                                isMissed
-                                    ? "bg-amber-500/20 text-amber-400 opacity-50 cursor-not-allowed"
-                                    : "bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 active:scale-95"
-                            )}
+                            variant="secondary"
+                            size="sm"
+                            className="flex-1"
                         >
                             <X className="w-4 h-4" /> Incomplete
-                        </button>
+                        </LiquidGlassButton>
                     </div>
                 )}
 
                 {/* Delete */}
-                <button
+                <LiquidGlassButton
                     onClick={() => {
                         if (confirmingDelete) {
                             onAction('delete');
@@ -371,19 +367,16 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                             setTimeout(() => setConfirmingDelete(false), 3000);
                         }
                     }}
-                    className={cn(
-                        "w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95",
-                        confirmingDelete
-                            ? "bg-red-500/20 text-red-400 border border-red-500/30"
-                            : "text-red-500/50 hover:text-red-400 hover:bg-red-500/10"
-                    )}
+                    variant="danger"
+                    size="sm"
+                    className="w-full"
                 >
                     <Trash2 className="w-3.5 h-3.5" />
                     {confirmingDelete
                         ? (isAnchor ? 'Confirm — Remove From All Days' : 'Confirm Delete')
                         : (isAnchor ? 'Delete Anchor Permanently' : 'Delete Block')
                     }
-                </button>
+                </LiquidGlassButton>
 
                 {/* Anchor warning */}
                 {isAnchor && (

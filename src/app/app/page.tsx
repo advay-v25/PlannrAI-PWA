@@ -23,6 +23,7 @@ import { Settings, Zap, Shield, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { PageBackground } from '@/components/ui/PageBackground';
+import { motion } from 'framer-motion';
 
 export default function HomePage() {
     const router = useRouter();
@@ -160,25 +161,55 @@ export default function HomePage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-center">
-                {/* Neural Pulse Core */}
-                <div className="relative w-24 h-24 mb-8">
-                    <div className="absolute inset-0 bg-[var(--color-primary)] rounded-full blur-[40px] opacity-20 animate-pulse" />
-                    <div className="absolute inset-0 border border-[var(--color-primary)] rounded-full opacity-40 animate-ping" />
-                    <div className="absolute inset-4 border-2 border-[var(--color-primary)] rounded-full border-t-transparent animate-spin" />
-                </div>
+            <div className="h-screen bg-[#020202] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden font-mono">
+                {/* Immersive background glow */}
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(168,85,247,0.08)_0%,transparent_60%)]" />
                 
-                {/* Sophisticated Text Loading */}
-                <div className="space-y-4">
-                    <h2 className="text-xl font-bold tracking-tight text-white animate-fade-in">
-                        Plannr<span className="text-[var(--color-primary)]">AI</span>
-                    </h2>
-                    <div className="flex flex-col items-center gap-2">
-                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] animate-pulse">
-                            Synchronizing Neural Schedule
-                        </span>
-                        <div className="w-48 h-[1px] bg-white/5 relative overflow-hidden">
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[var(--color-primary)] to-transparent w-full animate-shimmer" />
+                {/* Boot Sequence Container */}
+                <div className="relative z-10 w-full max-w-md flex flex-col items-center">
+                    {/* Sci-fi Orb Core */}
+                    <div className="relative w-32 h-32 mb-10 flex items-center justify-center">
+                        <div className="absolute inset-0 bg-orange-500 rounded-full blur-[50px] opacity-20 animate-pulse" />
+                        <div className="absolute inset-2 border-[1px] border-orange-500/30 rounded-full opacity-60 animate-ping" style={{ animationDuration: '3s' }} />
+                        <div className="absolute inset-6 border-[2px] border-l-orange-500 border-r-purple-500 border-t-transparent border-b-transparent rounded-full animate-spin" style={{ animationDuration: '2s' }} />
+                        <div className="absolute inset-10 border-[1px] border-purple-500/50 border-t-transparent rounded-full animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }} />
+                        <div className="w-4 h-4 bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,1)] animate-pulse" />
+                    </div>
+                    
+                    {/* Boot Logs */}
+                    <div className="w-full bg-black/40 backdrop-blur-md border border-white/[0.05] p-5 rounded-lg shadow-2xl relative">
+                        <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-orange-500/50 to-transparent" />
+                        
+                        <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/[0.05]">
+                            <h2 className="text-sm font-bold tracking-[0.2em] text-white/80">
+                                PLANNRAI <span className="text-orange-500">OS</span>
+                            </h2>
+                            <span className="text-[10px] text-orange-500/70 animate-pulse">V2.5.0</span>
+                        </div>
+                        
+                        <div className="space-y-2 text-[11px] text-white/50 tracking-wider h-[80px]">
+                            <div className="flex items-center gap-2">
+                                <span className="text-purple-400">SYS</span>
+                                <span className="animate-fade-in text-white/70">Establishing neural link...</span>
+                            </div>
+                            <div className="flex items-center gap-2" style={{ animationDelay: '0.4s' }}>
+                                <span className="text-orange-400">SYNC</span>
+                                <span className="animate-fade-in opacity-0" style={{ animationDelay: '0.4s', animationFillMode: 'forwards' }}>Loading timeline anchors...</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-emerald-400 opacity-0 animate-fade-in" style={{ animationDelay: '0.8s', animationFillMode: 'forwards' }}>OPT</span>
+                                <span className="animate-fade-in opacity-0" style={{ animationDelay: '0.8s', animationFillMode: 'forwards' }}>Optimizing schedule matrix...</span>
+                            </div>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="mt-4 h-[2px] w-full bg-white/5 rounded-full overflow-hidden">
+                            <motion.div 
+                                className="h-full bg-gradient-to-r from-purple-500 to-orange-500"
+                                initial={{ width: 0 }}
+                                animate={{ width: "100%" }}
+                                transition={{ duration: 1.5, ease: "easeInOut" }}
+                            />
                         </div>
                     </div>
                 </div>
@@ -211,7 +242,10 @@ export default function HomePage() {
     const header = (
         <div className="flex items-center justify-between">
             <div>
-                <h1 className="text-4xl font-bold text-white tracking-tight">Today</h1>
+                <div className="flex items-center gap-3">
+                    <h1 className="text-4xl font-bold text-white tracking-tight">Today</h1>
+                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-scifi-blink mt-2" />
+                </div>
                 <p className="text-sm text-white/40 font-mono mt-1">
                     {format(new Date(), 'EEEE, MMMM do')}
                 </p>

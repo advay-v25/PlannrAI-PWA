@@ -22,6 +22,8 @@ import { ConflictModal } from '@/components/calendar/conflict-modal';
 import { PlanWeekModal } from '@/components/calendar/plan-week-modal';
 import { DayOptimizerModal } from '@/components/calendar/day-optimizer-modal';
 import { PageBackground } from '@/components/ui/PageBackground';
+import { CalendarSkeleton } from '@/components/calendar/calendar-skeleton';
+import { LiquidGlassButton } from '@/components/ui/liquid-glass-button';
 
 
 // ── Types ────────────────────────────────────────────────────────
@@ -191,12 +193,7 @@ function TaskCategories({ blocks }: { blocks: any[] }) {
 // ── Main Calendar Page ───────────────────────────────────────────
 export default function CalendarPage() {
     return (
-        <Suspense fallback={
-            <div className="flex h-screen items-center justify-center bg-black text-white/50 gap-3">
-                <Loader2 className="w-5 h-5 animate-spin text-orange-400" />
-                <span className="text-xs font-bold uppercase tracking-widest">Loading Calendar...</span>
-            </div>
-        }>
+        <Suspense fallback={<CalendarSkeleton />}>
             <CalendarPageInner />
         </Suspense>
     );
@@ -392,25 +389,21 @@ function CalendarPageInner() {
 
     // ── Loading ──────────────────────────────────────────────────
     if (isLoading && blocks.length === 0) {
-        return (
-            <div className="flex h-screen items-center justify-center bg-black text-white/50 gap-3">
-                <Loader2 className="w-5 h-5 animate-spin text-orange-400" />
-                <span className="text-xs font-bold uppercase tracking-widest">Loading Calendar...</span>
-            </div>
-        );
+        return <CalendarSkeleton />;
     }
 
     // ── Date title ───────────────────────────────────────────────
     const dateTitle = viewMode === 'week'
         ? `${format(weekStart, 'MMM d')} – ${format(addDays(weekStart, 6), 'MMM d, yyyy')}`
-        : format(selectedDate, 'd MMMM yyyy');
-
+        : format(selectedDate, 'MMMM d, yyyy');
     return (
-        <div className="h-screen bg-black text-white overflow-hidden flex flex-col">
-            <PageBackground color="teal" variant="horizon" intensity="subtle" />
+        <div className="h-screen bg-transparent text-white overflow-hidden flex flex-col relative">
+            {/* Base gradient to ensure legibility while letting PageBackground shine through */}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/80 to-[#050508] pointer-events-none -z-10" />
+            <PageBackground color="teal" variant="horizon" intensity="medium" />
 
             {/* ── Top Header ────────────────────────────────────── */}
-            <div className="shrink-0 px-6 py-3 border-b border-white/[0.06] bg-black/80 backdrop-blur-xl">
+            <div className="shrink-0 px-6 py-3 border-b border-white/[0.08] bg-black/40 backdrop-blur-xl">
                 <div className="flex items-center justify-between">
                     {/* Left: Nav + Date */}
                     <div className="flex items-center gap-3">
@@ -550,19 +543,19 @@ function CalendarPageInner() {
                                 <p className="text-white/40 text-sm mb-5">
                                     Let AI plan your entire day based on your goals, energy, and commitments.
                                 </p>
-                                <button
+                                <LiquidGlassButton
                                     onClick={() => handleGenerateToday(viewDateStr)}
                                     disabled={isGeneratingToday}
-                                    className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold mx-auto
-                                        bg-orange-500 text-black hover:bg-orange-400
-                                        disabled:opacity-50 disabled:cursor-wait transition-all shadow-lg shadow-orange-500/25"
+                                    variant="primary"
+                                    size="md"
+                                    className="mx-auto"
                                 >
                                     {isGeneratingToday ? (
-                                        <><Loader2 className="w-4 h-4 animate-spin" /> Planning...</>
+                                        <><div className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" /> Planning...</>
                                     ) : (
                                         <><Sparkles className="w-4 h-4" /> Plan {viewDateStr === todayStr ? 'Today' : 'This Day'} with AI</>
                                     )}
-                                </button>
+                                </LiquidGlassButton>
                             </div>
                         </motion.div>
                     )}

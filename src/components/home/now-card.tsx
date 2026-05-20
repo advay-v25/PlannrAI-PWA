@@ -6,7 +6,7 @@ import { format, differenceInMinutes } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useCoach } from '@/hooks/use-coach';
 import { apiClient } from '@/lib/api-client';
-import { toast } from 'sonner';
+import { useToast } from '@/components/ui/toast';
 
 interface NowCardProps {
     block: any;
@@ -15,6 +15,7 @@ interface NowCardProps {
 
 export function NowCard({ block, onAction }: NowCardProps) {
     const { sendMessage } = useCoach();
+    const { showToast } = useToast();
 
     if (!block) {
         return (
@@ -49,15 +50,15 @@ export function NowCard({ block, onAction }: NowCardProps) {
         try {
             if (action === 'done') {
                 await apiClient.schedule.updateStatus(block.id, 'done');
-                toast.success('Block completed!');
+                showToast('Block completed!', 'success');
             } else if (action === 'skip') {
-                await apiClient.schedule.updateStatus(block.id, 'missed'); // or 'skipped' if enum allows, but 'missed' tracks deviation
-                toast.info('Block skipped.');
+                await apiClient.schedule.updateStatus(block.id, 'missed');
+                showToast('Block skipped.', 'info');
             }
             onAction(); // Refund/Refresh home data
         } catch (e) {
             console.error(e);
-            toast.error('Failed to update block.');
+            showToast('Failed to update block.', 'error');
         }
     };
 

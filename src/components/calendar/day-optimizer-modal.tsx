@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GlassCard } from '@/components/ui/glass-card';
-import { GlassButton } from '@/components/ui/glass-button';
+import { LiquidGlassButton } from '@/components/ui/liquid-glass-button';
 import { Sparkles, ArrowRight, Check, X, Battery, Activity, Clock, Zap, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Patch } from '@/lib/ai/schemas';
@@ -79,9 +78,9 @@ export function DayOptimizerModal({ date, onClose, onApply, optimizeDay }: DayOp
     const ModeCard = ({ mode, icon: Icon, title, desc }: any) => (
         <button
             onClick={() => setSelectedMode(mode)}
-            className={`w-full p-4 rounded-xl border text-left transition-all ${selectedMode === mode
-                ? 'bg-[var(--color-primary)]/10 border-[var(--color-primary)] shadow-lg shadow-[var(--color-primary)]/20'
-                : 'bg-white/5 border-white/5 hover:bg-white/10'
+            className={`w-full p-4 rounded-xl text-left transition-all duration-300 hover:scale-[1.02] ${selectedMode === mode
+                ? 'glass-panel bg-[var(--color-primary)]/10 border-[var(--color-primary)] shadow-lg shadow-[var(--color-primary)]/20'
+                : 'glass-panel hover:bg-white/[0.08] hover:border-white/[0.15]'
                 }`}
         >
             <div className="flex items-center gap-3 mb-2">
@@ -95,7 +94,7 @@ export function DayOptimizerModal({ date, onClose, onApply, optimizeDay }: DayOp
     );
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xl" onClick={onClose}>
             <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -103,7 +102,7 @@ export function DayOptimizerModal({ date, onClose, onApply, optimizeDay }: DayOp
                 className="w-full max-w-lg"
                 onClick={e => e.stopPropagation()}
             >
-                <GlassCard padding="lg" className="space-y-6">
+                <div className="glass-panel-elevated p-6 space-y-6 rounded-2xl">
 
                     {/* Header */}
                     <div className="flex items-center justify-between">
@@ -153,9 +152,9 @@ export function DayOptimizerModal({ date, onClose, onApply, optimizeDay }: DayOp
                                         desc="Reduce overwhelm. Focus on essentials and active recovery."
                                     />
                                 </div>
-                                <GlassButton variant="primary" className="w-full mt-4" onClick={handleGenerate}>
+                                <LiquidGlassButton variant="primary" size="md" className="w-full mt-4" onClick={handleGenerate}>
                                     Optimize Schedule <ArrowRight className="w-4 h-4 ml-2" />
-                                </GlassButton>
+                                </LiquidGlassButton>
                             </motion.div>
                         )}
 
@@ -167,13 +166,18 @@ export function DayOptimizerModal({ date, onClose, onApply, optimizeDay }: DayOp
                                 exit={{ opacity: 0 }}
                                 className="py-12 text-center space-y-4"
                             >
-                                <div className="w-16 h-16 mx-auto rounded-full border-4 border-[var(--color-primary)]/30 border-t-[var(--color-primary)] animate-spin" />
+                                <div className="relative w-20 h-20 mx-auto">
+                                    <div className="absolute inset-0 rounded-full border border-purple-500/30 ring-loader-1" />
+                                    <div className="absolute inset-2 rounded-full border border-[#d90479]/25 ring-loader-2" />
+                                    <div className="absolute inset-4 rounded-full border border-amber-500/20 ring-loader-3" />
+                                    <Sparkles className="absolute inset-0 m-auto w-5 h-5 text-purple-400 animate-pulse" />
+                                </div>
                                 <motion.p 
                                     key={loadingStage}
                                     initial={{ opacity: 0, y: 5 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -5 }}
-                                    className="text-sm font-medium animate-pulse"
+                                    className="text-sm font-medium animate-crossfade-in"
                                 >
                                     {loadingTexts[loadingStage]}
                                 </motion.p>
@@ -192,14 +196,14 @@ export function DayOptimizerModal({ date, onClose, onApply, optimizeDay }: DayOp
                                 {/* Analysis Cards */}
                                 {result.analysis && (
                                     <div className="grid grid-cols-2 gap-3">
-                                        <GlassCard padding="sm" className={`border-l-4 ${result.analysis.schedule_health === 'balanced' ? 'border-green-400' : 'border-orange-400'}`}>
+                                        <div className={`glass-panel p-4 rounded-xl border-l-4 ${result.analysis.schedule_health === 'balanced' ? 'border-green-400' : 'border-orange-400'}`}>
                                             <p className="text-xs uppercase text-[var(--text-tertiary)] mb-1">Health</p>
                                             <p className="font-bold capitalize">{result.analysis.schedule_health}</p>
-                                        </GlassCard>
-                                        <GlassCard padding="sm" className="border-l-4 border-blue-400">
+                                        </div>
+                                        <div className="glass-panel p-4 rounded-xl border-l-4 border-blue-400">
                                             <p className="text-xs uppercase text-[var(--text-tertiary)] mb-1">Energy State</p>
                                             <p className="font-bold">{result.analysis.energy_state}</p>
-                                        </GlassCard>
+                                        </div>
                                     </div>
                                 )}
 
@@ -223,9 +227,9 @@ export function DayOptimizerModal({ date, onClose, onApply, optimizeDay }: DayOp
                                             <button
                                                 key={i}
                                                 onClick={() => setSelectedOption(opt)}
-                                                className={`w-full p-4 rounded-xl border text-left transition-all ${selectedOption?.id === opt.id
-                                                    ? 'bg-[var(--color-success)]/10 border-[var(--color-success)] shadow-lg shadow-[var(--color-success)]/10'
-                                                    : 'bg-white/5 border-white/5 hover:bg-white/10'
+                                                className={`w-full p-4 rounded-xl text-left transition-all duration-300 hover:scale-[1.02] ${selectedOption?.id === opt.id
+                                                    ? 'glass-panel bg-[var(--color-success)]/10 border-[var(--color-success)] shadow-lg shadow-[var(--color-success)]/10'
+                                                    : 'glass-panel hover:bg-white/[0.08] hover:border-white/[0.15]'
                                                     }`}
                                             >
                                                 <div className="flex justify-between items-start mb-1">
@@ -246,18 +250,18 @@ export function DayOptimizerModal({ date, onClose, onApply, optimizeDay }: DayOp
 
                                 {/* Action Buttons */}
                                 <div className="flex gap-3 pt-2">
-                                    <GlassButton variant="ghost" className="flex-1" onClick={() => setStep('mode')}>
+                                    <LiquidGlassButton variant="ghost" size="md" className="flex-1" onClick={() => setStep('mode')}>
                                         Back
-                                    </GlassButton>
-                                    <GlassButton variant="primary" className="flex-[2]" onClick={handleApply} disabled={!selectedOption}>
+                                    </LiquidGlassButton>
+                                    <LiquidGlassButton variant="primary" size="md" className="flex-[2]" onClick={handleApply} disabled={!selectedOption}>
                                         <Check className="w-4 h-4 mr-2" />
                                         Apply Strategy
-                                    </GlassButton>
+                                    </LiquidGlassButton>
                                 </div>
                             </motion.div>
                         )}
                     </AnimatePresence>
-                </GlassCard>
+                </div>
             </motion.div>
         </div>
     );

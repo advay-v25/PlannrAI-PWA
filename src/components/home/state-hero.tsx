@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
 import { Sparkles, ArrowRight, Play, CheckCircle2, ShieldAlert, Zap, Coffee, Check, X } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
@@ -20,6 +21,25 @@ interface StateHeroProps {
 }
 
 export function StateHero({ state, currentTime, activeBlock, nextBlock, metrics, insight, onAction }: StateHeroProps) {
+    const [progressPct, setProgressPct] = useState(0);
+
+    useEffect(() => {
+        if (state === 'IN_BLOCK' && activeBlock?.start_time && activeBlock?.end_time) {
+            const calculateProgress = () => {
+                const now = new Date();
+                const todayStr = now.toISOString().split('T')[0];
+                const start = new Date(`${todayStr}T${activeBlock.start_time}`);
+                const end = new Date(`${todayStr}T${activeBlock.end_time}`);
+                const total = end.getTime() - start.getTime();
+                const elapsed = now.getTime() - start.getTime();
+                setProgressPct(Math.max(0, Math.min(100, (elapsed / total) * 100)));
+            };
+
+            calculateProgress();
+            const interval = setInterval(calculateProgress, 60000);
+            return () => clearInterval(interval);
+        }
+    }, [state, activeBlock]);
 
     // Renders the specific UI based on the 7 states
     const renderSpecificState = () => {
@@ -85,7 +105,7 @@ export function StateHero({ state, currentTime, activeBlock, nextBlock, metrics,
                         <div className="flex justify-between items-end mb-6">
                             <div>
                                 <h3 className="text-sm font-mono text-[var(--color-primary)] uppercase tracking-wider mb-1 flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-[var(--color-primary)] animate-pulse" />
+                                    <span className="w-2 h-2 rounded-full bg-[var(--color-primary)] animate-scifi-blink" />
                                     Active Matrix
                                 </h3>
                                 <h1 className="text-4xl font-bold text-white tracking-tight">{activeBlock?.title || 'Focused Block'}</h1>
@@ -96,12 +116,11 @@ export function StateHero({ state, currentTime, activeBlock, nextBlock, metrics,
                             </div>
                         </div>
 
-                        {/* Progress Bar Mock */}
                         <div className="w-full h-1 bg-black/40 rounded-full overflow-hidden mb-8">
                             <motion.div
                                 className="h-full bg-[var(--color-primary)]"
                                 initial={{ width: "0%" }}
-                                animate={{ width: "65%" }} // mocked for now
+                                animate={{ width: `${progressPct}%` }}
                                 transition={{ duration: 1 }}
                             />
                         </div>
@@ -278,7 +297,10 @@ export function StateHero({ state, currentTime, activeBlock, nextBlock, metrics,
                             <Zap size={16} className="text-[var(--color-primary)]" />
                         </div>
                         <div>
-                            <span className="text-xs font-mono text-[var(--color-primary)] uppercase tracking-wider block mb-1">Incoming Transmission</span>
+                            <span className="text-xs font-mono text-[var(--color-primary)] uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-scifi-blink" />
+                                Incoming Transmission
+                            </span>
                             <p className="text-sm text-white/90 leading-relaxed font-mono">
                                 {insight}
                             </p>

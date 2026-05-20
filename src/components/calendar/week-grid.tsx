@@ -18,18 +18,18 @@ interface WeekGridProps {
 }
 
 const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 6am - 11pm
-const CELL_HEIGHT = 72;
+const CELL_HEIGHT = 120;
 
 // Premium pastel colors matching reference images (black/orange theme)
-const PILLAR_COLORS: Record<string, { bg: string; border: string; text: string; dot: string }> = {
-    mind:    { bg: 'bg-sky-400/15',     border: 'border-sky-400/25',    text: 'text-sky-100',    dot: 'bg-sky-400' },
-    body:    { bg: 'bg-emerald-400/15', border: 'border-emerald-400/25', text: 'text-emerald-100', dot: 'bg-emerald-400' },
-    craft:   { bg: 'bg-amber-400/15',   border: 'border-amber-400/25',  text: 'text-amber-100',  dot: 'bg-amber-400' },
-    anchor:  { bg: 'bg-zinc-700/40',    border: 'border-zinc-500/20',   text: 'text-zinc-300',   dot: 'bg-zinc-500' },
-    meal:    { bg: 'bg-orange-400/10',   border: 'border-orange-400/20', text: 'text-orange-200', dot: 'bg-orange-400' },
-    sleep:   { bg: 'bg-black/40',       border: 'border-white/[0.03]',  text: 'text-white/30',   dot: 'bg-white/10' },
-    break:   { bg: 'bg-transparent',    border: 'border-white/[0.04]',  text: 'text-white/40',   dot: 'bg-white/20' },
-    default: { bg: 'bg-violet-400/12',  border: 'border-violet-400/20', text: 'text-violet-200', dot: 'bg-violet-400' },
+const PILLAR_COLORS: Record<string, { bg: string; border: string; text: string; dot: string; glow: string }> = {
+    mind:    { bg: 'bg-gradient-to-br from-purple-500/15 to-indigo-600/10', border: 'border-purple-400/20', text: 'text-purple-100', dot: 'bg-purple-400', glow: 'block-glow-mind' },
+    body:    { bg: 'bg-gradient-to-br from-emerald-400/15 to-teal-600/10', border: 'border-emerald-400/20', text: 'text-emerald-100', dot: 'bg-emerald-400', glow: 'block-glow-body' },
+    craft:   { bg: 'bg-gradient-to-br from-amber-400/15 to-orange-600/10', border: 'border-amber-400/20', text: 'text-amber-100', dot: 'bg-amber-400', glow: 'block-glow-craft' },
+    anchor:  { bg: 'bg-zinc-700/30', border: 'border-zinc-500/15', text: 'text-zinc-300', dot: 'bg-zinc-500', glow: 'block-glow-anchor' },
+    meal:    { bg: 'bg-gradient-to-br from-orange-300/12 to-rose-500/8', border: 'border-orange-400/15', text: 'text-orange-200', dot: 'bg-orange-400', glow: 'block-glow-routine' },
+    sleep:   { bg: 'bg-black/30', border: 'border-white/[0.05]', text: 'text-white/30', dot: 'bg-white/10', glow: '' },
+    break:   { bg: 'bg-transparent', border: 'border-white/[0.04]', text: 'text-white/40', dot: 'bg-white/20', glow: '' },
+    default: { bg: 'bg-gradient-to-br from-violet-400/15 to-purple-600/10', border: 'border-violet-400/20', text: 'text-violet-200', dot: 'bg-violet-400', glow: 'block-glow-routine' },
 };
 
 function getBlockColors(block: any) {
@@ -42,9 +42,9 @@ function getBlockColors(block: any) {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-    done: 'opacity-60',
-    missed: 'opacity-40',
-    cancelled: 'opacity-30',
+    done: 'opacity-60 saturate-50',
+    missed: 'opacity-40 saturate-0',
+    cancelled: 'opacity-25 saturate-0 line-through',
 };
 
 export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick, viewMode = 'week' }: WeekGridProps) {
@@ -117,9 +117,10 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
     return (
         <DndContext onDragEnd={handleDragEnd} sensors={sensors}>
             <div className="h-full overflow-auto relative no-scrollbar" ref={gridRef}>
+                <div className="calendar-galaxy-bg" />
 
                 {/* Day Headers */}
-                <div className="sticky top-0 z-20 flex border-b border-white/[0.06] bg-black/95 backdrop-blur-xl">
+                <div className="sticky top-0 z-20 flex border-b border-white/[0.08] bg-black/40 backdrop-blur-xl shadow-lg">
                     <div className="w-14 shrink-0 border-r border-white/[0.04]" />
                     {days.map((day, i) => {
                         const isToday = isSameDay(day, new Date());
@@ -133,19 +134,19 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                                 <div className="flex flex-col items-center gap-1">
                                     <div className={cn(
                                         "text-[10px] uppercase font-bold tracking-widest",
-                                        isToday ? "text-orange-400" : "text-white/30"
+                                        isToday ? "text-orange-400" : "text-white/40"
                                     )}>
                                         {format(day, 'EEE')}
                                     </div>
                                     <div className={cn(
-                                        "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all",
-                                        isToday ? "bg-orange-500 text-black" : "text-white/70"
+                                        "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all shadow-inner",
+                                        isToday ? "bg-gradient-to-tr from-orange-500/80 to-purple-500/80 text-white backdrop-blur-md border border-white/30 shadow-[0_0_15px_rgba(249,115,22,0.4)]" : "text-white/70 hover:bg-white/5"
                                     )}>
                                         {format(day, 'd')}
                                     </div>
                                     {dayBlocks.length > 0 && (
-                                        <div className="text-[9px] text-white/30 font-mono">
-                                            <span className={done === dayBlocks.length ? "text-emerald-400/70" : ""}>
+                                        <div className="text-[9px] text-white/40 font-mono">
+                                            <span className={done === dayBlocks.length ? "text-emerald-400/80 drop-shadow-[0_0_5px_rgba(52,211,153,0.5)]" : ""}>
                                                 {done}/{dayBlocks.length}
                                             </span>
                                         </div>
@@ -160,9 +161,9 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                 <div className="flex relative" style={{ minHeight: HOURS.length * CELL_HEIGHT }}>
 
                     {/* Time Column */}
-                    <div className="w-14 shrink-0 border-r border-white/[0.04]">
+                    <div className="w-14 shrink-0 border-r border-white/[0.04] bg-black/20">
                         {HOURS.map(h => (
-                            <div key={h} className="border-b border-white/[0.03] text-[10px] text-white/20 text-right pr-2 pt-1 font-mono"
+                            <div key={h} className="border-b border-dashed border-white/[0.04] text-[10px] text-white/30 text-right pr-2 pt-1 font-mono"
                                 style={{ height: CELL_HEIGHT }}>
                                 {h === 0 ? '12a' : h < 12 ? `${h}a` : h === 12 ? '12p' : `${h - 12}p`}
                             </div>
@@ -178,10 +179,10 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
 
                         return (
                             <div key={dayIndex} className={cn(
-                                "flex-1 border-r border-white/[0.04] last:border-r-0 relative",
+                                "flex-1 border-r border-white/[0.04] last:border-r-0 relative transition-colors",
                                 viewMode === 'day' ? 'min-w-0' : 'min-w-[110px]',
-                                isToday && "bg-[var(--color-primary)]/[0.03]",
-                                isPast && "bg-black/20 opacity-80"
+                                isToday && "bg-white/[0.02]",
+                                isPast && "bg-black/40 opacity-80"
                             )}>
                                 {/* Hour Droppables */}
                                 {HOURS.map(h => (
@@ -194,7 +195,7 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                                 ))}
 
                                 {/* Block Overlays */}
-                                {dayBlocks.map(block => {
+                                {dayBlocks.map((block, index) => {
                                     const layout = layoutMap.get(block.id);
                                     if (!layout) return null;
                                     const adjustedLayout = {
@@ -208,22 +209,23 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                                             layout={adjustedLayout}
                                             onClick={() => onBlockSelect(block)}
                                             isDayView={viewMode === 'day'}
+                                            index={index}
                                         />
                                     );
                                 })}
 
-                                {/* Current Time Line — orange */}
+                                {/* Current Time Line — gradient */}
                                 {dayIndex === nowDayIndex && nowTop > 0 && (
                                     <div
                                         className="absolute left-[-56px] right-0 z-30 pointer-events-none flex items-center"
                                         style={{ top: nowTop - 6 }}
                                     >
-                                        <div className="w-14 text-[10px] text-orange-500 font-bold text-right pr-2 shrink-0">
+                                        <div className="w-14 text-[10px] text-orange-400 font-bold text-right pr-2 shrink-0 drop-shadow-[0_0_8px_rgba(251,146,60,0.8)]">
                                             {format(new Date(), 'HH:mm')}
                                         </div>
                                         <div className="flex-1 relative flex items-center">
-                                            <div className="w-2 h-2 rounded-full bg-orange-500 -ml-1 shrink-0" />
-                                            <div className="flex-1 h-[2px] bg-orange-500/80 shadow-[0_0_8px_rgba(249,115,22,0.5)]" />
+                                            <div className="w-3 h-3 rounded-full bg-orange-400 animate-pulse shadow-[0_0_15px_rgba(251,146,60,0.8)] -ml-1.5 shrink-0" />
+                                            <div className="flex-1 h-[2px] bg-gradient-to-r from-orange-500 via-[#d90479] to-purple-500 shadow-[0_0_15px_rgba(249,115,22,0.5)]" />
                                         </div>
                                     </div>
                                 )}
@@ -243,19 +245,19 @@ function DroppableHour({ dayIndex, hour, onClick }: { dayIndex: number; hour: nu
             ref={setNodeRef}
             onClick={onClick}
             className={cn(
-                "border-b border-white/[0.03] transition-colors cursor-pointer group",
-                isOver ? "bg-orange-500/10" : "hover:bg-white/[0.02]"
+                "border-b border-dashed border-white/[0.03] transition-colors cursor-pointer group",
+                isOver ? "bg-purple-500/20 border-l-2 border-purple-400/60 shadow-[inset_0_0_20px_rgba(168,85,247,0.15)]" : "hover:bg-white/[0.03]"
             )}
             style={{ height: CELL_HEIGHT }}
         >
             <div className="opacity-0 group-hover:opacity-100 flex items-center justify-center h-full transition-opacity">
-                <Plus className="w-3 h-3 text-white/15" />
+                <Plus className="w-3 h-3 text-white/20" />
             </div>
         </div>
     );
 }
 
-function BlockCard({ block, layout, onClick, isDayView }: { block: any; layout: LayoutBlock; onClick: () => void; isDayView?: boolean }) {
+function BlockCard({ block, layout, onClick, isDayView, index = 0 }: { block: any; layout: LayoutBlock; onClick: () => void; isDayView?: boolean; index?: number }) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: block.id,
         disabled: block.is_locked || block.block_type === 'anchor' || block.block_type === 'meal' || block.block_type === 'sleep'
@@ -286,18 +288,17 @@ function BlockCard({ block, layout, onClick, isDayView }: { block: any; layout: 
             ref={setNodeRef}
             initial={{ opacity: 0, scale: 0.97 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={transform ? { duration: 0 } : { type: 'spring', stiffness: 400, damping: 30 }}
+            transition={transform ? { duration: 0 } : { type: 'spring', stiffness: 400, damping: 30, delay: index * 0.05 }}
             style={style}
             {...listeners}
             {...attributes}
             onClick={() => { if (!isDragging) onClick(); }}
             className={cn(
-                "absolute rounded-lg overflow-hidden cursor-pointer flex flex-col",
-                "hover:brightness-110 hover:shadow-xl hover:z-20 group border",
-                isDragging ? "opacity-60 z-50 shadow-2xl ring-2 ring-orange-400/50" : "",
-                colors.bg, colors.border,
-                STATUS_STYLES[block.status] || '',
-                "backdrop-blur-sm transition-shadow duration-300"
+                "absolute rounded-xl overflow-hidden cursor-pointer flex flex-col",
+                "transition-all duration-300 hover:scale-[1.03] hover:z-20 group border backdrop-blur-xl shadow-lg",
+                isDragging ? "opacity-60 z-50 shadow-[0_20px_40px_rgba(249,115,22,0.4)] ring-2 ring-orange-400/80 scale-[1.05]" : "shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]",
+                colors.bg, colors.border, colors.glow,
+                STATUS_STYLES[block.status] || ''
             )}
         >
             <div className="p-2.5 h-full flex flex-col relative z-10">

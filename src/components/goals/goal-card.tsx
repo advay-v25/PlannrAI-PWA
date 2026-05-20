@@ -33,24 +33,24 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
 
     // Local buffering for inputs to prevent API spam on every keystroke/pixel drag
     const [localTitle, setLocalTitle] = useState(goal.title || '');
-    const [localDaysPerWeek, setLocalDaysPerWeek] = useState((goal as any).days_per_week || Math.max(1, Math.round((goal.weekly_target_minutes || 0) / 60)));
-    const [localMinsPerDay, setLocalMinsPerDay] = useState((goal as any).minutes_per_day || Math.max(15, Math.round((goal.weekly_target_minutes || 0) / ((goal as any).days_per_week || 1))));
+    const [localDaysPerWeek, setLocalDaysPerWeek] = useState(goal.days_per_week || Math.max(1, Math.round((goal.weekly_target_minutes || 0) / 60)));
+    const [localMinsPerDay, setLocalMinsPerDay] = useState(goal.minutes_per_day || Math.max(15, Math.round((goal.weekly_target_minutes || 0) / (goal.days_per_week || 1))));
 
     // Sync local state if external goal prop changes
     useEffect(() => {
         setLocalTitle(goal.title || '');
-        setLocalDaysPerWeek((goal as any).days_per_week || Math.max(1, Math.round((goal.weekly_target_minutes || 0) / 60)));
-        setLocalMinsPerDay((goal as any).minutes_per_day || Math.max(15, Math.round((goal.weekly_target_minutes || 0) / ((goal as any).days_per_week || 1))));
-    }, [goal.title, goal.weekly_target_minutes, (goal as any).days_per_week, (goal as any).minutes_per_day]);
+        setLocalDaysPerWeek(goal.days_per_week || Math.max(1, Math.round((goal.weekly_target_minutes || 0) / 60)));
+        setLocalMinsPerDay(goal.minutes_per_day || Math.max(15, Math.round((goal.weekly_target_minutes || 0) / (goal.days_per_week || 1))));
+    }, [goal.title, goal.weekly_target_minutes, goal.days_per_week, goal.minutes_per_day]);
 
     const handleTargetUpdate = () => {
         const weekly_target_minutes = localDaysPerWeek * localMinsPerDay;
-        if (weekly_target_minutes !== goal.weekly_target_minutes || localDaysPerWeek !== (goal as any).days_per_week || localMinsPerDay !== (goal as any).minutes_per_day) {
+        if (weekly_target_minutes !== goal.weekly_target_minutes || localDaysPerWeek !== goal.days_per_week || localMinsPerDay !== goal.minutes_per_day) {
             onUpdate(goal.id, { 
                 weekly_target_minutes, 
                 days_per_week: localDaysPerWeek, 
                 minutes_per_day: localMinsPerDay 
-            } as any);
+            });
         }
     };
 
@@ -99,21 +99,24 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                                 </div>
                                 {/* Weekly Progress Bar */}
                                 {(goal.weekly_target_minutes || 0) > 0 && (() => {
-                                    const achieved = (goal as any).current_xp || 0;
+                                    const achieved = goal.total_completed_minutes || 0;
                                     const target = goal.weekly_target_minutes || 1;
                                     const pct = Math.min(100, Math.round((achieved / target) * 100));
                                     return (
-                                        <div className="flex items-center gap-2">
-                                            <div className="flex-1 h-1.5 bg-[var(--glass-border)] rounded-full overflow-hidden">
-                                                <div
-                                                    className="h-full rounded-full transition-all duration-500"
+                                        <div className="flex items-center gap-2 mt-2">
+                                            <div className="flex-1 h-2 bg-[var(--glass-bg-hover)] border border-[var(--glass-border)] rounded-full overflow-hidden relative shadow-inner">
+                                                <motion.div
+                                                    initial={{ width: 0 }}
+                                                    animate={{ width: `${pct}%` }}
+                                                    transition={{ duration: 1, ease: "easeOut" }}
+                                                    className="absolute top-0 left-0 h-full rounded-full"
                                                     style={{
-                                                        width: `${pct}%`,
                                                         backgroundColor: pillarColor,
+                                                        boxShadow: `0 0 10px ${pillarColor}80, inset 0 0 4px ${pillarColor}`
                                                     }}
                                                 />
                                             </div>
-                                            <span className="text-[10px] font-mono font-bold" style={{ color: pillarColor }}>{pct}%</span>
+                                            <span className="text-[10px] font-mono font-bold tracking-wider" style={{ color: pillarColor, textShadow: `0 0 10px ${pillarColor}40` }}>{pct}%</span>
                                         </div>
                                     );
                                 })()}

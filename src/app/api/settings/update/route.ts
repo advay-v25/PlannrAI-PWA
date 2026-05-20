@@ -37,9 +37,29 @@ export const POST = secureApiRoute(
         // 4. If schedule-affecting fields changed, flag for rescheduling and sync critical fields
         if (affectsSchedule) {
             try {
+                // Instantly update future sleep blocks so the calendar reflects it immediately
+                const today = new Date().toISOString().split('T')[0];
+                if (patch.wake_time) {
+                    await supabase
+                        .from('schedule_blocks')
+                        .update({ end_time: patch.wake_time })
+                        .eq('user_id', userId)
+                        .eq('block_type', 'sleep')
+                        .eq('start_time', '00:00')
+                        .gte('date', today);
+                }
+                if (patch.sleep_start) {
+                    await supabase
+                        .from('schedule_blocks')
+                        .update({ start_time: patch.sleep_start })
+                        .eq('user_id', userId)
+                        .eq('block_type', 'sleep')
+                        .eq('end_time', '23:59')
+                        .gte('date', today);
+                }
+
+                // Also sync wake/sleep times back to profiles table as a robust safety net
                 const profileUpdate: any = { needs_rescheduling: true };
-                
-                // Sync wake/sleep times back to profiles table as a robust safety net
                 if (patch.wake_time) profileUpdate.sleep_end = patch.wake_time;
                 if (patch.sleep_start) profileUpdate.sleep_start = patch.sleep_start;
 
@@ -49,7 +69,7 @@ export const POST = secureApiRoute(
                     .eq('id', userId);
                 console.log(`[Settings] Flagged needs_rescheduling for user ${userId}`);
             } catch (flagError) {
-                console.warn('[Settings] Failed to flag rescheduling:', flagError);
+                console.warn('[Settings] Failed to update sleep blocks or flag rescheduling:', flagError);
             }
         }
 

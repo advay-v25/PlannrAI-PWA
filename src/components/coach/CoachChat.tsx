@@ -141,8 +141,9 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
                         <span className="text-white text-sm">⚡</span>
                     </div>
                     <div className="flex flex-col">
-                        <span className="text-sm font-bold text-foreground tracking-tight">
+                        <span className="text-sm font-bold text-foreground tracking-tight flex items-center gap-1.5">
                             Donna
+                            <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-scifi-blink" />
                         </span>
                         <span className="text-[10px] text-foreground/40 uppercase tracking-wider">
                             AI Coach · Strategic Mode
@@ -294,22 +295,26 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
                     </div>
                 ))}
 
-                {/* Loading Indicator — Single unified one */}
+                {/* Loading Indicator — Pulsating Orb */}
                 {isLoading && (
-                    <div className="flex items-start gap-3 animate-fade-in">
-                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs shrink-0">
-                            <span className="animate-spin text-sm">⚡</span>
+                    <div className="flex items-start gap-4 animate-fade-in pl-2">
+                        <div className="relative w-12 h-12 shrink-0 flex items-center justify-center">
+                            {/* Inner core */}
+                            <div className="absolute inset-2 bg-gradient-to-tr from-purple-500 to-orange-400 rounded-full animate-pulse shadow-[0_0_15px_rgba(249,115,22,0.8)]" />
+                            {/* Spinning outer rings */}
+                            <div className="absolute inset-0 border-2 border-t-purple-500 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin" style={{ animationDuration: '2s' }} />
+                            <div className="absolute inset-0 border-[1.5px] border-b-orange-500 border-r-transparent border-t-transparent border-l-transparent rounded-full animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }} />
                         </div>
-                        <div className="flex flex-col space-y-2">
-                            <div className="glass-morphism p-3 rounded-2xl rounded-tl-none max-w-[280px] bg-white/[0.03]">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-xs text-foreground/40 font-mono italic">
+                        <div className="flex flex-col space-y-2 pt-1">
+                            <div className="bg-black/40 backdrop-blur-md border border-white/10 p-3.5 rounded-2xl rounded-tl-sm max-w-[280px]">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-[11px] text-white/60 font-mono tracking-wide">
                                         {loadingStageText}
                                     </span>
                                     <div className="flex gap-1">
-                                        <span className="w-1 h-1 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-                                        <span className="w-1 h-1 bg-primary rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-                                        <span className="w-1 h-1 bg-primary rounded-full animate-bounce"></span>
+                                        <span className="w-1.5 h-1.5 bg-orange-400 rounded-full animate-bounce shadow-[0_0_8px_rgba(251,146,60,0.8)]" style={{ animationDelay: '0s' }} />
+                                        <span className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce shadow-[0_0_8px_rgba(168,85,247,0.8)]" style={{ animationDelay: '0.2s' }} />
+                                        <span className="w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce shadow-[0_0_8px_rgba(236,72,153,0.8)]" style={{ animationDelay: '0.4s' }} />
                                     </div>
                                 </div>
                             </div>
