@@ -241,7 +241,7 @@ export default function HomePage() {
             <PageBackground variant="aurora" intensity="strong" />
 
             {/* Geometric accent layer */}
-            <div aria-hidden style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+            <div aria-hidden style={{ position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none', overflow: 'hidden' }}>
               {/* Top shimmer accent line */}
               <div style={{
                 position: 'absolute', top: 0, left: 0, right: 0, height: '1px',

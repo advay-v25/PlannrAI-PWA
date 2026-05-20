@@ -40,7 +40,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     ];
 
     return (
-        <div className="flex h-dvh w-full overflow-hidden bg-[var(--color-bg-primary)] text-[var(--text-primary)]">
+        <div className="flex h-dvh w-full overflow-hidden text-[var(--text-primary)]">
             <CommandMenu />
 
             {/* Desktop Sidebar */}
