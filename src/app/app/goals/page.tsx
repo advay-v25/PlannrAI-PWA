@@ -18,6 +18,7 @@ import { GoalCard } from '@/components/goals/goal-card';
 import { GoalStrategyWizard } from '@/components/goals/goal-strategy-wizard';
 import { AddGoalModal } from '@/components/goals/add-goal-modal';
 import type { Goal } from '@/types/database';
+import { PageBackground } from '@/components/ui/PageBackground';
 
 export default function GoalsPage() {
     const { goals, capacity, updateGoal, deleteGoal, fetchGoals } = useGoalsManager();
@@ -45,6 +46,7 @@ export default function GoalsPage() {
 
     return (
         <div className="pb-24 space-y-8">
+            <PageBackground color="pink" />
             {/* 1. Header & Quick Actions */}
             <header className="flex items-center justify-between">
                 <div>

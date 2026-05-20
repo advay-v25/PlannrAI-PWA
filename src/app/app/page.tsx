@@ -22,6 +22,7 @@ import { format } from 'date-fns';
 import { Settings, Zap, Shield, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { PageBackground } from '@/components/ui/PageBackground';
 
 export default function HomePage() {
     const router = useRouter();
@@ -237,6 +238,7 @@ export default function HomePage() {
 
     return (
         <>
+            <PageBackground variant="aurora" intensity="medium" />
             <NotificationScheduler blocks={effectiveData.schedule_blocks} date={today} />
 
             {/* Scheduling Mode Banner (from energy check-in) */}

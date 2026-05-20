@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
 import { Loader2, ArrowRight, ArrowLeft, Brain, Zap, Target, Star, AlertTriangle, MessageCircle, X } from 'lucide-react';
+import { PageBackground } from '@/components/ui/PageBackground';
 
 interface Goal {
     id: string;
@@ -126,6 +127,7 @@ export default function WeeklyReviewSurvey() {
 
     return (
         <div className="max-w-2xl mx-auto pb-20 p-4 md:p-6 min-h-screen flex flex-col">
+            <PageBackground color="purple" intensity="strong" />
             <header className="mb-8 flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">Weekly Review</h1>

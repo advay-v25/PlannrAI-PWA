@@ -1,14 +1,13 @@
 import Link from 'next/link';
 import { Sparkles, ArrowRight, Shield, Heart, Brain, Target, Calendar, BarChart3 } from 'lucide-react';
+import { PageBackground } from '@/components/ui/PageBackground';
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen">
+      <PageBackground variant="aurora" intensity="strong" />
       {/* Hero Section */}
       <section className="relative px-4 pt-20 pb-32 overflow-hidden">
-        {/* Background gradient orbs */}
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-[var(--color-primary)] opacity-10 blur-[100px]" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full bg-[var(--color-accent-mind)] opacity-10 blur-[100px]" />
 
         <div className="max-w-4xl mx-auto text-center relative z-10">
           {/* Logo */}

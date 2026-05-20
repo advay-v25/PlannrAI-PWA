@@ -21,6 +21,7 @@ import {
 import { ConflictModal } from '@/components/calendar/conflict-modal';
 import { PlanWeekModal } from '@/components/calendar/plan-week-modal';
 import { DayOptimizerModal } from '@/components/calendar/day-optimizer-modal';
+import { PageBackground } from '@/components/ui/PageBackground';
 
 
 // ── Types ────────────────────────────────────────────────────────
@@ -362,6 +363,7 @@ function CalendarPageInner() {
 
     return (
         <div className="h-screen bg-black text-white overflow-hidden flex flex-col">
+            <PageBackground color="teal" variant="horizon" intensity="subtle" />
 
             {/* ── Top Header ────────────────────────────────────── */}
             <div className="shrink-0 px-6 py-3 border-b border-white/[0.06] bg-black/80 backdrop-blur-xl">

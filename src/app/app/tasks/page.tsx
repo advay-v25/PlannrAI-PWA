@@ -3,6 +3,7 @@
 import { ActionCenter } from '@/components/todos/ActionCenter';
 import { useTodos } from '@/hooks/use-todos';
 import { motion } from 'framer-motion';
+import { PageBackground } from '@/components/ui/PageBackground';
 
 function AllTimeProgress() {
     const { todos, isLoading } = useTodos();
@@ -50,6 +51,7 @@ function AllTimeProgress() {
 export default function TasksPage() {
     return (
         <div className="flex flex-col h-[calc(100vh-8rem)]">
+            <PageBackground color="orange" />
             <header className="mb-6">
                 <h1 className="text-3xl font-bold tracking-tight text-white">Tasks</h1>
                 <p className="text-[var(--text-secondary)] mt-1">
