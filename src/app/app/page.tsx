@@ -238,7 +238,31 @@ export default function HomePage() {
 
     return (
         <>
-            <PageBackground variant="aurora" intensity="medium" />
+            <PageBackground variant="aurora" intensity="strong" />
+
+            {/* Geometric accent layer */}
+            <div aria-hidden style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+              {/* Top shimmer accent line */}
+              <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0, height: '1px',
+                background: 'linear-gradient(to right, transparent, hsla(16, 100%, 60%, 0.45) 30%, hsla(270, 91%, 65%, 0.45) 55%, hsla(158, 84%, 45%, 0.38) 75%, transparent)',
+              }} />
+              {/* Top-left corner cross */}
+              <div style={{ position: 'absolute', top: '72px', left: '12px', opacity: 0.12 }}>
+                <div style={{ position: 'absolute', width: '1px', height: '20px', background: 'white', left: '9px', top: 0 }} />
+                <div style={{ position: 'absolute', height: '1px', width: '20px', background: 'white', top: '9px', left: 0 }} />
+              </div>
+              {/* Top-right corner cross */}
+              <div style={{ position: 'absolute', top: '72px', right: '12px', opacity: 0.12 }}>
+                <div style={{ position: 'absolute', width: '1px', height: '20px', background: 'white', left: '9px', top: 0 }} />
+                <div style={{ position: 'absolute', height: '1px', width: '20px', background: 'white', top: '9px', left: 0 }} />
+              </div>
+              {/* Faint bottom vignette */}
+              <div style={{
+                position: 'absolute', bottom: 0, left: 0, right: 0, height: '200px',
+                background: 'linear-gradient(to top, var(--color-bg-primary), transparent)',
+              }} />
+            </div>
             <NotificationScheduler blocks={effectiveData.schedule_blocks} date={today} />
 
             {/* Scheduling Mode Banner (from energy check-in) */}
