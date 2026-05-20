@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
 import { Loader2, ArrowRight, ArrowLeft, Brain, Zap, Target, Star, AlertTriangle, MessageCircle, X } from 'lucide-react';
-import { PageBackground } from '@/components/ui/PageBackground';
 
 interface Goal {
     id: string;
@@ -127,7 +126,99 @@ export default function WeeklyReviewSurvey() {
 
     return (
         <div className="max-w-2xl mx-auto pb-20 p-4 md:p-6 min-h-screen flex flex-col">
-            <PageBackground color="purple" intensity="strong" />
+            {/* SVG organic ribbon flows — purple palette */}
+            <div aria-hidden style={{ position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none', overflow: 'hidden' }}>
+              <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0, height: '1px',
+                background: 'linear-gradient(to right, transparent, hsla(270,82%,62%,0.55) 40%, hsla(290,80%,65%,0.42) 65%, transparent)',
+              }} />
+              <svg
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+                viewBox="0 0 1440 900"
+                preserveAspectRatio="xMidYMid slice"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <defs>
+                  <linearGradient id="review-r1" x1="1440" y1="-100" x2="0" y2="900" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="hsla(270,82%,62%,0.42)" />
+                    <stop offset="40%" stopColor="hsla(275,78%,44%,0.22)" />
+                    <stop offset="100%" stopColor="hsla(280,65%,18%,0)" />
+                  </linearGradient>
+                  <linearGradient id="review-r2" x1="1440" y1="200" x2="200" y2="900" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="hsla(290,75%,58%,0.24)" />
+                    <stop offset="55%" stopColor="hsla(270,78%,50%,0.12)" />
+                    <stop offset="100%" stopColor="transparent" />
+                  </linearGradient>
+                  <linearGradient id="review-r3" x1="1" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsla(270,82%,56%,0.20)" />
+                    <stop offset="100%" stopColor="transparent" />
+                  </linearGradient>
+                  <filter id="review-shadow" x="-60%" y="-60%" width="220%" height="220%">
+                    <feGaussianBlur stdDeviation="30" />
+                  </filter>
+                  <filter id="review-glow" x="-60%" y="-60%" width="220%" height="220%">
+                    <feGaussianBlur stdDeviation="10" />
+                  </filter>
+                </defs>
+
+                {/* FOLD 1 — main lit face */}
+                <path
+                  d="M 1600 -200 C 1300 20 1050 200 820 390 C 590 580 370 720 0 890 L 0 1000 L 1600 1000 Z"
+                  fill="url(#review-r1)"
+                />
+                {/* FOLD 1 — valley shadow */}
+                <path
+                  d="M 1430 -60 C 1130 170 890 350 670 530 C 450 710 240 830 -80 920"
+                  stroke="hsla(270,60%,5%,0.55)"
+                  strokeWidth="100"
+                  fill="none"
+                  filter="url(#review-shadow)"
+                />
+                {/* FOLD 1 — bright ridge highlight */}
+                <path
+                  d="M 1430 -60 C 1130 170 890 350 670 530 C 450 710 240 830 -80 920"
+                  stroke="hsla(270,90%,78%,0.55)"
+                  strokeWidth="1.5"
+                  fill="none"
+                />
+                {/* FOLD 1 — soft glow halo */}
+                <path
+                  d="M 1430 -60 C 1130 170 890 350 670 530 C 450 710 240 830 -80 920"
+                  stroke="hsla(270,88%,65%,0.28)"
+                  strokeWidth="38"
+                  fill="none"
+                  filter="url(#review-glow)"
+                />
+
+                {/* FOLD 2 — secondary ribbon face */}
+                <path
+                  d="M 1600 160 C 1300 360 1050 510 820 660 C 590 810 370 890 0 980 L 0 1000 L 1600 1000 Z"
+                  fill="url(#review-r2)"
+                />
+                {/* FOLD 2 — bright ridge highlight */}
+                <path
+                  d="M 1430 220 C 1130 420 890 570 670 710 C 450 850 240 930 -80 1000"
+                  stroke="hsla(280,88%,70%,0.32)"
+                  strokeWidth="1.5"
+                  fill="none"
+                />
+                {/* FOLD 2 — soft glow halo */}
+                <path
+                  d="M 1430 220 C 1130 420 890 570 670 710 C 450 850 240 930 -80 1000"
+                  stroke="hsla(270,88%,62%,0.18)"
+                  strokeWidth="32"
+                  fill="none"
+                  filter="url(#review-glow)"
+                />
+
+                {/* Upper-right corner fill accent */}
+                <path
+                  d="M 1600 -350 C 1500 -180 1350 -70 1200 40 C 1050 150 950 230 820 340 L 1600 340 Z"
+                  fill="url(#review-r3)"
+                />
+              </svg>
+            </div>
             <header className="mb-8 flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">Weekly Review</h1>
