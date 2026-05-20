@@ -1,84 +1,50 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { createClient } from '@/lib/supabase/server';
-import { generateCoachResponse } from '@/lib/coach/response-generator';
-import { buildCoachContext } from '@/lib/coach/context-builder';
-import { buildCalendarContext } from '@/lib/calendar/context-builder';
 import { PatchService } from '@/lib/services/patch-service';
 
 export const maxDuration = 45;
 
 export const POST = secureApiRoute(
     async (context, body) => {
-        const { accomplished, bestGoalId, worstGoalId, priorityChange, feedbackText, mode } = body as any;
+        const { mode, changes = [] } = body as any;
         const { userId, supabase } = context;
 
         if (!mode) return apiError("Missing execution mode", 400);
 
-        // 1. Log or track the weekly review locally or in DB if needed.
-        // For now, the user dismissed it client side via localStorage.
+        // 1. Process explicit goal changes (for both auto and semi-auto)
+        // If mode is 'auto', `changes` will contain all proposed changes from the report.
+        // If mode is 'semi-auto', `changes` will contain ONLY the changes the user explicitly approved.
+        for (const change of changes) {
+            const { goal_id, change_type, new_minutes_per_day, new_days_per_week } = change;
+            if (!goal_id) continue;
 
-        // 2. Adjust Goal Priority
-        if (worstGoalId && worstGoalId !== 'none' && priorityChange && priorityChange !== 'no') {
-            const { data: goal } = await supabase
-                .from('goals')
-                .select('id, importance')
-                .eq('id', worstGoalId)
-                .eq('user_id', userId)
-                .single();
-
-            if (goal) {
-                let newImportance = goal.importance;
-                if (priorityChange === 'increase') {
-                    if (goal.importance === 'low') newImportance = 'medium';
-                    else if (goal.importance === 'medium') newImportance = 'high';
-                } else if (priorityChange === 'decrease') {
-                    if (goal.importance === 'high') newImportance = 'medium';
-                    else if (goal.importance === 'medium') newImportance = 'low';
-                }
-
-                if (newImportance !== goal.importance) {
-                    await supabase
-                        .from('goals')
-                        .update({ importance: newImportance })
-                        .eq('id', worstGoalId);
+            if (change_type === 'pause') {
+                await supabase.from('goals').update({ is_paused: true }).eq('id', goal_id).eq('user_id', userId);
+            } else if (change_type === 'delete') {
+                // To be safe, we'll just pause it instead of hard deleting, or if they really want delete:
+                await supabase.from('goals').delete().eq('id', goal_id).eq('user_id', userId);
+            } else if (change_type === 'update_time' || change_type === 'update_days') {
+                const updates: any = {};
+                if (typeof new_minutes_per_day === 'number') updates.minutes_per_day = new_minutes_per_day;
+                if (typeof new_days_per_week === 'number') updates.days_per_week = new_days_per_week;
+                
+                if (Object.keys(updates).length > 0) {
+                    await supabase.from('goals').update(updates).eq('id', goal_id).eq('user_id', userId);
                 }
             }
         }
 
-        // 3. Handle Auto Execution (Coach AI + Replan)
-        if (mode === 'auto') {
-            // Build Contexts
-            const coachCtx = await buildCoachContext(userId, supabase);
-            const calCtx = await buildCalendarContext(userId, supabase);
+        // 2. Trigger Replan
+        // In auto mode, or if semi-auto had changes, we should probably replan the current week's schedule
+        // to reflect the new realities.
+        // Let's trigger a basic replan operation via the PatchService
+        
+        await PatchService.applyPatch(userId, {
+            ops: [{ op: 'replan_week', payload: { mode: 'balanced', allow_weekend: true } }],
+            scope: 'week'
+        }, supabase, 'coach');
 
-            const prompt = `Weekly Review Feedback: ${feedbackText || 'I want a fresh schedule for next week.'} Please regenerate my schedule for the rest of the week incorporating this feedback.`;
-
-            // We generate the Coach Response which should naturally output a replan_week operation
-            const aiResponse = await generateCoachResponse(
-                prompt,
-                [], // empty history
-                coachCtx,
-                supabase,
-                calCtx
-            );
-
-            // Execute the highest confidence option
-            const bestOption = aiResponse.options?.[0];
-            if (bestOption && bestOption.patch && (bestOption.patch as any).ops?.length > 0) {
-                await PatchService.applyPatch(userId, { 
-                    ops: (bestOption.patch as any).ops,
-                    scope: 'week'
-                }, supabase, 'coach');
-            } else {
-                // Fallback: manually trigger replan_week if AI failed to output it
-                await PatchService.applyPatch(userId, {
-                    ops: [{ op: 'replan_week', payload: { mode: 'balanced', allow_weekend: true } }],
-                    scope: 'week'
-                }, supabase, 'coach');
-            }
-        }
-
-        return apiSuccess({ success: true, mode });
+        return apiSuccess({ success: true, mode, applied_changes: changes.length });
     },
     { requireAuth: true, auditAction: 'weekly_review_execute' }
 );
