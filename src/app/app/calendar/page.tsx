@@ -344,7 +344,7 @@ function CalendarPageInner() {
                         block_id: selectedBlock.id,
                         status: 'missed'
                     });
-                    showToast("Skipped", 'info');
+                    showToast("Marked incomplete", 'info');
                     break;
                 case 'delete':
                     await deleteBlock(selectedBlock.id);

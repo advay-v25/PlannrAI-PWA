@@ -350,7 +350,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                             size="sm"
                             className="flex-1"
                         >
-                            <SkipForward className="w-4 h-4" /> Skip
+                            <X className="w-4 h-4" /> Incomplete
                         </LiquidGlassButton>
                     </div>
                 )}

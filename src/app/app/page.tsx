@@ -459,30 +459,30 @@ export default function HomePage() {
                         } else if (action === 'skip_next' || action === 'start_early') {
                             if (!effectiveState.next_block?.id) return;
                             const status = action === 'skip_next' ? 'cancelled' : 'in_progress';
-                            toast.loading('Updating block...');
+                            toast.loading('Updating block...', { id: 'block-status' });
                             try {
                                 await apiClient.post('/api/calendar/block-status', {
                                     block_id: effectiveState.next_block.id,
                                     status
                                 });
-                                toast.success(action === 'skip_next' ? 'Block skipped.' : 'Started early!');
+                                toast.success(action === 'skip_next' ? 'Block skipped.' : 'Started early!', { id: 'block-status' });
                                 handleRefresh();
                             } catch (e) {
-                                toast.error('Failed to update block');
+                                toast.error('Failed to update block', { id: 'block-status' });
                             }
                         } else if (action === 'complete_early' || action === 'mark_incomplete') {
                             if (!effectiveState.active_block?.id) return;
                             const status = action === 'complete_early' ? 'done' : 'missed';
-                            toast.loading('Updating block...');
+                            toast.loading('Updating block...', { id: 'block-status' });
                             try {
                                 await apiClient.post('/api/calendar/block-status', {
                                     block_id: effectiveState.active_block.id,
                                     status
                                 });
-                                toast.success(action === 'complete_early' ? 'Block completed early! Great job.' : 'Block marked incomplete.');
+                                toast.success(action === 'complete_early' ? 'Block completed early! Great job.' : 'Block marked incomplete.', { id: 'block-status' });
                                 handleRefresh();
                             } catch (e) {
-                                toast.error('Failed to update block');
+                                toast.error('Failed to update block', { id: 'block-status' });
                             }
                         } else if (action === 'shift_schedule') {
                             router.push('/app/coach?mode=strategic&prompt=Reality%20Drift%3A%20I%20missed%20my%20last%20block.%20Shift%20the%20rest%20of%20my%20schedule%20back%20by%2030%20minutes.');
@@ -491,16 +491,16 @@ export default function HomePage() {
                                 router.push('/app/coach?mode=strategic&prompt=Reality%20Drift%3A%20Drop%20the%20missed%20block%20and%20continue%20the%20schedule.');
                                 return;
                             }
-                            toast.loading('Dropping block...');
+                            toast.loading('Dropping block...', { id: 'block-status' });
                             try {
                                 await apiClient.post('/api/calendar/block-status', {
                                     block_id: effectiveState.active_block.id,
                                     status: 'missed'
                                 });
-                                toast.success('Block dropped. Schedule continues.');
+                                toast.success('Block dropped. Schedule continues.', { id: 'block-status' });
                                 handleRefresh();
                             } catch (e) {
-                                toast.error('Failed to update block');
+                                toast.error('Failed to update block', { id: 'block-status' });
                             }
                         } else {
                             handleRefresh();

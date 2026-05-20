@@ -127,10 +127,10 @@ export function StateHero({ state, currentTime, activeBlock, nextBlock, metrics,
 
                         <div className="flex gap-3 mt-8">
                             <GlassButton variant="primary" className="flex-1 text-sm bg-[var(--color-primary)] hover:bg-[var(--color-primary)]/80 text-black border-transparent" onClick={() => onAction('complete_early')}>
-                                <Check size={18} className="mr-2" /> Complete Early
+                                <Check size={18} className="mr-2" /> Done
                             </GlassButton>
                             <GlassButton variant="ghost" className="flex-1 text-sm border-white/10 hover:bg-white/5 hover:text-[var(--color-red)] text-white/70" onClick={() => onAction('mark_incomplete')}>
-                                <X size={18} className="mr-2" /> Mark Incomplete
+                                <X size={18} className="mr-2" /> Incomplete
                             </GlassButton>
                         </div>
                     </div>
@@ -219,6 +219,36 @@ export function StateHero({ state, currentTime, activeBlock, nextBlock, metrics,
                 );
 
             case 'DAY_COMPLETE':
+                if (activeBlock) {
+                    return (
+                        <div className="flex flex-col relative w-full">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--color-primary)]/10 blur-[50px] rounded-full pointer-events-none" />
+
+                            <div className="flex justify-between items-end mb-6">
+                                <div>
+                                    <h3 className="text-sm font-mono text-[var(--color-primary)] uppercase tracking-wider mb-1 flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-[var(--color-primary)]" />
+                                        End of Day
+                                    </h3>
+                                    <h1 className="text-4xl font-bold text-white tracking-tight">{activeBlock.title || 'Last Block'}</h1>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-3xl font-mono text-white">0</div>
+                                    <div className="text-xs font-mono text-[var(--color-text-tertiary)] uppercase">Mins Left</div>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 mt-8">
+                                <GlassButton variant="primary" className="flex-1 text-sm bg-[var(--color-primary)] hover:bg-[var(--color-primary)]/80 text-black border-transparent" onClick={() => onAction('complete_early')}>
+                                    <Check size={18} className="mr-2" /> Done
+                                </GlassButton>
+                                <GlassButton variant="ghost" className="flex-1 text-sm border-white/10 hover:bg-white/5 hover:text-[var(--color-red)] text-white/70" onClick={() => onAction('mark_incomplete')}>
+                                    <X size={18} className="mr-2" /> Incomplete
+                                </GlassButton>
+                            </div>
+                        </div>
+                    );
+                }
                 return (
                     <div className="flex flex-col items-center justify-center text-center space-y-4 py-8">
                         <div className="w-16 h-16 rounded-full bg-[var(--color-green)]/20 border border-[var(--color-green)]/50 flex items-center justify-center mb-2 shadow-[0_0_30px_rgba(0,255,0,0.2)]">

@@ -254,9 +254,9 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
     const profile = {
         ...profileRaw,
         // profile_preferences overrides when they exist
-        sleep_start: profileRaw.sleep_start || prefs.sleep_start || '23:00',
-        sleep_end: profileRaw.sleep_end || prefs.wake_time || '07:00',
-        wind_down_mins: profileRaw.wind_down_mins || profileRaw.wind_down_minutes || prefs.wind_down_min || 30,
+        sleep_start: prefs.sleep_start || profileRaw.sleep_start || '23:00',
+        sleep_end: prefs.wake_time || profileRaw.sleep_end || '07:00',
+        wind_down_mins: profileRaw.wind_down_mins || profileRaw.wind_down_minutes || 30,
         meals_per_day: profileRaw.meals_per_day || prefs.meals_per_day || 3,
         meal_windows: profileRaw.meal_windows || prefs.meal_windows || null,
     };
