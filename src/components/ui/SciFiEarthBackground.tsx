@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { motion, useScroll, useTransform, useSpring, useMotionValue, MotionValue } from 'framer-motion';
+import { motion, useScroll, useTransform, MotionValue } from 'framer-motion';
 import dynamic from 'next/dynamic';
 
 const Globe = dynamic(() => import('react-globe.gl'), { ssr: false });
 
-function InteractiveGlobe({ scrollRotation }: { scrollRotation: MotionValue<number> }) {
+function InteractiveGlobe() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = React.useState({ width: 800, height: 800 });
   const globeRef = useRef<any>(null);
@@ -27,7 +27,7 @@ function InteractiveGlobe({ scrollRotation }: { scrollRotation: MotionValue<numb
     if (globeRef.current) {
       const controls = globeRef.current.controls();
       controls.autoRotate = true;
-      controls.autoRotateSpeed = 0.2;
+      controls.autoRotateSpeed = 0.5;
       controls.enableZoom = false;
       controls.enablePan = false;
     }
@@ -36,13 +36,12 @@ function InteractiveGlobe({ scrollRotation }: { scrollRotation: MotionValue<numb
   return (
     <div ref={containerRef} className="w-full h-full cursor-grab active:cursor-grabbing">
       {dimensions.width > 0 && (
-        <div style={{ width: '100%', height: '100%', filter: 'brightness(0.8) contrast(1.2)' }}>
+        <div style={{ width: '100%', height: '100%', filter: 'brightness(0.9) contrast(1.1)' }}>
           <Globe
             ref={globeRef}
             width={dimensions.width}
             height={dimensions.height}
             globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
-            bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
             backgroundColor="rgba(0,0,0,0)"
             showAtmosphere={true}
             atmosphereColor="#3b82f6"
@@ -55,154 +54,68 @@ function InteractiveGlobe({ scrollRotation }: { scrollRotation: MotionValue<numb
 }
 
 export function SciFiEarthBackground() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  
   // Hook for scroll-driven animations
   const { scrollY } = useScroll();
-  const earthScale = useTransform(scrollY, [0, 800], [1, 0.85]);
-  const earthY = useTransform(scrollY, [0, 800], ['0%', '-30%']);
-  const earthOpacity = useTransform(scrollY, [0, 800], [1, 0.3]);
-  
-  const scrollRotation = useTransform(scrollY, [0, 1000], [0, Math.PI / 2]);
-  
-  const beamOpacity = useTransform(scrollY, [0, 400], [0.8, 0.1]);
-  const starsY = useTransform(scrollY, [0, 1000], [0, -200]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    let animationFrameId: number;
-    let width = window.innerWidth;
-    let height = window.innerHeight;
-
-    const resize = () => {
-      width = window.innerWidth;
-      height = window.innerHeight;
-      canvas.width = width;
-      canvas.height = height;
-    };
-    window.addEventListener('resize', resize);
-    resize();
-
-    // Stars
-    const stars = Array.from({ length: 300 }).map(() => ({
-      x: Math.random() * width,
-      y: Math.random() * height,
-      size: Math.random() * 1.5,
-      speed: Math.random() * 0.2 + 0.05,
-      opacity: Math.random(),
-      fadeSpeed: (Math.random() * 0.02) + 0.005,
-      fadingOut: Math.random() > 0.5,
-    }));
-
-    const draw = () => {
-      ctx.clearRect(0, 0, width, height);
-      
-      // Draw stars
-      stars.forEach(star => {
-        // Twinkle
-        if (star.fadingOut) {
-          star.opacity -= star.fadeSpeed;
-          if (star.opacity <= 0) star.fadingOut = false;
-        } else {
-          star.opacity += star.fadeSpeed;
-          if (star.opacity >= 1) star.fadingOut = true;
-        }
-
-        // Move
-        star.y -= star.speed;
-        if (star.y < 0) {
-          star.y = height;
-          star.x = Math.random() * width;
-        }
-
-        ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0, star.opacity)})`;
-        ctx.beginPath();
-        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-        ctx.fill();
-      });
-
-      animationFrameId = requestAnimationFrame(draw);
-    };
-
-    draw();
-
-    return () => {
-      window.removeEventListener('resize', resize);
-      cancelAnimationFrame(animationFrameId);
-    };
-  }, []);
+  const beamOpacity = useTransform(scrollY, [0, 400], [0.6, 0.05]);
 
   return (
-    <div className="fixed inset-0 w-full h-full z-[-1] bg-[#020106] overflow-hidden">
-      {/* Deep space background with animated Nebula */}
+    <div className="fixed inset-0 w-full h-full z-[-1] bg-[#020106] overflow-hidden" style={{ willChange: 'transform' }}>
+      {/* Deep space background */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(15,10,35,0.8)_0%,rgba(2,1,6,1)_100%)] pointer-events-none" />
       
-      {/* Drifting Nebulas */}
+      {/* Drifting Nebulas - Removed mix-blend-screen and complex arrays to drastically improve GPU rasterization */}
       <motion.div 
-        className="absolute -top-1/4 -left-1/4 w-[120vw] h-[120vh] mix-blend-screen pointer-events-none"
+        className="absolute -top-1/4 -left-1/4 w-[120vw] h-[120vh] pointer-events-none"
         style={{
-          background: 'radial-gradient(circle at 30% 50%, rgba(217,4,121,0.1) 0%, rgba(147,51,234,0.05) 30%, transparent 60%)',
-          filter: 'blur(100px)'
+          background: 'radial-gradient(circle at 30% 50%, rgba(217,4,121,0.12) 0%, rgba(147,51,234,0.06) 30%, transparent 60%)',
+          willChange: 'transform, opacity'
         }}
-        animate={{ 
-            x: ['-5%', '5%', '-5%'], 
-            y: ['-5%', '5%', '-5%'],
-            opacity: [0.3, 0.7, 0.3],
-            scale: [1, 1.1, 1]
-        }}
-        transition={{ duration: 45, repeat: Infinity, ease: 'easeInOut' }}
+        animate={{ opacity: [0.3, 0.6, 0.3] }}
+        transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
       />
       <motion.div 
-        className="absolute top-1/4 -right-1/4 w-[120vw] h-[120vh] mix-blend-screen pointer-events-none"
+        className="absolute top-1/4 -right-1/4 w-[120vw] h-[120vh] pointer-events-none"
         style={{
-          background: 'radial-gradient(circle at 70% 40%, rgba(59,130,246,0.1) 0%, rgba(99,102,241,0.05) 30%, transparent 60%)',
-          filter: 'blur(120px)'
+          background: 'radial-gradient(circle at 70% 40%, rgba(59,130,246,0.12) 0%, rgba(99,102,241,0.06) 30%, transparent 60%)',
+          willChange: 'transform, opacity'
         }}
-        animate={{ 
-            x: ['5%', '-5%', '5%'], 
-            y: ['5%', '-5%', '5%'],
-            opacity: [0.2, 0.6, 0.2],
-            scale: [1, 1.2, 1]
-        }}
-        transition={{ duration: 60, repeat: Infinity, ease: 'easeInOut' }}
+        animate={{ opacity: [0.2, 0.5, 0.2] }}
+        transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
       />
       
-      {/* Starfield with Parallax */}
-      <motion.div style={{ y: starsY }} className="absolute inset-0 w-full h-[150%] -top-[25%] pointer-events-none">
-        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
-      </motion.div>
+      {/* Static CSS Starfield pattern to completely eliminate the expensive 2D Canvas requestAnimationFrame loop */}
+      <div 
+        className="absolute inset-0 w-full h-full pointer-events-none opacity-40"
+        style={{
+          backgroundImage: 'radial-gradient(white, rgba(255,255,255,.2) 2px, transparent 40px)',
+          backgroundSize: '150px 150px',
+          backgroundPosition: '0 0, 75px 75px'
+        }}
+      />
       
       {/* Majestic Light Beam with Scroll Fade */}
       <motion.div 
-        className="absolute left-1/2 top-0 bottom-0 w-[600px] -translate-x-1/2 pointer-events-none mix-blend-screen"
+        className="absolute left-1/2 top-0 bottom-0 w-[600px] -translate-x-1/2 pointer-events-none"
         style={{
-          background: 'linear-gradient(90deg, transparent 0%, rgba(147,51,234,0.15) 30%, rgba(236,72,153,0.3) 50%, rgba(147,51,234,0.15) 70%, transparent 100%)',
-          filter: 'blur(50px)',
-          opacity: beamOpacity
+          background: 'linear-gradient(90deg, transparent 0%, rgba(147,51,234,0.1) 30%, rgba(236,72,153,0.15) 50%, rgba(147,51,234,0.1) 70%, transparent 100%)',
+          opacity: beamOpacity,
+          willChange: 'opacity'
         }}
-        animate={{ scaleX: [1, 1.1, 1] }}
-        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
       />
       
       {/* Interactive WebGL Globe */}
-      <motion.div 
-        className="absolute top-[20%] md:top-[12%] left-1/2 -translate-x-1/2 w-[160vw] h-[160vw] max-w-[1200px] max-h-[1200px] sm:w-[110vw] sm:h-[110vw] md:w-[1000px] md:h-[1000px] lg:w-[1100px] lg:h-[1100px]"
-        style={{ scale: earthScale, y: earthY, opacity: earthOpacity }}
-      >
+      {/* Removed scroll-linked scale/y transforms on the WebGL container. Transforming a WebGL context during scroll destroys frame rates. */}
+      <div className="absolute top-[15%] md:top-[12%] left-1/2 -translate-x-1/2 w-[160vw] h-[160vw] max-w-[1200px] max-h-[1200px] sm:w-[110vw] sm:h-[110vw] md:w-[1000px] md:h-[1000px] lg:w-[1100px] lg:h-[1100px] opacity-70">
+        
         {/* Outer Atmospheric Glow */}
-        <div className="absolute inset-0 rounded-full bg-blue-500/10 blur-[120px] animate-pulse pointer-events-none" style={{ animationDuration: '6s' }} />
-        <div className="absolute inset-10 rounded-full bg-indigo-500/5 blur-[100px] animate-pulse pointer-events-none" style={{ animationDuration: '8s' }} />
-
+        <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle,rgba(59,130,246,0.15)_0%,transparent_70%)] pointer-events-none" />
+        <div className="absolute inset-10 rounded-full bg-[radial-gradient(circle,rgba(99,102,241,0.1)_0%,transparent_60%)] pointer-events-none" />
         
         {/* Globe Container */}
         <div className="relative w-full h-full flex items-center justify-center">
-          <InteractiveGlobe scrollRotation={scrollRotation} />
+          <InteractiveGlobe />
         </div>
-      </motion.div>
+      </div>
       
       {/* Subtle Vignette for depth */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#020106_100%)] opacity-70 pointer-events-none" />
