@@ -34,30 +34,35 @@ export const POST = secureApiRoute(
         let totalBlocks = blocks.length;
         let completedBlocks = 0;
         let cancelledBlocks = 0;
+        let missedBlocks = 0;
         const pillarMinutes: Record<string, number> = {};
-        const dayBreakdown: Record<string, { planned: number; completed: number; cancelled: number }> = {};
+        const dayBreakdown: Record<string, { planned: number; completed: number; cancelled: number; missed: number }> = {};
 
         blocks.forEach((b: any) => {
             const start = parseInt(b.start_time?.split(':')[0] || '0') * 60 + parseInt(b.start_time?.split(':')[1] || '0');
             const end = parseInt(b.end_time?.split(':')[0] || '0') * 60 + parseInt(b.end_time?.split(':')[1] || '0');
             const duration = Math.max(0, end - start);
 
-            if (b.status !== 'cancelled') plannedMinutes += duration;
-            if (b.status === 'done') {
+            const effectiveStatus = (b.status === 'planned' || b.status === 'in_progress') ? 'missed' : b.status;
+
+            if (effectiveStatus !== 'cancelled') plannedMinutes += duration;
+            if (effectiveStatus === 'done') {
                 actualMinutes += duration;
                 completedBlocks++;
             }
-            if (b.status === 'cancelled') cancelledBlocks++;
+            if (effectiveStatus === 'cancelled') cancelledBlocks++;
+            if (effectiveStatus === 'missed') missedBlocks++;
 
             // Pillar tracking
             const pillar = b.pillar || b.block_type || 'unassigned';
             pillarMinutes[pillar] = (pillarMinutes[pillar] || 0) + duration;
 
             // Day breakdown
-            if (!dayBreakdown[b.date]) dayBreakdown[b.date] = { planned: 0, completed: 0, cancelled: 0 };
+            if (!dayBreakdown[b.date]) dayBreakdown[b.date] = { planned: 0, completed: 0, cancelled: 0, missed: 0 };
             dayBreakdown[b.date].planned++;
-            if (b.status === 'done') dayBreakdown[b.date].completed++;
-            if (b.status === 'cancelled') dayBreakdown[b.date].cancelled++;
+            if (effectiveStatus === 'done') dayBreakdown[b.date].completed++;
+            if (effectiveStatus === 'cancelled') dayBreakdown[b.date].cancelled++;
+            if (effectiveStatus === 'missed') dayBreakdown[b.date].missed++;
         });
 
         const completionRate = plannedMinutes > 0 ? Math.round((actualMinutes / plannedMinutes) * 100) : 0;
@@ -74,6 +79,7 @@ export const POST = secureApiRoute(
             totalBlocks,
             completedBlocks,
             cancelledBlocks,
+            missedBlocks,
             topPillar,
             neglectedPillar,
             pillarMinutes,
@@ -102,7 +108,7 @@ export const POST = secureApiRoute(
             const prompt = `Week: ${week_start} to ${week_end}
             Completion Rate: ${completionRate}%
             Planned: ${plannedMinutes}min | Actual: ${actualMinutes}min
-            Blocks: ${totalBlocks} total, ${completedBlocks} done, ${cancelledBlocks} cancelled
+            Blocks: ${totalBlocks} total, ${completedBlocks} done, ${cancelledBlocks} cancelled, ${missedBlocks} missed
             Top Pillar: ${topPillar} (${pillarMinutes[topPillar] || 0}min)
             Neglected: ${neglectedPillar} (${pillarMinutes[neglectedPillar] || 0}min)
             Goals: ${goalsSummary || 'None set'}

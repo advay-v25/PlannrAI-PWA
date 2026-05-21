@@ -231,9 +231,16 @@ function CalendarPageInner() {
     // ── Auto-plan after onboarding ───────────────────────────────
     useEffect(() => {
         const setupComplete = searchParams.get('setup');
-        if (setupComplete === 'complete' && !autoPlanned && !isLoading) {
+        if (setupComplete === 'complete' && !autoPlanned) {
             setAutoPlanned(true);
-            handleGenerateToday(todayStr);
+            showToast('✅ Your week plan is ready!', 'success');
+            // Clean up URL param
+            const url = new URL(window.location.href);
+            url.searchParams.delete('setup');
+            window.history.replaceState({}, '', url);
+            // Switch to week view to show the full plan
+            setViewMode('week');
+            refresh();
         }
         
         const action = searchParams.get('action');
@@ -244,7 +251,7 @@ function CalendarPageInner() {
             url.searchParams.delete('action');
             window.history.replaceState({}, '', url);
         }
-    }, [searchParams, isLoading, autoPlanned]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [searchParams, autoPlanned]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Keep selectedBlock in sync with latest block data after refreshes
     useEffect(() => {

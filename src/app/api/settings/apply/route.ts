@@ -37,12 +37,20 @@ export const POST = secureApiRoute(
         // But if 'otherOps' has actual block moves, we call the patch API.
 
         if (otherOps.length > 0) {
-            // Re-construct a patch for the schedule API
-            const schedulePatch = {
-                ...patch,
-                ops: otherOps
-            };
-            await apiClient.post('/api/calendar/apply-schedule', { action: 'manual', patch: { update: otherOps } });
+            // Re-construct a patch for the schedule API and call it directly via fetch
+            // bypassing apiClient to ensure correct base URL on the server
+            const origin = context.request.nextUrl.origin;
+            const headers: HeadersInit = { 'Content-Type': 'application/json' };
+            const authHeader = context.request.headers.get('authorization');
+            const cookieHeader = context.request.headers.get('cookie');
+            if (authHeader) headers['Authorization'] = authHeader;
+            if (cookieHeader) headers['Cookie'] = cookieHeader;
+
+            await fetch(`${origin}/api/calendar/apply-schedule`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ action: 'manual', patch: { update: otherOps } })
+            });
         }
 
         return apiSuccess({ success: true });
