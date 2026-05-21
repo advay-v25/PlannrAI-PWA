@@ -183,7 +183,33 @@ function findAvailableSlots(
     notBeforeTime?: string
 ): FreeSlot[] {
     const dayBlocks = blocks
-        .filter(b => b.date === date)
+        .filter(b => {
+            if (b.date !== date) return false;
+
+            const rawType = (b as any).block_type || '';
+            const type = rawType.toLowerCase().trim();
+            const title = ((b as any).title || '').toLowerCase().trim();
+            const isLocked = (b as any).is_locked || (b as any).is_fixed;
+
+            // Occupied if sleep, meal, anchor, buffer, wind_down, locked/fixed, or title indicates it
+            const isOccupiedType = 
+                type === 'sleep' ||
+                type === 'meal' ||
+                type === 'anchor' ||
+                type === 'buffer' ||
+                type === 'wind_down' ||
+                title.includes('sleep') ||
+                title.includes('breakfast') ||
+                title.includes('lunch') ||
+                title.includes('dinner') ||
+                title.includes('meal') ||
+                title.includes('wind down') ||
+                title.includes('buffer') ||
+                title.includes('work') ||
+                isLocked;
+
+            return isOccupiedType;
+        })
         .sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
 
     const wakeMin = timeToMinutes(wakeTime);
