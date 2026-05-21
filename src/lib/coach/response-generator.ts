@@ -150,6 +150,7 @@ function getDayOfWeek(date: string): string {
 }
 
 function minutesToTime(minutes: number): string {
+    if (minutes === 1440) return '00:00';
     const h = Math.floor(minutes / 60);
     const m = minutes % 60;
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
@@ -186,7 +187,9 @@ function findAvailableSlots(
         .sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
 
     const wakeMin = timeToMinutes(wakeTime);
-    const sleepMin = timeToMinutes(sleepTime);
+    let sleepMin = timeToMinutes(sleepTime);
+    if (sleepMin === 0) sleepMin = 1440; // Treat '00:00' as midnight for the end of the day
+
     const notBeforeMin = notBeforeTime ? timeToMinutes(notBeforeTime) : 0;
     const results: FreeSlot[] = [];
 
@@ -196,16 +199,19 @@ function findAvailableSlots(
         const blockEnd = timeToMinutes(block.end_time);
 
         // Advance cursor past blocks that are entirely before our start
-        if (blockEnd <= cursor) { cursor = Math.max(cursor, blockEnd); continue; }
+        if (blockEnd <= cursor) { 
+            continue; 
+        }
 
         const gapStart = cursor;
-        const gapEnd = Math.min(blockStart, sleepMin);
+        const gapEnd = Math.min(Math.max(blockStart, cursor), sleepMin);
         const gapMins = gapEnd - gapStart;
 
         if (gapMins >= minDurationMinutes) {
             results.push({ start: minutesToTime(gapStart), end: minutesToTime(gapEnd), duration_mins: gapMins });
             if (results.length >= count) return results;
         }
+        
         cursor = Math.max(cursor, blockEnd);
     }
 
@@ -331,31 +337,42 @@ ${tomorrowText}
 ${freeSlotsText}
 
 ━━━ THIS WEEK'S FULL SCHEDULE + FREE SLOTS ━━━
-${weekBlocks.length > 0
-    ? (() => {
-        const byDate = new Map<string, any[]>();
-        weekBlocks.forEach((b: any) => {
-            const d = b.date;
-            if (!byDate.has(d)) byDate.set(d, []);
-            byDate.get(d)!.push(b);
-        });
-        return Array.from(byDate.entries())
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([date, blocks]) => {
-                const dayName = getDayOfWeek(date).toUpperCase();
-                const lines = blocks.map((b: any) =>
-                    `    ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${b.goal_id ? ` → Goal: ${b.goal_id}` : ''}${b.id ? ` ID:${b.id}` : ''}`
-                ).join('\n');
-                // Free slots: for today, skip past times; for future days, full day
-                const notBefore = date === now.date ? now.time : undefined;
-                const dayFreeSlots = findAvailableSlots(weekBlocks, date, 30, wakeTime, sleepTime, 8, notBefore);
-                const freeLine = dayFreeSlots.length > 0
-                    ? `    FREE SLOTS: ${dayFreeSlots.map(formatSlot).join(' | ')}`
-                    : `    FREE SLOTS: NONE (fully booked)`;
-                return `  ${dayName} (${date}):\n${lines}\n${freeLine}`;
-            }).join('\n');
-    })()
-    : '  (No blocks this week)'}
+${(() => {
+    const byDate = new Map<string, any[]>();
+    weekBlocks.forEach((b: any) => {
+        const d = b.date;
+        if (!byDate.has(d)) byDate.set(d, []);
+        byDate.get(d)!.push(b);
+    });
+
+    const daysToInclude: string[] = [];
+    let currDate = now.date;
+    for (let i = 0; i < 7; i++) {
+        daysToInclude.push(currDate);
+        if (getDayOfWeek(currDate) === 'sunday') break;
+        currDate = addDays(currDate, 1);
+    }
+
+    return daysToInclude.map(date => {
+        const blocks = byDate.get(date) || [];
+        const dayName = getDayOfWeek(date).toUpperCase();
+        
+        let lines = '    (No blocks scheduled)';
+        if (blocks.length > 0) {
+            lines = blocks.map((b: any) =>
+                `    ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${b.goal_id ? ` → Goal: ${b.goal_id}` : ''}${b.id ? ` ID:${b.id}` : ''}`
+            ).join('\n');
+        }
+
+        // Free slots: for today, skip past times; for future days, full day
+        const notBefore = date === now.date ? now.time : undefined;
+        const dayFreeSlots = findAvailableSlots(weekBlocks, date, 30, wakeTime, sleepTime, 8, notBefore);
+        const freeLine = dayFreeSlots.length > 0
+            ? `    FREE SLOTS: ${dayFreeSlots.map(formatSlot).join(' | ')}`
+            : `    FREE SLOTS: NONE (fully booked)`;
+        return `  ${dayName} (${date}):\n${lines}\n${freeLine}`;
+    }).join('\n');
+})()}
 
 ━━━ ACTIVE GOALS (with daily/weekly constraints) ━━━
 ${goalsText}
@@ -486,19 +503,22 @@ STRATEGIC DIRECTIVES:
 When the user says they missed or will miss a block and want to reschedule, you MUST ALWAYS provide exactly these 4 options in this specific order.
 However, if there are absolutely NO verified free slots remaining for the rest of the week, skip Options 1-3 and ONLY provide Option 4.
 
+⚠️ REJECTION PROTOCOL:
+If the user rejects the previous options (e.g., "none of these work", "I don't like these", "do it manually") for the SAME missed block, DO NOT give the 4 options again. Instead, provide exactly ONE option: "Manual Movement", which has an EMPTY operations array [] and instructs them to drag-and-drop the block in the calendar themselves.
+However, if they ask to reschedule a DIFFERENT/NEW block, provide the 4 standard options for the new block.
+
 --- ABSOLUTE RULES ---
 A) SAME-GOAL PROTECTION: NEVER delete or replace a block belonging to the SAME GOAL as the missed block.
 B) IMMUTABLE TIME WINDOWS: Blocks can never overlap with sleep, meal, wind_down, or anchor commitments. For example, if a day has "🏢 Work" [anchor] scheduled for 09:00-17:00, you CANNOT schedule or move a block to overlap with any part of 09:00-17:00 on that day.
-C) SHORTENING BLOCKS: You may NEVER shorten any existing block to make room. The ONLY block that can be shortened is the missed block itself in Option 1.
-D) NO HALLUCINATIONS & DURATION MATCHING (CRITICAL):
-- You must accurately read the FREE SLOTS. Free slots indicate empty space. Do not place blocks outside of these free slots. Any proposed move/creation MUST fit ENTIRELY within a single verified free slot, meaning the start and end times of your move/creation MUST be within that free slot.
-- STRICT DURATION CHECK: Determine the duration of the missed block first (e.g. if the original block is 11:15-12:00, the duration is 45 minutes).
-- For Option 2: The chosen target free slot MUST have a duration greater than or equal to the missed block's duration. You CANNOT place a 45-minute block into a 30-minute free slot (e.g. "08:30–09:00 (30min free)"). Doing so will overlap with the subsequent block (like the "Work" anchor at 09:00), which is a fatal scheduling error! If Friday's only morning free slot is "08:30-09:00 (30min free)", you CANNOT schedule the 45-minute block there; you must find another slot later in the week (e.g., Saturday/Sunday evening or another afternoon slot) with a duration of at least 45 minutes.
+C) NO HALLUCINATIONS & DURATION MATCHING (CRITICAL):
+- You must accurately read the FREE SLOTS. Free slots indicate empty space. Do not place blocks outside of these free slots. Any proposed move/creation MUST fit ENTIRELY within a single verified free slot.
+- STRICT DURATION CHECK: Determine the duration of the missed block first.
+- The chosen target free slot MUST have a duration greater than or equal to the block's duration. You CANNOT place a 45-minute block into a 30-minute free slot. Doing so will overlap with the subsequent block, which is a fatal error!
 
 --- THE 4 OPTIONS ---
-1. Reschedule Today: Look for a verified free time slot TODAY for the full duration of the missed block. If a full slot is not available, suggest a SHORTENED version of the missed block to fit into a smaller available slot today. Do NOT shorten or move any other existing blocks. Use move_block (or update_block for shortening).
-2. Reschedule Later in the Week: Look for a free time slot ANYTIME LATER IN THE WEEK (tomorrow or after) for the full duration of the missed block. Do NOT shorten the missed block or any other blocks. The target slot MUST fit entirely inside a verified free slot of the target day. Use move_block.
-3. Replan Today: Use the 'replan_day' operation to completely regenerate the remainder of TODAY. The schedule engine will shuffle today's non-immutable blocks to perfectly fit everything, including the missed block. The rest of the week remains untouched.
+1. Reschedule Today (Full Duration): Look for a verified free time slot TODAY for the full duration of the missed block. Do NOT modify any other blocks today. Use move_block.
+2. Reschedule Today (Shortened): ONLY IF a full slot is not available today, suggest a SHORTENED version of the missed block to fit into a smaller available slot today. Do NOT modify any other blocks today. Use move_block (or update_block for shortening). Note: If a full slot IS available, this option can just be a slightly shorter alternative block, but ideally only use if full is impossible.
+3. Reschedule Later in the Week: Look for a free time slot ANYTIME LATER IN THE WEEK (tomorrow or after, including weekends) for the full duration of the missed block. Do NOT shorten the missed block or any other blocks. The target slot MUST fit entirely inside a verified free slot of the target day. Use move_block.
 4. Replan Week: Use the 'replan_week' operation to regenerate the schedule from today until Sunday, incorporating the missed block while keeping the rest of the week as close to original as possible.
 
 ⚖️ PRIORITY-BASED DISPLACEMENT (GENERAL BEHAVIOUR):
@@ -580,9 +600,17 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
                           classification.primary_intent === CoachIntent.RESCHEDULE_DAY ||
                           classification.primary_intent === CoachIntent.RESCHEDULE_WEEK;
 
-    const optionsInstruction = isMissedBlock
-        ? "Generate EXACTLY 4 actionable options in this exact order: Option 1: Reschedule Today (move missed block to a today free slot, shortening it if needed), Option 2: Reschedule Later in the Week (move to a free slot tomorrow/later, no shortening), Option 3: Replan Today (using 'replan_day' operation), Option 4: Replan Week (using 'replan_week' operation). However, if there are absolutely NO verified free slots remaining for the rest of the week, skip Options 1-3 and ONLY generate Option 4. Return valid JSON only."
-        : "Generate 2-3 actionable options with concrete patch operations. Return valid JSON only.";
+    const isRejection = /none|neither|don't like|dont like|manual|myself|reject|no|stop/i.test(userMessage);
+
+    let optionsInstruction = "Generate 2-3 actionable options with concrete patch operations. Return valid JSON only.";
+    
+    if (isMissedBlock) {
+        if (isRejection && !/missed|miss|reschedule|another|new/i.test(userMessage)) {
+             optionsInstruction = "The user rejected the previous AI options. Provide EXACTLY ONE option: 'Manual Movement', which instructs them to manually move the block in the calendar UI themselves. Do NOT generate any patch operations (empty operations array []). Return valid JSON only.";
+        } else {
+             optionsInstruction = "Generate EXACTLY 4 actionable options in this exact order: Option 1: Reschedule Today (Full Duration), Option 2: Reschedule Today (Shortened - ONLY if full slot unavailable), Option 3: Reschedule Later in the Week (Tomorrow or later, including weekends), Option 4: Replan Week (using 'replan_week' operation). However, if there are absolutely NO verified free slots remaining for the rest of the week, skip Options 1-3 and ONLY generate Option 4. Return valid JSON only.";
+        }
+    }
 
     const userPrompt = `${scheduleContext}
 
