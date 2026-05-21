@@ -88,7 +88,8 @@ export function SciFiEarthBackground() {
     resize();
 
     // Stars
-    const stars = Array.from({ length: 300 }).map(() => ({
+    // Reducing star count from 300 to 150 to reduce CPU/GPU load on drawing
+    const stars = Array.from({ length: 150 }).map(() => ({
       x: Math.random() * width,
       y: Math.random() * height,
       size: Math.random() * 1.5,
@@ -137,16 +138,16 @@ export function SciFiEarthBackground() {
   }, []);
 
   return (
-    <div className="fixed inset-0 w-full h-full z-[-1] bg-[#020106] overflow-hidden">
+    <div className="fixed inset-0 w-full h-full z-[-1] bg-[#020106] overflow-hidden" style={{ willChange: 'transform' }}>
       {/* Deep space background with animated Nebula */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(15,10,35,0.8)_0%,rgba(2,1,6,1)_100%)] pointer-events-none" />
       
-      {/* Drifting Nebulas */}
+      {/* Drifting Nebulas - Removed blur filter and used purely radial gradient to boost performance */}
       <motion.div 
         className="absolute -top-1/4 -left-1/4 w-[120vw] h-[120vh] mix-blend-screen pointer-events-none"
         style={{
-          background: 'radial-gradient(circle at 30% 50%, rgba(217,4,121,0.1) 0%, rgba(147,51,234,0.05) 30%, transparent 60%)',
-          filter: 'blur(100px)'
+          background: 'radial-gradient(circle at 30% 50%, rgba(217,4,121,0.15) 0%, rgba(147,51,234,0.08) 30%, transparent 60%)',
+          willChange: 'transform, opacity'
         }}
         animate={{ 
             x: ['-5%', '5%', '-5%'], 
@@ -159,8 +160,8 @@ export function SciFiEarthBackground() {
       <motion.div 
         className="absolute top-1/4 -right-1/4 w-[120vw] h-[120vh] mix-blend-screen pointer-events-none"
         style={{
-          background: 'radial-gradient(circle at 70% 40%, rgba(59,130,246,0.1) 0%, rgba(99,102,241,0.05) 30%, transparent 60%)',
-          filter: 'blur(120px)'
+          background: 'radial-gradient(circle at 70% 40%, rgba(59,130,246,0.15) 0%, rgba(99,102,241,0.08) 30%, transparent 60%)',
+          willChange: 'transform, opacity'
         }}
         animate={{ 
             x: ['5%', '-5%', '5%'], 
@@ -172,7 +173,7 @@ export function SciFiEarthBackground() {
       />
       
       {/* Starfield with Parallax */}
-      <motion.div style={{ y: starsY }} className="absolute inset-0 w-full h-[150%] -top-[25%] pointer-events-none">
+      <motion.div style={{ y: starsY, willChange: 'transform' }} className="absolute inset-0 w-full h-[150%] -top-[25%] pointer-events-none">
         <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
       </motion.div>
       
@@ -180,9 +181,9 @@ export function SciFiEarthBackground() {
       <motion.div 
         className="absolute left-1/2 top-0 bottom-0 w-[600px] -translate-x-1/2 pointer-events-none mix-blend-screen"
         style={{
-          background: 'linear-gradient(90deg, transparent 0%, rgba(147,51,234,0.15) 30%, rgba(236,72,153,0.3) 50%, rgba(147,51,234,0.15) 70%, transparent 100%)',
-          filter: 'blur(50px)',
-          opacity: beamOpacity
+          background: 'linear-gradient(90deg, transparent 0%, rgba(147,51,234,0.1) 30%, rgba(236,72,153,0.2) 50%, rgba(147,51,234,0.1) 70%, transparent 100%)',
+          opacity: beamOpacity,
+          willChange: 'transform, opacity'
         }}
         animate={{ scaleX: [1, 1.1, 1] }}
         transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
@@ -191,12 +192,11 @@ export function SciFiEarthBackground() {
       {/* Interactive WebGL Globe */}
       <motion.div 
         className="absolute top-[20%] md:top-[12%] left-1/2 -translate-x-1/2 w-[160vw] h-[160vw] max-w-[1200px] max-h-[1200px] sm:w-[110vw] sm:h-[110vw] md:w-[1000px] md:h-[1000px] lg:w-[1100px] lg:h-[1100px]"
-        style={{ scale: earthScale, y: earthY, opacity: earthOpacity }}
+        style={{ scale: earthScale, y: earthY, opacity: earthOpacity, willChange: 'transform, opacity' }}
       >
-        {/* Outer Atmospheric Glow */}
-        <div className="absolute inset-0 rounded-full bg-blue-500/10 blur-[120px] animate-pulse pointer-events-none" style={{ animationDuration: '6s' }} />
-        <div className="absolute inset-10 rounded-full bg-indigo-500/5 blur-[100px] animate-pulse pointer-events-none" style={{ animationDuration: '8s' }} />
-
+        {/* Outer Atmospheric Glow - Removed costly CSS blurs in favor of native radial gradients */}
+        <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle,rgba(59,130,246,0.15)_0%,transparent_70%)] animate-pulse pointer-events-none" style={{ animationDuration: '6s' }} />
+        <div className="absolute inset-10 rounded-full bg-[radial-gradient(circle,rgba(99,102,241,0.1)_0%,transparent_60%)] animate-pulse pointer-events-none" style={{ animationDuration: '8s' }} />
         
         {/* Globe Container */}
         <div className="relative w-full h-full flex items-center justify-center">

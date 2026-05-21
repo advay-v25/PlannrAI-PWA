@@ -148,8 +148,8 @@ export default function LandingPage() {
 
       {/* CTA */}
       <section className="px-4 py-40 relative">
-        {/* Glow behind CTA */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] h-[80vw] max-w-[600px] max-h-[600px] bg-gradient-to-tr from-purple-600/10 to-orange-500/10 rounded-full blur-[120px] pointer-events-none" />
+        {/* Glow behind CTA - Removed expensive blur-[120px] filter in favor of hardware-friendly radial gradient */}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] h-[80vw] max-w-[600px] max-h-[600px] bg-[radial-gradient(circle,rgba(147,51,234,0.15)_0%,transparent_60%)] rounded-full pointer-events-none" />
         
         <div className="max-w-3xl mx-auto text-center relative z-10 p-12 md:p-16 rounded-[3rem] bg-white/[0.02] border border-white/[0.05] backdrop-blur-2xl shadow-2xl">
           <h2 className="text-4xl md:text-5xl font-extrabold mb-6 tracking-tighter text-white">
