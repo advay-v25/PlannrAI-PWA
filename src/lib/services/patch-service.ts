@@ -704,18 +704,28 @@ export class PatchService {
                 // 1. Build context
                 const calendarCtx = await buildCalendarContext(userId, supabase);
                 
-                // 2. Determine replan date (today) and correct week start (Monday)
-                const today = new Date();
-                const todayStr = today.toISOString().split('T')[0];
-                const nowTime = today.getHours() * 60 + today.getMinutes();
+                // 2. Determine replan date (today) and correct week start (Monday) relative to user timezone
+                const { data: profile } = await supabase.from('profiles').select('timezone').eq('id', userId).single();
+                const timezone = profile?.timezone || 'UTC';
+                const now = new Date();
                 
-                // Calculate the Monday of the current week
-                const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ...
+                const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
+                const timeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false });
+                
+                const todayStr = dateFormatter.format(now);
+                const timeStr = timeFormatter.format(now);
+                const [h, m] = timeStr.split(':').map(Number);
+                const nowTime = h * 60 + m;
+                
+                // Timezone-safe Monday calculation
+                const [yr, mo, dy] = todayStr.split('-').map(Number);
+                const localToday = new Date(yr, mo - 1, dy, 12, 0, 0); // Noon to avoid shift
+                const dayOfWeek = localToday.getDay(); // 0=Sun, 1=Mon, ...
                 const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-                const monday = new Date(today);
-                monday.setDate(today.getDate() + mondayOffset);
-                const weekStartStr = monday.toISOString().split('T')[0];
-                console.log(`[PatchService] Week start: ${weekStartStr}, today: ${todayStr}`);
+                const localMonday = new Date(localToday.getTime() + mondayOffset * 24 * 60 * 60 * 1000);
+                const weekStartStr = `${localMonday.getFullYear()}-${String(localMonday.getMonth() + 1).padStart(2, '0')}-${String(localMonday.getDate()).padStart(2, '0')}`;
+                
+                console.log(`[PatchService] User Timezone: ${timezone}, Week start: ${weekStartStr}, today: ${todayStr}, nowTime: ${nowTime} mins`);
 
                 // 3. Generate new plan using the CORRECT week start (Monday)
                 const mode = op.payload?.mode || 'balanced';
@@ -805,18 +815,28 @@ export class PatchService {
                 // 1. Build context
                 const calendarCtx = await buildCalendarContext(userId, supabase);
                 
-                // 2. Determine replan date (today) and correct week start (Monday)
-                const today = new Date();
-                const todayStr = today.toISOString().split('T')[0];
-                const nowTime = today.getHours() * 60 + today.getMinutes();
+                // 2. Determine replan date (today) and correct week start (Monday) relative to user timezone
+                const { data: profile } = await supabase.from('profiles').select('timezone').eq('id', userId).single();
+                const timezone = profile?.timezone || 'UTC';
+                const now = new Date();
                 
-                // Calculate the Monday of the current week
-                const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ...
+                const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
+                const timeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false });
+                
+                const todayStr = dateFormatter.format(now);
+                const timeStr = timeFormatter.format(now);
+                const [h, m] = timeStr.split(':').map(Number);
+                const nowTime = h * 60 + m;
+                
+                // Timezone-safe Monday calculation
+                const [yr, mo, dy] = todayStr.split('-').map(Number);
+                const localToday = new Date(yr, mo - 1, dy, 12, 0, 0); // Noon to avoid shift
+                const dayOfWeek = localToday.getDay(); // 0=Sun, 1=Mon, ...
                 const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-                const monday = new Date(today);
-                monday.setDate(today.getDate() + mondayOffset);
-                const weekStartStr = monday.toISOString().split('T')[0];
-                console.log(`[PatchService] Week start: ${weekStartStr}, today: ${todayStr}`);
+                const localMonday = new Date(localToday.getTime() + mondayOffset * 24 * 60 * 60 * 1000);
+                const weekStartStr = `${localMonday.getFullYear()}-${String(localMonday.getMonth() + 1).padStart(2, '0')}-${String(localMonday.getDate()).padStart(2, '0')}`;
+                
+                console.log(`[PatchService] User Timezone: ${timezone}, Week start: ${weekStartStr}, today: ${todayStr}, nowTime: ${nowTime} mins`);
 
                 // 3. Generate new plan
                 const mode = op.payload?.mode || 'balanced';

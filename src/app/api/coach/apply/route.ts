@@ -272,6 +272,13 @@ function normalizePatchForService(patch: any): any {
                             allow_weekend: operation.allow_weekend !== undefined ? operation.allow_weekend : true,
                         },
                     };
+                case 'replan_day':
+                    return {
+                        op: 'replan_day' as const,
+                        payload: {
+                            mode: operation.mode || 'balanced',
+                        },
+                    };
                 case 'update_goal':
                     return {
                         op: 'update_goal' as const,
