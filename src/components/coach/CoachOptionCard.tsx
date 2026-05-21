@@ -69,6 +69,9 @@ function formatOpLabel(op: any): { icon: string; label: string } {
     if (type.includes('replan_week')) {
         return { icon: '🔄', label: `Regenerate schedule for the rest of the week` };
     }
+    if (type.includes('replan_day')) {
+        return { icon: '🔄', label: `Regenerate schedule for today` };
+    }
     if (type.includes('move')) {
         const title = op.title || 'Block';
         const start = op.to_start || op.new_start;

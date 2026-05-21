@@ -19,7 +19,8 @@ export type PatchOpType =
     | 'create_todo'
     | 'update_todo'
     | 'delete_todo'
-    | 'replan_week';
+    | 'replan_week'
+    | 'replan_day';
 
 export interface PatchOp {
     op: PatchOpType;
@@ -799,6 +800,104 @@ export class PatchService {
                 break;
             }
 
+            case 'replan_day': {
+                console.log('[PatchService] Starting replan_day...');
+                // 1. Build context
+                const calendarCtx = await buildCalendarContext(userId, supabase);
+                
+                // 2. Determine replan date (today) and correct week start (Monday)
+                const today = new Date();
+                const todayStr = today.toISOString().split('T')[0];
+                const nowTime = today.getHours() * 60 + today.getMinutes();
+                
+                // Calculate the Monday of the current week
+                const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ...
+                const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+                const monday = new Date(today);
+                monday.setDate(today.getDate() + mondayOffset);
+                const weekStartStr = monday.toISOString().split('T')[0];
+                console.log(`[PatchService] Week start: ${weekStartStr}, today: ${todayStr}`);
+
+                // 3. Generate new plan
+                const mode = op.payload?.mode || 'balanced';
+                const allowWeekend = op.payload?.allow_weekend !== false;
+                const variants = await generateWeekPlan(calendarCtx, weekStartStr, mode, allowWeekend);
+                
+                if (!variants || variants.length === 0) {
+                    throw new Error('Replan failed to generate any variants');
+                }
+                
+                const newPlan = variants[0];
+                console.log(`[PatchService] Generated ${newPlan.blocks.length} blocks for variant "${newPlan.label}"`);
+                
+                // 4. Delete TODAY'S future non-immutable blocks
+                const { data: futureBlocks } = await supabase
+                    .from('schedule_blocks')
+                    .select('id, block_type, start_time, status, date')
+                    .eq('user_id', userId)
+                    .eq('date', todayStr); // STRICTLY TODAY
+                    
+                if (futureBlocks) {
+                    const IMMUTABLE = ['sleep', 'meal', 'wind_down', 'anchor'];
+                    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+                    const idsToDelete = futureBlocks.filter((b: any) => {
+                        if (IMMUTABLE.includes(b.block_type)) return false;
+                        if (b.status === 'done') return false;
+                        const [h, m] = b.start_time.split(':').map(Number);
+                        const startMins = h * 60 + m;
+                        if (startMins < nowTime) return false; // past blocks are safe
+                        return true;
+                    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+                    }).map((b: any) => b.id);
+                    
+                    console.log(`[PatchService] Deleting ${idsToDelete.length} future non-immutable blocks for today`);
+                    if (idsToDelete.length > 0) {
+                        const { error: delErr } = await supabase
+                            .from('schedule_blocks')
+                            .delete()
+                            .eq('user_id', userId)
+                            .in('id', idsToDelete);
+                        if (delErr) throw new Error(`Replan failed to clear old blocks: ${delErr.message}`);
+                    }
+                }
+                
+                // 5. Insert new generated blocks ONLY FOR TODAY
+                /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+                const blocksToInsert = newPlan.blocks.filter((b: any) => {
+                    if (b.date !== todayStr) return false; // STRICTLY TODAY
+                    const [h, m] = b.start_time.split(':').map(Number);
+                    const startMins = h * 60 + m;
+                    if (startMins < nowTime) return false;
+                    
+                    // Skip bio blocks
+                    const BIO_TYPES = ['sleep', 'meal', 'wind_down'];
+                    if (BIO_TYPES.includes(b.block_type)) return false;
+                    return true;
+                /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+                }).map((b: any) => ({
+                    user_id: userId,
+                    title: b.title,
+                    start_time: b.start_time,
+                    end_time: b.end_time,
+                    date: b.date,
+                    status: 'planned',
+                    block_type: b.block_type,
+                    pillar: b.pillar || null,
+                    goal_id: b.goal_id || null,
+                    checklist: b.checklist || null,
+                }));
+                
+                console.log(`[PatchService] Inserting ${blocksToInsert.length} new blocks for today`);
+                if (blocksToInsert.length > 0) {
+                    const { error: insErr } = await supabase
+                        .from('schedule_blocks')
+                        .insert(blocksToInsert);
+                    if (insErr) throw new Error(`Replan failed to insert new blocks: ${insErr.message}`);
+                }
+                
+                break;
+            }
+
             default:
                 console.warn(`[PatchService] Unknown op: ${operation}`);
         }
@@ -889,8 +988,8 @@ export class PatchService {
             } else if (opType === 'delete_todo') {
                 // We don't have pre-exec state for todos in this path,
                 // so we'd need to extend preExecState. For now, skip.
-                console.warn('[PatchService] Todo delete undo not fully supported yet');
-            } else if (opType === 'replan_week') {
+                // We delete the created blocks and then recreate the old blocks.
+            } else if (opType === 'replan_week' || opType === 'replan_day') {
                 // To undo a replan_week, the system will rely entirely on the snapshot
                 // created in step 1. Because the snapshot covers the whole week, 
                 // the undo function in restoreFromSnapshot will wipe and restore.

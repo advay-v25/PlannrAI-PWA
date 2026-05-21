@@ -63,6 +63,7 @@ export type PatchOperation =
     | { type: 'update_block'; block_id: string; changes: Partial<BlockData> }
     | { type: 'delete_block'; block_id: string }
     | { type: 'replan_week'; mode?: 'balanced' | 'momentum' | 'recovery'; allow_weekend?: boolean }
+    | { type: 'replan_day'; mode?: 'balanced' | 'momentum' | 'recovery' }
     | { type: 'update_goal'; goal_id: string; changes: Partial<GoalData> }
     | { type: 'create_goal'; data: NewGoalData }
     | { type: 'delete_goal'; goal_id: string }
@@ -455,7 +456,7 @@ STRATEGIC DIRECTIVES:
 - NEVER schedule more than the goal's minutes_per_day for any single goal on any day.
 - NEVER schedule a goal on more days than its days_per_week limit.
 - When the user asks to schedule a goal, check how much time is already allocated for that goal today/this week before adding more.
-- If the goal is already fully scheduled, tell the user instead of creating more blocks.
+- CRITICAL EXCEPTION FOR MISSED BLOCKS: If you are rescheduling a MISSED block, moving it to later TODAY does NOT violate the daily limit, because the original block was missed. You are freely allowed to move missed blocks to later today.
    - SELECT "suggested_mode": "propose" ALWAYS for:
      * ANY change involving 'anchor' blocks.
      * Multi-block rescheduling (> 1 block moved/created).
@@ -481,51 +482,21 @@ STRATEGIC DIRECTIVES:
 - If the user asks to skip sleep or meals, REFUSE and explain why it's harmful.
 - If all remaining blocks are immutable, tell the user there's nothing to optimize.
 
-🔄 MISSED BLOCK WATERFALL PROTOCOL (STRICT EXECUTION ORDER):
-When the user says they missed or will miss a block and want to reschedule, you MUST follow these exact steps in order:
+🔄 MISSED BLOCK 4-OPTION PROTOCOL (STRICT EXECUTION):
+When the user says they missed or will miss a block and want to reschedule, you MUST ALWAYS provide exactly these 4 options in this specific order.
+However, if there are absolutely NO verified free slots remaining for the rest of the week, skip Options 1-3 and ONLY provide Option 4.
 
---- ABSOLUTE RULES (APPLY TO ALL STEPS BELOW) ---
-A) SAME-GOAL PROTECTION: NEVER delete, move, or sacrifice a block that belongs to the SAME GOAL as the missed block. Doing so is USELESS — removing one block for a goal and adding another back results in NO net change. The whole point is to INCREASE the total blocks for that goal. Skip any candidate that shares the same goal_id or title as the missed block.
-B) IMMUTABLE TIME WINDOWS: A rescheduled block must NEVER overlap with any of these: sleep, meal, wind_down, anchor. These time windows are completely off-limits. Treat them like walls — you cannot place anything inside them.
-C) CALENDAR GENERATION RULES: When placing a rescheduled block, follow the SAME rules as regular calendar generation:
-   - Respect buffer times between blocks (15-30 min gaps after high-intensity blocks).
-   - Do NOT place blocks during meal windows, sleep windows, or wind-down periods.
-   - The most you can do is OFFER to shorten buffer times between existing blocks to create space — but only with user permission.
-D) DATE/TIME CONSISTENCY: The date and time in each operation's JSON fields MUST exactly match what you describe in the option's summary/description. If you say "move to Thursday evening at 7pm", the operation MUST have new_date matching Thursday's date and new_start: "19:00". NEVER describe one thing and generate a different date/time in the operation.
-E) FORWARD ONLY: Blocks can only be moved to the current day or any day AFTER. Never schedule into the past.
-F) ALWAYS INCLUDE new_date: Every move_block operation MUST include the new_date field (format: YYYY-MM-DD), even if moving within the same day.
+--- ABSOLUTE RULES ---
+A) SAME-GOAL PROTECTION: NEVER delete or replace a block belonging to the SAME GOAL as the missed block.
+B) IMMUTABLE TIME WINDOWS: Blocks can never overlap with sleep, meal, wind_down, or anchor.
+C) SHORTENING BLOCKS: You may NEVER shorten any existing block to make room. The ONLY block that can be shortened is the missed block itself in Option 1.
+D) NO HALLUCINATIONS: You must accurately read the FREE SLOTS. Free slots indicate empty space. Do not place blocks outside of these free slots.
 
---- WATERFALL STEPS ---
-
-1. FREE SLOT (Ideal):
-   - Search the rest of the week for a verified free time slot that does NOT overlap with any immutable block.
-   - Move the missed block there using move_block with the EXACT new_date and new_start/new_end.
-   - In your summary, explicitly say the day of the week (e.g. "Moving to Thursday at 7:00pm").
-
-2. LOWER PRIORITY DISPLACEMENT (No free slots):
-   - Find a block scheduled *after* the missed time that has a LOWER priority.
-   - Priority order: user-flagged goals > craft/mind/body goal blocks > flex/buffer > routine > break.
-   - REMEMBER RULE A: Skip any block belonging to the SAME goal.
-   - Generate a delete_block for the lower-priority block (it is removed from the week entirely).
-   - Generate a move_block putting the missed block exactly in that newly freed slot.
-
-3. SAME PILLAR (Multiple Blocks):
-   - If no lower priority blocks exist, look for a DIFFERENT goal under the SAME PILLAR that has multiple blocks scheduled later in the week.
-   - REMEMBER RULE A: The candidate must NOT be the same goal as the missed block.
-   - Do NOT execute immediately. Use 'suggested_mode: "propose"' to ask the user if they are okay with sacrificing one of these blocks.
-
-4. SISTER PILLAR (Craft <-> Mind):
-   - If the above fails, look for a block under the "sister" pillar that has multiple blocks in the week.
-   - If the missed block is Craft, look at Mind. If the missed block is Mind, look at Craft.
-   - CRITICAL RULE: The BODY pillar is the absolute last resort. Avoid touching it entirely unless explicitly instructed by the user.
-   - Use 'suggested_mode: "propose"' to ask the user.
-
-5. MANUAL NEGOTIATION:
-   - If all targeted lookups fail, use 'suggested_mode: "clarify"' to explicitly ask the user: "Which pillar or goal are you okay with reducing by one block for the week?"
-   - When proposing *any* displacement, clearly explain what is being removed and where the missed block is going.
-
-6. FULL WEEK REPLAN:
-   - If the user denies the options or no slots exist at all, propose a full 'replan_week' operation to regenerate the remainder of the week and perfectly fit the missed block back in.
+--- THE 4 OPTIONS ---
+1. Reschedule Today: Look for a verified free time slot TODAY for the full duration of the missed block. If a full slot is not available, suggest a SHORTENED version of the missed block to fit into a smaller available slot today. Do NOT shorten or move any other existing blocks. Use move_block (or update_block for shortening).
+2. Reschedule Later in the Week: Look for a free time slot ANYTIME LATER IN THE WEEK (tomorrow or after) for the full duration of the missed block. Do NOT shorten the missed block or any other blocks. Use move_block.
+3. Replan Today: Use the 'replan_day' operation to completely regenerate the remainder of TODAY. The schedule engine will shuffle today's non-immutable blocks to perfectly fit everything, including the missed block. The rest of the week remains untouched.
+4. Replan Week: Use the 'replan_week' operation to regenerate the schedule from today until Sunday, incorporating the missed block while keeping the rest of the week as close to original as possible.
 
 ⚖️ PRIORITY-BASED DISPLACEMENT (GENERAL BEHAVIOUR):
 When the user wants to move a block to a time slot that is already occupied (NOT following the missed block waterfall):
@@ -555,7 +526,8 @@ PATCH OPERATION TYPES:
 - move_block: { type: "move_block", block_id: "existing-id", title: "Block Title", new_start: "HH:MM", new_end: "HH:MM", new_date?: "YYYY-MM-DD" }
 - update_block: { type: "update_block", block_id: "existing-id", title: "Block Title", changes: { status?, title?, start_time?, end_time? } }
 - delete_block: { type: "delete_block", block_id: "existing-id", title: "Block Title" }
-- replan_week: { type: "replan_week", mode: "balanced|momentum|recovery", allow_weekend: boolean } Use this when user wants to replan the rest of their week or accommodate missed blocks by regenerating future blocks.
+- replan_week: { type: "replan_week", mode: "balanced|momentum|recovery", allow_weekend: boolean } Use this when user wants to replan the rest of their week.
+- replan_day: { type: "replan_day", mode: "balanced|momentum|recovery" } Use this when user wants to replan ONLY today to fit missed blocks.
 - create_goal: { type: "create_goal", data: { title, pillar, minutes_per_day, days_per_week } }
 - update_goal: { type: "update_goal", goal_id: "existing-id", changes: { ... } }
 - delete_goal: { type: "delete_goal", goal_id: "existing-id", title: "Goal Title" }
@@ -571,6 +543,7 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
 4. Does the new time slot overlap with any existing block on that day (check the FULL SCHEDULE)? If YES and the overlapping block is not being deleted in a prior op -> DISCARD this option.
 5. Is the target time in the past (before the current time today)? If YES -> DISCARD this option.
 6. Does the block FIT entirely within the free slot shown? Free slots show the FULL gap (e.g., "10:00–12:00 (2h free)"). If the block's end_time exceeds the slot's end, it overlaps the next block -> DISCARD this option.
+7. NEVER shorten any existing block to make room. The ONLY block that can be shortened is the missed block itself in Option 1.
 
 🚨 OUTPUT FORMAT (STRICT JSON ONLY):
 - Return a single valid JSON object.
@@ -590,7 +563,7 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
       "impact": "Concrete positive outcome (e.g., 'Reclaims 2 hours of peak focus')",
       "tradeoff": { "warning": "Any downsides", "severity": "info|caution|warning" },
       "operations": [
-        { "type": "create_block|move_block|update_block|delete_block|replan_week|create_todo|update_todo|delete_todo|create_goal|update_goal|delete_goal", ... }
+        { "type": "create_block|move_block|update_block|delete_block|replan_week|replan_day|create_todo|update_todo|delete_todo|create_goal|update_goal|delete_goal", ... }
       ],
       "recommended": true
     }
@@ -787,6 +760,11 @@ function normalizeOperation(op: any): PatchOperation {
                 mode: op.mode || 'balanced',
                 allow_weekend: op.allow_weekend !== undefined ? op.allow_weekend : true
             };
+        case 'replan_day':
+            return {
+                type: 'replan_day',
+                mode: op.mode || 'balanced',
+            };
         case 'create_goal':
             return {
                 type: 'create_goal',
@@ -877,6 +855,12 @@ function convertToCalendarPatchOp(op: PatchOperation): any {
                 op: 'replan_week',
                 payload: { mode: op.mode, allow_weekend: op.allow_weekend },
                 title: 'Regenerate Week'
+            };
+        case 'replan_day':
+            return {
+                op: 'replan_day',
+                payload: { mode: op.mode },
+                title: 'Regenerate Day'
             };
         case 'create_goal':
             return {
