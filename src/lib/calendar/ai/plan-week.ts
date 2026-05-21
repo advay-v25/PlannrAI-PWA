@@ -81,15 +81,10 @@ export async function generateWeekPlan(
 ): Promise<WeekPlanVariant[]> {
     const windDown = calculateWindDown(context);
     const wakeMins = timeToMinutes(context.user.sleep_end || '07:00');
-    let windDownMins = timeToMinutes(windDown);
+    const windDownMins = timeToMinutes(windDown);
+    // We no longer manually constrain windows with wakeMins and windDownMins.
+    // Instead, we just let Sleep and Wind Down blocks act as natural bounds.
     
-    // If the wind-down time is mathematically smaller than the wake time (e.g. 00:30 AM < 08:00 AM),
-    // it means they sleep after midnight. The available scheduling time for the current calendar day
-    // should just extend to the very end of the day (23:59).
-    if (windDownMins < wakeMins) {
-        windDownMins = 1439; 
-    }
-
     // 1. Build Base Bio Blocks
     const bioTemplates = [];
     const mealsPerDay = context.user.meals_per_day || 3;
@@ -101,21 +96,28 @@ export async function generateWeekPlan(
     if (timeToMinutes(sleepStart) < timeToMinutes(sleepEnd)) {
         // Sleep happens entirely within the same calendar day (e.g., 01:00 to 08:00 or 00:00 to 08:00)
         bioTemplates.push({ title: 'Sleep', block_type: 'sleep', start: sleepStart, end: sleepEnd });
+        if (timeToMinutes(windDown) < timeToMinutes(sleepStart)) {
+            bioTemplates.push({ title: 'Wind Down', block_type: 'wind_down', start: windDown, end: sleepStart });
+        }
     } else {
         // Sleep crosses midnight (e.g., 23:00 to 07:00)
         bioTemplates.push({ title: 'Sleep', block_type: 'sleep', start: '00:00', end: sleepEnd });
         if (timeToMinutes(sleepStart) < 1439) { // 1439 is 23:59
             bioTemplates.push({ title: 'Sleep', block_type: 'sleep', start: sleepStart, end: '23:59' });
         }
+        if (timeToMinutes(windDown) < timeToMinutes(sleepStart)) {
+            bioTemplates.push({ title: 'Wind Down', block_type: 'wind_down', start: windDown, end: sleepStart });
+        } else {
+            // Wind down crosses midnight
+            bioTemplates.push({ title: 'Wind Down', block_type: 'wind_down', start: windDown, end: '23:59' });
+            if (timeToMinutes(sleepStart) > 0) {
+                bioTemplates.push({ title: 'Wind Down', block_type: 'wind_down', start: '00:00', end: sleepStart });
+            }
+        }
     }
 
     if (mealsPerDay >= 1) {
-        let start = '08:00';
-        if (typeof (mealWindows as any)?.breakfast === 'string') {
-            start = (mealWindows as any).breakfast;
-        } else if ((mealWindows as any)?.breakfast?.start) {
-            start = (mealWindows as any).breakfast.start;
-        }
+        let start = (mealWindows as any)?.breakfast?.start || '08:00';
         // Ensure breakfast doesn't overlap with sleep
         const wakeTime = context.user.sleep_end || '07:00';
         if (timeToMinutes(start) < timeToMinutes(wakeTime)) {
@@ -125,13 +127,25 @@ export async function generateWeekPlan(
     }
     if (mealsPerDay >= 2) {
         let start = (mealWindows as any)?.lunch?.start || '12:30';
-        const startMins = timeToMinutes(start);
-        if (startMins < 690 || startMins > 870) start = '12:30';
         bioTemplates.push({ title: 'Lunch', block_type: 'meal', start, end: safeAddMins(start, 45) });
     }
     if (mealsPerDay >= 3) {
-        let start = '19:30';
-        bioTemplates.push({ title: 'Dinner', block_type: 'meal', start, end: safeAddMins(start, 45) });
+        let start = (mealWindows as any)?.dinner?.start || '19:30';
+        let end = safeAddMins(start, 45);
+        // Ensure dinner ends before wind down starts to avoid clashing
+        const wdMins = timeToMinutes(windDown);
+        const endMins = timeToMinutes(end);
+        if (wdMins > 720 && endMins > wdMins) {
+            // Dinner overlaps with wind down, compress or shift back
+            const startMins = timeToMinutes(start);
+            if (wdMins - startMins >= 30) {
+                end = minutesToTime(wdMins); // Compress to at least 30 mins
+            } else {
+                start = minutesToTime(wdMins - 45); // Shift back
+                end = minutesToTime(wdMins);
+            }
+        }
+        bioTemplates.push({ title: 'Dinner', block_type: 'meal', start, end });
     }
 
     const commitmentsByDay = new Map<number, Array<{ start: number; end: number; title: string, type: string }>>();
@@ -268,8 +282,7 @@ function generateVariant(
         if (remainingMins <= 0) continue; // Goal already reached for the week!
 
         const targetMinsPerDay = goal.minutes_per_day || 60;
-        const targetDays = Math.max(1, Math.ceil(remainingMins / targetMinsPerDay));
-        let daysPlaced = 0;
+        let remainingWeeklyMins = remainingMins;
 
         // Determine preferred days based on strategy
         let preferredDays = [1, 2, 3, 4, 5, 6, 7];
@@ -311,16 +324,15 @@ function generateVariant(
             });
         }
 
-        let failedMins = 0;
-
         for (const isoDay of preferredDays) {
-            if (daysPlaced >= targetDays) break;
+            if (remainingWeeklyMins <= 0) break;
 
             const isWeekend = isoDay >= 6;
-            const dailyMins = targetMinsPerDay;
+            // Cap daily placement to targetMinsPerDay to prevent cramming, unless we only have a bit left
+            let remainingMinsForDay = Math.min(targetMinsPerDay, remainingWeeklyMins);
 
             // For light weekends, cap the scheduling window at 4PM
-            const dayWindDown = (isWeekend && weekendIntensity === 'light') ? LIGHT_WEEKEND_CUTOFF : windDownMins;
+            const dayWindDown = (isWeekend && weekendIntensity === 'light') ? LIGHT_WEEKEND_CUTOFF : 1440;
 
             const dayExclusions = exclusions.get(isoDay)!;
             const dateStr = format(addDays(parseISO(weekStart), isoDay - 1), 'yyyy-MM-dd');
@@ -342,7 +354,7 @@ function generateVariant(
             // Find available windows
             dayExclusions.sort((a, b) => a.start - b.start);
             let windows: Array<{ start: number; end: number }> = [];
-            let cursor = wakeMins;
+            let cursor = 0;
 
             for (const ex of dayExclusions) {
                 // Buffer logic: if goal is body pillar, need 30m buffer after meals
@@ -371,9 +383,6 @@ function generateVariant(
                 windows = windows.filter(w => w.end > w.start);
             }
 
-            // Find a window that can fit dailyMins
-            let placed = false;
-            
             // NEW: TimeFocus sorting
             windows.sort((a, b) => {
                 if (timeFocus === 'morning') return a.start - b.start;
@@ -396,59 +405,57 @@ function generateVariant(
             });
 
             for (const win of windows) {
-                if (win.end - win.start >= dailyMins) {
-                    // Fit it here!
-                    let start = win.start;
-                    
-                    // Pillar-specific placement within window
-                    if (goal.pillar === 'mind' && win.start < 720) {
-                         // Mind goals in morning windows should be pushed to the start
-                    } else if (goal.pillar === 'body') {
-                         // Body goals can be pushed slightly later in the window for digestion
-                         if (win.end - win.start > dailyMins + 30) start += 15;
-                    }
-                    
-                    // Dynamic Buffer based on strategy (affects footprint on the calendar)
-                    // Use protocolConfig if provided, otherwise fall back to strategy defaults
-                    let buffer = protocolConfig?.bufferMinutes ?? 10;
-                    if (!protocolConfig?.bufferMinutes) {
-                        if (strategyId === 'momentum') buffer = 0; // Zero buffers, tightly packed
-                        else if (strategyId === 'balanced') buffer = 15;
-                        else if (strategyId === 'recovery') buffer = 45; // Huge buffers for spacing
-                    }
+                if (remainingMinsForDay <= 0) break;
+                if (win.end - win.start < 30) continue; // Enforce minimum block duration of 30 mins!
 
-                    blocks.push({
-                        date: dateStr,
-                        start_time: minutesToTime(start),
-                        end_time: minutesToTime(start + dailyMins),
-                        title: goal.title,
-                        block_type: 'goal',
-                        goal_id: goal.id,
-                        pillar: goal.pillar,
-                        checklist: goal.ai_strategy?.checklist || [{text: "Focus session"}, {text: "Review progress"}]
-                    });
+                const minsToPlace = Math.min(remainingMinsForDay, win.end - win.start);
 
-                    // Add to exclusions for this day with strategy-specific buffer
-                    dayExclusions.push({
-                        start: start,
-                        end: start + dailyMins + buffer,
-                        title: goal.title,
-                        type: 'goal'
-                    });
-
-                    // Update workload tracker
-                    workloadPerDay.set(isoDay, (workloadPerDay.get(isoDay) || 0) + dailyMins);
-
-                    daysPlaced++;
-                    placed = true;
-                    break;
+                let start = win.start;
+                
+                // Pillar-specific placement within window
+                if (goal.pillar === 'mind' && win.start < 720) {
+                     // Mind goals in morning windows should be pushed to the start
+                } else if (goal.pillar === 'body') {
+                     // Body goals can be pushed slightly later in the window for digestion
+                     if (win.end - win.start > minsToPlace + 30) start += 15;
                 }
+                
+                let buffer = protocolConfig?.bufferMinutes ?? 10;
+                if (!protocolConfig?.bufferMinutes) {
+                    if (strategyId === 'momentum') buffer = 0; // Zero buffers, tightly packed
+                    else if (strategyId === 'balanced') buffer = (ctx.user as any).default_buffer_duration || 15;
+                    else if (strategyId === 'recovery') buffer = Math.max(30, ((ctx.user as any).default_buffer_duration || 15) * 2);
+                }
+
+                blocks.push({
+                    date: dateStr,
+                    start_time: minutesToTime(start),
+                    end_time: minutesToTime(start + minsToPlace),
+                    title: minsToPlace < targetMinsPerDay ? `${goal.title} (Part)` : goal.title,
+                    block_type: 'goal',
+                    goal_id: goal.id,
+                    pillar: goal.pillar,
+                    checklist: goal.ai_strategy?.checklist || [{text: "Focus session"}, {text: "Review progress"}]
+                });
+
+                // Add to exclusions for this day with strategy-specific buffer
+                dayExclusions.push({
+                    start: start,
+                    end: start + minsToPlace + buffer,
+                    title: goal.title,
+                    type: 'goal'
+                });
+
+                // Update workload tracker
+                workloadPerDay.set(isoDay, (workloadPerDay.get(isoDay) || 0) + minsToPlace);
+
+                remainingMinsForDay -= minsToPlace;
+                remainingWeeklyMins -= minsToPlace;
             }
         }
 
-        if (daysPlaced < targetDays) {
-            failedMins += (targetDays - daysPlaced) * targetMinsPerDay;
-            unscheduled_minutes[goal.title] = failedMins;
+        if (remainingWeeklyMins > 0) {
+            unscheduled_minutes[goal.title] = remainingWeeklyMins;
         }
     }
 

@@ -134,7 +134,7 @@ export function Step2Rhythm() {
                     <div className="space-y-3">
                         <label className="text-[10px] font-bold tracking-widest text-white/50 uppercase ml-1">Space between activities</label>
                         <div className="flex gap-2.5">
-                            {[5, 10, 15, 20].map((mins) => (
+                            {[5, 10, 15].map((mins) => (
                                 <button
                                     key={mins}
                                     onClick={() => updateData({ default_buffer_duration: mins })}

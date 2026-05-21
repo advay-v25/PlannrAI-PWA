@@ -259,6 +259,9 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
         wind_down_mins: profileRaw.wind_down_mins || profileRaw.wind_down_minutes || 30,
         meals_per_day: profileRaw.meals_per_day || prefs.meals_per_day || 3,
         meal_windows: profileRaw.meal_windows || prefs.meal_windows || null,
+        // Extract from bio_data
+        meal_timing: (profileRaw.bio_data as any)?.meal_timing || 'normal',
+        default_buffer_duration: (profileRaw.bio_data as any)?.default_buffer_duration || 10,
     };
 
     const goals = (goalsRes.data || []).map((g: any) => ({
@@ -395,13 +398,10 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
             energy_level: profile.energy_level || 5,
             stress_level: profile.stress_level || 3,
             meals_per_day: profile.meals_per_day || 3,
-            meal_windows: profile.meal_windows || {
-                breakfast: { start: '07:00', end: '10:00' },
-                lunch: { start: '12:00', end: '15:00' },
-                dinner: { start: '18:30', end: '21:30' },
-            },
+            meal_windows: profile.meal_windows || deriveMealWindows(profile.meal_timing, profile.sleep_end),
             body_preferences: profile.body_preferences || {},
             bio_data: profile.bio_data || {},
+            default_buffer_duration: profile.default_buffer_duration || 10,
             chronotype: (profile.body_preferences as any)?.chronotype || 'bear',
             weekend_intensity: prefs?.weekend_intensity || profile.weekend_intensity || 'normal',
         },
@@ -456,3 +456,25 @@ function mapBlock(b: any): ScheduleBlock {
         pillar: b.pillar || undefined,
     };
 }
+
+function deriveMealWindows(mealTiming: string, wakeTime: string) {
+    const wakeMins = timeToMinutes(wakeTime || '07:00');
+    // Shift meal windows relative to wake time and timing preference
+    const offsets: Record<string, { brkfst: number; lunch: number; dinner: number }> = {
+        early:  { brkfst: 30,  lunch: 240, dinner: 540 },   // 30min after wake, ~4h, ~9h
+        normal: { brkfst: 60,  lunch: 300, dinner: 660 },   // 1h after wake, ~5h, ~11h 
+        late:   { brkfst: 120, lunch: 360, dinner: 720 },   // 2h after wake, ~6h, ~12h
+    };
+    const off = offsets[mealTiming] || offsets.normal;
+    const fmt = (mins: number) => {
+        const h = Math.floor(mins / 60) % 24;
+        const m = mins % 60;
+        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+    };
+    return {
+        breakfast: { start: fmt(wakeMins + off.brkfst), end: fmt(wakeMins + off.brkfst + 90) },
+        lunch:     { start: fmt(wakeMins + off.lunch),  end: fmt(wakeMins + off.lunch + 90) },
+        dinner:    { start: fmt(wakeMins + off.dinner), end: fmt(wakeMins + off.dinner + 90) },
+    };
+}
+

@@ -60,6 +60,26 @@ export const POST = secureApiRoute(
             throw new Error(`Profile update failed: ${profileError.message}`);
         }
 
+        let safeBufferMin = default_buffer_duration || 10;
+        if (![5, 10, 15].includes(safeBufferMin)) safeBufferMin = 15;
+
+        // 1.5 Update Profile Preferences
+        const { error: prefError } = await supabase
+            .from('profile_preferences')
+            .upsert({
+                user_id: effectiveUserId,
+                sleep_start,
+                wake_time: sleep_end,
+                wind_down_min: wind_down_mins,
+                meals_per_day,
+                buffer_min: safeBufferMin,
+                updated_at: new Date().toISOString()
+            });
+
+        if (prefError) {
+            console.error('Profile preferences update failed:', prefError);
+        }
+
         // 2. Insert Commitments (Anchors)
         if (commitments && commitments.length > 0) {
             const { error: commitmentsError, data: insertedComms } = await supabase
@@ -126,7 +146,16 @@ export const POST = secureApiRoute(
 
         try {
             const calendarCtx = await buildCalendarContext(effectiveUserId, supabase as any);
-            const variants = await generateWeekPlan(calendarCtx, today, 'balanced', true);
+            
+            // Map selected variant to generation mode
+            const modeMap: Record<string, 'balanced' | 'momentum' | 'recovery'> = {
+                balanced: 'balanced',
+                intense: 'momentum',
+                recovery: 'recovery',
+            };
+            const genMode = modeMap[selected_variant_id || 'balanced'] || 'balanced';
+            
+            const variants = await generateWeekPlan(calendarCtx, today, genMode, true);
 
             if (variants.length > 0) {
                 const bestVariant = variants[0]; // Take standard balanced variant
