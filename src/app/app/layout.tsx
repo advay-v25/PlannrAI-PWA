@@ -134,9 +134,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Scrollable Page Content */}
       <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-[var(--glass-border)]">
-        <div className="max-w-5xl mx-auto p-4 pb-32 md:pb-10">
-          {children}
-        </div>
+        {children}
       </div>
 
       {/* Bottom Navigation Dock (Mobile Only) */}

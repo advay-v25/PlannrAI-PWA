@@ -26,15 +26,9 @@ async function main() {
             console.log(`- ID: ${u.id} | Email: ${u.email}`);
         });
 
-        // We will delete all users except the main developer account: advayvaidya.25@gmail.com
-        const preserveEmail = 'advayvaidya.25@gmail.com';
+        console.log(`\nDeleting ALL users from the database...`);
         
-        console.log(`\nDeleting all users except ${preserveEmail}...`);
-        
-        const deleteRes = await client.query(
-            'DELETE FROM auth.users WHERE email != $1 OR email IS NULL;',
-            [preserveEmail]
-        );
+        const deleteRes = await client.query('DELETE FROM auth.users;');
 
         console.log(`✅ Success! Deleted ${deleteRes.rowCount} users.`);
 

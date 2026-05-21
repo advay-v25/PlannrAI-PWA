@@ -9,7 +9,7 @@ const Globe = dynamic(() => import('react-globe.gl'), { ssr: false });
 function InteractiveGlobe({ scrollRotation }: { scrollRotation: MotionValue<number> }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = React.useState({ width: 800, height: 800 });
-  const globeRef = useRef<any>();
+  const globeRef = useRef<any>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;

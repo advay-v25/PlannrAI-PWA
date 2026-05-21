@@ -1,28 +1,81 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useTodos, TodoItem } from '@/hooks/use-todos';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, Plus, Trash2, CheckCircle2, Circle, Archive } from 'lucide-react';
+import { Loader2, Plus, Trash2, CheckCircle2, Circle, Archive, GripHorizontal, Tag, CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  defaultDropAnimationSideEffects
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+const DEFAULT_LABELS = {
+    teal: 'Notes',
+    purple: 'Ideas',
+    orange: 'Urgent',
+    blue: 'Work',
+    pink: 'Personal'
+};
+
+const COLOR_CLASSES = {
+  teal: 'bg-teal-500 shadow-[0_0_12px_rgba(20,184,166,0.6)] ring-teal-500/30',
+  purple: 'bg-purple-500 shadow-[0_0_12px_rgba(168,85,247,0.6)] ring-purple-500/30',
+  orange: 'bg-orange-500 shadow-[0_0_12px_rgba(249,115,22,0.6)] ring-orange-500/30',
+  blue: 'bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.6)] ring-blue-500/30',
+  pink: 'bg-pink-500 shadow-[0_0_12px_rgba(236,72,153,0.6)] ring-pink-500/30'
+};
+
+function useColorLabels() {
+    const [labels, setLabels] = useState(DEFAULT_LABELS);
+    
+    useEffect(() => {
+        const stored = localStorage.getItem('plannrai_color_labels');
+        if (stored) {
+            try { setLabels(JSON.parse(stored)); } catch (e) {}
+        }
+    }, []);
+
+    const updateLabel = (color: keyof typeof DEFAULT_LABELS, newLabel: string) => {
+        setLabels(prev => {
+            const next = { ...prev, [color]: newLabel };
+            localStorage.setItem('plannrai_color_labels', JSON.stringify(next));
+            return next;
+        });
+    };
+    return { labels, updateLabel };
+}
 
 export function ActionCenter() {
-    const { todos, isLoading, addTodo, updateTodo, deleteTodo } = useTodos();
+    const { todos, isLoading, addTodo, updateTodo, deleteTodo, reorderTodos } = useTodos();
+    const { labels, updateLabel } = useColorLabels();
     
     // Quick Add State
     const [isExpanded, setIsExpanded] = useState(false);
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
-    const [selectedColor, setSelectedColor] = useState<'teal' | 'purple' | 'orange' | 'blue' | 'pink'>('teal');
+    const [selectedColor, setSelectedColor] = useState<keyof typeof DEFAULT_LABELS>('teal');
     
     const handleAdd = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!title.trim() && !description.trim()) return;
         
-        // Save color metadata into the description
         const finalDescription = `[color:${selectedColor}] ${description}`;
-        
         await addTodo(title || 'Untitled', finalDescription.trim(), undefined, 'medium');
         setTitle('');
         setDescription('');
@@ -30,9 +83,36 @@ export function ActionCenter() {
         setSelectedColor('teal');
     };
 
-    // Separate active and archived
-    const activeTodos = useMemo(() => todos.filter(t => !t.is_completed).reverse(), [todos]);
-    const archivedTodos = useMemo(() => todos.filter(t => t.is_completed).reverse(), [todos]);
+    // Separate active and archived. Ensure active respects order_index
+    const activeTodos = useMemo(() => todos.filter(t => !t.is_completed).sort((a,b) => (a.order_index || 0) - (b.order_index || 0)), [todos]);
+    const archivedTodos = useMemo(() => todos.filter(t => t.is_completed).sort((a,b) => (b.created_at || '').localeCompare(a.created_at || '')), [todos]);
+
+    // Drag and Drop Setup
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    );
+    const [activeId, setActiveId] = useState<string | null>(null);
+
+    const handleDragStart = (event: any) => {
+        setActiveId(event.active.id);
+    };
+
+    const handleDragEnd = (event: any) => {
+        setActiveId(null);
+        const { active, over } = event;
+        if (over && active.id !== over.id) {
+            const oldIndex = activeTodos.findIndex((t) => t.id === active.id);
+            const newIndex = activeTodos.findIndex((t) => t.id === over.id);
+            const newActiveTodos = arrayMove(activeTodos, oldIndex, newIndex);
+            
+            // We pass the full list to update indexes
+            const fullNewList = [...newActiveTodos, ...archivedTodos];
+            reorderTodos(fullNewList);
+        }
+    };
+
+    const activeItem = useMemo(() => activeTodos.find(t => t.id === activeId), [activeId, activeTodos]);
 
     if (isLoading) {
         return (
@@ -43,9 +123,26 @@ export function ActionCenter() {
     }
 
     return (
-        <div className="flex flex-col gap-10 h-full max-w-7xl mx-auto pb-32 w-full">
+        <div className="flex flex-col gap-8 h-full max-w-7xl mx-auto pb-32 w-full">
+            
+            {/* Color Legend / Configurator */}
+            <div className="flex flex-wrap items-center justify-center gap-3 mt-4 w-full">
+                {(Object.keys(DEFAULT_LABELS) as Array<keyof typeof DEFAULT_LABELS>).map(color => (
+                    <div key={color} className="flex items-center gap-2 bg-black/40 backdrop-blur-md border border-white/[0.05] rounded-full px-3 py-1.5 shadow-lg">
+                        <div className={cn("w-3 h-3 rounded-full", COLOR_CLASSES[color].split(' ')[0])} />
+                        <input
+                            type="text"
+                            value={labels[color]}
+                            onChange={(e) => updateLabel(color, e.target.value)}
+                            placeholder="Tag Name"
+                            className="bg-transparent text-xs font-bold text-white/60 focus:text-white outline-none w-16 focus:w-24 transition-all"
+                        />
+                    </div>
+                ))}
+            </div>
+
             {/* Input Area */}
-            <div className="max-w-2xl mx-auto w-full relative z-20 mt-4">
+            <div className="max-w-2xl mx-auto w-full relative z-20">
                 <div className={cn(
                     "bg-black/40 backdrop-blur-2xl border border-white/[0.08] rounded-3xl overflow-hidden shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_12px_40px_rgba(0,0,0,0.5)] transition-all duration-300",
                     isExpanded ? "ring-1 ring-teal-500/30 shadow-[0_0_50px_rgba(20,184,166,0.15)]" : "hover:border-white/[0.15]"
@@ -78,12 +175,20 @@ export function ActionCenter() {
                                     />
                                     <div className="flex items-center justify-between p-4 border-t border-white/[0.04] bg-white/[0.02]">
                                         <div className="flex gap-2">
-                                            {/* Color Picker (5 Colors) */}
-                                            <button type="button" onClick={() => setSelectedColor('teal')} className={cn("w-6 h-6 rounded-full transition-all", selectedColor === 'teal' ? "bg-teal-500 shadow-[0_0_12px_rgba(20,184,166,0.6)] ring-2 ring-teal-500/30 ring-offset-2 ring-offset-black" : "bg-teal-500/40 hover:bg-teal-500/60")} />
-                                            <button type="button" onClick={() => setSelectedColor('purple')} className={cn("w-6 h-6 rounded-full transition-all", selectedColor === 'purple' ? "bg-purple-500 shadow-[0_0_12px_rgba(168,85,247,0.6)] ring-2 ring-purple-500/30 ring-offset-2 ring-offset-black" : "bg-purple-500/40 hover:bg-purple-500/60")} />
-                                            <button type="button" onClick={() => setSelectedColor('orange')} className={cn("w-6 h-6 rounded-full transition-all", selectedColor === 'orange' ? "bg-orange-500 shadow-[0_0_12px_rgba(249,115,22,0.6)] ring-2 ring-orange-500/30 ring-offset-2 ring-offset-black" : "bg-orange-500/40 hover:bg-orange-500/60")} />
-                                            <button type="button" onClick={() => setSelectedColor('blue')} className={cn("w-6 h-6 rounded-full transition-all", selectedColor === 'blue' ? "bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.6)] ring-2 ring-blue-500/30 ring-offset-2 ring-offset-black" : "bg-blue-500/40 hover:bg-blue-500/60")} />
-                                            <button type="button" onClick={() => setSelectedColor('pink')} className={cn("w-6 h-6 rounded-full transition-all", selectedColor === 'pink' ? "bg-pink-500 shadow-[0_0_12px_rgba(236,72,153,0.6)] ring-2 ring-pink-500/30 ring-offset-2 ring-offset-black" : "bg-pink-500/40 hover:bg-pink-500/60")} />
+                                            {(Object.keys(DEFAULT_LABELS) as Array<keyof typeof DEFAULT_LABELS>).map(color => (
+                                                <button 
+                                                    key={color}
+                                                    type="button" 
+                                                    title={labels[color]}
+                                                    onClick={() => setSelectedColor(color)} 
+                                                    className={cn(
+                                                        "w-6 h-6 rounded-full transition-all ring-2 ring-offset-2 ring-offset-black", 
+                                                        selectedColor === color 
+                                                            ? COLOR_CLASSES[color]
+                                                            : cn(COLOR_CLASSES[color].split(' ')[0], "opacity-40 hover:opacity-80 ring-transparent")
+                                                    )} 
+                                                />
+                                            ))}
                                         </div>
                                         <div className="flex gap-3">
                                             <button 
@@ -109,20 +214,40 @@ export function ActionCenter() {
                 </div>
             </div>
 
-            {/* Masonry Layout for Active Notes */}
+            {/* DND Grid for Active Notes */}
             {activeTodos.length > 0 ? (
-                <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6 w-full">
-                    <AnimatePresence mode="popLayout">
-                        {activeTodos.map(todo => (
-                            <NoteCard 
-                                key={todo.id} 
-                                todo={todo}
-                                onUpdate={updateTodo}
-                                onDelete={() => deleteTodo(todo.id)}
+                <DndContext 
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                >
+                    <SortableContext items={activeTodos.map(t => t.id)} strategy={rectSortingStrategy}>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-start w-full">
+                            {activeTodos.map(todo => (
+                                <SortableNoteCard 
+                                    key={todo.id} 
+                                    todo={todo}
+                                    onUpdate={updateTodo}
+                                    onDelete={() => deleteTodo(todo.id)}
+                                    labels={labels}
+                                />
+                            ))}
+                        </div>
+                    </SortableContext>
+                    
+                    <DragOverlay dropAnimation={{ sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.4' } } }) }}>
+                        {activeItem ? (
+                            <NoteCardBase 
+                                todo={activeItem} 
+                                onUpdate={updateTodo} 
+                                onDelete={() => {}} 
+                                labels={labels} 
+                                isOverlay
                             />
-                        ))}
-                    </AnimatePresence>
-                </div>
+                        ) : null}
+                    </DragOverlay>
+                </DndContext>
             ) : (
                 <div className="flex flex-col items-center justify-center py-20 opacity-30 pointer-events-none">
                     <div className="w-16 h-16 rounded-full border border-dashed border-white flex items-center justify-center mb-4">
@@ -139,17 +264,16 @@ export function ActionCenter() {
                         <Archive className="w-4 h-4" />
                         Archived Notes
                     </h3>
-                    <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6 w-full opacity-60 hover:opacity-100 transition-all duration-500">
-                        <AnimatePresence mode="popLayout">
-                            {archivedTodos.map(todo => (
-                                <NoteCard 
-                                    key={todo.id} 
-                                    todo={todo}
-                                    onUpdate={updateTodo}
-                                    onDelete={() => deleteTodo(todo.id)}
-                                />
-                            ))}
-                        </AnimatePresence>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-start w-full opacity-60 hover:opacity-100 transition-all duration-500">
+                        {archivedTodos.map(todo => (
+                            <NoteCardBase 
+                                key={todo.id} 
+                                todo={todo}
+                                onUpdate={updateTodo}
+                                onDelete={() => deleteTodo(todo.id)}
+                                labels={labels}
+                            />
+                        ))}
                     </div>
                 </div>
             )}
@@ -157,59 +281,63 @@ export function ActionCenter() {
     );
 }
 
-function NoteCard({ todo, onUpdate, onDelete }: { todo: TodoItem, onUpdate: any, onDelete: any }) {
-    // When marked complete, ask user to Archive or Delete
-    const [pendingCompletion, setPendingCompletion] = useState(false);
+// Wrapper for DND Sortable
+function SortableNoteCard(props: any) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id: props.todo.id });
 
-    // Extract color from description if it exists
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0 : 1,
+    };
+
+    return (
+        <div ref={setNodeRef} style={style}>
+            <NoteCardBase {...props} dragHandleProps={{ ...attributes, ...listeners }} />
+        </div>
+    );
+}
+
+// Base UI Component (Inline Editable)
+function NoteCardBase({ todo, onUpdate, onDelete, labels, isOverlay, dragHandleProps }: any) {
+    const [pendingCompletion, setPendingCompletion] = useState(false);
+    
+    // Inline edit state
+    const [editTitle, setEditTitle] = useState(todo.title || '');
+    
     const rawDescription = todo.description || '';
     const colorMatch = rawDescription.match(/^\[color:(teal|purple|orange|blue|pink)\]/i);
-    const displayColor = colorMatch ? colorMatch[1].toLowerCase() : 'teal';
+    const displayColor = colorMatch ? colorMatch[1].toLowerCase() as keyof typeof DEFAULT_LABELS : 'teal';
     const displayDescription = colorMatch ? rawDescription.substring(colorMatch[0].length).trim() : rawDescription;
+    
+    const [editDesc, setEditDesc] = useState(displayDescription);
+
+    const handleTitleBlur = () => {
+        if (editTitle.trim() !== todo.title) onUpdate(todo.id, { title: editTitle.trim() });
+    };
+    
+    const handleDescBlur = () => {
+        if (editDesc.trim() !== displayDescription) onUpdate(todo.id, { description: `[color:${displayColor}] ${editDesc.trim()}` });
+    };
+
+    const handleColorChange = (newColor: string) => {
+        onUpdate(todo.id, { description: `[color:${newColor}] ${displayDescription}` });
+    };
 
     const colorStyles = useMemo(() => {
         switch (displayColor) {
-            case 'orange':
-                return {
-                    border: 'border-orange-500/30 hover:border-orange-500/50',
-                    shadow: 'hover:shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_12px_40px_rgba(249,115,22,0.15)]',
-                    icon: 'text-orange-500',
-                    bg: 'bg-orange-500/5 hover:bg-orange-500/10',
-                    label: 'Orange'
-                };
-            case 'purple':
-                return {
-                    border: 'border-purple-500/30 hover:border-purple-500/50',
-                    shadow: 'hover:shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_12px_40px_rgba(168,85,247,0.15)]',
-                    icon: 'text-purple-500',
-                    bg: 'bg-purple-500/5 hover:bg-purple-500/10',
-                    label: 'Purple'
-                };
-            case 'blue':
-                return {
-                    border: 'border-blue-500/30 hover:border-blue-500/50',
-                    shadow: 'hover:shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_12px_40px_rgba(59,130,246,0.15)]',
-                    icon: 'text-blue-500',
-                    bg: 'bg-blue-500/5 hover:bg-blue-500/10',
-                    label: 'Blue'
-                };
-            case 'pink':
-                return {
-                    border: 'border-pink-500/30 hover:border-pink-500/50',
-                    shadow: 'hover:shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_12px_40px_rgba(236,72,153,0.15)]',
-                    icon: 'text-pink-500',
-                    bg: 'bg-pink-500/5 hover:bg-pink-500/10',
-                    label: 'Pink'
-                };
-            case 'teal':
-            default:
-                return {
-                    border: 'border-teal-500/30 hover:border-teal-500/50',
-                    shadow: 'hover:shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_12px_40px_rgba(20,184,166,0.15)]',
-                    icon: 'text-teal-500',
-                    bg: 'bg-teal-500/5 hover:bg-teal-500/10',
-                    label: 'Teal'
-                };
+            case 'orange': return { border: 'border-orange-500/30', shadow: 'shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_12px_40px_rgba(249,115,22,0.15)]', icon: 'text-orange-500', bg: 'bg-orange-500/5 hover:bg-orange-500/10' };
+            case 'purple': return { border: 'border-purple-500/30', shadow: 'shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_12px_40px_rgba(168,85,247,0.15)]', icon: 'text-purple-500', bg: 'bg-purple-500/5 hover:bg-purple-500/10' };
+            case 'blue': return { border: 'border-blue-500/30', shadow: 'shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_12px_40px_rgba(59,130,246,0.15)]', icon: 'text-blue-500', bg: 'bg-blue-500/5 hover:bg-blue-500/10' };
+            case 'pink': return { border: 'border-pink-500/30', shadow: 'shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_12px_40px_rgba(236,72,153,0.15)]', icon: 'text-pink-500', bg: 'bg-pink-500/5 hover:bg-pink-500/10' };
+            case 'teal': default: return { border: 'border-teal-500/30', shadow: 'shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_12px_40px_rgba(20,184,166,0.15)]', icon: 'text-teal-500', bg: 'bg-teal-500/5 hover:bg-teal-500/10' };
         }
     }, [displayColor]);
 
@@ -220,7 +348,7 @@ function NoteCard({ todo, onUpdate, onDelete }: { todo: TodoItem, onUpdate: any,
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
-                className={cn("break-inside-avoid relative backdrop-blur-xl rounded-3xl p-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_8px_30px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col items-center justify-center gap-4 min-h-[200px]", colorStyles.bg, colorStyles.border)}
+                className={cn("relative backdrop-blur-xl rounded-3xl p-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_8px_30px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col items-center justify-center gap-4 min-h-[200px]", colorStyles.bg, colorStyles.border)}
             >
                 <div className="absolute inset-0 bg-black/40 pointer-events-none" />
                 <p className={cn("text-base font-bold text-center relative z-10", colorStyles.icon)}>Note Complete!</p>
@@ -234,7 +362,7 @@ function NoteCard({ todo, onUpdate, onDelete }: { todo: TodoItem, onUpdate: any,
                     </button>
                     <button 
                         onClick={() => { onUpdate(todo.id, { isCompleted: true }); setPendingCompletion(false); }}
-                        className={cn("flex-1 flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition-colors bg-white/5 hover:bg-white/10 text-white border-white/20")}
+                        className="flex-1 flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition-colors bg-white/5 hover:bg-white/10 text-white border-white/20"
                     >
                         <Archive className="w-5 h-5" />
                         <span className="text-[10px] font-bold uppercase tracking-wider">Archive</span>
@@ -251,42 +379,51 @@ function NoteCard({ todo, onUpdate, onDelete }: { todo: TodoItem, onUpdate: any,
     }
 
     return (
-        <motion.div
-            layout
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -20 }}
+        <div
             className={cn(
-                "break-inside-avoid group relative bg-zinc-900/60 backdrop-blur-xl rounded-3xl p-6 transition-all duration-500 overflow-hidden border",
-                todo.is_completed ? "border-white/[0.05] hover:border-white/10" : colorStyles.border,
+                "group relative bg-zinc-900/60 backdrop-blur-xl rounded-3xl p-6 transition-all duration-300 overflow-visible border flex flex-col gap-4",
+                todo.is_completed ? "border-white/[0.05]" : colorStyles.border,
+                !todo.is_completed && !isOverlay && "hover:-translate-y-1 hover:shadow-2xl",
                 !todo.is_completed && colorStyles.shadow,
-                "hover:bg-zinc-800/80"
+                "hover:bg-zinc-800/80",
+                isOverlay && "scale-105 shadow-2xl z-50 rotate-2 opacity-90 cursor-grabbing"
             )}
         >
-            <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none rounded-3xl" />
             
-            <div className="relative z-10 flex flex-col gap-4">
-                {/* Header (Check & Delete) */}
-                <div className="flex items-start justify-between gap-4">
+            <div className="relative z-10 flex flex-col gap-3">
+                {/* Header (Check, Drag Handle, Delete) */}
+                <div className="flex items-start gap-3">
                     <button 
                         onClick={() => {
-                            if (todo.is_completed) {
-                                onUpdate(todo.id, { isCompleted: false });
-                            } else {
-                                setPendingCompletion(true);
-                            }
+                            if (todo.is_completed) onUpdate(todo.id, { isCompleted: false });
+                            else setPendingCompletion(true);
                         }}
-                        className={cn("mt-0.5 shrink-0 transition-colors", todo.is_completed ? colorStyles.icon : "text-white/30 hover:text-white")}
+                        className={cn("mt-1 shrink-0 transition-colors", todo.is_completed ? colorStyles.icon : "text-white/30 hover:text-white")}
                     >
-                        {todo.is_completed ? <CheckCircle2 className="w-6 h-6" /> : <Circle className="w-6 h-6" />}
+                        {todo.is_completed ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
                     </button>
                     
-                    <div className="flex-1 min-w-0 pt-0.5">
-                        <h4 className={cn("text-base font-bold text-white/90 leading-snug break-words", todo.is_completed && "line-through text-white/40")}>
-                            {todo.title}
-                        </h4>
+                    <div className="flex-1 min-w-0">
+                        <input 
+                            type="text"
+                            value={editTitle}
+                            onChange={e => setEditTitle(e.target.value)}
+                            onBlur={handleTitleBlur}
+                            className={cn(
+                                "w-full bg-transparent border-b border-transparent focus:border-white/20 text-base font-bold text-white/90 leading-snug outline-none transition-colors px-1 -ml-1", 
+                                todo.is_completed && "line-through text-white/40"
+                            )}
+                            placeholder="Empty Title"
+                        />
                     </div>
 
+                    {!todo.is_completed && dragHandleProps && (
+                        <div {...dragHandleProps} className="opacity-0 group-hover:opacity-100 p-1.5 text-white/30 hover:text-white cursor-grab active:cursor-grabbing rounded-lg transition-all shrink-0">
+                            <GripHorizontal className="w-4 h-4" />
+                        </div>
+                    )}
+                    
                     <button 
                         onClick={() => onDelete()}
                         className="opacity-0 group-hover:opacity-100 p-1.5 text-white/30 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all shrink-0 -mt-1 -mr-1"
@@ -296,33 +433,65 @@ function NoteCard({ todo, onUpdate, onDelete }: { todo: TodoItem, onUpdate: any,
                 </div>
 
                 {/* Body Content */}
-                {displayDescription && (
-                    <div className="pl-10">
-                        <p className={cn(
-                            "text-sm text-white/60 whitespace-pre-wrap break-words leading-relaxed",
+                <div className="pl-8">
+                    <textarea 
+                        value={editDesc}
+                        onChange={e => setEditDesc(e.target.value)}
+                        onBlur={handleDescBlur}
+                        placeholder="Empty note..."
+                        className={cn(
+                            "w-full bg-transparent border-l-2 border-transparent focus:border-white/10 text-sm text-white/60 outline-none resize-none min-h-[40px] px-2 -ml-2 transition-colors",
                             todo.is_completed && "line-through text-white/30"
-                        )}>
-                            {displayDescription}
-                        </p>
-                    </div>
-                )}
+                        )}
+                        onInput={(e) => {
+                            const target = e.target as HTMLTextAreaElement;
+                            target.style.height = 'auto';
+                            target.style.height = `${target.scrollHeight}px`;
+                        }}
+                        style={{ height: 'auto', minHeight: '40px' }}
+                    />
+                </div>
                 
-                {/* Footer Metadata */}
-                {(todo.created_at || todo.due_date) && (
-                    <div className="pl-10 flex items-center justify-between mt-2 pt-4 border-t border-white/[0.04]">
-                        {todo.created_at && (
-                            <span className="text-[10px] font-mono text-white/20 uppercase tracking-widest">
-                                {format(new Date(todo.created_at), 'MMM d')}
-                            </span>
-                        )}
-                        {!todo.is_completed && (
-                            <span className={cn("text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md", colorStyles.bg, colorStyles.icon)}>
-                                {colorStyles.label} Note
-                            </span>
-                        )}
+                {/* Footer Metadata & Inline Editing */}
+                <div className="pl-8 flex items-center justify-between mt-2 pt-3 border-t border-white/[0.04] flex-wrap gap-2">
+                    
+                    {/* Inline Color Picker */}
+                    {!todo.is_completed ? (
+                        <div className="flex gap-1">
+                            {(Object.keys(DEFAULT_LABELS) as Array<keyof typeof DEFAULT_LABELS>).map(color => (
+                                <button 
+                                    key={color}
+                                    onClick={() => handleColorChange(color)}
+                                    title={labels[color]}
+                                    className={cn(
+                                        "w-4 h-4 rounded-full transition-all",
+                                        displayColor === color 
+                                            ? COLOR_CLASSES[color].split(' ')[0] + " ring-1 ring-white/50" 
+                                            : COLOR_CLASSES[color].split(' ')[0] + " opacity-20 hover:opacity-100"
+                                    )}
+                                />
+                            ))}
+                        </div>
+                    ) : (
+                        <span className="text-[10px] font-mono text-white/20 uppercase tracking-widest">Archived</span>
+                    )}
+
+                    {/* Inline Due Date Picker Placeholder */}
+                    <div className="flex items-center gap-1.5 text-white/30 hover:text-white/60 cursor-pointer transition-colors group/date relative">
+                        <CalendarIcon className="w-3.5 h-3.5" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest">
+                            {todo.due_date ? format(new Date(todo.due_date), 'MMM d') : 'No Date'}
+                        </span>
+                        {/* We use a native date input positioned absolutely and invisible over the button */}
+                        <input 
+                            type="date"
+                            value={todo.due_date ? todo.due_date.split('T')[0] : ''}
+                            onChange={(e) => onUpdate(todo.id, { dueDate: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                            className="absolute inset-0 opacity-0 cursor-pointer"
+                        />
                     </div>
-                )}
+                </div>
             </div>
-        </motion.div>
+        </div>
     );
 }

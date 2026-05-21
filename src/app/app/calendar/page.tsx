@@ -397,7 +397,7 @@ function CalendarPageInner() {
         ? `${format(weekStart, 'MMM d')} – ${format(addDays(weekStart, 6), 'MMM d, yyyy')}`
         : format(selectedDate, 'MMMM d, yyyy');
     return (
-        <div className="h-screen bg-transparent text-white overflow-hidden flex flex-col relative">
+        <div className="h-full w-full bg-transparent text-white overflow-hidden flex flex-col relative">
             {/* Base gradient to ensure legibility while letting PageBackground shine through */}
             <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/80 to-[#050508] pointer-events-none -z-10" />
             <PageBackground color="teal" variant="horizon" intensity="medium" />
