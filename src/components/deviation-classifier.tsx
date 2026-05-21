@@ -105,12 +105,12 @@ export function DeviationClassifier({
                 }),
             });
 
-            const data = await response.json();
+            const result = await response.json();
 
-            if (data.classification) {
-                setClassification(data.classification);
+            if (result.data?.classification) {
+                setClassification(result.data.classification);
                 setStep('result');
-                onClassified?.(data.classification);
+                onClassified?.(result.data.classification);
             } else {
                 // Fallback to manual selection
                 setStep('manual');
@@ -138,12 +138,12 @@ export function DeviationClassifier({
                 }),
             });
 
-            const data = await response.json();
+            const result = await response.json();
 
-            if (data.classification) {
-                setClassification(data.classification);
+            if (result.data?.classification) {
+                setClassification(result.data.classification);
                 setStep('result');
-                onClassified?.(data.classification);
+                onClassified?.(result.data.classification);
             }
         } catch (error) {
             console.error('Failed to log deviation:', error);

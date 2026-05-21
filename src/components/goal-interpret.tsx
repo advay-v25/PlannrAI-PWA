@@ -52,15 +52,15 @@ export function GoalInterpret({ goalId, goalTitle, onClose, onApply }: GoalInter
                 }),
             });
 
-            const data = await response.json();
+            const result = await response.json();
 
-            if (!response.ok) {
-                setError(data.error || 'Failed to generate plan');
+            if (!response.ok || !result.ok) {
+                setError(result.error?.message || result.error || 'Failed to generate plan');
                 return;
             }
 
-            if (data.plan) {
-                setPlan(data.plan);
+            if (result.data?.plan) {
+                setPlan(result.data.plan);
             } else {
                 setError('No plan generated');
             }

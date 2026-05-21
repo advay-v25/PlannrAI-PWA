@@ -22,7 +22,7 @@ export function Skeleton({ className, variant = 'text', lines = 1 }: SkeletonPro
           <div
             key={i}
             className={cn(
-              'animate-pulse',
+              'animate-scifi-sweep',
               variants[variant],
               i === lines - 1 && 'w-3/4',
               className
@@ -36,7 +36,7 @@ export function Skeleton({ className, variant = 'text', lines = 1 }: SkeletonPro
   return (
     <div
       className={cn(
-        'animate-pulse',
+        'animate-scifi-sweep',
         variants[variant],
         className
       )}
@@ -47,7 +47,7 @@ export function Skeleton({ className, variant = 'text', lines = 1 }: SkeletonPro
 export function SkeletonCard({ className }: { className?: string }) {
   return (
     <div className={cn(
-      'glass-card animate-pulse',
+      'glass-card animate-scifi-sweep',
       'p-6 space-y-4',
       className
     )}>

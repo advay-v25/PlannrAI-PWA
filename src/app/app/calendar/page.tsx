@@ -397,7 +397,7 @@ function CalendarPageInner() {
         ? `${format(weekStart, 'MMM d')} – ${format(addDays(weekStart, 6), 'MMM d, yyyy')}`
         : format(selectedDate, 'MMMM d, yyyy');
     return (
-        <div className="h-screen bg-transparent text-white overflow-hidden flex flex-col relative">
+        <div className="h-full w-full bg-transparent text-white overflow-hidden flex flex-col relative">
             {/* Base gradient to ensure legibility while letting PageBackground shine through */}
             <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/80 to-[#050508] pointer-events-none -z-10" />
             <PageBackground color="teal" variant="horizon" intensity="medium" />
@@ -457,20 +457,28 @@ function CalendarPageInner() {
                         </AnimatePresence>
 
                         {/* AI: Optimize Day */}
-                        <button onClick={() => setShowOptimizerModal(true)}
+                        <LiquidGlassButton
+                            onClick={() => setShowOptimizerModal(true)}
                             title="Optimize today's schedule with AI"
-                            className="p-2 rounded-lg text-white/40
-                            hover:bg-white/[0.06] hover:text-orange-400 transition-all">
-                            <Zap className="w-4 h-4" />
-                        </button>
+                            variant="primary"
+                            size="sm"
+                            className="h-8 px-2.5 rounded-lg flex items-center gap-1.5 overflow-hidden group"
+                        >
+                            <Zap className="w-3.5 h-3.5 group-hover:text-amber-300 transition-colors" />
+                            <span className="hidden sm:inline text-xs font-bold">Optimize</span>
+                        </LiquidGlassButton>
 
                         {/* AI: Plan Week */}
-                        <button onClick={() => setShowPlanWeekModal(true)}
+                        <LiquidGlassButton
+                            onClick={() => setShowPlanWeekModal(true)}
                             title="Plan your entire week with AI"
-                            className="p-2 rounded-lg text-white/40
-                            hover:bg-white/[0.06] hover:text-orange-400 transition-all">
-                            <Layout className="w-4 h-4" />
-                        </button>
+                            variant="primary"
+                            size="sm"
+                            className="h-8 px-2.5 rounded-lg flex items-center gap-1.5 overflow-hidden group"
+                        >
+                            <Layout className="w-3.5 h-3.5 group-hover:text-blue-300 transition-colors" />
+                            <span className="hidden sm:inline text-xs font-bold">Plan Week</span>
+                        </LiquidGlassButton>
 
                         {/* Export ICS */}
                         <button

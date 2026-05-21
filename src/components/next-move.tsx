@@ -84,10 +84,10 @@ export function NextMoveCard({ onSelect, onDismiss }: NextMoveCardProps) {
 
         try {
             const response = await fetch('/api/next-move');
-            const data = await response.json();
+            const result = await response.json();
 
-            if (data.guidance) {
-                setGuidance(data.guidance);
+            if (result.data?.guidance) {
+                setGuidance(result.data.guidance);
             } else {
                 setError('Could not get suggestions');
             }

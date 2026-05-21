@@ -44,101 +44,104 @@ export default function GoalsPage() {
     const isCritical = (capacity?.load_percentage || 0) > 120;
 
     return (
-        <div className="pb-24 space-y-8">
+        <div className="w-full min-h-full relative">
             {/* SVG organic ribbon flows — folded fabric effect */}
-            <div aria-hidden style={{ position: 'fixed', inset: 0, zIndex: -1, pointerEvents: 'none', overflow: 'hidden' }}>
-              {/* Top shimmer line */}
-              <div style={{
-                position: 'absolute', top: 0, left: 0, right: 0, height: '1px',
-                background: 'linear-gradient(to right, transparent, hsla(195,80%,52%,0.55) 40%, hsla(210,75%,58%,0.42) 65%, transparent)',
-              }} />
-              <svg
-                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
-                viewBox="0 0 1440 900"
-                preserveAspectRatio="xMidYMid slice"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <defs>
-                  <linearGradient id="goals-r1" x1="1440" y1="-100" x2="0" y2="900" gradientUnits="userSpaceOnUse">
-                    <stop offset="0%" stopColor="hsla(195,80%,52%,0.38)" />
-                    <stop offset="40%" stopColor="hsla(200,75%,36%,0.20)" />
-                    <stop offset="100%" stopColor="hsla(205,65%,16%,0)" />
-                  </linearGradient>
-                  <linearGradient id="goals-r2" x1="1440" y1="200" x2="200" y2="900" gradientUnits="userSpaceOnUse">
-                    <stop offset="0%" stopColor="hsla(210,72%,55%,0.22)" />
-                    <stop offset="55%" stopColor="hsla(195,75%,46%,0.11)" />
-                    <stop offset="100%" stopColor="transparent" />
-                  </linearGradient>
-                  <linearGradient id="goals-r3" x1="1" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsla(195,80%,50%,0.18)" />
-                    <stop offset="100%" stopColor="transparent" />
-                  </linearGradient>
-                  <filter id="goals-shadow" x="-60%" y="-60%" width="220%" height="220%">
-                    <feGaussianBlur stdDeviation="30" />
-                  </filter>
-                  <filter id="goals-glow" x="-60%" y="-60%" width="220%" height="220%">
-                    <feGaussianBlur stdDeviation="10" />
-                  </filter>
-                </defs>
+            <div className="absolute inset-0 pointer-events-none z-[-1]">
+              <div aria-hidden style={{ position: 'sticky', top: 0, height: '100dvh', width: '100%', overflow: 'hidden' }}>
+                {/* Top shimmer line */}
+                <div style={{
+                  position: 'absolute', top: 0, left: 0, right: 0, height: '1px',
+                  background: 'linear-gradient(to right, transparent, hsla(190,100%,70%,0.55) 40%, hsla(210,100%,65%,0.42) 65%, transparent)',
+                }} />
+                <svg
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+                  viewBox="0 0 1440 900"
+                  preserveAspectRatio="xMidYMid slice"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <defs>
+                    <linearGradient id="goals-r1" x1="1440" y1="-100" x2="0" y2="900" gradientUnits="userSpaceOnUse">
+                      <stop offset="0%" stopColor="hsla(190,100%,60%,0.22)" />
+                      <stop offset="40%" stopColor="hsla(200,90%,40%,0.10)" />
+                      <stop offset="100%" stopColor="hsla(210,60%,15%,0)" />
+                    </linearGradient>
+                    <linearGradient id="goals-r2" x1="1440" y1="200" x2="200" y2="900" gradientUnits="userSpaceOnUse">
+                      <stop offset="0%" stopColor="hsla(200,90%,55%,0.14)" />
+                      <stop offset="55%" stopColor="hsla(190,85%,45%,0.06)" />
+                      <stop offset="100%" stopColor="transparent" />
+                    </linearGradient>
+                    <linearGradient id="goals-r3" x1="1" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsla(190,100%,50%,0.15)" />
+                      <stop offset="100%" stopColor="transparent" />
+                    </linearGradient>
+                    <filter id="goals-shadow" x="-60%" y="-60%" width="220%" height="220%">
+                      <feGaussianBlur stdDeviation="30" />
+                    </filter>
+                    <filter id="goals-glow" x="-60%" y="-60%" width="220%" height="220%">
+                      <feGaussianBlur stdDeviation="10" />
+                    </filter>
+                  </defs>
 
-                {/* FOLD 1 — main lit face, top-right to lower-left */}
-                <path
-                  d="M 1600 -200 C 1300 20 1050 200 820 390 C 590 580 370 720 0 890 L 0 1000 L 1600 1000 Z"
-                  fill="url(#goals-r1)"
-                />
-                {/* FOLD 1 — valley shadow */}
-                <path
-                  d="M 1430 -60 C 1130 170 890 350 670 530 C 450 710 240 830 -80 920"
-                  stroke="hsla(200,60%,5%,0.55)"
-                  strokeWidth="100"
-                  fill="none"
-                  filter="url(#goals-shadow)"
-                />
-                {/* FOLD 1 — bright ridge highlight */}
-                <path
-                  d="M 1430 -60 C 1130 170 890 350 670 530 C 450 710 240 830 -80 920"
-                  stroke="hsla(190,90%,78%,0.55)"
-                  strokeWidth="1.5"
-                  fill="none"
-                />
-                {/* FOLD 1 — soft glow halo */}
-                <path
-                  d="M 1430 -60 C 1130 170 890 350 670 530 C 450 710 240 830 -80 920"
-                  stroke="hsla(195,85%,62%,0.26)"
-                  strokeWidth="38"
-                  fill="none"
-                  filter="url(#goals-glow)"
-                />
+                  {/* FOLD 1 — main lit face, top-right to lower-left */}
+                  <path
+                    d="M 1600 -200 C 1300 20 1050 200 820 390 C 590 580 370 720 0 890 L 0 2000 L 1600 2000 Z"
+                    fill="url(#goals-r1)"
+                  />
+                  {/* FOLD 1 — valley shadow */}
+                  <path
+                    d="M 1430 -60 C 1130 170 890 350 670 530 C 450 710 240 830 -80 2000"
+                    stroke="hsla(200,60%,5%,0.55)"
+                    strokeWidth="100"
+                    fill="none"
+                    filter="url(#goals-shadow)"
+                  />
+                  {/* FOLD 1 — bright ridge highlight */}
+                  <path
+                    d="M 1430 -60 C 1130 170 890 350 670 530 C 450 710 240 830 -80 2000"
+                    stroke="hsla(190,90%,78%,0.55)"
+                    strokeWidth="1.5"
+                    fill="none"
+                  />
+                  {/* FOLD 1 — soft glow halo */}
+                  <path
+                    d="M 1430 -60 C 1130 170 890 350 670 530 C 450 710 240 830 -80 2000"
+                    stroke="hsla(195,85%,62%,0.26)"
+                    strokeWidth="38"
+                    fill="none"
+                    filter="url(#goals-glow)"
+                  />
 
-                {/* FOLD 2 — secondary ribbon face */}
-                <path
-                  d="M 1600 160 C 1300 360 1050 510 820 660 C 590 810 370 890 0 980 L 0 1000 L 1600 1000 Z"
-                  fill="url(#goals-r2)"
-                />
-                {/* FOLD 2 — bright ridge highlight */}
-                <path
-                  d="M 1430 220 C 1130 420 890 570 670 710 C 450 850 240 930 -80 1000"
-                  stroke="hsla(200,85%,68%,0.30)"
-                  strokeWidth="1.5"
-                  fill="none"
-                />
-                {/* FOLD 2 — soft glow halo */}
-                <path
-                  d="M 1430 220 C 1130 420 890 570 670 710 C 450 850 240 930 -80 1000"
-                  stroke="hsla(195,85%,60%,0.16)"
-                  strokeWidth="32"
-                  fill="none"
-                  filter="url(#goals-glow)"
-                />
+                  {/* FOLD 2 — secondary ribbon face */}
+                  <path
+                    d="M 1600 160 C 1300 360 1050 510 820 660 C 590 810 370 890 0 2000 L 0 2000 L 1600 2000 Z"
+                    fill="url(#goals-r2)"
+                  />
+                  {/* FOLD 2 — bright ridge highlight */}
+                  <path
+                    d="M 1430 220 C 1130 420 890 570 670 710 C 450 850 240 930 -80 2000"
+                    stroke="hsla(200,85%,68%,0.30)"
+                    strokeWidth="1.5"
+                    fill="none"
+                  />
+                  {/* FOLD 2 — soft glow halo */}
+                  <path
+                    d="M 1430 220 C 1130 420 890 570 670 710 C 450 850 240 930 -80 2000"
+                    stroke="hsla(195,85%,60%,0.16)"
+                    strokeWidth="32"
+                    fill="none"
+                    filter="url(#goals-glow)"
+                  />
 
-                {/* Upper-right corner fill accent */}
-                <path
-                  d="M 1600 -350 C 1500 -180 1350 -70 1200 40 C 1050 150 950 230 820 340 L 1600 340 Z"
-                  fill="url(#goals-r3)"
-                />
-              </svg>
+                  {/* Upper-right corner fill accent */}
+                  <path
+                    d="M 1600 -350 C 1500 -180 1350 -70 1200 40 C 1050 150 950 230 820 340 L 1600 340 Z"
+                    fill="url(#goals-r3)"
+                  />
+                </svg>
+              </div>
             </div>
+            <div className="max-w-5xl mx-auto p-4 md:p-8 pb-32 md:pb-10 space-y-8">
             {/* 1. Header & Quick Actions */}
             <header className="flex items-center justify-between">
                 <div>
@@ -256,6 +259,7 @@ export default function GoalsPage() {
                     />
                 )}
             </AnimatePresence>
+            </div>
         </div>
     );
 }

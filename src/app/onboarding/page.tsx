@@ -14,6 +14,7 @@ import { Step3Anchors } from '@/components/onboarding/steps/step-3-anchors';
 import { Step4Goals } from '@/components/onboarding/steps/step-4-goals';
 import { Step5FailureModes } from '@/components/onboarding/steps/step-5-failure-modes';
 import { Step6Generate } from '@/components/onboarding/steps/step-6-generate';
+import { DynamicBackground } from '@/components/ui/DynamicBackground';
 
 const STEPS = [
     { id: 'identity', title: 'Identity', component: Step1Identity },
@@ -95,13 +96,8 @@ export default function OnboardingPage() {
     return (
         <div className="min-h-screen relative flex flex-col items-center justify-center p-4 overflow-hidden bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-950/40 via-neutral-950 to-neutral-950 text-white selection:bg-white/30 selection:text-white font-[family-name:var(--font-geist-sans)]">
             
-            {/* Mesh Gradient Ambient Background */}
-            <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none flex items-center justify-center">
-                <div className="absolute w-[800px] h-[800px] rounded-full bg-[radial-gradient(circle,rgba(255,100,10,0.03)_0%,transparent_70%)] animate-pulse" style={{ animationDuration: '8s' }} />
-                <div className="absolute top-[-20%] left-[-10%] w-[60vw] h-[60vw] rounded-full bg-[radial-gradient(circle,rgba(255,90,10,0.1)_0%,transparent_60%)] blur-[100px]" />
-                <div className="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-[radial-gradient(circle,rgba(255,100,10,0.05)_0%,transparent_60%)] blur-[100px]" />
-                <div className="absolute inset-0 bg-[url('/noise.svg')] opacity-[0.015] mix-blend-overlay" />
-            </div>
+            {/* Dynamic Ambient Background */}
+            <DynamicBackground variant="onboarding" />
 
             <div className="relative z-10 w-full max-w-3xl flex flex-col items-center min-h-[700px] py-10">
 

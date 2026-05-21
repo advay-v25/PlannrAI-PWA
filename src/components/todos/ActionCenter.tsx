@@ -1,586 +1,496 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useTodos, TodoItem } from '@/hooks/use-todos';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, Plus, Trash2, CheckCircle2, Circle, Pencil, RotateCcw, ClipboardList } from 'lucide-react';
-import { format, differenceInDays, isPast, startOfWeek, endOfWeek, isWithinInterval } from 'date-fns';
+import { Loader2, Plus, Trash2, CheckCircle2, Circle, Archive, GripHorizontal, Tag, CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  defaultDropAnimationSideEffects
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
-// ── Color System ────────────────────────────────────────────────────
-
-const TASK_COLORS = [
-    { name: 'None',    value: 'none',    bg: 'transparent' },
-    { name: 'Red',     value: 'red',     bg: '#EF4444' },
-    { name: 'Blue',    value: 'blue',    bg: '#3B82F6' },
-    { name: 'Yellow',  value: 'yellow',  bg: '#EAB308' },
-    { name: 'Green',   value: 'green',   bg: '#22C55E' },
-    { name: 'Purple',  value: 'purple',  bg: '#A855F7' },
-    { name: 'Orange',  value: 'orange',  bg: '#F97316' },
-];
-
-const COLOR_STRIPE_MAP: Record<string, string> = {
-    red:    '#EF4444',
-    blue:   '#3B82F6',
-    yellow: '#EAB308',
-    green:  '#22C55E',
-    purple: '#A855F7',
-    orange: '#F97316',
+const DEFAULT_LABELS = {
+    teal: 'Notes',
+    purple: 'Ideas',
+    orange: 'Urgent',
+    blue: 'Work',
+    pink: 'Personal'
 };
 
-function getTaskColor(todoId: string): string {
-    if (typeof window === 'undefined') return 'none';
-    return localStorage.getItem(`task-color-${todoId}`) || 'none';
+const COLOR_CLASSES = {
+  teal: 'bg-teal-500 shadow-[0_0_12px_rgba(20,184,166,0.6)] ring-teal-500/30',
+  purple: 'bg-purple-500 shadow-[0_0_12px_rgba(168,85,247,0.6)] ring-purple-500/30',
+  orange: 'bg-orange-500 shadow-[0_0_12px_rgba(249,115,22,0.6)] ring-orange-500/30',
+  blue: 'bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.6)] ring-blue-500/30',
+  pink: 'bg-pink-500 shadow-[0_0_12px_rgba(236,72,153,0.6)] ring-pink-500/30'
+};
+
+function useColorLabels() {
+    const [labels, setLabels] = useState(DEFAULT_LABELS);
+    
+    useEffect(() => {
+        const stored = localStorage.getItem('plannrai_color_labels');
+        if (stored) {
+            try { setLabels(JSON.parse(stored)); } catch (e) {}
+        }
+    }, []);
+
+    const updateLabel = (color: keyof typeof DEFAULT_LABELS, newLabel: string) => {
+        setLabels(prev => {
+            const next = { ...prev, [color]: newLabel };
+            localStorage.setItem('plannrai_color_labels', JSON.stringify(next));
+            return next;
+        });
+    };
+    return { labels, updateLabel };
 }
 
-function setTaskColor(todoId: string, color: string) {
-    if (typeof window === 'undefined') return;
-    if (color === 'none') {
-        localStorage.removeItem(`task-color-${todoId}`);
-    } else {
-        localStorage.setItem(`task-color-${todoId}`, color);
+export function ActionCenter() {
+    const { todos, isLoading, addTodo, updateTodo, deleteTodo, reorderTodos } = useTodos();
+    const { labels, updateLabel } = useColorLabels();
+    
+    // Quick Add State
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [title, setTitle] = useState('');
+    const [description, setDescription] = useState('');
+    const [selectedColor, setSelectedColor] = useState<keyof typeof DEFAULT_LABELS>('teal');
+    
+    const handleAdd = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!title.trim() && !description.trim()) return;
+        
+        const finalDescription = `[color:${selectedColor}] ${description}`;
+        await addTodo(title || 'Untitled', finalDescription.trim(), undefined, 'medium');
+        setTitle('');
+        setDescription('');
+        setIsExpanded(false);
+        setSelectedColor('teal');
+    };
+
+    // Separate active and archived. Ensure active respects order_index
+    const activeTodos = useMemo(() => todos.filter(t => !t.is_completed).sort((a,b) => (a.order_index || 0) - (b.order_index || 0)), [todos]);
+    const archivedTodos = useMemo(() => todos.filter(t => t.is_completed).sort((a,b) => (b.created_at || '').localeCompare(a.created_at || '')), [todos]);
+
+    // Drag and Drop Setup
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    );
+    const [activeId, setActiveId] = useState<string | null>(null);
+
+    const handleDragStart = (event: any) => {
+        setActiveId(event.active.id);
+    };
+
+    const handleDragEnd = (event: any) => {
+        setActiveId(null);
+        const { active, over } = event;
+        if (over && active.id !== over.id) {
+            const oldIndex = activeTodos.findIndex((t) => t.id === active.id);
+            const newIndex = activeTodos.findIndex((t) => t.id === over.id);
+            const newActiveTodos = arrayMove(activeTodos, oldIndex, newIndex);
+            
+            // We pass the full list to update indexes
+            const fullNewList = [...newActiveTodos, ...archivedTodos];
+            reorderTodos(fullNewList);
+        }
+    };
+
+    const activeItem = useMemo(() => activeTodos.find(t => t.id === activeId), [activeId, activeTodos]);
+
+    if (isLoading) {
+        return (
+            <div className="flex h-full items-center justify-center text-white/50 min-h-[400px]">
+                <Loader2 className="w-8 h-8 animate-spin text-teal-400" />
+            </div>
+        );
     }
-}
 
-function isEdited(todoId: string): boolean {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem(`task-edited-${todoId}`) === 'true';
-}
-
-function markEdited(todoId: string) {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem(`task-edited-${todoId}`, 'true');
-}
-
-// ── Color Picker Sub-Component ──────────────────────────────────────
-
-function ColorPickerBar({ selected, onSelect }: { selected: string; onSelect: (v: string) => void }) {
     return (
-        <div className="flex items-center gap-2 pt-2">
-            <span className="text-[10px] text-white/30 font-bold uppercase tracking-wider mr-1">Colour</span>
-            {TASK_COLORS.map(c => (
-                <button
-                    key={c.value}
-                    type="button"
-                    onClick={() => onSelect(c.value)}
-                    title={c.name}
-                    className={cn(
-                        "w-6 h-6 rounded-full border-2 transition-all flex items-center justify-center",
-                        selected === c.value
-                            ? "scale-110 ring-2 ring-white/40 ring-offset-1 ring-offset-[#1c1c1e]"
-                            : "hover:scale-105",
-                        c.value === 'none' ? 'border-white/20 bg-white/5' : ''
-                    )}
-                    style={c.value !== 'none' ? { backgroundColor: c.bg, borderColor: c.bg } : {}}
+        <div className="flex flex-col gap-8 h-full max-w-7xl mx-auto pb-32 w-full">
+            
+            {/* Color Legend / Configurator */}
+            <div className="flex flex-wrap items-center justify-center gap-3 mt-4 w-full">
+                {(Object.keys(DEFAULT_LABELS) as Array<keyof typeof DEFAULT_LABELS>).map(color => (
+                    <div key={color} className="flex items-center gap-2 bg-black/40 backdrop-blur-md border border-white/[0.05] rounded-full px-3 py-1.5 shadow-lg">
+                        <div className={cn("w-3 h-3 rounded-full", COLOR_CLASSES[color].split(' ')[0])} />
+                        <input
+                            type="text"
+                            value={labels[color]}
+                            onChange={(e) => updateLabel(color, e.target.value)}
+                            placeholder="Tag Name"
+                            className="bg-transparent text-xs font-bold text-white/60 focus:text-white outline-none w-16 focus:w-24 transition-all"
+                        />
+                    </div>
+                ))}
+            </div>
+
+            {/* Input Area */}
+            <div className="max-w-2xl mx-auto w-full relative z-20">
+                <div className={cn(
+                    "bg-black/40 backdrop-blur-2xl border border-white/[0.08] rounded-3xl overflow-hidden shadow-[inset_0_1px_1px_rgba(255,255,255,0.05),0_12px_40px_rgba(0,0,0,0.5)] transition-all duration-300",
+                    isExpanded ? "ring-1 ring-teal-500/30 shadow-[0_0_50px_rgba(20,184,166,0.15)]" : "hover:border-white/[0.15]"
+                )}>
+                    <form onSubmit={handleAdd} className="flex flex-col">
+                        <input
+                            type="text"
+                            value={title}
+                            onChange={e => setTitle(e.target.value)}
+                            onFocus={() => setIsExpanded(true)}
+                            placeholder={isExpanded ? "Title" : "Take a note..."}
+                            className={cn(
+                                "w-full bg-transparent text-white focus:outline-none placeholder:text-white/40 px-6",
+                                isExpanded ? "py-4 text-xl font-bold" : "py-5"
+                            )}
+                        />
+                        <AnimatePresence>
+                            {isExpanded && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    className="overflow-hidden"
+                                >
+                                    <textarea
+                                        value={description}
+                                        onChange={e => setDescription(e.target.value)}
+                                        placeholder="Add details, ideas, or structure..."
+                                        className="w-full bg-transparent text-sm text-white/80 focus:outline-none placeholder:text-white/30 px-6 py-2 min-h-[120px] resize-none"
+                                    />
+                                    <div className="flex items-center justify-between p-4 border-t border-white/[0.04] bg-white/[0.02]">
+                                        <div className="flex gap-2">
+                                            {(Object.keys(DEFAULT_LABELS) as Array<keyof typeof DEFAULT_LABELS>).map(color => (
+                                                <button 
+                                                    key={color}
+                                                    type="button" 
+                                                    title={labels[color]}
+                                                    onClick={() => setSelectedColor(color)} 
+                                                    className={cn(
+                                                        "w-6 h-6 rounded-full transition-all ring-2 ring-offset-2 ring-offset-black", 
+                                                        selectedColor === color 
+                                                            ? COLOR_CLASSES[color]
+                                                            : cn(COLOR_CLASSES[color].split(' ')[0], "opacity-40 hover:opacity-80 ring-transparent")
+                                                    )} 
+                                                />
+                                            ))}
+                                        </div>
+                                        <div className="flex gap-3">
+                                            <button 
+                                                type="button" 
+                                                onClick={() => { setIsExpanded(false); setTitle(''); setDescription(''); setSelectedColor('teal'); }}
+                                                className="px-4 py-2 text-xs font-bold text-white/40 hover:text-white transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button 
+                                                type="submit"
+                                                disabled={!title.trim() && !description.trim()}
+                                                className="px-6 py-2 bg-white text-black text-xs font-bold rounded-full disabled:opacity-30 hover:bg-white/90 transition-all shadow-lg shadow-white/10"
+                                            >
+                                                Save
+                                            </button>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </form>
+                </div>
+            </div>
+
+            {/* DND Grid for Active Notes */}
+            {activeTodos.length > 0 ? (
+                <DndContext 
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
                 >
-                    {c.value === 'none' && selected === 'none' && (
-                        <span className="w-2 h-2 rounded-full bg-white/40" />
-                    )}
-                </button>
-            ))}
+                    <SortableContext items={activeTodos.map(t => t.id)} strategy={rectSortingStrategy}>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-start w-full">
+                            {activeTodos.map(todo => (
+                                <SortableNoteCard 
+                                    key={todo.id} 
+                                    todo={todo}
+                                    onUpdate={updateTodo}
+                                    onDelete={() => deleteTodo(todo.id)}
+                                    labels={labels}
+                                />
+                            ))}
+                        </div>
+                    </SortableContext>
+                    
+                    <DragOverlay dropAnimation={{ sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.4' } } }) }}>
+                        {activeItem ? (
+                            <NoteCardBase 
+                                todo={activeItem} 
+                                onUpdate={updateTodo} 
+                                onDelete={() => {}} 
+                                labels={labels} 
+                                isOverlay
+                            />
+                        ) : null}
+                    </DragOverlay>
+                </DndContext>
+            ) : (
+                <div className="flex flex-col items-center justify-center py-20 opacity-30 pointer-events-none">
+                    <div className="w-16 h-16 rounded-full border border-dashed border-white flex items-center justify-center mb-4">
+                        <Plus className="w-6 h-6 text-white" />
+                    </div>
+                    <p className="text-sm font-medium tracking-wide">Your canvas is empty.</p>
+                </div>
+            )}
+            
+            {/* Archived Section */}
+            {archivedTodos.length > 0 && (
+                <div className="mt-12 pt-12 border-t border-white/[0.05]">
+                    <h3 className="text-xs font-bold text-white/30 uppercase tracking-widest mb-8 px-2 flex items-center gap-2">
+                        <Archive className="w-4 h-4" />
+                        Archived Notes
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 items-start w-full opacity-60 hover:opacity-100 transition-all duration-500">
+                        {archivedTodos.map(todo => (
+                            <NoteCardBase 
+                                key={todo.id} 
+                                todo={todo}
+                                onUpdate={updateTodo}
+                                onDelete={() => deleteTodo(todo.id)}
+                                labels={labels}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
 
-// ── Progress Ring ───────────────────────────────────────────────────
+// Wrapper for DND Sortable
+function SortableNoteCard(props: any) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id: props.todo.id });
 
-function ProgressRing({ completed, total, size = 48 }: { completed: number; total: number; size?: number }) {
-    const strokeWidth = 4;
-    const radius = (size - strokeWidth) / 2;
-    const circumference = 2 * Math.PI * radius;
-    const progress = total === 0 ? 0 : completed / total;
-    const offset = circumference - progress * circumference;
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0 : 1,
+    };
 
     return (
-        <svg width={size} height={size} className="transform -rotate-90">
-            <circle
-                cx={size / 2}
-                cy={size / 2}
-                r={radius}
-                fill="none"
-                stroke="rgba(255,255,255,0.05)"
-                strokeWidth={strokeWidth}
-            />
-            <circle
-                cx={size / 2}
-                cy={size / 2}
-                r={radius}
-                fill="none"
-                stroke="url(#progressGradient)"
-                strokeWidth={strokeWidth}
-                strokeDasharray={circumference}
-                strokeDashoffset={offset}
-                strokeLinecap="round"
-                className="transition-all duration-700 ease-out"
-            />
-            <defs>
-                <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#F97316" />
-                    <stop offset="100%" stopColor="#EF4444" />
-                </linearGradient>
-            </defs>
-        </svg>
+        <div ref={setNodeRef} style={style}>
+            <NoteCardBase {...props} dragHandleProps={{ ...attributes, ...listeners }} />
+        </div>
     );
 }
 
-// ── Main Component ──────────────────────────────────────────────────
-
-export function ActionCenter() {
-    const { todos, isLoading, addTodo, updateTodo, toggleTodo, deleteTodo, reorderTodos } = useTodos();
+// Base UI Component (Inline Editable)
+function NoteCardBase({ todo, onUpdate, onDelete, labels, isOverlay, dragHandleProps }: any) {
+    const [pendingCompletion, setPendingCompletion] = useState(false);
     
-    // Add Task Form State
-    const [isAdding, setIsAdding] = useState(false);
-    const [title, setTitle] = useState('');
-    const [description, setDescription] = useState('');
-    const [dueDate, setDueDate] = useState('');
-    const [selectedColor, setSelectedColor] = useState('none');
-    const [pendingColor, setPendingColor] = useState<string | null>(null);
+    // Inline edit state
+    const [editTitle, setEditTitle] = useState(todo.title || '');
+    
+    const rawDescription = todo.description || '';
+    const colorMatch = rawDescription.match(/^\[color:(teal|purple|orange|blue|pink)\]/i);
+    const displayColor = colorMatch ? colorMatch[1].toLowerCase() as keyof typeof DEFAULT_LABELS : 'teal';
+    const displayDescription = colorMatch ? rawDescription.substring(colorMatch[0].length).trim() : rawDescription;
+    
+    const [editDesc, setEditDesc] = useState(displayDescription);
 
-    // Edit State
-    const [editingId, setEditingId] = useState<string | null>(null);
-    const [editTitle, setEditTitle] = useState('');
-    const [editDescription, setEditDescription] = useState('');
-    const [editDueDate, setEditDueDate] = useState('');
-    const [editColor, setEditColor] = useState('none');
-    const [editSnapshot, setEditSnapshot] = useState<{ title: string; description: string; dueDate: string; color: string } | null>(null);
-
-    // Force re-render when colors are loaded from localStorage
-    const [colorRevision, setColorRevision] = useState(0);
-    useEffect(() => { setColorRevision(r => r + 1); }, [todos]);
-
-    // Drag and Drop State
-    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-
-    // ── Weekly Counter ──────────────────────────────────────────────
-
-    const weekStats = useMemo(() => {
-        const now = new Date();
-        const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-        const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
-
-        const dueThisWeek = todos.filter(t =>
-            t.due_date && isWithinInterval(new Date(t.due_date), { start: weekStart, end: weekEnd })
-        );
-        const completedThisWeek = dueThisWeek.filter(t => t.is_completed);
-
-        return {
-            weekLabel: `${format(weekStart, 'd MMM')} – ${format(weekEnd, 'd MMM')}`,
-            dueCount: dueThisWeek.length,
-            completedCount: completedThisWeek.length,
-        };
-    }, [todos]);
-
-    // ── Handlers ────────────────────────────────────────────────────
-
-    const handleAddTask = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!title.trim()) return;
-        await addTodo(title, description || undefined, dueDate || undefined, 'medium');
-        setPendingColor(selectedColor);
-        setTitle('');
-        setDescription('');
-        setDueDate('');
-        setSelectedColor('none');
-        setIsAdding(false);
+    const handleTitleBlur = () => {
+        if (editTitle.trim() !== todo.title) onUpdate(todo.id, { title: editTitle.trim() });
+    };
+    
+    const handleDescBlur = () => {
+        if (editDesc.trim() !== displayDescription) onUpdate(todo.id, { description: `[color:${displayColor}] ${editDesc.trim()}` });
     };
 
-    useEffect(() => {
-        if (pendingColor && pendingColor !== 'none' && todos.length > 0) {
-            const newest = todos[todos.length - 1];
-            if (newest && getTaskColor(newest.id) === 'none') {
-                setTaskColor(newest.id, pendingColor);
-                setColorRevision(r => r + 1);
-            }
-            setPendingColor(null);
+    const handleColorChange = (newColor: string) => {
+        onUpdate(todo.id, { description: `[color:${newColor}] ${displayDescription}` });
+    };
+
+    const colorStyles = useMemo(() => {
+        switch (displayColor) {
+            case 'orange': return { border: 'border-orange-500/30', shadow: 'shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_12px_40px_rgba(249,115,22,0.15)]', icon: 'text-orange-500', bg: 'bg-orange-500/5 hover:bg-orange-500/10' };
+            case 'purple': return { border: 'border-purple-500/30', shadow: 'shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_12px_40px_rgba(168,85,247,0.15)]', icon: 'text-purple-500', bg: 'bg-purple-500/5 hover:bg-purple-500/10' };
+            case 'blue': return { border: 'border-blue-500/30', shadow: 'shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_12px_40px_rgba(59,130,246,0.15)]', icon: 'text-blue-500', bg: 'bg-blue-500/5 hover:bg-blue-500/10' };
+            case 'pink': return { border: 'border-pink-500/30', shadow: 'shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_12px_40px_rgba(236,72,153,0.15)]', icon: 'text-pink-500', bg: 'bg-pink-500/5 hover:bg-pink-500/10' };
+            case 'teal': default: return { border: 'border-teal-500/30', shadow: 'shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_12px_40px_rgba(20,184,166,0.15)]', icon: 'text-teal-500', bg: 'bg-teal-500/5 hover:bg-teal-500/10' };
         }
-    }, [todos, pendingColor]);
+    }, [displayColor]);
 
-    const startEdit = useCallback((todo: TodoItem) => {
-        setEditingId(todo.id);
-        setEditTitle(todo.title);
-        setEditDescription(todo.description || '');
-        setEditDueDate(todo.due_date || '');
-        const currentColor = getTaskColor(todo.id);
-        setEditColor(currentColor);
-        setEditSnapshot({
-            title: todo.title,
-            description: todo.description || '',
-            dueDate: todo.due_date || '',
-            color: currentColor,
-        });
-    }, []);
-
-    const saveEdit = useCallback(async () => {
-        if (!editingId || !editTitle.trim()) return;
-        await updateTodo(editingId, {
-            title: editTitle,
-            description: editDescription || undefined,
-            dueDate: editDueDate || undefined,
-        });
-        setTaskColor(editingId, editColor);
-        markEdited(editingId);
-        setEditingId(null);
-        setEditSnapshot(null);
-        setColorRevision(r => r + 1);
-    }, [editingId, editTitle, editDescription, editDueDate, editColor, updateTodo]);
-
-    const revertEdit = useCallback(() => {
-        if (!editSnapshot || !editingId) return;
-        setEditTitle(editSnapshot.title);
-        setEditDescription(editSnapshot.description);
-        setEditDueDate(editSnapshot.dueDate);
-        setEditColor(editSnapshot.color);
-    }, [editSnapshot, editingId]);
-
-    const cancelEdit = useCallback(() => {
-        setEditingId(null);
-        setEditSnapshot(null);
-    }, []);
-
-    const handleDragStart = (e: React.DragEvent, index: number) => {
-        setDraggedIndex(index);
-        if (e.dataTransfer) {
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', index.toString());
-        }
-    };
-
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault();
-        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-    };
-
-    const handleDrop = (e: React.DragEvent, targetIndex: number) => {
-        e.preventDefault();
-        if (draggedIndex === null || draggedIndex === targetIndex) return;
-        const newTodos = [...todos];
-        const [draggedItem] = newTodos.splice(draggedIndex, 1);
-        newTodos.splice(targetIndex, 0, draggedItem);
-        reorderTodos(newTodos);
-        setDraggedIndex(null);
-    };
-
-    // ── Loading ─────────────────────────────────────────────────────
-
-    if (isLoading) {
+    if (pendingCompletion) {
         return (
-            <div className="flex h-full items-center justify-center text-white/50">
-                <Loader2 className="w-6 h-6 animate-spin text-orange-400" />
-            </div>
+            <motion.div 
+                layout
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className={cn("relative backdrop-blur-xl rounded-3xl p-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_8px_30px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col items-center justify-center gap-4 min-h-[200px]", colorStyles.bg, colorStyles.border)}
+            >
+                <div className="absolute inset-0 bg-black/40 pointer-events-none" />
+                <p className={cn("text-base font-bold text-center relative z-10", colorStyles.icon)}>Note Complete!</p>
+                <div className="flex w-full gap-3 mt-2 relative z-10">
+                    <button 
+                        onClick={() => onDelete()}
+                        className="flex-1 flex flex-col items-center justify-center gap-2 p-4 rounded-2xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-colors"
+                    >
+                        <Trash2 className="w-5 h-5" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider">Delete</span>
+                    </button>
+                    <button 
+                        onClick={() => { onUpdate(todo.id, { isCompleted: true }); setPendingCompletion(false); }}
+                        className="flex-1 flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition-colors bg-white/5 hover:bg-white/10 text-white border-white/20"
+                    >
+                        <Archive className="w-5 h-5" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider">Archive</span>
+                    </button>
+                </div>
+                <button 
+                    onClick={() => setPendingCompletion(false)}
+                    className="text-xs font-bold text-white/40 hover:text-white mt-1 relative z-10 transition-colors"
+                >
+                    Cancel
+                </button>
+            </motion.div>
         );
     }
 
-    const completedCount = todos.filter(t => t.is_completed).length;
-    const totalCount = todos.length;
-
-    // ── Render ───────────────────────────────────────────────────────
-
     return (
-        <div className="flex flex-col h-full bg-transparent p-2 sm:p-6 rounded-3xl gap-5 overflow-y-auto custom-scrollbar relative">
-            {/* Header Row */}
-            <div className="flex items-start justify-between relative z-10">
-                {/* Left: Week counter + progress */}
-                <div className="flex items-center gap-4">
-                    <div className="relative flex items-center justify-center">
-                        <ProgressRing completed={completedCount} total={totalCount} size={52} />
-                        <span className="absolute text-xs font-bold text-white">
-                            {totalCount === 0 ? '–' : `${completedCount}/${totalCount}`}
-                        </span>
+        <div
+            className={cn(
+                "group relative bg-zinc-900/60 backdrop-blur-xl rounded-3xl p-6 transition-all duration-300 overflow-visible border flex flex-col gap-4",
+                todo.is_completed ? "border-white/[0.05]" : colorStyles.border,
+                !todo.is_completed && !isOverlay && "hover:-translate-y-1 hover:shadow-2xl",
+                !todo.is_completed && colorStyles.shadow,
+                "hover:bg-zinc-800/80",
+                isOverlay && "scale-105 shadow-2xl z-50 rotate-2 opacity-90 cursor-grabbing"
+            )}
+        >
+            <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none rounded-3xl" />
+            
+            <div className="relative z-10 flex flex-col gap-3">
+                {/* Header (Check, Drag Handle, Delete) */}
+                <div className="flex items-start gap-3">
+                    <button 
+                        onClick={() => {
+                            if (todo.is_completed) onUpdate(todo.id, { isCompleted: false });
+                            else setPendingCompletion(true);
+                        }}
+                        className={cn("mt-1 shrink-0 transition-colors", todo.is_completed ? colorStyles.icon : "text-white/30 hover:text-white")}
+                    >
+                        {todo.is_completed ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
+                    </button>
+                    
+                    <div className="flex-1 min-w-0">
+                        <input 
+                            type="text"
+                            value={editTitle}
+                            onChange={e => setEditTitle(e.target.value)}
+                            onBlur={handleTitleBlur}
+                            className={cn(
+                                "w-full bg-transparent border-b border-transparent focus:border-white/20 text-base font-bold text-white/90 leading-snug outline-none transition-colors px-1 -ml-1", 
+                                todo.is_completed && "line-through text-white/40"
+                            )}
+                            placeholder="Empty Title"
+                        />
                     </div>
-                    <div>
-                        <h2 className="text-xl font-bold text-white tracking-tight">This Week</h2>
-                        <p className="text-[11px] text-white/35 mt-0.5 font-medium">{weekStats.weekLabel}</p>
-                        {weekStats.dueCount > 0 && (
-                            <p className="text-[10px] text-orange-400/70 mt-0.5 font-semibold">
-                                {weekStats.completedCount}/{weekStats.dueCount} due this week
-                            </p>
-                        )}
-                    </div>
+
+                    {!todo.is_completed && dragHandleProps && (
+                        <div {...dragHandleProps} className="opacity-0 group-hover:opacity-100 p-1.5 text-white/30 hover:text-white cursor-grab active:cursor-grabbing rounded-lg transition-all shrink-0">
+                            <GripHorizontal className="w-4 h-4" />
+                        </div>
+                    )}
+                    
+                    <button 
+                        onClick={() => onDelete()}
+                        className="opacity-0 group-hover:opacity-100 p-1.5 text-white/30 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all shrink-0 -mt-1 -mr-1"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                    </button>
                 </div>
 
-                {/* Right: Add button */}
-                {!isAdding && (
-                    <motion.button 
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        onClick={() => setIsAdding(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 rounded-xl text-sm font-bold text-white transition-all shadow-lg shadow-orange-500/20"
-                    >
-                        <Plus className="w-4 h-4" /> Add Task
-                    </motion.button>
-                )}
-            </div>
-
-            {/* Subtle separator */}
-            <div className="h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent relative z-10" />
-
-            {/* Add Form */}
-            <AnimatePresence>
-                {isAdding && (
-                    <motion.form 
-                        initial={{ opacity: 0, height: 0, y: -20 }}
-                        animate={{ opacity: 1, height: 'auto', y: 0 }}
-                        exit={{ opacity: 0, height: 0, y: -20, overflow: 'hidden' }}
-                        onSubmit={handleAddTask}
-                        className="bg-white/5 backdrop-blur-xl border border-orange-500/30 rounded-2xl p-4 flex flex-col gap-3 shadow-xl relative z-10"
-                    >
-                        <input
-                            autoFocus
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            placeholder="What needs to be done?"
-                            className="bg-transparent text-lg font-bold text-white focus:outline-none placeholder:text-white/20"
-                        />
-                        <textarea
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Add details..."
-                            rows={2}
-                            className="bg-transparent text-sm text-white/70 focus:outline-none placeholder:text-white/20 resize-none"
-                        />
-
-                        <ColorPickerBar selected={selectedColor} onSelect={setSelectedColor} />
-
-                        <div className="flex items-center justify-between pt-3 border-t border-white/5">
-                            <input 
-                                type="date"
-                                value={dueDate}
-                                onChange={(e) => setDueDate(e.target.value)}
-                                className="bg-white/5 border border-white/10 rounded-lg text-xs text-white/60 px-3 py-1.5 focus:outline-none focus:border-orange-400/50 [color-scheme:dark]"
-                            />
-                            <div className="flex gap-3">
+                {/* Body Content */}
+                <div className="pl-8">
+                    <textarea 
+                        value={editDesc}
+                        onChange={e => setEditDesc(e.target.value)}
+                        onBlur={handleDescBlur}
+                        placeholder="Empty note..."
+                        className={cn(
+                            "w-full bg-transparent border-l-2 border-transparent focus:border-white/10 text-sm text-white/60 outline-none resize-none min-h-[40px] px-2 -ml-2 transition-colors",
+                            todo.is_completed && "line-through text-white/30"
+                        )}
+                        onInput={(e) => {
+                            const target = e.target as HTMLTextAreaElement;
+                            target.style.height = 'auto';
+                            target.style.height = `${target.scrollHeight}px`;
+                        }}
+                        style={{ height: 'auto', minHeight: '40px' }}
+                    />
+                </div>
+                
+                {/* Footer Metadata & Inline Editing */}
+                <div className="pl-8 flex items-center justify-between mt-2 pt-3 border-t border-white/[0.04] flex-wrap gap-2">
+                    
+                    {/* Inline Color Picker */}
+                    {!todo.is_completed ? (
+                        <div className="flex gap-1">
+                            {(Object.keys(DEFAULT_LABELS) as Array<keyof typeof DEFAULT_LABELS>).map(color => (
                                 <button 
-                                    type="button"
-                                    onClick={() => { setIsAdding(false); setTitle(''); setDescription(''); setSelectedColor('none'); setDueDate(''); }}
-                                    className="text-xs text-white/40 hover:text-white/60 font-bold px-3 py-1.5 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button 
-                                    type="submit"
-                                    disabled={!title.trim()}
-                                    className="text-xs font-bold bg-white text-black px-4 py-1.5 rounded-lg hover:bg-white/90 transition-colors disabled:opacity-30 disabled:hover:bg-white"
-                                >
-                                    Save Task
-                                </button>
-                            </div>
-                        </div>
-                    </motion.form>
-                )}
-            </AnimatePresence>
-
-            {/* Task Grid — z-10 so cards sit OVER the canvas pattern */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-start pb-10 relative z-10">
-                {todos.map((todo, index) => {
-                    const daysLeft = todo.due_date ? differenceInDays(new Date(todo.due_date), new Date()) : null;
-                    const createdDate = todo.created_at ? format(new Date(todo.created_at), 'd MMM') : 'Unknown';
-                    const isDragging = draggedIndex === index;
-                    const isOverdue = todo.due_date && isPast(new Date(todo.due_date)) && !todo.is_completed;
-                    const edited = isEdited(todo.id);
-                    const isCurrentlyEditing = editingId === todo.id;
-
-                    // ── Edit Mode ───────────────────────────────────────
-
-                    if (isCurrentlyEditing) {
-                        return (
-                            <motion.div
-                                key={todo.id}
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                className="bg-white/5 backdrop-blur-xl border border-blue-500/30 rounded-2xl p-4 flex flex-col gap-3 shadow-xl shadow-blue-500/5"
-                            >
-                                <div className="flex items-center gap-2 mb-1">
-                                    <Pencil className="w-3.5 h-3.5 text-blue-400" />
-                                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Editing Task</span>
-                                </div>
-                                <input
-                                    autoFocus
-                                    value={editTitle}
-                                    onChange={(e) => setEditTitle(e.target.value)}
-                                    placeholder="Task title"
-                                    className="bg-transparent text-lg font-bold text-white focus:outline-none placeholder:text-white/20"
-                                />
-                                <textarea
-                                    value={editDescription}
-                                    onChange={(e) => setEditDescription(e.target.value)}
-                                    placeholder="Add details..."
-                                    rows={2}
-                                    className="bg-transparent text-sm text-white/70 focus:outline-none placeholder:text-white/20 resize-none"
-                                />
-
-                                <ColorPickerBar selected={editColor} onSelect={setEditColor} />
-
-                                <div className="flex items-center justify-between pt-3 border-t border-white/5">
-                                    <input 
-                                        type="date"
-                                        value={editDueDate}
-                                        onChange={(e) => setEditDueDate(e.target.value)}
-                                        className="bg-white/5 border border-white/10 rounded-lg text-xs text-white/60 px-3 py-1.5 focus:outline-none focus:border-blue-400/50 [color-scheme:dark]"
-                                    />
-                                    <div className="flex gap-2">
-                                        <button 
-                                            type="button"
-                                            onClick={revertEdit}
-                                            title="Revert changes"
-                                            className="flex items-center gap-1 text-[10px] text-amber-400/70 hover:text-amber-400 font-bold px-2 py-1.5 rounded-lg hover:bg-amber-400/5 transition-colors"
-                                        >
-                                            <RotateCcw className="w-3 h-3" /> Revert
-                                        </button>
-                                        <button 
-                                            type="button"
-                                            onClick={cancelEdit}
-                                            className="text-xs text-white/40 hover:text-white/60 font-bold px-3 py-1.5 transition-colors"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button 
-                                            type="button"
-                                            onClick={saveEdit}
-                                            disabled={!editTitle.trim()}
-                                            className="text-xs font-bold bg-blue-500 text-white px-4 py-1.5 rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-30"
-                                        >
-                                            Save
-                                        </button>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        );
-                    }
-
-                    // ── Normal Card ─────────────────────────────────────
-
-                    return (
-                        <motion.div
-                            key={todo.id}
-                            layout
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.2, delay: index * 0.03 }}
-                            draggable
-                            onDragStart={(e) => handleDragStart(e as any, index)}
-                            onDragOver={handleDragOver}
-                            onDrop={(e) => handleDrop(e, index)}
-                            onDragEnd={() => setDraggedIndex(null)}
-                            className={cn(
-                                "group relative bg-white/5 backdrop-blur-xl border border-white/10 rounded-[1.5rem] flex flex-col shadow-lg transition-all cursor-grab active:cursor-grabbing overflow-hidden",
-                                isDragging ? "opacity-30 scale-95" : "hover:border-white/20 hover:-translate-y-0.5 hover:shadow-xl",
-                                todo.is_completed && "opacity-50 grayscale",
-                                isOverdue && "border-red-500/20"
-                            )}
-                        >
-                            {/* Color Stripe */}
-                            {(() => {
-                                const c = getTaskColor(todo.id);
-                                const stripe = COLOR_STRIPE_MAP[c];
-                                return stripe ? (
-                                    <div className="w-full h-1.5 flex-shrink-0" style={{ backgroundColor: stripe }} />
-                                ) : null;
-                            })()}
-
-                            <div className="p-5 flex flex-col gap-4">
-                                {/* Top Row: Badges + Edit */}
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <span className={cn(
-                                            "text-[10px] font-bold px-2.5 py-1 rounded-full",
-                                            todo.is_completed ? "bg-emerald-500/10 text-emerald-400" : "bg-blue-500/10 text-blue-400"
-                                        )}>
-                                            {todo.is_completed ? 'Completed' : `Created - ${createdDate}`}
-                                        </span>
-                                        {edited && (
-                                            <span className="text-[9px] font-medium text-white/25 italic">(edited)</span>
-                                        )}
-                                    </div>
-
-                                    <div className="flex items-center gap-2">
-                                        {!todo.is_completed && (
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); startEdit(todo); }}
-                                                className="p-1 opacity-0 group-hover:opacity-100 text-white/20 hover:text-blue-400 hover:bg-blue-400/5 rounded-md transition-all"
-                                                title="Edit task"
-                                            >
-                                                <Pencil className="w-3.5 h-3.5" />
-                                            </button>
-                                        )}
-
-                                        {daysLeft !== null && !todo.is_completed && (
-                                            <span className={cn(
-                                                "text-[10px] font-bold",
-                                                isOverdue ? "text-red-400" : "text-white/40"
-                                            )}>
-                                                {isOverdue ? "Overdue" : `${daysLeft} days left`}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Content */}
-                                <div className="flex gap-3">
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); toggleTodo(todo.id, !todo.is_completed); }}
-                                        className="shrink-0 mt-0.5 text-white/20 hover:text-orange-400 transition-colors"
-                                    >
-                                        {todo.is_completed ? <CheckCircle2 className="w-5 h-5 text-emerald-400" /> : <Circle className="w-5 h-5" />}
-                                    </button>
-                                    <div className="flex flex-col gap-1.5 overflow-hidden">
-                                        <h4 className={cn(
-                                            "text-base font-bold leading-snug break-words",
-                                            todo.is_completed ? "text-white/40 line-through" : "text-white/90"
-                                        )}>
-                                            {todo.title}
-                                        </h4>
-                                        {todo.description && (
-                                            <p className="text-xs text-white/50 leading-relaxed line-clamp-4 break-words">
-                                                {todo.description}
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Bottom Row */}
-                                <div className="flex items-center justify-between mt-2 pt-4 border-t border-white/5">
-                                    <div className="flex items-center gap-1">
-                                        <span className={cn(
-                                            "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold",
-                                            "bg-gradient-to-br from-orange-400 to-red-500 text-white shadow-sm"
-                                        )}>
-                                            You
-                                        </span>
-                                    </div>
-
-                                    {/* Delete — center */}
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); deleteTodo(todo.id); }}
-                                        className="p-1.5 opacity-0 group-hover:opacity-100 text-white/20 hover:text-red-400 hover:bg-white/5 rounded-lg transition-all"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-
-                                    {todo.due_date && (
-                                        <span className={cn(
-                                            "text-[10px] font-bold uppercase tracking-wider",
-                                            isOverdue ? "text-red-400" : "text-white/30"
-                                        )}>
-                                            {isOverdue ? 'Overdue' : `Due ${format(new Date(todo.due_date), 'MMM d')}`}
-                                        </span>
+                                    key={color}
+                                    onClick={() => handleColorChange(color)}
+                                    title={labels[color]}
+                                    className={cn(
+                                        "w-4 h-4 rounded-full transition-all",
+                                        displayColor === color 
+                                            ? COLOR_CLASSES[color].split(' ')[0] + " ring-1 ring-white/50" 
+                                            : COLOR_CLASSES[color].split(' ')[0] + " opacity-20 hover:opacity-100"
                                     )}
-                                </div>
-                            </div>
-                        </motion.div>
-                    );
-                })}
-
-                {todos.length === 0 && !isAdding && (
-                    <div className="col-span-full py-20 flex flex-col items-center justify-center text-center">
-                        <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-orange-500/10 to-red-500/10 border border-white/5 flex items-center justify-center mb-5">
-                            <ClipboardList className="w-9 h-9 text-orange-400/40" />
+                                />
+                            ))}
                         </div>
-                        <h3 className="text-lg font-bold text-white/60">No tasks yet</h3>
-                        <p className="text-sm text-white/30 mt-1 max-w-[240px]">
-                            Tap <span className="text-orange-400 font-semibold">Add Task</span> above to create your first task and start tracking.
-                        </p>
+                    ) : (
+                        <span className="text-[10px] font-mono text-white/20 uppercase tracking-widest">Archived</span>
+                    )}
+
+                    {/* Inline Due Date Picker Placeholder */}
+                    <div className="flex items-center gap-1.5 text-white/30 hover:text-white/60 cursor-pointer transition-colors group/date relative">
+                        <CalendarIcon className="w-3.5 h-3.5" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest">
+                            {todo.due_date ? format(new Date(todo.due_date), 'MMM d') : 'No Date'}
+                        </span>
+                        {/* We use a native date input positioned absolutely and invisible over the button */}
+                        <input 
+                            type="date"
+                            value={todo.due_date ? todo.due_date.split('T')[0] : ''}
+                            onChange={(e) => onUpdate(todo.id, { dueDate: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                            className="absolute inset-0 opacity-0 cursor-pointer"
+                        />
                     </div>
-                )}
+                </div>
             </div>
         </div>
     );

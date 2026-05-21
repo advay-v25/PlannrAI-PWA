@@ -183,16 +183,20 @@ export async function generateWeekPlan(
     const variants: WeekPlanVariant[] = [];
 
     if (mode === 'balanced') {
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Standard Balanced', 'Optimized distribution based on your current goal progress.', 'Consistency builds momentum.', false, false, protocolConfig));
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Standard Balanced', 'Evenly distributed tasks to maintain an ultradian rhythm.', 'Consistency builds momentum.', false, false, protocolConfig));
         if (allowWeekend) {
-            variants.push(generateVariant(context, weekStartDate, false, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Workday Focus', 'Balanced but strictly within weekdays to protect your recovery time.', 'Protects your weekends entirely.', false, false, protocolConfig));
+            variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Afternoon Flow', 'Balanced distribution but prioritizes scheduling tasks after lunch.', 'Optimizes for post-lunch energy.', false, false, protocolConfig, 'afternoon'));
         }
     } else if (mode === 'momentum') {
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'High Momentum', 'Aggressive front-loading to finish your weekly targets by Thursday.', 'Tackle the hardest things first.', false, false, protocolConfig));
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Hyper-Productive', 'Packs tasks with zero buffers for maximum efficiency.', 'Maximum output.', false, true, protocolConfig));
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Morning Rush', 'Back-to-back blocks tightly packed in the early day.', 'Tackle the hardest things first.', false, false, protocolConfig, 'morning'));
+        variants.push(generateVariant(context, weekStartDate, false, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Sprint Days', 'Highly compressed Mon-Thu schedule with zero buffers.', 'Maximum output.', false, false, protocolConfig, 'weekday'));
     } else if (mode === 'recovery') {
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Gentle Recovery', 'Maximized gaps between sessions for mental resets.', 'Slow and steady.', false, false, protocolConfig));
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Quiet Weekend Recovery', 'Light load with a strict 4PM weekend cutoff.', 'Prioritizes weekend rest.', true, false, protocolConfig));
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Spaced Out', 'Maximized gaps between sessions for mental resets.', 'Slow and steady.', false, false, protocolConfig));
+        if (allowWeekend) {
+            variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Weekend Focus', 'Shifts the heavier lifting to the weekend to keep workdays light.', 'Prioritizes workday rest.', false, false, protocolConfig, 'weekend'));
+        } else {
+            variants.push(generateVariant(context, weekStartDate, false, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Quiet Recovery', 'Light load with spaced out blocks.', 'Rest focused.', true, false, protocolConfig));
+        }
     }
 
     return variants;
@@ -212,7 +216,8 @@ function generateVariant(
     philosophy: string,
     forceLightWeekend: boolean = false,
     forceBonusFill: boolean = false,
-    protocolConfig?: ProtocolConfig
+    protocolConfig?: ProtocolConfig,
+    timeFocus?: 'morning' | 'afternoon' | 'evening' | 'weekend' | 'weekday'
 ): WeekPlanVariant {
     const blocks: PlanBlock[] = [];
     const unscheduled_minutes: Record<string, number> = {};
@@ -245,12 +250,14 @@ function generateVariant(
         exclusions.set(d, ex.map(e => ({ ...e })));
     }
 
-    // Sort goals: Largest Total Time first, then by importance
+    // Sort goals: Importance first, then total minutes
     const sortedGoals = [...ctx.goals].sort((a, b) => {
         const aTotal = (a.days_per_week || 5) * (a.minutes_per_day || 60);
         const bTotal = (b.days_per_week || 5) * (b.minutes_per_day || 60);
-        if (bTotal !== aTotal) return bTotal - aTotal;
-        return (b.importance || 5) - (a.importance || 5);
+        const aImportance = a.importance || 5;
+        const bImportance = b.importance || 5;
+        if (bImportance !== aImportance) return bImportance - aImportance;
+        return bTotal - aTotal;
     });
 
     for (const goal of sortedGoals) {
@@ -268,7 +275,14 @@ function generateVariant(
         let preferredDays = [1, 2, 3, 4, 5, 6, 7];
         if (!allowWeekend) preferredDays = [1, 2, 3, 4, 5];
 
-        if (strategyId === 'momentum') {
+        if (timeFocus === 'weekend') {
+            preferredDays.sort((a, b) => {
+                const aIsWeekend = a >= 6 ? 1 : 0;
+                const bIsWeekend = b >= 6 ? 1 : 0;
+                if (aIsWeekend !== bIsWeekend) return bIsWeekend - aIsWeekend; // Weekend first
+                return (workloadPerDay.get(a) || 0) - (workloadPerDay.get(b) || 0);
+            });
+        } else if (timeFocus === 'weekday' || strategyId === 'momentum') {
             // Front load: prioritize Mon-Sun. If workloads are equal, go early.
             // If Mon is full, Tue is next best.
             preferredDays.sort((a, b) => {
@@ -281,7 +295,6 @@ function generateVariant(
             });
         } else if (strategyId === 'recovery') {
             // Space out: prioritize days with the absolute LEAST workload.
-            // This spreads 5 tasks across 7 days with massive gaps.
             preferredDays.sort((a, b) => {
                 const loadA = workloadPerDay.get(a) || 0;
                 const loadB = workloadPerDay.get(b) || 0;
@@ -313,20 +326,22 @@ function generateVariant(
             const dateStr = format(addDays(parseISO(weekStart), isoDay - 1), 'yyyy-MM-dd');
 
             // Check if there is already a block for this goal on this day
-            // Modified: Allow multiple non-body blocks on the same day if the total weekly minutes is very high,
-            // but NEVER allow multiple body blocks on the same day to prevent physical over-taxing.
             const blocksThisDayForGoal = blocks.filter(b => b.date === dateStr && b.goal_id === goal.id);
             if (blocksThisDayForGoal.length > 0) {
-                if (goal.pillar === 'body') continue;
-                // Max 2 blocks per day for the same non-body goal
-                if (blocksThisDayForGoal.length >= 2) continue; 
-                // Only allow double booking if total weekly target is high (>120 mins)
-                if (goal.weekly_target_minutes <= 120) continue;
+                if (blocksThisDayForGoal.length >= 2) continue; // Max 2 blocks per day for any goal
+                
+                if (goal.pillar === 'body') {
+                    // Allow 2 body blocks per day if they are on opposite ends of the day
+                    // The placement constraint is enforced in the window filtering step
+                } else {
+                    // Only allow double booking if total weekly target is high (>120 mins)
+                    if ((goal.days_per_week || 5) * (goal.minutes_per_day || 60) <= 120) continue;
+                }
             }
 
             // Find available windows
             dayExclusions.sort((a, b) => a.start - b.start);
-            const windows: Array<{ start: number; end: number }> = [];
+            let windows: Array<{ start: number; end: number }> = [];
             let cursor = wakeMins;
 
             for (const ex of dayExclusions) {
@@ -345,12 +360,30 @@ function generateVariant(
                 windows.push({ start: cursor, end: dayWindDown });
             }
 
+            // Body stacking constraint: if we already have a body block today, filter windows to opposite end
+            if (goal.pillar === 'body' && blocksThisDayForGoal.length === 1) {
+                const existingStartMins = timeToMinutes(blocksThisDayForGoal[0].start_time);
+                if (existingStartMins < 720) { // Morning block exists -> only allow evening windows (>17:00 or 1020 mins)
+                    windows = windows.filter(w => w.end > 1020).map(w => ({ start: Math.max(w.start, 1020), end: w.end }));
+                } else { // Afternoon/Evening block exists -> only allow morning windows (<12:00 or 720 mins)
+                    windows = windows.filter(w => w.start < 720).map(w => ({ start: w.start, end: Math.min(w.end, 720) }));
+                }
+                windows = windows.filter(w => w.end > w.start);
+            }
+
             // Find a window that can fit dailyMins
             let placed = false;
             
-            // NEW: Pillar-intelligent window sorting.
-            // Mind -> Morning, Body -> Afternoon/Peaks, Craft -> Morning/Afternoon.
+            // NEW: TimeFocus sorting
             windows.sort((a, b) => {
+                if (timeFocus === 'morning') return a.start - b.start;
+                if (timeFocus === 'afternoon') {
+                    // Try to be close to 13:00 (780 mins)
+                    return Math.abs(a.start - 780) - Math.abs(b.start - 780);
+                }
+                if (timeFocus === 'evening') return b.start - a.start;
+                
+                // Default Pillar-intelligent window sorting
                 if (goal.pillar === 'mind') return a.start - b.start; // Prefer morning
                 if (goal.pillar === 'body') {
                     const aIsAfternoon = a.start >= 720; // 12:00
@@ -379,9 +412,9 @@ function generateVariant(
                     // Use protocolConfig if provided, otherwise fall back to strategy defaults
                     let buffer = protocolConfig?.bufferMinutes ?? 10;
                     if (!protocolConfig?.bufferMinutes) {
-                        if (strategyId === 'momentum') buffer = 0;
-                        else if (strategyId === 'balanced') buffer = 30;
-                        else if (strategyId === 'recovery') buffer = 90;
+                        if (strategyId === 'momentum') buffer = 0; // Zero buffers, tightly packed
+                        else if (strategyId === 'balanced') buffer = 15;
+                        else if (strategyId === 'recovery') buffer = 45; // Huge buffers for spacing
                     }
 
                     blocks.push({
