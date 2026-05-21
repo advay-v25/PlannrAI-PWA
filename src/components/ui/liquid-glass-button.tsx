@@ -85,7 +85,7 @@ export function LiquidGlassButton({
       onHoverEnd={() => setIsHovered(false)}
       whileHover={disabled ? undefined : { scale: 1.03, ...(variantHover[variant]) }}
       whileTap={disabled ? undefined : { scale: 0.97 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+      transition={{ type: 'spring', stiffness: 200, damping: 25, mass: 1.2 }}
       onClick={onClick}
     >
       {/* Refraction gradient */}
@@ -97,7 +97,7 @@ export function LiquidGlassButton({
             : 'linear-gradient(135deg, rgba(168,85,247,0.15) 0%, rgba(217,4,121,0.1) 50%, rgba(245,158,11,0.08) 100%)',
         }}
         animate={{ opacity: isHovered ? 1 : 0 }}
-        transition={{ duration: 0.35 }}
+        transition={{ duration: 0.6 }}
       />
 
       {/* Sweeping light streak */}
@@ -108,7 +108,7 @@ export function LiquidGlassButton({
           skewX: -12,
         }}
         animate={{ x: isHovered ? '200%' : '-100%' }}
-        transition={{ duration: 0.7, ease: 'easeInOut' }}
+        transition={{ duration: 1.2, ease: 'easeInOut' }}
       />
 
       {/* Content */}

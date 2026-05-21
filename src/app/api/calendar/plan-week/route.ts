@@ -25,7 +25,7 @@ export const POST = secureApiRoute(
         }
 
         const { start_date, mode, allow_weekend } = validation.data;
-        const allowWeekend = allow_weekend !== false; // Default to true if not explicitly false
+        const allowWeekend = allow_weekend;
 
         // 2. Determine week start (default to current week's Monday)
         let weekStart: string;

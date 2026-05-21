@@ -6,7 +6,7 @@ import { useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { useCoach } from '@/hooks/use-coach';
-import { PageBackground } from '@/components/ui/PageBackground';
+import { DynamicBackground } from '@/components/ui/DynamicBackground';
 
 function CoachPageInner() {
     const router = useRouter();
@@ -24,7 +24,7 @@ function CoachPageInner() {
 
     return (
         <div className="h-screen flex flex-col">
-            <PageBackground color="orange" variant="rising" intensity="subtle" />
+            <DynamicBackground variant="coach" />
             <CoachChat
                 onClose={() => router.push('/app')}
                 onCalendarUpdate={() => {
