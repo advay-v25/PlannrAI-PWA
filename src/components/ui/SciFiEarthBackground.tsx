@@ -83,14 +83,16 @@ export function SciFiEarthBackground() {
         transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
       />
       
-      {/* Static CSS Starfield pattern to completely eliminate the expensive 2D Canvas requestAnimationFrame loop */}
-      <div 
-        className="absolute inset-0 w-full h-full pointer-events-none opacity-40"
+      {/* Hyper-realistic Deep Space Nebula Background */}
+      <motion.div 
+        className="absolute inset-0 w-full h-full pointer-events-none opacity-80"
         style={{
-          backgroundImage: 'radial-gradient(white, rgba(255,255,255,.2) 2px, transparent 40px)',
-          backgroundSize: '150px 150px',
-          backgroundPosition: '0 0, 75px 75px'
+          backgroundImage: 'url(/assets/space-nebula-bg.png)',
+          backgroundSize: '1024px 1024px',
+          willChange: 'background-position'
         }}
+        animate={{ backgroundPosition: ['0px 0px', '1024px 1024px'] }}
+        transition={{ repeat: Infinity, duration: 240, ease: 'linear' }}
       />
       
       {/* Majestic Light Beam with Scroll Fade */}
