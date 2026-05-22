@@ -281,15 +281,19 @@ function buildScheduleContextForAI(
     const tomorrowFreeSlots = findAvailableSlots(tomorrowBlocks, tomorrowDate, missedBlockDuration, wakeTime, sleepTime, 8, undefined, true);
 
     const todayText = todayBlocks.length > 0
-        ? todayBlocks.map((b: any) =>
-            `  ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${b.goal_id ? ` → Goal: ${b.goal_id}` : ''}${b.id ? ` ID:${b.id}` : ''}`
-        ).join('\n')
+        ? todayBlocks.map((b: any) => {
+            const goal = coachCtx.goals.find(g => g.id === b.goal_id);
+            const pillarInfo = goal ? ` [Pillar: ${goal.pillar}, Priority: ${goal.priority}]` : '';
+            return `  ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${b.goal_id ? ` → Goal: ${b.goal_id}` : ''}${pillarInfo}${b.id ? ` ID:${b.id}` : ''}`;
+        }).join('\n')
         : '  (No blocks scheduled today)';
 
     const tomorrowText = tomorrowBlocks.length > 0
-        ? tomorrowBlocks.slice(0, 10).map((b: any) =>
-            `  ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${b.id ? ` ID:${b.id}` : ''}`
-        ).join('\n')
+        ? tomorrowBlocks.slice(0, 10).map((b: any) => {
+            const goal = coachCtx.goals.find(g => g.id === b.goal_id);
+            const pillarInfo = goal ? ` [Pillar: ${goal.pillar}, Priority: ${goal.priority}]` : '';
+            return `  ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${pillarInfo}${b.id ? ` ID:${b.id}` : ''}`;
+        }).join('\n')
         : '  (No blocks for tomorrow)';
 
     const freeSlotsText = `
@@ -393,9 +397,11 @@ ${(() => {
         
         let lines = '    (No blocks scheduled)';
         if (blocks.length > 0) {
-            lines = blocks.map((b: any) =>
-                `    ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${b.goal_id ? ` → Goal: ${b.goal_id}` : ''}${b.id ? ` ID:${b.id}` : ''}`
-            ).join('\n');
+            lines = blocks.map((b: any) => {
+                const goal = coachCtx.goals.find(g => g.id === b.goal_id);
+                const pillarInfo = goal ? ` [Pillar: ${goal.pillar}, Priority: ${goal.priority}]` : '';
+                return `    ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${b.goal_id ? ` → Goal: ${b.goal_id}` : ''}${pillarInfo}${b.id ? ` ID:${b.id}` : ''}`;
+            }).join('\n');
         }
 
         // Free slots: for today, skip past times; for future days, full day
@@ -581,7 +587,7 @@ STRATEGIC DIRECTIVES:
 - NEVER schedule more than the goal's minutes_per_day for any single goal on any day.
 - NEVER schedule a goal on more days than its days_per_week limit.
 - When the user asks to schedule a goal, check how much time is already allocated for that goal today/this week before adding more.
-- CRITICAL EXCEPTION FOR MISSED BLOCKS: If you are rescheduling a MISSED block, moving it to later TODAY does NOT violate the daily limit, because the original block was missed. You are freely allowed to move missed blocks to later today.
+- CRITICAL EXCEPTION FOR MISSED BLOCKS: If you are rescheduling a MISSED block, it is completely allowed to have 2 blocks of the same goal on the same day at different times if it helps the user catch up. Moving it to later TODAY does NOT violate the daily limit, because the original block was missed.
    - SELECT "suggested_mode": "propose" ALWAYS for:
      * ANY change involving 'anchor' blocks.
      * Multi-block rescheduling (> 1 block moved/created).
@@ -624,10 +630,10 @@ C) NO HALLUCINATIONS & DURATION MATCHING (CRITICAL):
 - The chosen target free slot MUST have a duration greater than or equal to the block's duration. You CANNOT place a 45-minute block into a 30-minute free slot. Doing so will overlap with the subsequent block, which is a fatal error!
 
 --- THE 4 OPTIONS ---
-1. Reschedule Today (Full Duration): Look for a verified free time slot TODAY for the full duration of the missed block. Do NOT modify any other blocks today. Use move_block.
-2. Reschedule Today (Shortened): ONLY IF a full slot is not available today, suggest a SHORTENED version of the missed block to fit into a smaller available slot today. Do NOT modify any other blocks today. Use move_block (or update_block for shortening). Note: If a full slot IS available, this option can just be a slightly shorter alternative block, but ideally only use if full is impossible.
-3. Reschedule Later in the Week: Look for a free time slot ANYTIME LATER IN THE WEEK (tomorrow or after, including weekends) for the full duration of the missed block. Do NOT shorten the missed block or any other blocks. The target slot MUST fit entirely inside a verified free slot of the target day. Use move_block.
-4. Replan Week: Use the 'replan_week' operation to regenerate the schedule from today until Sunday, incorporating the missed block while keeping the rest of the week as close to original as possible.
+1. Reschedule Today: Find an empty slot during the same day of the same exact time duration as the missed block. If that is not possible, then a reduced duration empty slot on the same day, with a minimum time of 30 minutes. Use move_block.
+2. Reschedule Later in the Week: Find an empty slot during the week (tomorrow or later) of the same exact time duration as the missed block. If that is not possible, then a reduced duration empty slot anytime in the week, with a minimum time of 30 minutes. Use move_block.
+3. Replace Lower Priority Block (Same Pillar): Replace a block that is accomplishing a different goal, in the SAME pillar (mind, body, craft), that has a LOWER priority than the missed block. The missed block simply replaces the scheduled block of lower priority. Target a block of the same duration first, or less duration if needed. Never replace a block of higher priority, an anchor, sleep, meals, buffer times, or a block for the exact same goal. Generate delete_block FIRST, then move_block for the missed block into that exact slot.
+4. Replan Week: The week from the next day onward would be replanned. The schedule for today and before must remain the same. The missed block should be scheduled for the next day, and blocks will be reorganized accordingly, removing or reducing lower priority blocks. Use the 'replan_week' operation.
 
 ⚖️ PRIORITY-BASED DISPLACEMENT (GENERAL BEHAVIOUR):
 When the user wants to move a block to a time slot that is already occupied (NOT following the missed block waterfall):
@@ -716,7 +722,7 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
         if (isRejection && !/missed|miss|reschedule|another|new/i.test(userMessage)) {
              optionsInstruction = "The user rejected the previous AI options. Provide EXACTLY ONE option: 'Manual Movement', which instructs them to manually move the block in the calendar UI themselves. Do NOT generate any patch operations (empty operations array []). Return valid JSON only.";
         } else {
-             optionsInstruction = "Generate EXACTLY 4 actionable options in this exact order: Option 1: Reschedule Today (Full Duration), Option 2: Reschedule Today (Shortened - ONLY if full slot unavailable), Option 3: Reschedule Later in the Week (Tomorrow or later, including weekends), Option 4: Replan Week (using 'replan_week' operation). However, if there are absolutely NO verified free slots remaining for the rest of the week, skip Options 1-3 and ONLY generate Option 4. Return valid JSON only.";
+             optionsInstruction = "Generate EXACTLY 4 actionable options in this exact order: Option 1: Reschedule Today (same or reduced duration, min 30m), Option 2: Reschedule This Week (same or reduced duration, min 30m), Option 3: Replace Lower Priority Block (same pillar, different goal), Option 4: Replan Week (using 'replan_week' operation). However, if there are absolutely NO verified free slots remaining for the rest of the week, skip Options 1-2 and rely on Option 3 and Option 4. Return valid JSON only.";
         }
     }
 
@@ -787,16 +793,24 @@ ${optionsInstruction}`;
             const options: CoachOption[] = data.options.map((opt, i) => {
                 const normalizedOps = (opt.operations || []).map(normalizeOperation);
 
-                // Option 3 Validation and Auto-Correction: Ensure rescheduled block has its own independent slot later in the week
-                const isOption3 = opt.id === 'option_3' || i === 2;
-                if (isOption3) {
-                    const moveOp = normalizedOps.find(o => o.type === 'move_block');
-                    if (moveOp && moveOp.type === 'move_block') {
-                        const targetDate = moveOp.new_date || coachCtx.current.date;
+                // Anti-Hallucination Auto-Correction: Ensure rescheduled blocks have their own mathematically verified independent slot
+                const hasDelete = normalizedOps.some(o => o.type === 'delete_block');
+                const isReplan = normalizedOps.some(o => o.type === 'replan_week' || o.type === 'replan_day');
+                
+                // If it doesn't displace an existing block and isn't a full replan, it MUST fit in a free slot
+                if (!hasDelete && !isReplan && isMissedBlock) {
+                    const moveOp = normalizedOps.find(o => o.type === 'move_block' || o.type === 'create_block');
+                    if (moveOp && (moveOp.type === 'move_block' || moveOp.type === 'create_block')) {
+                        let targetDate = moveOp.type === 'move_block' ? moveOp.new_date : (moveOp as any).data?.date;
+                        if (!targetDate) targetDate = coachCtx.current.date;
+                        
                         const wakeTime = coachCtx.user.sleep_end || '07:00';
                         const sleepTime = coachCtx.user.sleep_start || '23:00';
                         const weekBlocks = coachCtx.schedule.this_week || [];
                         const now = coachCtx.current;
+
+                        const treatAll = true; // For any move into a free slot, all existing blocks are occupied
+                        const notBefore = targetDate === now.date ? now.time : undefined;
 
                         const targetFreeSlots = findAvailableSlots(
                             weekBlocks,
@@ -805,12 +819,15 @@ ${optionsInstruction}`;
                             wakeTime,
                             sleepTime,
                             8,
-                            undefined,
-                            true // Treat all pre-existing blocks as occupied
+                            notBefore,
+                            treatAll
                         );
 
-                        const proposedStartMins = timeToMinutes(moveOp.new_start);
-                        const proposedEndMins = timeToMinutes(moveOp.new_end);
+                        const startField = moveOp.type === 'move_block' ? moveOp.new_start : (moveOp as any).data?.start_time;
+                        const endField = moveOp.type === 'move_block' ? moveOp.new_end : (moveOp as any).data?.end_time;
+                        
+                        const proposedStartMins = startField ? timeToMinutes(startField) : 0;
+                        const proposedEndMins = endField ? timeToMinutes(endField) : 0;
 
                         const fits = targetFreeSlots.some(slot => {
                             const slotStartMins = timeToMinutes(slot.start);
@@ -822,10 +839,15 @@ ${optionsInstruction}`;
                             if (targetFreeSlots.length > 0) {
                                 const bestSlot = targetFreeSlots[0];
                                 const bestStartMins = timeToMinutes(bestSlot.start);
-                                moveOp.new_start = minutesToTime(bestStartMins);
-                                moveOp.new_end = minutesToTime(bestStartMins + missedBlockDuration);
+                                if (moveOp.type === 'move_block') {
+                                    moveOp.new_start = minutesToTime(bestStartMins);
+                                    moveOp.new_end = minutesToTime(bestStartMins + missedBlockDuration);
+                                } else {
+                                    (moveOp as any).data.start_time = minutesToTime(bestStartMins);
+                                    (moveOp as any).data.end_time = minutesToTime(bestStartMins + missedBlockDuration);
+                                }
                             } else {
-                                // Find any other future days
+                                // Find any other future days with a valid free slot
                                 const daysToInclude: string[] = [];
                                 let currDate = now.date;
                                 for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
@@ -844,14 +866,20 @@ ${optionsInstruction}`;
                                         sleepTime,
                                         8,
                                         undefined,
-                                        true
+                                        treatAll
                                     );
                                     if (daySlots.length > 0) {
                                         const bestSlot = daySlots[0];
                                         const bestStartMins = timeToMinutes(bestSlot.start);
-                                        moveOp.new_date = d;
-                                        moveOp.new_start = minutesToTime(bestStartMins);
-                                        moveOp.new_end = minutesToTime(bestStartMins + missedBlockDuration);
+                                        if (moveOp.type === 'move_block') {
+                                            moveOp.new_date = d;
+                                            moveOp.new_start = minutesToTime(bestStartMins);
+                                            moveOp.new_end = minutesToTime(bestStartMins + missedBlockDuration);
+                                        } else {
+                                            (moveOp as any).data.date = d;
+                                            (moveOp as any).data.start_time = minutesToTime(bestStartMins);
+                                            (moveOp as any).data.end_time = minutesToTime(bestStartMins + missedBlockDuration);
+                                        }
                                         break;
                                     }
                                 }
