@@ -180,11 +180,18 @@ function findAvailableSlots(
     wakeTime: string,
     sleepTime: string,
     count: number = 8,
-    notBeforeTime?: string
+    notBeforeTime?: string,
+    treatAllBlocksAsOccupied: boolean = false
 ): FreeSlot[] {
     const dayBlocks = blocks
         .filter(b => {
             if (b.date !== date) return false;
+
+            if (treatAllBlocksAsOccupied) {
+                const status = (b as any).status || '';
+                if (status === 'missed') return false;
+                return true;
+            }
 
             const rawType = (b as any).block_type || '';
             const type = rawType.toLowerCase().trim();
@@ -257,7 +264,8 @@ function findAvailableSlots(
  */
 function buildScheduleContextForAI(
     coachCtx: CoachContext,
-    calCtx?: CalendarContext | null
+    calCtx?: CalendarContext | null,
+    missedBlockDuration: number = 30
 ): string {
     const now = coachCtx.current;
     const todayBlocks = coachCtx.schedule.today;
@@ -270,18 +278,22 @@ function buildScheduleContextForAI(
 
     // Free slots for today: only show future slots (don't offer times already past)
     const todayFreeSlots = findAvailableSlots(todayBlocks, now.date, 30, wakeTime, sleepTime, 8, now.time);
-    const tomorrowFreeSlots = findAvailableSlots(tomorrowBlocks, tomorrowDate, 30, wakeTime, sleepTime, 8);
+    const tomorrowFreeSlots = findAvailableSlots(tomorrowBlocks, tomorrowDate, missedBlockDuration, wakeTime, sleepTime, 8, undefined, true);
 
     const todayText = todayBlocks.length > 0
-        ? todayBlocks.map((b: any) =>
-            `  ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${b.goal_id ? ` → Goal: ${b.goal_id}` : ''}${b.id ? ` ID:${b.id}` : ''}`
-        ).join('\n')
+        ? todayBlocks.map((b: any) => {
+            const goal = coachCtx.goals.find(g => g.id === b.goal_id);
+            const pillarInfo = goal ? ` [Pillar: ${goal.pillar}, Priority: ${goal.priority}]` : '';
+            return `  ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${b.goal_id ? ` → Goal: ${b.goal_id}` : ''}${pillarInfo}${b.id ? ` ID:${b.id}` : ''}`;
+        }).join('\n')
         : '  (No blocks scheduled today)';
 
     const tomorrowText = tomorrowBlocks.length > 0
-        ? tomorrowBlocks.slice(0, 10).map((b: any) =>
-            `  ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${b.id ? ` ID:${b.id}` : ''}`
-        ).join('\n')
+        ? tomorrowBlocks.slice(0, 10).map((b: any) => {
+            const goal = coachCtx.goals.find(g => g.id === b.goal_id);
+            const pillarInfo = goal ? ` [Pillar: ${goal.pillar}, Priority: ${goal.priority}]` : '';
+            return `  ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${pillarInfo}${b.id ? ` ID:${b.id}` : ''}`;
+        }).join('\n')
         : '  (No blocks for tomorrow)';
 
     const freeSlotsText = `
@@ -385,14 +397,18 @@ ${(() => {
         
         let lines = '    (No blocks scheduled)';
         if (blocks.length > 0) {
-            lines = blocks.map((b: any) =>
-                `    ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${b.goal_id ? ` → Goal: ${b.goal_id}` : ''}${b.id ? ` ID:${b.id}` : ''}`
-            ).join('\n');
+            lines = blocks.map((b: any) => {
+                const goal = coachCtx.goals.find(g => g.id === b.goal_id);
+                const pillarInfo = goal ? ` [Pillar: ${goal.pillar}, Priority: ${goal.priority}]` : '';
+                return `    ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${b.goal_id ? ` → Goal: ${b.goal_id}` : ''}${pillarInfo}${b.id ? ` ID:${b.id}` : ''}`;
+            }).join('\n');
         }
 
         // Free slots: for today, skip past times; for future days, full day
         const notBefore = date === now.date ? now.time : undefined;
-        const dayFreeSlots = findAvailableSlots(weekBlocks, date, 30, wakeTime, sleepTime, 8, notBefore);
+        const dayMinDuration = date === now.date ? 30 : missedBlockDuration;
+        const treatAll = date !== now.date;
+        const dayFreeSlots = findAvailableSlots(weekBlocks, date, dayMinDuration, wakeTime, sleepTime, 8, notBefore, treatAll);
         const freeLine = dayFreeSlots.length > 0
             ? `    FREE SLOTS: ${dayFreeSlots.map(formatSlot).join(' | ')}`
             : `    FREE SLOTS: NONE (fully booked)`;
@@ -441,6 +457,77 @@ const INFORMATION_INTENTS = new Set([
 ]);
 
 /**
+ * Detect the duration of the block that the user is trying to reschedule (missed block).
+ */
+function findMissedBlockDuration(
+    userMessage: string,
+    classification: IntentClassification,
+    coachCtx: CoachContext
+): number {
+    const todayBlocks = coachCtx.schedule.today || [];
+    const weekBlocks = coachCtx.schedule.this_week || [];
+    const allBlocks = [...todayBlocks, ...weekBlocks];
+
+    // 1. Try to match by classification block_reference first
+    const ref = classification.entities?.block_reference?.toLowerCase().trim();
+    if (ref) {
+        // Look for a missed block with this reference
+        const missedMatch = allBlocks.find(b => 
+            b.status === 'missed' && 
+            (((b as any).title || '').toLowerCase().includes(ref) || (b.context || '').toLowerCase().includes(ref))
+        );
+        if (missedMatch) {
+            const duration = timeToMinutes(missedMatch.end_time) - timeToMinutes(missedMatch.start_time);
+            if (duration > 0) return duration;
+        }
+
+        // Look for any block with this reference
+        const anyMatch = allBlocks.find(b => 
+            ((b as any).title || '').toLowerCase().includes(ref) || (b.context || '').toLowerCase().includes(ref)
+        );
+        if (anyMatch) {
+            const duration = timeToMinutes(anyMatch.end_time) - timeToMinutes(anyMatch.start_time);
+            if (duration > 0) return duration;
+        }
+    }
+
+    // 2. Try to match by any missed blocks in the schedule
+    const missedBlocks = allBlocks.filter(b => b.status === 'missed');
+    if (missedBlocks.length > 0) {
+        // If we can find one whose title is in the user message
+        const msgLower = userMessage.toLowerCase();
+        const messageMatch = missedBlocks.find(b => 
+            msgLower.includes(((b as any).title || '').toLowerCase()) || 
+            msgLower.includes((b.context || '').toLowerCase())
+        );
+        if (messageMatch) {
+            const duration = timeToMinutes(messageMatch.end_time) - timeToMinutes(messageMatch.start_time);
+            if (duration > 0) return duration;
+        }
+
+        // Fallback to the first missed block
+        const firstMissed = missedBlocks[0];
+        const duration = timeToMinutes(firstMissed.end_time) - timeToMinutes(firstMissed.start_time);
+        if (duration > 0) return duration;
+    }
+
+    // 3. Try to scan user message for block names that exist in our schedule
+    const msgLower = userMessage.toLowerCase();
+    const titleMatch = allBlocks.find(b => {
+        const t = ((b as any).title || '').toLowerCase().trim();
+        const c = (b.context || '').toLowerCase().trim();
+        return (t && msgLower.includes(t)) || (c && msgLower.includes(c));
+    });
+    if (titleMatch) {
+        const duration = timeToMinutes(titleMatch.end_time) - timeToMinutes(titleMatch.start_time);
+        if (duration > 0) return duration;
+    }
+
+    // Default fallback: 30 minutes
+    return 30;
+}
+
+/**
  * AI-powered response generator for schedule modification intents.
  * Uses the full calendar context + user message to produce real CalendarPatch options.
  */
@@ -451,7 +538,8 @@ async function generateAIScheduleResponse(
     classification: IntentClassification,
     calCtx?: CalendarContext | null
 ): Promise<CoachResponse> {
-    const scheduleContext = buildScheduleContextForAI(coachCtx, calCtx);
+    const missedBlockDuration = findMissedBlockDuration(userMessage, classification, coachCtx);
+    const scheduleContext = buildScheduleContextForAI(coachCtx, calCtx, missedBlockDuration);
 
 const userName = coachCtx.user.first_name || 'there';
 const systemPrompt = `You are Donna, PlannrAI's Flow State and Performance Coach. You operate with 'Tough Love'. You are direct, no-nonsense, highly empathetic but fiercely protective of the user's potential. You do not coddle. If they are slacking, you call it out respectfully. If they are overwhelmed, you aggressively cut the fat from their schedule. Your priority is their long-term growth and immediate flow state. You manage their focus as their most precious resource.
@@ -499,7 +587,7 @@ STRATEGIC DIRECTIVES:
 - NEVER schedule more than the goal's minutes_per_day for any single goal on any day.
 - NEVER schedule a goal on more days than its days_per_week limit.
 - When the user asks to schedule a goal, check how much time is already allocated for that goal today/this week before adding more.
-- CRITICAL EXCEPTION FOR MISSED BLOCKS: If you are rescheduling a MISSED block, moving it to later TODAY does NOT violate the daily limit, because the original block was missed. You are freely allowed to move missed blocks to later today.
+- CRITICAL EXCEPTION FOR MISSED BLOCKS: If you are rescheduling a MISSED block, it is completely allowed to have 2 blocks of the same goal on the same day at different times if it helps the user catch up. Moving it to later TODAY does NOT violate the daily limit, because the original block was missed.
    - SELECT "suggested_mode": "propose" ALWAYS for:
      * ANY change involving 'anchor' blocks.
      * Multi-block rescheduling (> 1 block moved/created).
@@ -542,10 +630,10 @@ C) NO HALLUCINATIONS & DURATION MATCHING (CRITICAL):
 - The chosen target free slot MUST have a duration greater than or equal to the block's duration. You CANNOT place a 45-minute block into a 30-minute free slot. Doing so will overlap with the subsequent block, which is a fatal error!
 
 --- THE 4 OPTIONS ---
-1. Reschedule Today (Full Duration): Look for a verified free time slot TODAY for the full duration of the missed block. Do NOT modify any other blocks today. Use move_block.
-2. Reschedule Today (Shortened): ONLY IF a full slot is not available today, suggest a SHORTENED version of the missed block to fit into a smaller available slot today. Do NOT modify any other blocks today. Use move_block (or update_block for shortening). Note: If a full slot IS available, this option can just be a slightly shorter alternative block, but ideally only use if full is impossible.
-3. Reschedule Later in the Week: Look for a free time slot ANYTIME LATER IN THE WEEK (tomorrow or after, including weekends) for the full duration of the missed block. Do NOT shorten the missed block or any other blocks. The target slot MUST fit entirely inside a verified free slot of the target day. Use move_block.
-4. Replan Week: Use the 'replan_week' operation to regenerate the schedule from today until Sunday, incorporating the missed block while keeping the rest of the week as close to original as possible.
+1. Reschedule Today: Find an empty slot during the same day of the same exact time duration as the missed block. If that is not possible, then a reduced duration empty slot on the same day, with a minimum time of 30 minutes. Use move_block.
+2. Reschedule Later in the Week: Find an empty slot during the week (tomorrow or later) of the same exact time duration as the missed block. If that is not possible, then a reduced duration empty slot anytime in the week, with a minimum time of 30 minutes. Use move_block.
+3. Replace Lower Priority Block (Same Pillar): Replace a block that is accomplishing a different goal, in the SAME pillar (mind, body, craft), that has a LOWER priority than the missed block. The missed block simply replaces the scheduled block of lower priority. Target a block of the same duration first, or less duration if needed. Never replace a block of higher priority, an anchor, sleep, meals, buffer times, or a block for the exact same goal. Generate delete_block FIRST, then move_block for the missed block into that exact slot.
+4. Replan Week: The week from the next day onward would be replanned. The schedule for today and before must remain the same. The missed block should be scheduled for the next day, and blocks will be reorganized accordingly, removing or reducing lower priority blocks. Use the 'replan_week' operation.
 
 ⚖️ PRIORITY-BASED DISPLACEMENT (GENERAL BEHAVIOUR):
 When the user wants to move a block to a time slot that is already occupied (NOT following the missed block waterfall):
@@ -634,7 +722,7 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
         if (isRejection && !/missed|miss|reschedule|another|new/i.test(userMessage)) {
              optionsInstruction = "The user rejected the previous AI options. Provide EXACTLY ONE option: 'Manual Movement', which instructs them to manually move the block in the calendar UI themselves. Do NOT generate any patch operations (empty operations array []). Return valid JSON only.";
         } else {
-             optionsInstruction = "Generate EXACTLY 4 actionable options in this exact order: Option 1: Reschedule Today (Full Duration), Option 2: Reschedule Today (Shortened - ONLY if full slot unavailable), Option 3: Reschedule Later in the Week (Tomorrow or later, including weekends), Option 4: Replan Week (using 'replan_week' operation). However, if there are absolutely NO verified free slots remaining for the rest of the week, skip Options 1-3 and ONLY generate Option 4. Return valid JSON only.";
+             optionsInstruction = "Generate EXACTLY 4 actionable options in this exact order: Option 1: Reschedule Today (same or reduced duration, min 30m), Option 2: Reschedule This Week (same or reduced duration, min 30m), Option 3: Replace Lower Priority Block (same pillar, different goal), Option 4: Replan Week (using 'replan_week' operation). However, if there are absolutely NO verified free slots remaining for the rest of the week, skip Options 1-2 and rely on Option 3 and Option 4. Return valid JSON only.";
         }
     }
 
@@ -704,6 +792,102 @@ ${optionsInstruction}`;
 
             const options: CoachOption[] = data.options.map((opt, i) => {
                 const normalizedOps = (opt.operations || []).map(normalizeOperation);
+
+                // Anti-Hallucination Auto-Correction: Ensure rescheduled blocks have their own mathematically verified independent slot
+                const hasDelete = normalizedOps.some(o => o.type === 'delete_block');
+                const isReplan = normalizedOps.some(o => o.type === 'replan_week' || o.type === 'replan_day');
+                
+                // If it doesn't displace an existing block and isn't a full replan, it MUST fit in a free slot
+                if (!hasDelete && !isReplan && isMissedBlock) {
+                    const moveOp = normalizedOps.find(o => o.type === 'move_block' || o.type === 'create_block');
+                    if (moveOp && (moveOp.type === 'move_block' || moveOp.type === 'create_block')) {
+                        let targetDate = moveOp.type === 'move_block' ? moveOp.new_date : (moveOp as any).data?.date;
+                        if (!targetDate) targetDate = coachCtx.current.date;
+                        
+                        const wakeTime = coachCtx.user.sleep_end || '07:00';
+                        const sleepTime = coachCtx.user.sleep_start || '23:00';
+                        const weekBlocks = coachCtx.schedule.this_week || [];
+                        const now = coachCtx.current;
+
+                        const treatAll = true; // For any move into a free slot, all existing blocks are occupied
+                        const notBefore = targetDate === now.date ? now.time : undefined;
+
+                        const targetFreeSlots = findAvailableSlots(
+                            weekBlocks,
+                            targetDate,
+                            missedBlockDuration,
+                            wakeTime,
+                            sleepTime,
+                            8,
+                            notBefore,
+                            treatAll
+                        );
+
+                        const startField = moveOp.type === 'move_block' ? moveOp.new_start : (moveOp as any).data?.start_time;
+                        const endField = moveOp.type === 'move_block' ? moveOp.new_end : (moveOp as any).data?.end_time;
+                        
+                        const proposedStartMins = startField ? timeToMinutes(startField) : 0;
+                        const proposedEndMins = endField ? timeToMinutes(endField) : 0;
+
+                        const fits = targetFreeSlots.some(slot => {
+                            const slotStartMins = timeToMinutes(slot.start);
+                            const slotEndMins = timeToMinutes(slot.end);
+                            return proposedStartMins >= slotStartMins && proposedEndMins <= slotEndMins;
+                        });
+
+                        if (!fits) {
+                            if (targetFreeSlots.length > 0) {
+                                const bestSlot = targetFreeSlots[0];
+                                const bestStartMins = timeToMinutes(bestSlot.start);
+                                if (moveOp.type === 'move_block') {
+                                    moveOp.new_start = minutesToTime(bestStartMins);
+                                    moveOp.new_end = minutesToTime(bestStartMins + missedBlockDuration);
+                                } else {
+                                    (moveOp as any).data.start_time = minutesToTime(bestStartMins);
+                                    (moveOp as any).data.end_time = minutesToTime(bestStartMins + missedBlockDuration);
+                                }
+                            } else {
+                                // Find any other future days with a valid free slot
+                                const daysToInclude: string[] = [];
+                                let currDate = now.date;
+                                for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
+                                    daysToInclude.push(currDate);
+                                    if (getDayOfWeek(currDate) === 'sunday') break;
+                                    currDate = addDays(currDate, 1);
+                                }
+
+                                for (const d of daysToInclude) {
+                                    if (d === now.date) continue;
+                                    const daySlots = findAvailableSlots(
+                                        weekBlocks,
+                                        d,
+                                        missedBlockDuration,
+                                        wakeTime,
+                                        sleepTime,
+                                        8,
+                                        undefined,
+                                        treatAll
+                                    );
+                                    if (daySlots.length > 0) {
+                                        const bestSlot = daySlots[0];
+                                        const bestStartMins = timeToMinutes(bestSlot.start);
+                                        if (moveOp.type === 'move_block') {
+                                            moveOp.new_date = d;
+                                            moveOp.new_start = minutesToTime(bestStartMins);
+                                            moveOp.new_end = minutesToTime(bestStartMins + missedBlockDuration);
+                                        } else {
+                                            (moveOp as any).data.date = d;
+                                            (moveOp as any).data.start_time = minutesToTime(bestStartMins);
+                                            (moveOp as any).data.end_time = minutesToTime(bestStartMins + missedBlockDuration);
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Convert to CalendarPatchOp format for the UI card
                 const calendarOps = normalizedOps.map(convertToCalendarPatchOp);
                 // Compute preview counts from actual operations (don't trust AI)

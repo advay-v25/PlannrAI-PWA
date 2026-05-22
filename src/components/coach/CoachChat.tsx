@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, FormEvent, useRef, useEffect } from 'react';
+import { useToast } from '@/components/ui/toast';
 
 import { useCoach, CoachMessage } from '@/hooks/use-coach';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
@@ -16,6 +17,7 @@ interface CoachChatProps {
 }
 
 export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
+    const { showToast } = useToast();
     const {
         messages,
         isLoading,
@@ -107,12 +109,15 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
         const parentMessage = messages.find(m => m.options?.some(o => o.id === option.id));
         if (!parentMessage) return;
 
+        // Immediately close the modal and show the progress indicator toast
+        setShowPreview(false);
+        setPendingOption(null);
+        showToast('Changes in Progress...', 'ai', 3000);
+
         const success = await applyOption(parentMessage.id, option.id);
 
         if (success) {
             onCalendarUpdate?.();
-            setShowPreview(false);
-            setPendingOption(null);
         }
     };
 
