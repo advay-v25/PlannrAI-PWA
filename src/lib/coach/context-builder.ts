@@ -100,8 +100,9 @@ export async function buildCoachContext(
     const tomorrow = dateFormatter.format(tomorrowDate);
 
     // Get week boundaries (can remain in general date sync, but best to align relative to the local date)
-    const weekStart = getWeekStart(new Date(today));
-    const weekEnd = getWeekEnd(new Date(today));
+    // Get week boundaries (can remain in general date sync, but best to align relative to the local date)
+    const weekStart = getWeekStart(today);
+    const weekEnd = getWeekEnd(today);
 
     // 3. Parallel fetch all remaining data using the localized dates
     const [
@@ -263,20 +264,21 @@ function markLockedBlocks(
     });
 }
 
-function getWeekStart(date: Date): string {
-    const d = new Date(date);
+function getWeekStart(date: string): string {
+    const d = new Date(date + 'T12:00:00');
     const day = d.getDay();
     const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    return new Date(d.setDate(diff)).toISOString().split('T')[0];
+    d.setDate(diff);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function getWeekEnd(date: Date): string {
-    const start = new Date(getWeekStart(date));
-    start.setDate(start.getDate() + 6);
-    return start.toISOString().split('T')[0];
+function getWeekEnd(date: string): string {
+    const d = new Date(getWeekStart(date) + 'T12:00:00');
+    d.setDate(d.getDate() + 6);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function getDayOfWeek(date: string): string {
     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    return days[new Date(date).getDay()];
+    return days[new Date(date + 'T12:00:00').getDay()];
 }

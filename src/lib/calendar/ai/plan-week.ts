@@ -77,7 +77,8 @@ export async function generateWeekPlan(
     weekStartDate: string,
     mode: 'balanced' | 'momentum' | 'recovery' = 'balanced',
     allowWeekend: boolean = true,
-    protocolConfig?: ProtocolConfig
+    protocolConfig?: ProtocolConfig,
+    replanFromDate?: string
 ): Promise<WeekPlanVariant[]> {
     const windDown = calculateWindDown(context);
     const wakeMins = timeToMinutes(context.user.sleep_end || '07:00');
@@ -197,19 +198,19 @@ export async function generateWeekPlan(
     const variants: WeekPlanVariant[] = [];
 
     if (mode === 'balanced') {
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Standard Balanced', 'Evenly distributed tasks to maintain an ultradian rhythm.', 'Consistency builds momentum.', false, false, protocolConfig));
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Standard Balanced', 'Evenly distributed tasks to maintain an ultradian rhythm.', 'Consistency builds momentum.', false, false, protocolConfig, undefined, replanFromDate));
         if (allowWeekend) {
-            variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Afternoon Flow', 'Balanced distribution but prioritizes scheduling tasks after lunch.', 'Optimizes for post-lunch energy.', false, false, protocolConfig, 'afternoon'));
+            variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Afternoon Flow', 'Balanced distribution but prioritizes scheduling tasks after lunch.', 'Optimizes for post-lunch energy.', false, false, protocolConfig, 'afternoon', replanFromDate));
         }
     } else if (mode === 'momentum') {
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Morning Rush', 'Back-to-back blocks tightly packed in the early day.', 'Tackle the hardest things first.', false, false, protocolConfig, 'morning'));
-        variants.push(generateVariant(context, weekStartDate, false, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Sprint Days', 'Highly compressed Mon-Thu schedule with zero buffers.', 'Maximum output.', false, false, protocolConfig, 'weekday'));
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Morning Rush', 'Back-to-back blocks tightly packed in the early day.', 'Tackle the hardest things first.', false, false, protocolConfig, 'morning', replanFromDate));
+        variants.push(generateVariant(context, weekStartDate, false, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Sprint Days', 'Highly compressed Mon-Thu schedule with zero buffers.', 'Maximum output.', false, false, protocolConfig, 'weekday', replanFromDate));
     } else if (mode === 'recovery') {
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Spaced Out', 'Maximized gaps between sessions for mental resets.', 'Slow and steady.', false, false, protocolConfig));
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Spaced Out', 'Maximized gaps between sessions for mental resets.', 'Slow and steady.', false, false, protocolConfig, undefined, replanFromDate));
         if (allowWeekend) {
-            variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Weekend Focus', 'Shifts the heavier lifting to the weekend to keep workdays light.', 'Prioritizes workday rest.', false, false, protocolConfig, 'weekend'));
+            variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Weekend Focus', 'Shifts the heavier lifting to the weekend to keep workdays light.', 'Prioritizes workday rest.', false, false, protocolConfig, 'weekend', replanFromDate));
         } else {
-            variants.push(generateVariant(context, weekStartDate, false, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Quiet Recovery', 'Light load with spaced out blocks.', 'Rest focused.', true, false, protocolConfig));
+            variants.push(generateVariant(context, weekStartDate, false, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Quiet Recovery', 'Light load with spaced out blocks.', 'Rest focused.', true, false, protocolConfig, undefined, replanFromDate));
         }
     }
 
@@ -231,7 +232,8 @@ function generateVariant(
     forceLightWeekend: boolean = false,
     forceBonusFill: boolean = false,
     protocolConfig?: ProtocolConfig,
-    timeFocus?: 'morning' | 'afternoon' | 'evening' | 'weekend' | 'weekday'
+    timeFocus?: 'morning' | 'afternoon' | 'evening' | 'weekend' | 'weekday',
+    replanFromDate?: string
 ): WeekPlanVariant {
     const blocks: PlanBlock[] = [];
     const unscheduled_minutes: Record<string, number> = {};
@@ -279,10 +281,21 @@ function generateVariant(
         const progress = ctx.goalProgress?.find(p => p.goal_id === goal.id);
         const remainingMins = progress ? progress.remaining_minutes : (goal.days_per_week || 5) * (goal.minutes_per_day || 60);
         
-        if (remainingMins <= 0) continue; // Goal already reached for the week!
+        let remainingWeeklyMins = remainingMins;
+        if (replanFromDate) {
+            const targetMins = (goal.days_per_week || 5) * (goal.minutes_per_day || 60);
+            const minsBeforeReplan = ctx.schedule.this_week
+                .filter(b => b.goal_id === goal.id && b.date < replanFromDate && b.status !== 'cancelled' && b.status !== 'missed')
+                .reduce((sum, b) => {
+                    const duration = timeToMinutes(b.end_time) - timeToMinutes(b.start_time);
+                    return sum + Math.max(0, duration);
+                }, 0);
+            remainingWeeklyMins = Math.max(0, targetMins - minsBeforeReplan);
+        }
+        
+        if (remainingWeeklyMins <= 0) continue; // Goal already reached for the week!
 
         const targetMinsPerDay = goal.minutes_per_day || 60;
-        let remainingWeeklyMins = remainingMins;
 
         // Determine preferred days based on strategy
         let preferredDays = [1, 2, 3, 4, 5, 6, 7];
@@ -336,6 +349,10 @@ function generateVariant(
 
             const dayExclusions = exclusions.get(isoDay)!;
             const dateStr = format(addDays(parseISO(weekStart), isoDay - 1), 'yyyy-MM-dd');
+
+            if (replanFromDate && dateStr < replanFromDate) {
+                continue;
+            }
 
             // Check if there is already a block for this goal on this day
             const blocksThisDayForGoal = blocks.filter(b => b.date === dateStr && b.goal_id === goal.id);

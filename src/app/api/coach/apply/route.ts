@@ -378,14 +378,19 @@ async function resolveBlockIds(patch: any, userId: string, supabase: any) {
         // Try exact title match first, then partial match
         const { data: candidates } = await supabase
             .from('schedule_blocks')
-            .select('id, title, context, date, start_time')
+            .select('id, title, context, date, start_time, status')
             .eq('user_id', userId)
             .in('date', dates)
             .or(`title.ilike.%${op.title}%,context.ilike.%${op.title}%`);
 
         if (candidates && candidates.length > 0) {
-            // Prefer the closest date match
+            // Prefer blocks with 'missed' status first to resolve the correct block being rescheduled, then by closest date
             const sorted = candidates.sort((a: any, b: any) => {
+                const aMissed = a.status === 'missed' ? 1 : 0;
+                const bMissed = b.status === 'missed' ? 1 : 0;
+                if (aMissed !== bMissed) {
+                    return bMissed - aMissed; // 1 (missed) comes before 0 (planned)
+                }
                 const da = Math.abs(new Date(a.date).getTime() - baseDate.getTime());
                 const db = Math.abs(new Date(b.date).getTime() - baseDate.getTime());
                 return da - db;
