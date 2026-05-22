@@ -512,6 +512,16 @@ export default function HomePage() {
                 <TimelineStrip
                     blocks={effectiveData.schedule_blocks}
                     anchors={effectiveData.anchors}
+                    onStatusChange={async (blockId: string, status: string) => {
+                        toast.loading('Updating block...', { id: 'block-status' });
+                        try {
+                            await apiClient.post('/api/calendar/block-status', { block_id: blockId, status });
+                            toast.success('Block updated', { id: 'block-status' });
+                            handleRefresh();
+                        } catch (e) {
+                            toast.error('Failed to update block', { id: 'block-status' });
+                        }
+                    }}
                 />
             }
             energyCheckin={

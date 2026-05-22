@@ -341,12 +341,9 @@ function generateVariant(
             if (remainingWeeklyMins <= 0) break;
 
             const isWeekend = isoDay >= 6;
-            // Cap daily placement to targetMinsPerDay to prevent cramming, unless we only have a bit left
             let remainingMinsForDay = Math.min(targetMinsPerDay, remainingWeeklyMins);
 
-            // For light weekends, cap the scheduling window at 4PM
             const dayWindDown = (isWeekend && weekendIntensity === 'light') ? LIGHT_WEEKEND_CUTOFF : 1440;
-
             const dayExclusions = exclusions.get(isoDay)!;
             const dateStr = format(addDays(parseISO(weekStart), isoDay - 1), 'yyyy-MM-dd');
 
@@ -354,30 +351,23 @@ function generateVariant(
                 continue;
             }
 
-            // Check if there is already a block for this goal on this day
             const blocksThisDayForGoal = blocks.filter(b => b.date === dateStr && b.goal_id === goal.id);
             if (blocksThisDayForGoal.length > 0) {
-                if (blocksThisDayForGoal.length >= 2) continue; // Max 2 blocks per day for any goal
-                
-                if (goal.pillar === 'body') {
-                    // Allow 2 body blocks per day if they are on opposite ends of the day
-                    // The placement constraint is enforced in the window filtering step
-                } else {
-                    // Only allow double booking if total weekly target is high (>120 mins)
-                    if ((goal.days_per_week || 5) * (goal.minutes_per_day || 60) <= 120) continue;
-                }
+                if (blocksThisDayForGoal.length >= 2) continue; // Max 2 blocks per day for any specific goal
+                if (goal.pillar !== 'body' && (goal.days_per_week || 5) * (goal.minutes_per_day || 60) <= 120) continue;
             }
 
-            // Find available windows
+            // Find all other body blocks already scheduled today to prevent back-to-back workouts
+            const otherBodyBlocks = blocks.filter(b => b.date === dateStr && b.pillar === 'body' && b.goal_id !== goal.id);
+
             dayExclusions.sort((a, b) => a.start - b.start);
             let windows: Array<{ start: number; end: number }> = [];
             let cursor = 0;
 
             for (const ex of dayExclusions) {
-                // Buffer logic: if goal is body pillar, need 30m buffer after meals
                 let exEnd = ex.end;
                 if (goal.pillar === 'body' && ex.type === 'meal') {
-                    exEnd += 15; // Base meal has 15m buffer, so +15 = 30m buffer total
+                    exEnd += 15;
                 }
 
                 if (cursor < ex.start) {
@@ -389,30 +379,62 @@ function generateVariant(
                 windows.push({ start: cursor, end: dayWindDown });
             }
 
-            // Body stacking constraint: if we already have a body block today, filter windows to opposite end
+            // Body stacking constraint 1: Avoid opposite ends for the SAME body goal
             if (goal.pillar === 'body' && blocksThisDayForGoal.length === 1) {
                 const existingStartMins = timeToMinutes(blocksThisDayForGoal[0].start_time);
-                if (existingStartMins < 720) { // Morning block exists -> only allow evening windows (>17:00 or 1020 mins)
+                if (existingStartMins < 720) {
                     windows = windows.filter(w => w.end > 1020).map(w => ({ start: Math.max(w.start, 1020), end: w.end }));
-                } else { // Afternoon/Evening block exists -> only allow morning windows (<12:00 or 720 mins)
+                } else {
                     windows = windows.filter(w => w.start < 720).map(w => ({ start: w.start, end: Math.min(w.end, 720) }));
                 }
-                windows = windows.filter(w => w.end > w.start);
             }
 
-            // NEW: TimeFocus sorting
+            // Body stacking constraint 2: Prevent DIFFERENT body goals from being back-to-back
+            if (goal.pillar === 'body' && otherBodyBlocks.length > 0) {
+                const updatedWindows: typeof windows = [];
+                for (const w of windows) {
+                    let validStart = w.start;
+                    let validEnd = w.end;
+                    let isCut = false;
+                    
+                    for (const ob of otherBodyBlocks) {
+                        const obStart = timeToMinutes(ob.start_time);
+                        const obEnd = timeToMinutes(ob.end_time);
+                        // Require 120 min gap between different body goals
+                        const blockZoneStart = obStart - 120;
+                        const blockZoneEnd = obEnd + 120;
+
+                        if (validStart >= blockZoneStart && validEnd <= blockZoneEnd) {
+                            isCut = true; // completely inside the exclusion zone
+                            break;
+                        } else if (validStart < blockZoneStart && validEnd > blockZoneEnd) {
+                            // split window
+                            updatedWindows.push({ start: validStart, end: blockZoneStart });
+                            validStart = blockZoneEnd;
+                        } else if (validStart >= blockZoneStart && validStart < blockZoneEnd) {
+                            validStart = blockZoneEnd;
+                        } else if (validEnd > blockZoneStart && validEnd <= blockZoneEnd) {
+                            validEnd = blockZoneStart;
+                        }
+                    }
+                    if (!isCut && validEnd > validStart) {
+                        updatedWindows.push({ start: validStart, end: validEnd });
+                    }
+                }
+                windows = updatedWindows;
+            }
+            
+            windows = windows.filter(w => w.end > w.start);
+
             windows.sort((a, b) => {
                 if (timeFocus === 'morning') return a.start - b.start;
-                if (timeFocus === 'afternoon') {
-                    // Try to be close to 13:00 (780 mins)
-                    return Math.abs(a.start - 780) - Math.abs(b.start - 780);
-                }
+                if (timeFocus === 'afternoon') return Math.abs(a.start - 780) - Math.abs(b.start - 780);
                 if (timeFocus === 'evening') return b.start - a.start;
                 
-                // Default Pillar-intelligent window sorting
-                if (goal.pillar === 'mind') return a.start - b.start; // Prefer morning
+                if (goal.pillar === 'mind') return a.start - b.start;
                 if (goal.pillar === 'body') {
-                    const aIsAfternoon = a.start >= 720; // 12:00
+                    if ((goal.importance || 5) >= 8) return a.start - b.start; // Eat the frog
+                    const aIsAfternoon = a.start >= 720;
                     const bIsAfternoon = b.start >= 720;
                     if (aIsAfternoon && !bIsAfternoon) return -1;
                     if (!aIsAfternoon && bIsAfternoon) return 1;
@@ -423,25 +445,27 @@ function generateVariant(
 
             for (const win of windows) {
                 if (remainingMinsForDay <= 0) break;
-                if (win.end - win.start < 30) continue; // Enforce minimum block duration of 30 mins!
+                if (win.end - win.start < 30) continue;
 
                 const minsToPlace = Math.min(remainingMinsForDay, win.end - win.start);
-
                 let start = win.start;
                 
-                // Pillar-specific placement within window
-                if (goal.pillar === 'mind' && win.start < 720) {
-                     // Mind goals in morning windows should be pushed to the start
-                } else if (goal.pillar === 'body') {
-                     // Body goals can be pushed slightly later in the window for digestion
-                     if (win.end - win.start > minsToPlace + 30) start += 15;
+                if (goal.pillar === 'body' && win.end - win.start > minsToPlace + 30) {
+                     start += 15;
                 }
                 
                 let buffer = protocolConfig?.bufferMinutes ?? 10;
                 if (!protocolConfig?.bufferMinutes) {
-                    if (strategyId === 'momentum') buffer = 0; // Zero buffers, tightly packed
+                    if (strategyId === 'momentum') buffer = 0; 
                     else if (strategyId === 'balanced') buffer = (ctx.user as any).default_buffer_duration || 15;
                     else if (strategyId === 'recovery') buffer = Math.max(30, ((ctx.user as any).default_buffer_duration || 15) * 2);
+                }
+
+                // If placing this block with the recovery buffer causes us to miss the goal entirely, 
+                // we should compress the buffer to ensure the goal gets met!
+                // "the priority is to meet the goals without hampering with sleep, meals and anchors"
+                if (win.end - win.start < minsToPlace + buffer) {
+                    buffer = (win.end - win.start) - minsToPlace; // Compress buffer so the block fits!
                 }
 
                 blocks.push({
@@ -455,7 +479,6 @@ function generateVariant(
                     checklist: goal.ai_strategy?.checklist || [{text: "Focus session"}, {text: "Review progress"}]
                 });
 
-                // Add to exclusions for this day with strategy-specific buffer
                 dayExclusions.push({
                     start: start,
                     end: start + minsToPlace + buffer,
@@ -463,11 +486,74 @@ function generateVariant(
                     type: 'goal'
                 });
 
-                // Update workload tracker
                 workloadPerDay.set(isoDay, (workloadPerDay.get(isoDay) || 0) + minsToPlace);
 
                 remainingMinsForDay -= minsToPlace;
                 remainingWeeklyMins -= minsToPlace;
+            }
+        }
+
+        // Pass 2: Cram Pass (If goals are still not met, bypass preferred days and check ALL days)
+        // We still respect the daily maximum limit of targetMinsPerDay.
+        if (remainingWeeklyMins > 0) {
+            const allDays = [1, 2, 3, 4, 5, 6, 7];
+            for (const isoDay of allDays) {
+                if (remainingWeeklyMins <= 0) break;
+                
+                const dateStr = format(addDays(parseISO(weekStart), isoDay - 1), 'yyyy-MM-dd');
+                if (replanFromDate && dateStr < replanFromDate) continue;
+
+                // How many minutes have we already scheduled for this goal today?
+                const blocksToday = blocks.filter(b => b.date === dateStr && b.goal_id === goal.id);
+                const scheduledToday = blocksToday.reduce((sum, b) => sum + (timeToMinutes(b.end_time) - timeToMinutes(b.start_time)), 0);
+                
+                let remainingMinsForDay = Math.max(0, targetMinsPerDay - scheduledToday);
+                if (remainingMinsForDay <= 0) continue; // Reached daily cap
+
+                let remainingToPlace = Math.min(remainingMinsForDay, remainingWeeklyMins);
+                
+                const dayExclusions = exclusions.get(isoDay)!;
+                dayExclusions.sort((a, b) => a.start - b.start);
+                let windows: Array<{ start: number; end: number }> = [];
+                let cursor = 0;
+                for (const ex of dayExclusions) {
+                    if (cursor < ex.start) windows.push({ start: cursor, end: ex.start });
+                    cursor = Math.max(cursor, ex.end);
+                }
+                if (cursor < 1440) windows.push({ start: cursor, end: 1440 });
+
+                windows = windows.filter(w => w.end > w.start);
+
+                for (const win of windows) {
+                    if (remainingToPlace <= 0) break;
+                    if (win.end - win.start < 30) continue;
+
+                    const minsToPlace = Math.min(remainingToPlace, win.end - win.start);
+                    let start = win.start;
+                    
+                    blocks.push({
+                        date: dateStr,
+                        start_time: minutesToTime(start),
+                        end_time: minutesToTime(start + minsToPlace),
+                        title: minsToPlace < targetMinsPerDay ? `${goal.title} (Part)` : goal.title,
+                        block_type: 'goal',
+                        goal_id: goal.id,
+                        pillar: goal.pillar,
+                        checklist: goal.ai_strategy?.checklist || [{text: "Focus session"}, {text: "Review progress"}]
+                    });
+
+                    dayExclusions.push({
+                        start: start,
+                        end: start + minsToPlace,
+                        title: goal.title,
+                        type: 'goal'
+                    });
+
+                    workloadPerDay.set(isoDay, (workloadPerDay.get(isoDay) || 0) + minsToPlace);
+
+                    remainingToPlace -= minsToPlace;
+                    remainingWeeklyMins -= minsToPlace;
+                }
             }
         }
 
@@ -482,54 +568,7 @@ function generateVariant(
     // Each goal is now placed exactly once per day (at minutes_per_day duration)
     // up to days_per_week times. No bonus blocks.
 
-    // Post-process blocks: reorder body goals for each day to place them at the ends of the day
-    const processedBlocks: PlanBlock[] = [];
-    const dates = Array.from(new Set(blocks.map(b => b.date)));
-
-    for (const d of dates) {
-        const dayBlocks = blocks.filter(b => b.date === d);
-
-        const bodyBlocks = dayBlocks.filter(b => b.pillar === 'body' || b.block_type === 'body' || (b.title && (b.title.toLowerCase().includes('workout') || b.title.toLowerCase().includes('gym') || b.title.toLowerCase().includes('exercise') || b.title.toLowerCase().includes('football'))));
-        if (bodyBlocks.length < 2) {
-            processedBlocks.push(...dayBlocks);
-            continue;
-        }
-
-        const activeBodyBlocks = bodyBlocks.slice(0, 2);
-        const extraBodyBlocks = bodyBlocks.slice(2);
-        extraBodyBlocks.forEach(b => {
-            b.pillar = 'mind'; // convert extra to mind
-        });
-
-        const nonBodyBlocks = dayBlocks.filter(b => !activeBodyBlocks.includes(b));
-        const goalSlots = nonBodyBlocks.filter(b => b.block_type === 'goal' || b.block_type === 'flex');
-
-        if (goalSlots.length === 0) {
-            processedBlocks.push(...dayBlocks);
-            continue;
-        }
-
-        goalSlots.sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
-
-        const orderedGoals = [activeBodyBlocks[0], ...goalSlots, activeBodyBlocks[1]];
-        const allGoalTimes = [
-            ...goalSlots.map(g => ({ start: g.start_time, end: g.end_time })),
-            ...activeBodyBlocks.map(g => ({ start: g.start_time, end: g.end_time }))
-        ].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
-
-        for (let i = 0; i < orderedGoals.length; i++) {
-            if (i < allGoalTimes.length) {
-                orderedGoals[i].start_time = allGoalTimes[i].start;
-                orderedGoals[i].end_time = allGoalTimes[i].end;
-            }
-        }
-
-        const otherBlocks = nonBodyBlocks.filter(b => b.block_type !== 'goal' && b.block_type !== 'flex');
-        const finalDayBlocks = [...otherBlocks, ...orderedGoals].sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
-        processedBlocks.push(...finalDayBlocks);
-    }
-
-    const finalBlocks = processedBlocks.length > 0 ? processedBlocks : blocks;
+    const finalBlocks = blocks;
 
     const totalMins = finalBlocks.reduce((sum, b) => {
         if (b.block_type === 'sleep' || b.block_type === 'meal') return sum;

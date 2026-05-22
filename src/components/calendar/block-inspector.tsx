@@ -336,7 +336,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                     <div className="flex gap-2">
                         <LiquidGlassButton
                             onClick={() => onAction('done')}
-                            disabled={isDone}
+                            disabled={isDone || isMissed || block.status === 'cancelled'}
                             variant="primary"
                             size="sm"
                             className="flex-1"
@@ -345,7 +345,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                         </LiquidGlassButton>
                         <LiquidGlassButton
                             onClick={() => onAction('skip')}
-                            disabled={isMissed}
+                            disabled={isDone || isMissed || block.status === 'cancelled'}
                             variant="secondary"
                             size="sm"
                             className="flex-1"
