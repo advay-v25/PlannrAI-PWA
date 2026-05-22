@@ -180,11 +180,18 @@ function findAvailableSlots(
     wakeTime: string,
     sleepTime: string,
     count: number = 8,
-    notBeforeTime?: string
+    notBeforeTime?: string,
+    treatAllBlocksAsOccupied: boolean = false
 ): FreeSlot[] {
     const dayBlocks = blocks
         .filter(b => {
             if (b.date !== date) return false;
+
+            if (treatAllBlocksAsOccupied) {
+                const status = (b as any).status || '';
+                if (status === 'missed') return false;
+                return true;
+            }
 
             const rawType = (b as any).block_type || '';
             const type = rawType.toLowerCase().trim();
@@ -257,7 +264,8 @@ function findAvailableSlots(
  */
 function buildScheduleContextForAI(
     coachCtx: CoachContext,
-    calCtx?: CalendarContext | null
+    calCtx?: CalendarContext | null,
+    missedBlockDuration: number = 30
 ): string {
     const now = coachCtx.current;
     const todayBlocks = coachCtx.schedule.today;
@@ -270,7 +278,7 @@ function buildScheduleContextForAI(
 
     // Free slots for today: only show future slots (don't offer times already past)
     const todayFreeSlots = findAvailableSlots(todayBlocks, now.date, 30, wakeTime, sleepTime, 8, now.time);
-    const tomorrowFreeSlots = findAvailableSlots(tomorrowBlocks, tomorrowDate, 30, wakeTime, sleepTime, 8);
+    const tomorrowFreeSlots = findAvailableSlots(tomorrowBlocks, tomorrowDate, missedBlockDuration, wakeTime, sleepTime, 8, undefined, true);
 
     const todayText = todayBlocks.length > 0
         ? todayBlocks.map((b: any) =>
@@ -392,7 +400,9 @@ ${(() => {
 
         // Free slots: for today, skip past times; for future days, full day
         const notBefore = date === now.date ? now.time : undefined;
-        const dayFreeSlots = findAvailableSlots(weekBlocks, date, 30, wakeTime, sleepTime, 8, notBefore);
+        const dayMinDuration = date === now.date ? 30 : missedBlockDuration;
+        const treatAll = date !== now.date;
+        const dayFreeSlots = findAvailableSlots(weekBlocks, date, dayMinDuration, wakeTime, sleepTime, 8, notBefore, treatAll);
         const freeLine = dayFreeSlots.length > 0
             ? `    FREE SLOTS: ${dayFreeSlots.map(formatSlot).join(' | ')}`
             : `    FREE SLOTS: NONE (fully booked)`;
@@ -441,6 +451,77 @@ const INFORMATION_INTENTS = new Set([
 ]);
 
 /**
+ * Detect the duration of the block that the user is trying to reschedule (missed block).
+ */
+function findMissedBlockDuration(
+    userMessage: string,
+    classification: IntentClassification,
+    coachCtx: CoachContext
+): number {
+    const todayBlocks = coachCtx.schedule.today || [];
+    const weekBlocks = coachCtx.schedule.this_week || [];
+    const allBlocks = [...todayBlocks, ...weekBlocks];
+
+    // 1. Try to match by classification block_reference first
+    const ref = classification.entities?.block_reference?.toLowerCase().trim();
+    if (ref) {
+        // Look for a missed block with this reference
+        const missedMatch = allBlocks.find(b => 
+            b.status === 'missed' && 
+            (((b as any).title || '').toLowerCase().includes(ref) || (b.context || '').toLowerCase().includes(ref))
+        );
+        if (missedMatch) {
+            const duration = timeToMinutes(missedMatch.end_time) - timeToMinutes(missedMatch.start_time);
+            if (duration > 0) return duration;
+        }
+
+        // Look for any block with this reference
+        const anyMatch = allBlocks.find(b => 
+            ((b as any).title || '').toLowerCase().includes(ref) || (b.context || '').toLowerCase().includes(ref)
+        );
+        if (anyMatch) {
+            const duration = timeToMinutes(anyMatch.end_time) - timeToMinutes(anyMatch.start_time);
+            if (duration > 0) return duration;
+        }
+    }
+
+    // 2. Try to match by any missed blocks in the schedule
+    const missedBlocks = allBlocks.filter(b => b.status === 'missed');
+    if (missedBlocks.length > 0) {
+        // If we can find one whose title is in the user message
+        const msgLower = userMessage.toLowerCase();
+        const messageMatch = missedBlocks.find(b => 
+            msgLower.includes(((b as any).title || '').toLowerCase()) || 
+            msgLower.includes((b.context || '').toLowerCase())
+        );
+        if (messageMatch) {
+            const duration = timeToMinutes(messageMatch.end_time) - timeToMinutes(messageMatch.start_time);
+            if (duration > 0) return duration;
+        }
+
+        // Fallback to the first missed block
+        const firstMissed = missedBlocks[0];
+        const duration = timeToMinutes(firstMissed.end_time) - timeToMinutes(firstMissed.start_time);
+        if (duration > 0) return duration;
+    }
+
+    // 3. Try to scan user message for block names that exist in our schedule
+    const msgLower = userMessage.toLowerCase();
+    const titleMatch = allBlocks.find(b => {
+        const t = ((b as any).title || '').toLowerCase().trim();
+        const c = (b.context || '').toLowerCase().trim();
+        return (t && msgLower.includes(t)) || (c && msgLower.includes(c));
+    });
+    if (titleMatch) {
+        const duration = timeToMinutes(titleMatch.end_time) - timeToMinutes(titleMatch.start_time);
+        if (duration > 0) return duration;
+    }
+
+    // Default fallback: 30 minutes
+    return 30;
+}
+
+/**
  * AI-powered response generator for schedule modification intents.
  * Uses the full calendar context + user message to produce real CalendarPatch options.
  */
@@ -451,7 +532,8 @@ async function generateAIScheduleResponse(
     classification: IntentClassification,
     calCtx?: CalendarContext | null
 ): Promise<CoachResponse> {
-    const scheduleContext = buildScheduleContextForAI(coachCtx, calCtx);
+    const missedBlockDuration = findMissedBlockDuration(userMessage, classification, coachCtx);
+    const scheduleContext = buildScheduleContextForAI(coachCtx, calCtx, missedBlockDuration);
 
 const userName = coachCtx.user.first_name || 'there';
 const systemPrompt = `You are Donna, PlannrAI's Flow State and Performance Coach. You operate with 'Tough Love'. You are direct, no-nonsense, highly empathetic but fiercely protective of the user's potential. You do not coddle. If they are slacking, you call it out respectfully. If they are overwhelmed, you aggressively cut the fat from their schedule. Your priority is their long-term growth and immediate flow state. You manage their focus as their most precious resource.
@@ -704,6 +786,80 @@ ${optionsInstruction}`;
 
             const options: CoachOption[] = data.options.map((opt, i) => {
                 const normalizedOps = (opt.operations || []).map(normalizeOperation);
+
+                // Option 3 Validation and Auto-Correction: Ensure rescheduled block has its own independent slot later in the week
+                const isOption3 = opt.id === 'option_3' || i === 2;
+                if (isOption3) {
+                    const moveOp = normalizedOps.find(o => o.type === 'move_block');
+                    if (moveOp && moveOp.type === 'move_block') {
+                        const targetDate = moveOp.new_date || coachCtx.current.date;
+                        const wakeTime = coachCtx.user.sleep_end || '07:00';
+                        const sleepTime = coachCtx.user.sleep_start || '23:00';
+                        const weekBlocks = coachCtx.schedule.this_week || [];
+                        const now = coachCtx.current;
+
+                        const targetFreeSlots = findAvailableSlots(
+                            weekBlocks,
+                            targetDate,
+                            missedBlockDuration,
+                            wakeTime,
+                            sleepTime,
+                            8,
+                            undefined,
+                            true // Treat all pre-existing blocks as occupied
+                        );
+
+                        const proposedStartMins = timeToMinutes(moveOp.new_start);
+                        const proposedEndMins = timeToMinutes(moveOp.new_end);
+
+                        const fits = targetFreeSlots.some(slot => {
+                            const slotStartMins = timeToMinutes(slot.start);
+                            const slotEndMins = timeToMinutes(slot.end);
+                            return proposedStartMins >= slotStartMins && proposedEndMins <= slotEndMins;
+                        });
+
+                        if (!fits) {
+                            if (targetFreeSlots.length > 0) {
+                                const bestSlot = targetFreeSlots[0];
+                                const bestStartMins = timeToMinutes(bestSlot.start);
+                                moveOp.new_start = minutesToTime(bestStartMins);
+                                moveOp.new_end = minutesToTime(bestStartMins + missedBlockDuration);
+                            } else {
+                                // Find any other future days
+                                const daysToInclude: string[] = [];
+                                let currDate = now.date;
+                                for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
+                                    daysToInclude.push(currDate);
+                                    if (getDayOfWeek(currDate) === 'sunday') break;
+                                    currDate = addDays(currDate, 1);
+                                }
+
+                                for (const d of daysToInclude) {
+                                    if (d === now.date) continue;
+                                    const daySlots = findAvailableSlots(
+                                        weekBlocks,
+                                        d,
+                                        missedBlockDuration,
+                                        wakeTime,
+                                        sleepTime,
+                                        8,
+                                        undefined,
+                                        true
+                                    );
+                                    if (daySlots.length > 0) {
+                                        const bestSlot = daySlots[0];
+                                        const bestStartMins = timeToMinutes(bestSlot.start);
+                                        moveOp.new_date = d;
+                                        moveOp.new_start = minutesToTime(bestStartMins);
+                                        moveOp.new_end = minutesToTime(bestStartMins + missedBlockDuration);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Convert to CalendarPatchOp format for the UI card
                 const calendarOps = normalizedOps.map(convertToCalendarPatchOp);
                 // Compute preview counts from actual operations (don't trust AI)
