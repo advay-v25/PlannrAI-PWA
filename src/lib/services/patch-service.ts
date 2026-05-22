@@ -725,12 +725,16 @@ export class PatchService {
                 const localMonday = new Date(localToday.getTime() + mondayOffset * 24 * 60 * 60 * 1000);
                 const weekStartStr = `${localMonday.getFullYear()}-${String(localMonday.getMonth() + 1).padStart(2, '0')}-${String(localMonday.getDate()).padStart(2, '0')}`;
                 
-                console.log(`[PatchService] User Timezone: ${timezone}, Week start: ${weekStartStr}, today: ${todayStr}, nowTime: ${nowTime} mins`);
+                // Calculate tomorrowStr relative to user timezone
+                const localTomorrow = new Date(localToday.getTime() + 24 * 60 * 60 * 1000);
+                const tomorrowStr = `${localTomorrow.getFullYear()}-${String(localTomorrow.getMonth() + 1).padStart(2, '0')}-${String(localTomorrow.getDate()).padStart(2, '0')}`;
+                
+                console.log(`[PatchService] User Timezone: ${timezone}, Week start: ${weekStartStr}, today: ${todayStr}, tomorrow: ${tomorrowStr}`);
 
-                // 3. Generate new plan using the CORRECT week start (Monday)
+                // 3. Generate new plan using the CORRECT week start (Monday) and tomorrowStr as replanFromDate
                 const mode = op.payload?.mode || 'balanced';
                 const allowWeekend = op.payload?.allow_weekend !== false;
-                const variants = await generateWeekPlan(calendarCtx, weekStartStr, mode, allowWeekend);
+                const variants = await generateWeekPlan(calendarCtx, weekStartStr, mode, allowWeekend, undefined, tomorrowStr);
                 
                 if (!variants || variants.length === 0) {
                     throw new Error('Replan failed to generate any variants');
@@ -740,29 +744,22 @@ export class PatchService {
                 const newPlan = variants[0];
                 console.log(`[PatchService] Generated ${newPlan.blocks.length} blocks for variant "${newPlan.label}"`);
                 
-                // 4. Delete future non-immutable blocks
-                // We only delete blocks from today onwards that are NOT sleep, meal, wind_down, anchor, or already done
+                // 4. Delete future non-immutable blocks strictly from TOMORROW onwards (date > todayStr)
                 const { data: futureBlocks } = await supabase
                     .from('schedule_blocks')
                     .select('id, block_type, start_time, status, date')
                     .eq('user_id', userId)
-                    .gte('date', todayStr);
+                    .gt('date', todayStr); // STRICTLY TOMORROW ONWARDS
                     
                 if (futureBlocks) {
                     const IMMUTABLE = ['sleep', 'meal', 'wind_down', 'anchor'];
                     const idsToDelete = futureBlocks.filter((b: any) => {
                         if (IMMUTABLE.includes(b.block_type)) return false;
                         if (b.status === 'done') return false;
-                        // If it's today, only delete blocks that haven't started yet or are currently starting
-                        if (b.date === todayStr) {
-                            const [h, m] = b.start_time.split(':').map(Number);
-                            const startMins = h * 60 + m;
-                            if (startMins < nowTime) return false; // past blocks are safe
-                        }
                         return true;
                     }).map((b: any) => b.id);
                     
-                    console.log(`[PatchService] Deleting ${idsToDelete.length} future non-immutable blocks`);
+                    console.log(`[PatchService] Deleting ${idsToDelete.length} future non-immutable blocks from tomorrow onwards`);
                     if (idsToDelete.length > 0) {
                         const { error: delErr } = await supabase
                             .from('schedule_blocks')
@@ -773,15 +770,10 @@ export class PatchService {
                     }
                 }
                 
-                // 5. Insert new generated blocks
-                // Only insert blocks from today onwards that haven't passed
+                // 5. Insert new generated blocks strictly from TOMORROW onwards (date > todayStr)
                 const blocksToInsert = newPlan.blocks.filter((b: any) => {
-                    if (b.date < todayStr) return false;
-                    if (b.date === todayStr) {
-                        const [h, m] = b.start_time.split(':').map(Number);
-                        const startMins = h * 60 + m;
-                        if (startMins < nowTime) return false;
-                    }
+                    if (b.date <= todayStr) return false; // STRICTLY TOMORROW ONWARDS
+                    
                     // Skip bio blocks (sleep, meal, wind_down) — they already exist as immutables
                     const BIO_TYPES = ['sleep', 'meal', 'wind_down'];
                     if (BIO_TYPES.includes(b.block_type)) return false;
@@ -799,7 +791,7 @@ export class PatchService {
                     checklist: b.checklist || null,
                 }));
                 
-                console.log(`[PatchService] Inserting ${blocksToInsert.length} new blocks (after filtering past + bio)`);
+                console.log(`[PatchService] Inserting ${blocksToInsert.length} new blocks strictly from tomorrow onwards`);
                 if (blocksToInsert.length > 0) {
                     const { error: insErr } = await supabase
                         .from('schedule_blocks')
@@ -838,10 +830,10 @@ export class PatchService {
                 
                 console.log(`[PatchService] User Timezone: ${timezone}, Week start: ${weekStartStr}, today: ${todayStr}, nowTime: ${nowTime} mins`);
 
-                // 3. Generate new plan
+                // 3. Generate new plan from today onwards
                 const mode = op.payload?.mode || 'balanced';
                 const allowWeekend = op.payload?.allow_weekend !== false;
-                const variants = await generateWeekPlan(calendarCtx, weekStartStr, mode, allowWeekend);
+                const variants = await generateWeekPlan(calendarCtx, weekStartStr, mode, allowWeekend, undefined, todayStr);
                 
                 if (!variants || variants.length === 0) {
                     throw new Error('Replan failed to generate any variants');
@@ -850,12 +842,12 @@ export class PatchService {
                 const newPlan = variants[0];
                 console.log(`[PatchService] Generated ${newPlan.blocks.length} blocks for variant "${newPlan.label}"`);
                 
-                // 4. Delete TODAY'S future non-immutable blocks
+                // 4. Delete future non-immutable blocks strictly from TODAY onwards
                 const { data: futureBlocks } = await supabase
                     .from('schedule_blocks')
                     .select('id, block_type, start_time, status, date')
                     .eq('user_id', userId)
-                    .eq('date', todayStr); // STRICTLY TODAY
+                    .gte('date', todayStr); // STRICTLY TODAY ONWARDS
                     
                 if (futureBlocks) {
                     const IMMUTABLE = ['sleep', 'meal', 'wind_down', 'anchor'];
@@ -863,14 +855,16 @@ export class PatchService {
                     const idsToDelete = futureBlocks.filter((b: any) => {
                         if (IMMUTABLE.includes(b.block_type)) return false;
                         if (b.status === 'done') return false;
-                        const [h, m] = b.start_time.split(':').map(Number);
-                        const startMins = h * 60 + m;
-                        if (startMins < nowTime) return false; // past blocks are safe
+                        if (b.date === todayStr) {
+                            const [h, m] = b.start_time.split(':').map(Number);
+                            const startMins = h * 60 + m;
+                            if (startMins < nowTime) return false; // past blocks today are safe
+                        }
                         return true;
                     /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
                     }).map((b: any) => b.id);
                     
-                    console.log(`[PatchService] Deleting ${idsToDelete.length} future non-immutable blocks for today`);
+                    console.log(`[PatchService] Deleting ${idsToDelete.length} future non-immutable blocks for today onwards`);
                     if (idsToDelete.length > 0) {
                         const { error: delErr } = await supabase
                             .from('schedule_blocks')
@@ -881,13 +875,15 @@ export class PatchService {
                     }
                 }
                 
-                // 5. Insert new generated blocks ONLY FOR TODAY
+                // 5. Insert new generated blocks from TODAY onwards
                 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
                 const blocksToInsert = newPlan.blocks.filter((b: any) => {
-                    if (b.date !== todayStr) return false; // STRICTLY TODAY
-                    const [h, m] = b.start_time.split(':').map(Number);
-                    const startMins = h * 60 + m;
-                    if (startMins < nowTime) return false;
+                    if (b.date < todayStr) return false; // STRICTLY TODAY ONWARDS
+                    if (b.date === todayStr) {
+                        const [h, m] = b.start_time.split(':').map(Number);
+                        const startMins = h * 60 + m;
+                        if (startMins < nowTime) return false;
+                    }
                     
                     // Skip bio blocks
                     const BIO_TYPES = ['sleep', 'meal', 'wind_down'];

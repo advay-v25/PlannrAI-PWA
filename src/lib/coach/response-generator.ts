@@ -162,6 +162,19 @@ function addDays(date: string, days: number): string {
     return d.toISOString().split('T')[0];
 }
 
+function getBlockPillarAndPriority(block: any, coachCtx: CoachContext) {
+    const goal = coachCtx.goals.find(g => g.id === block.goal_id);
+    const pillar = goal?.pillar || block.pillar || 'craft'; // default to craft
+    
+    // priority could be a string 'low'|'medium'|'high' or a number
+    const rawPriority = goal?.priority !== undefined ? goal.priority : (block.priority !== undefined ? block.priority : 'medium');
+    let priorityVal = 2; // medium by default
+    if (rawPriority === 'high' || rawPriority === 3) priorityVal = 3;
+    if (rawPriority === 'low' || rawPriority === 1) priorityVal = 1;
+    
+    return { pillar, priority: rawPriority, priorityVal, goalId: block.goal_id };
+}
+
 // ============ REAL SLOT FINDER ============
 
 interface FreeSlot { start: string; end: string; duration_mins: number }
@@ -528,6 +541,63 @@ function findMissedBlockDuration(
 }
 
 /**
+ * Find the missed block itself from the calendar context using user message and entity classification.
+ */
+function findMissedBlock(
+    userMessage: string,
+    classification: IntentClassification,
+    coachCtx: CoachContext
+): any {
+    const todayBlocks = coachCtx.schedule.today || [];
+    const weekBlocks = coachCtx.schedule.this_week || [];
+    const allBlocks = [...todayBlocks, ...weekBlocks];
+
+    // 1. Try to match by classification block_reference first
+    const ref = classification.entities?.block_reference?.toLowerCase().trim();
+    if (ref) {
+        // Look for a missed block with this reference
+        const missedMatch = allBlocks.find(b => 
+            b.status === 'missed' && 
+            (((b as any).title || '').toLowerCase().includes(ref) || (b.context || '').toLowerCase().includes(ref))
+        );
+        if (missedMatch) return missedMatch;
+
+        // Look for any block with this reference
+        const anyMatch = allBlocks.find(b => 
+            ((b as any).title || '').toLowerCase().includes(ref) || (b.context || '').toLowerCase().includes(ref)
+        );
+        if (anyMatch) return anyMatch;
+    }
+
+    // 2. Try to match by any missed blocks in the schedule
+    const missedBlocks = allBlocks.filter(b => b.status === 'missed');
+    if (missedBlocks.length > 0) {
+        // If we can find one whose title is in the user message
+        const msgLower = userMessage.toLowerCase();
+        const messageMatch = missedBlocks.find(b => 
+            msgLower.includes(((b as any).title || '').toLowerCase()) || 
+            msgLower.includes((b.context || '').toLowerCase())
+        );
+        if (messageMatch) return messageMatch;
+
+        // Fallback to the first missed block
+        return missedBlocks[0];
+    }
+
+    // 3. Try to scan user message for block names that exist in our schedule
+    const msgLower = userMessage.toLowerCase();
+    const titleMatch = allBlocks.find(b => {
+        const t = ((b as any).title || '').toLowerCase().trim();
+        const c = (b.context || '').toLowerCase().trim();
+        return (t && msgLower.includes(t)) || (c && msgLower.includes(c));
+    });
+    if (titleMatch) return titleMatch;
+
+    return null;
+}
+
+
+/**
  * AI-powered response generator for schedule modification intents.
  * Uses the full calendar context + user message to produce real CalendarPatch options.
  */
@@ -709,10 +779,8 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
 
     const recentHistory = conversationHistory.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n');
 
-    const isMissedBlock = /missed|miss|didn't|did not|avoided|avoid|option|options|replan|reschedule|patch/i.test(userMessage) || 
-                          /missed|miss|didn't|did not|avoided|avoid|option|options|replan|reschedule|patch/i.test(recentHistory) ||
-                          classification.primary_intent === CoachIntent.RESCHEDULE_DAY ||
-                          classification.primary_intent === CoachIntent.RESCHEDULE_WEEK;
+    const isMissedBlock = /missed|miss|didn't|did not|avoided|avoid|option|options/i.test(userMessage) || 
+                          /missed|miss|didn't|did not|avoided|avoid|option|options/i.test(recentHistory);
 
     const isRejection = /none|neither|don't like|dont like|manual|myself|reject|no|stop/i.test(userMessage);
 
@@ -791,11 +859,119 @@ ${optionsInstruction}`;
             const aiMode = isSimple ? 'execute' : 'propose';
 
             const options: CoachOption[] = data.options.map((opt, i) => {
-                const normalizedOps = (opt.operations || []).map(normalizeOperation);
+                let normalizedOps = (opt.operations || []).map(normalizeOperation);
 
                 // Anti-Hallucination Auto-Correction: Ensure rescheduled blocks have their own mathematically verified independent slot
                 const hasDelete = normalizedOps.some(o => o.type === 'delete_block');
                 const isReplan = normalizedOps.some(o => o.type === 'replan_week' || o.type === 'replan_day');
+
+                // 1. For Option 4 (Replan Week): Keep only the replan operation to keep today's schedule entirely untouched
+                if (isReplan) {
+                    const replanOp = normalizedOps.find(o => o.type === 'replan_week' || o.type === 'replan_day');
+                    if (replanOp) {
+                        normalizedOps = [replanOp];
+                    }
+                }
+
+                // 2. For Options 1 & 2: Keep only the single move/create operation (no random secondary displacements)
+                if (!hasDelete && !isReplan && isMissedBlock) {
+                    const moveOrCreateOp = normalizedOps.find(o => o.type === 'move_block' || o.type === 'create_block');
+                    if (moveOrCreateOp) {
+                        normalizedOps = [moveOrCreateOp];
+                    }
+                }
+
+                // 3. For Option 3: Replace Lower Priority Block same-goal protection
+                if (hasDelete && isMissedBlock) {
+                    const deleteOpIndex = normalizedOps.findIndex(o => o.type === 'delete_block');
+                    if (deleteOpIndex !== -1) {
+                        const deleteOp = normalizedOps[deleteOpIndex] as any;
+                        const missedBlock = findMissedBlock(userMessage, classification, coachCtx);
+                        if (missedBlock) {
+                            const deletedBlock = coachCtx.schedule.this_week?.find((b: any) => b.id === deleteOp.block_id) ||
+                                                 coachCtx.schedule.today?.find((b: any) => b.id === deleteOp.block_id) ||
+                                                 (deleteOp.title ? (coachCtx.schedule.this_week?.find((b: any) => b.title?.toLowerCase() === deleteOp.title?.toLowerCase()) || 
+                                                                   coachCtx.schedule.today?.find((b: any) => b.title?.toLowerCase() === deleteOp.title?.toLowerCase())) : null);
+                            
+                            const missedGoalId = missedBlock.goal_id;
+                            const missedTitle = missedBlock.title?.toLowerCase() || '';
+                            const missedContext = missedBlock.context?.toLowerCase() || '';
+                            
+                            const isSameKind = deletedBlock && (
+                                deletedBlock.goal_id === missedGoalId ||
+                                deletedBlock.title?.toLowerCase() === missedTitle ||
+                                deletedBlock.context?.toLowerCase() === missedContext
+                            );
+                            
+                            if (!deletedBlock || isSameKind) {
+                                const missedBlockPillarInfo = getBlockPillarAndPriority(missedBlock, coachCtx);
+                                const candidates = [...(coachCtx.schedule.this_week || []), ...(coachCtx.schedule.today || [])].filter((b: any) => {
+                                    if (b.id === missedBlock.id) return false;
+                                    const type = (b.block_type || '').toLowerCase();
+                                    if (['sleep', 'meal', 'wind_down', 'anchor'].includes(type)) return false;
+                                    if (b.status !== 'planned') return false;
+                                    
+                                    if (b.date < coachCtx.current.date) return false;
+                                    if (b.date === coachCtx.current.date && b.start_time <= coachCtx.current.time) return false;
+                                    
+                                    const bInfo = getBlockPillarAndPriority(b, coachCtx);
+                                    if (bInfo.pillar !== missedBlockPillarInfo.pillar) return false;
+                                    
+                                    if (b.goal_id && b.goal_id === missedGoalId) return false;
+                                    if (b.title?.toLowerCase() === missedTitle) return false;
+                                    if (b.context?.toLowerCase() === missedContext) return false;
+                                    
+                                    if (bInfo.priorityVal > missedBlockPillarInfo.priorityVal) return false;
+                                    
+                                    return true;
+                                });
+                                
+                                candidates.sort((a: any, b: any) => {
+                                    const aInfo = getBlockPillarAndPriority(a, coachCtx);
+                                    const bInfo = getBlockPillarAndPriority(b, coachCtx);
+                                    
+                                    if (aInfo.priorityVal !== bInfo.priorityVal) {
+                                        return aInfo.priorityVal - bInfo.priorityVal;
+                                    }
+                                    
+                                    const aDur = timeToMinutes(a.end_time) - timeToMinutes(a.start_time);
+                                    const bDur = timeToMinutes(b.end_time) - timeToMinutes(b.start_time);
+                                    const aDiff = Math.abs(aDur - missedBlockDuration);
+                                    const bDiff = Math.abs(bDur - missedBlockDuration);
+                                    if (aDiff !== bDiff) {
+                                        return aDiff - bDiff;
+                                    }
+                                    
+                                    if (a.date !== b.date) {
+                                        return a.date.localeCompare(b.date);
+                                    }
+                                    return a.start_time.localeCompare(b.start_time);
+                                });
+                                
+                                if (candidates.length > 0) {
+                                    const replacementCandidate = candidates[0];
+                                    console.log(`[Coach Auto-Correction] Replaced same-goal/invalid delete op with candidate: "${replacementCandidate.title}" (${replacementCandidate.date} ${replacementCandidate.start_time})`);
+                                    
+                                    deleteOp.block_id = replacementCandidate.id;
+                                    deleteOp.title = replacementCandidate.title;
+                                    
+                                    const moveOrCreateOp = normalizedOps.find(o => o.type === 'move_block' || o.type === 'create_block');
+                                    if (moveOrCreateOp) {
+                                        if (moveOrCreateOp.type === 'move_block') {
+                                            moveOrCreateOp.new_date = replacementCandidate.date;
+                                            moveOrCreateOp.new_start = replacementCandidate.start_time;
+                                            moveOrCreateOp.new_end = replacementCandidate.end_time;
+                                        } else if (moveOrCreateOp.type === 'create_block') {
+                                            (moveOrCreateOp as any).data.date = replacementCandidate.date;
+                                            (moveOrCreateOp as any).data.start_time = replacementCandidate.start_time;
+                                            (moveOrCreateOp as any).data.end_time = replacementCandidate.end_time;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 
                 // If it doesn't displace an existing block and isn't a full replan, it MUST fit in a free slot
                 if (!hasDelete && !isReplan && isMissedBlock) {
@@ -812,22 +988,25 @@ ${optionsInstruction}`;
                         const treatAll = true; // For any move into a free slot, all existing blocks are occupied
                         const notBefore = targetDate === now.date ? now.time : undefined;
 
+                        const startField = moveOp.type === 'move_block' ? moveOp.new_start : (moveOp as any).data?.start_time;
+                        const endField = moveOp.type === 'move_block' ? moveOp.new_end : (moveOp as any).data?.end_time;
+                        
+                        const proposedStartMins = startField ? timeToMinutes(startField) : 0;
+                        const proposedEndMins = endField ? timeToMinutes(endField) : 0;
+                        let proposedDuration = proposedEndMins - proposedStartMins;
+                        if (proposedDuration < 30) proposedDuration = 30;
+                        if (proposedDuration > missedBlockDuration) proposedDuration = missedBlockDuration;
+
                         const targetFreeSlots = findAvailableSlots(
                             weekBlocks,
                             targetDate,
-                            missedBlockDuration,
+                            proposedDuration,
                             wakeTime,
                             sleepTime,
                             8,
                             notBefore,
                             treatAll
                         );
-
-                        const startField = moveOp.type === 'move_block' ? moveOp.new_start : (moveOp as any).data?.start_time;
-                        const endField = moveOp.type === 'move_block' ? moveOp.new_end : (moveOp as any).data?.end_time;
-                        
-                        const proposedStartMins = startField ? timeToMinutes(startField) : 0;
-                        const proposedEndMins = endField ? timeToMinutes(endField) : 0;
 
                         const fits = targetFreeSlots.some(slot => {
                             const slotStartMins = timeToMinutes(slot.start);
@@ -841,10 +1020,10 @@ ${optionsInstruction}`;
                                 const bestStartMins = timeToMinutes(bestSlot.start);
                                 if (moveOp.type === 'move_block') {
                                     moveOp.new_start = minutesToTime(bestStartMins);
-                                    moveOp.new_end = minutesToTime(bestStartMins + missedBlockDuration);
+                                    moveOp.new_end = minutesToTime(bestStartMins + proposedDuration);
                                 } else {
                                     (moveOp as any).data.start_time = minutesToTime(bestStartMins);
-                                    (moveOp as any).data.end_time = minutesToTime(bestStartMins + missedBlockDuration);
+                                    (moveOp as any).data.end_time = minutesToTime(bestStartMins + proposedDuration);
                                 }
                             } else {
                                 // Find any other future days with a valid free slot
