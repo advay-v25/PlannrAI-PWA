@@ -309,31 +309,30 @@ function generateVariant(
                 return (workloadPerDay.get(a) || 0) - (workloadPerDay.get(b) || 0);
             });
         } else if (timeFocus === 'weekday' || strategyId === 'momentum') {
-            // Front load: prioritize Mon-Sun. If workloads are equal, go early.
-            // If Mon is full, Tue is next best.
             preferredDays.sort((a, b) => {
                 const loadA = workloadPerDay.get(a) || 0;
                 const loadB = workloadPerDay.get(b) || 0;
-                // Primary sort by day index, but allow some load balancing if one day is already extremely heavy
-                const weightA = a * 1000 + loadA;
-                const weightB = b * 1000 + loadB;
+                // If it's a secondary variant (e.g. evening focus), reverse the day sweep to force layout diversity
+                const direction = timeFocus === 'evening' ? -1 : 1;
+                const weightA = a * 1000 * direction + loadA;
+                const weightB = b * 1000 * direction + loadB;
                 return weightA - weightB;
             });
         } else if (strategyId === 'recovery') {
-            // Space out: prioritize days with the absolute LEAST workload.
             preferredDays.sort((a, b) => {
                 const loadA = workloadPerDay.get(a) || 0;
                 const loadB = workloadPerDay.get(b) || 0;
                 if (loadA !== loadB) return loadA - loadB;
-                return b - a; // Tie breaker: later in the week
+                // Secondary variants sweep from end of week to force visual difference
+                return timeFocus ? a - b : b - a; 
             });
         } else if (strategyId === 'balanced') {
-            // Balanced: sort by workload, then by day index to keep it standard.
             preferredDays.sort((a, b) => {
                 const loadA = workloadPerDay.get(a) || 0;
                 const loadB = workloadPerDay.get(b) || 0;
                 if (loadA !== loadB) return loadA - loadB;
-                return a - b;
+                // Reverse the tie-breaker for the secondary "afternoon" option to guarantee a different plan
+                return timeFocus === 'afternoon' ? b - a : a - b;
             });
         }
 
