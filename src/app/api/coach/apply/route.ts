@@ -236,6 +236,7 @@ function normalizePatchForService(patch: any): any {
                             goal_id: operation.data?.goal_id || null,
                             pillar: operation.data?.pillar || null,
                             status: 'planned',
+                            is_locked: operation.data?.is_locked || false,
                             checklist: operation.data?.checklist || [],
                         }),
                     };
@@ -310,6 +311,11 @@ function normalizePatchForService(patch: any): any {
                     return {
                         op: 'delete_todo' as const,
                         todo_id: operation.todo_id,
+                    };
+                case 'update_settings':
+                    return {
+                        op: 'update_settings' as const,
+                        payload: operation.data || {},
                     };
                 default:
                     console.warn('[Coach Apply] Unknown operation type:', opType);
@@ -484,6 +490,20 @@ async function validateCoachOps(patch: any, userId: string, supabase: any): Prom
             .filter(Boolean)
     );
 
+    // Simulate post-patch state for moved blocks
+    for (const b of existingBlocks) {
+        const moveOp = patch.ops.find((o: any) => (o.op === 'move_event' || o.op === 'move') && o.event_id === b.id);
+        if (moveOp) {
+            if (moveOp.date || moveOp.new_date) b.date = moveOp.date || moveOp.new_date;
+            if (moveOp.to_start || moveOp.new_start) b.start_time = moveOp.to_start || moveOp.new_start;
+            if (moveOp.to_end || moveOp.new_end) b.end_time = moveOp.to_end || moveOp.new_end;
+        }
+    }
+
+
+    // Check if the patch includes a replan_day operation, which handles auto-cascading
+    const hasReplan = patch.ops.some((o: any) => o.op === 'replan_day' || o.op === 'replan_week');
+
     // Check each target slot against immutable blocks
     for (const slot of targetSlots) {
         const dayBlocks = existingBlocks.filter((b: any) => b.date === slot.date);
@@ -492,10 +512,17 @@ async function validateCoachOps(patch: any, userId: string, supabase: any): Prom
             if (slot.blockId && block.id === slot.blockId) continue;
             // Skip blocks being deleted in the same patch
             if (deletedIds.has(block.id)) continue;
-            if (!IMMUTABLE_TYPES.includes(block.block_type)) continue;
+            
+            // If the patch includes a replan_day operation, ONLY check for overlaps with IMMUTABLE blocks.
+            // All other non-immutable blocks will be automatically deleted and cascaded by the replan engine.
+            if (hasReplan && !IMMUTABLE_TYPES.includes(block.block_type)) {
+                continue;
+            }
+            
+            // Check for overlaps against ANY block (or just immutable if hasReplan)
             if (overlaps(slot.start, slot.end, block.start_time, block.end_time)) {
                 errors.push(
-                    `Cannot ${slot.op} "${slot.title}" at ${slot.start}-${slot.end} — overlaps with immutable ${block.block_type} block "${block.title}" (${block.start_time}-${block.end_time})`
+                    `Cannot ${slot.op} "${slot.title}" at ${slot.start}-${slot.end} — overlaps with existing ${block.block_type} block "${block.title}" (${block.start_time}-${block.end_time})`
                 );
             }
         }

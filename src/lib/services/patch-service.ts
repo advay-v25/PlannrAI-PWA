@@ -61,6 +61,53 @@ export interface PatchResult {
 
 export class PatchService {
 
+    private static async validateGoalConstraints(userId: string, goalId: string | null, date: string, newBlockMins: number, excludeBlockId: string | null, supabase: SupabaseClient) {
+        if (!goalId) return;
+        const timeToMin = (t: string) => {
+            const [h, m] = (t || '0:0').split(':').map(Number);
+            return (h || 0) * 60 + (m || 0);
+        };
+        const { data: goalData } = await supabase.from('goals').select('minutes_per_day, days_per_week').eq('id', goalId).maybeSingle();
+        if (!goalData) return;
+        
+        const dailyLimit = goalData.minutes_per_day || 60;
+        const weeklyDaysLimit = goalData.days_per_week || 5;
+
+        const { data: existingGoalBlocks } = await supabase
+            .from('schedule_blocks')
+            .select('id, start_time, end_time, date')
+            .eq('user_id', userId)
+            .eq('goal_id', goalId);
+            
+        if (existingGoalBlocks) {
+            const existingMins = existingGoalBlocks
+                .filter((b: any) => b.date === date && b.id !== excludeBlockId)
+                .reduce((sum: number, b: any) => sum + Math.max(0, timeToMin(b.end_time) - timeToMin(b.start_time)), 0);
+            
+            if (existingMins + newBlockMins > dailyLimit) {
+                throw new Error(`Daily limit reached: ${existingMins + newBlockMins}min exceeds ${dailyLimit}min/day limit`);
+            }
+
+            const getWeekStart = (d: string) => {
+                const dateObj = new Date(d);
+                const day = dateObj.getDay();
+                const diff = dateObj.getDate() - day + (day === 0 ? -6 : 1);
+                return new Date(dateObj.setDate(diff)).toISOString().split('T')[0];
+            };
+            const targetWeekStart = getWeekStart(date);
+            const activeDays = new Set(
+                existingGoalBlocks
+                    .filter((b: any) => getWeekStart(b.date) === targetWeekStart && b.id !== excludeBlockId)
+                    .map((b: any) => b.date)
+            );
+            if (newBlockMins > 0) activeDays.add(date);
+            
+            if (activeDays.size > weeklyDaysLimit) {
+                throw new Error(`Weekly limit reached: cannot schedule on ${activeDays.size} days (limit is ${weeklyDaysLimit} days/week)`);
+            }
+        }
+    }
+
     /**
      * Apply a patch to the calendar/goals/settings.
      * Returns undo_token for reversal.
@@ -431,41 +478,14 @@ export class PatchService {
                     break;
                 }
 
-                // GOAL OVER-ALLOCATION ENFORCEMENT: Check daily goal minutes limit
+                // GOAL OVER-ALLOCATION ENFORCEMENT: Check daily and weekly limits
                 if (insertData.goal_id && insertData.block_type === 'goal') {
                     const timeToMin = (t: string) => {
                         const [h, m] = (t || '0:0').split(':').map(Number);
                         return (h || 0) * 60 + (m || 0);
                     };
-
-                    // Fetch goal's daily limit
-                    const { data: goalData } = await supabase
-                        .from('goals')
-                        .select('minutes_per_day')
-                        .eq('id', insertData.goal_id)
-                        .maybeSingle();
-
-                    if (goalData) {
-                        const dailyLimit = goalData.minutes_per_day || 60;
-
-                        // Sum existing goal minutes for this day
-                        const { data: existingGoalBlocks } = await supabase
-                            .from('schedule_blocks')
-                            .select('start_time, end_time')
-                            .eq('user_id', userId)
-                            .eq('goal_id', insertData.goal_id)
-                            .eq('date', insertData.date);
-
-                        const existingMins = (existingGoalBlocks || []).reduce((sum: number, b: any) => {
-                            return sum + Math.max(0, timeToMin(b.end_time) - timeToMin(b.start_time));
-                        }, 0);
-
-                        const newBlockMins = Math.max(0, timeToMin(insertData.end_time) - timeToMin(insertData.start_time));
-
-                        if (existingMins + newBlockMins > dailyLimit) {
-                            throw new Error(`Daily limit reached for "${insertData.title}" on ${insertData.date}: ${existingMins + newBlockMins}min exceeds ${dailyLimit}min/day limit`);
-                        }
-                    }
+                    const newBlockMins = Math.max(0, timeToMin(insertData.end_time) - timeToMin(insertData.start_time));
+                    await this.validateGoalConstraints(userId, insertData.goal_id, insertData.date, newBlockMins, null, supabase);
                 }
 
                 const { data, error } = await supabase
@@ -489,7 +509,7 @@ export class PatchService {
                 // Protect immutable blocks from modification
                 const { data: existing } = await supabase
                     .from('schedule_blocks')
-                    .select('id, block_type')
+                    .select('id, block_type, goal_id, start_time, end_time, date')
                     .eq('id', id)
                     .eq('user_id', userId)
                     .maybeSingle();
@@ -499,6 +519,19 @@ export class PatchService {
                     console.log(`[PatchService] BLOCKED: Cannot modify immutable ${existing.block_type} block`);
                     break;
                 }
+
+                if (existing.goal_id) {
+                    const timeToMin = (t: string) => {
+                        const [h, m] = (t || '0:0').split(':').map(Number);
+                        return (h || 0) * 60 + (m || 0);
+                    };
+                    const newStart = fields.start_time || existing.start_time;
+                    const newEnd = fields.end_time || existing.end_time;
+                    const newDate = fields.date || existing.date;
+                    const newBlockMins = Math.max(0, timeToMin(newEnd) - timeToMin(newStart));
+                    await this.validateGoalConstraints(userId, existing.goal_id, newDate, newBlockMins, id, supabase);
+                }
+
                 const { error } = await supabase
                     .from('schedule_blocks')
                     .update(fields)
@@ -541,7 +574,7 @@ export class PatchService {
                 // Verify block exists and check immutability
                 const { data: moveTarget } = await supabase
                     .from('schedule_blocks')
-                    .select('id, block_type')
+                    .select('id, block_type, goal_id, start_time, end_time, date')
                     .eq('id', id)
                     .eq('user_id', userId)
                     .maybeSingle();
@@ -553,6 +586,17 @@ export class PatchService {
                 }
                 const updateData: any = { start_time: start, end_time: end };
                 if (op.date) updateData.date = op.date;
+
+                if (moveTarget.goal_id) {
+                    const timeToMin = (t: string) => {
+                        const [h, m] = (t || '0:0').split(':').map(Number);
+                        return (h || 0) * 60 + (m || 0);
+                    };
+                    const newDate = op.date || moveTarget.date;
+                    const newBlockMins = Math.max(0, timeToMin(end) - timeToMin(start));
+                    await this.validateGoalConstraints(userId, moveTarget.goal_id, newDate, newBlockMins, id, supabase);
+                }
+
                 const { data: moved, error } = await supabase
                     .from('schedule_blocks')
                     .update(updateData)
@@ -755,6 +799,7 @@ export class PatchService {
                     const IMMUTABLE = ['sleep', 'meal', 'wind_down', 'anchor'];
                     const idsToDelete = futureBlocks.filter((b: any) => {
                         if (IMMUTABLE.includes(b.block_type)) return false;
+                        if (b.is_locked) return false;
                         if (b.status === 'done') return false;
                         return true;
                     }).map((b: any) => b.id);
@@ -854,6 +899,7 @@ export class PatchService {
                     /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
                     const idsToDelete = futureBlocks.filter((b: any) => {
                         if (IMMUTABLE.includes(b.block_type)) return false;
+                        if (b.is_locked) return false;
                         if (b.status === 'done') return false;
                         if (b.date === todayStr) {
                             const [h, m] = b.start_time.split(':').map(Number);

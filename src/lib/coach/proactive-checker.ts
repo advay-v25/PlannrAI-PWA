@@ -14,13 +14,25 @@ export async function checkProactiveTriggers(
     userId: string,
     supabase: any
 ): Promise<ProactiveSuggestion | null> {
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('timezone, sleep_start, sleep_end, wind_down_mins')
+        .eq('id', userId)
+        .single();
+
+    const tz = profile?.timezone || 'UTC';
+    
+    // Create localized date strings (YYYY-MM-DD) for today and tomorrow in user's timezone
     const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
+    const today = formatter.format(now);
+    
+    const tomorrowDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const tomorrow = formatter.format(tomorrowDate);
 
     // Check triggers in priority order
     const triggers = [
-        () => checkTomorrowOverload(userId, supabase, tomorrow),
+        () => checkTomorrowOverload(userId, supabase, tomorrow, profile),
         () => checkEnergyMismatch(userId, supabase, today),
         () => checkConsecutiveMisses(userId, supabase),
         () => checkGoalBehind(userId, supabase),
@@ -39,7 +51,8 @@ export async function checkProactiveTriggers(
 async function checkTomorrowOverload(
     userId: string,
     supabase: any,
-    tomorrow: string
+    tomorrow: string,
+    profile: any
 ): Promise<ProactiveSuggestion | null> {
     const { data: blocks } = await supabase
         .from('schedule_blocks')
@@ -49,12 +62,6 @@ async function checkTomorrowOverload(
         .eq('status', 'planned');
 
     if (!blocks || blocks.length === 0) return null;
-
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('sleep_start, sleep_end, wind_down_mins')
-        .eq('id', userId)
-        .single();
 
     if (!profile) return null;
 

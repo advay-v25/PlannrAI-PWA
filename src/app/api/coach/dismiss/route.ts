@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
             .eq('user_id', user.id);
 
         // Also clear needs_rescheduling flag if this was a scheduling suggestion
-        if (suggestion_id === 'goal-sync-needed') {
+        if (suggestion_id === 'settings-sync-needed') {
             const { data: profile } = await supabase.from('profiles').select('bio_data').eq('id', user.id).single();
             const bioData = (profile?.bio_data as any) || {};
             if (bioData.needs_rescheduling) {

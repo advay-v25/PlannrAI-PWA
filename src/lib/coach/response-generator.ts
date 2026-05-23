@@ -16,6 +16,7 @@ export interface CoachResponse {
     timestamp: string;
     mode: 'execute' | 'propose' | 'clarify' | 'acknowledge' | 'inform';
     summary: string;
+    execution_tactics?: string;
     options?: CoachOption[];
     clarification?: {
         question: string;
@@ -42,6 +43,7 @@ export interface CoachOption {
         warning: string;
         severity: 'info' | 'caution' | 'warning';
     };
+    scenario_analysis?: string;
     patch: SchedulePatch;
     preview: {
         blocks_added: number;
@@ -69,7 +71,8 @@ export type PatchOperation =
     | { type: 'delete_goal'; goal_id: string }
     | { type: 'create_todo'; data: NewTodoData }
     | { type: 'update_todo'; todo_id: string; changes: Partial<TodoData> }
-    | { type: 'delete_todo'; todo_id: string };
+    | { type: 'delete_todo'; todo_id: string }
+    | { type: 'update_settings'; data: any };
 
 interface NewGoalData {
     title: string;
@@ -378,7 +381,13 @@ User: ${coachCtx.user.first_name}
 Sleep: ${coachCtx.user.sleep_end} wake → ${coachCtx.user.sleep_start} sleep
 Minimal mode: ${coachCtx.user_state.is_minimal_mode}
 Recent missed blocks: ${coachCtx.user_state.recent_missed_blocks}
+Emotional State: ${coachCtx.user_state.emotional_state || 'neutral'}
 ${bioContext}
+
+━━━ 3-DAY BIO-RHYTHM TREND ━━━
+${coachCtx.bio_rhythm_trend && coachCtx.bio_rhythm_trend.length > 0 
+    ? coachCtx.bio_rhythm_trend.map(t => `  - ${t.date}: Energy ${t.energy_level}/10, Mood: ${t.mood} ${t.notes ? `(Notes: ${t.notes})` : ''}`).join('\n')
+    : '  (No trend data available)'}
 
 ━━━ TODAY'S SCHEDULE (${now.date}) ━━━
 ${todayText}
@@ -621,11 +630,15 @@ The user's name is ${userName}. Address them by name occasionally (not every mes
 - Never repeat yourself. If you already explained something, build on it rather than restating it.
 - If the user rejected a previous suggestion, acknowledge it and pivot — don't re-propose the same thing.
 
-🎭 EMOTIONAL CALIBRATION:
-- Match intensity to the user's emotional state. If they say "I'm exhausted", respond with genuine warmth first, THEN propose changes. If they say "let's crush it", match their energy.
-- For casual requests ("move gym to 5pm"), keep it brief and efficient — no monologues.
-- For emotional messages ("I can't do this"), lead with empathy before scheduling logic.
+🎭 EMOTIONAL CALIBRATION & DEVIATION ANALYSIS:
+- Match intensity to the user's emotional state. If they say "I'm exhausted" or their BIO-CONTEXT indicates low energy/mood, respond with genuine warmth first, THEN propose changes. If they say "let's crush it", match their energy.
+- **Act as a Deviation Analyst**: When a block is missed, look at their energy and trend. WHY was it missed? If energy is ≤ 3 or mood is negative, DO NOT just reschedule a heavy block. Propose swapping it for a lighter "recovery" block or deferring it.
 - NEVER be condescending. "Tough love" means honest and direct, not dismissive.
+
+🧠 EXECUTION SPECIALIST (TACTICAL ADVICE):
+- Don't just schedule blocks; tell the user HOW to execute them based on their current state.
+- If energy is low, suggest a "15-minute micro-sprint just to get started" or "put your phone in another room".
+- If proposing a new 'flex' block, aggressively use the \`checklist\` field in the operation payload to break down the task into bite-sized execution steps to lower the barrier to entry.
 
 ⏰ TIME-OF-DAY AWARENESS:
 - If it's morning (before 10am): Focus on setting up the day for success.
@@ -647,7 +660,8 @@ STRATEGIC DIRECTIVES:
 6. ONE BODY GOAL PER DAY: Max ONE body-pillar goal per day.
 
 7. GOAL AUTO-TUNING CONSENT (ABSOLUTE RULE):
-   - NEVER generate an \`update_goal\` operation to lower a goal's time commitment (minutes_per_day/days_per_week) UNLESS the user explicitly asks for it (e.g. "lower my target", "reduce my gym time"). If they just say "I'm overwhelmed", only clear calendar blocks.
+   - Normally, NEVER generate an \`update_goal\` operation to lower a goal's time commitment UNLESS the user explicitly asks for it.
+   - **BURNOUT EXCEPTION**: If the user is in severe energy debt (energy ≤ 3) or explicitly burned out, you MAY propose an \`update_goal\` operation to temporarily reduce their \`minutes_per_day\` or \`days_per_week\`. However, you must ask for their explicit consent in the \`tradeoff\` or \`scenario_analysis\` string before they apply it.
 
 8. AUTO-EXECUTION VS PROPOSAL:
    - SELECT "suggested_mode": "execute" ONLY for:
@@ -679,23 +693,34 @@ STRATEGIC DIRECTIVES:
 - create_block is ONLY for adding a brand-new block that doesn't already exist.
 - If you use create_block when move_block was needed, you will duplicate the block and leave the original in place — this is WRONG.
 
-🚫 IMMUTABLE BLOCKS (ABSOLUTE — NEVER VIOLATE):
-- NEVER move, delete, modify, or reschedule blocks of type: sleep, meal, wind_down, anchor.
-- These are biological necessities and fixed commitments. They are SACRED.
-- A replanned or rescheduled block should NEVER be scheduled for a time that is covered by anchors, sleep, meal, or wind_down. These slots are completely off-limits for new or moved blocks.
-- To free up time, you MUST work around goal blocks, buffer blocks, routine blocks, or flex blocks ONLY.
-- If the user asks to skip sleep or meals, REFUSE and explain why it's harmful.
-- If all remaining blocks are immutable, tell the user there's nothing to optimize.
+🚫 IMMUTABLE BLOCKS (PROCEED WITH CAUTION):
+- Sleep, meals, wind_down, and anchors are biological necessities and fixed commitments.
+- You HAVE the power to move, shorten, or delete them IF the user explicitly requests it or if an extreme deviation requires a complex, aggressive solution to save the day.
+- However, for basic problems, provide basic solutions. Do NOT disrupt immutable blocks for simple scheduling requests. Use your practical judgement: is the disruption worth the trade-off? If you disrupt them, you MUST explicitly state the trade-off.
+- If the user asks to skip sleep or meals without a valid emergency, REFUSE and explain why it's harmful.
+- A replanned or rescheduled block should generally avoid these slots unless absolutely necessary.
 
-🔄 AD-HOC INSERTIONS & CONFLICT RESOLUTION (CRITICAL):
+🔄 OVERLAPPING BLOCKS & CASCADING MOVES (CRITICAL RULE):
+- You MUST NEVER schedule two blocks at the same time. Overlaps are strictly forbidden.
+- If you need to move a block to a slot that is already occupied, you MUST "cascade" the occupied block to a new open slot using an additional \`move_block\` operation.
+- Keep moving blocks around until there is ONLY ONE BLOCK occupying any given time slot.
+- If a block is pushed entirely off the day (the day is full), try to move it to an open slot on the NEXT DAY.
+- If there is no open place in the entire week for the pushed-off block, DO NOT schedule it. Let it fall off as "missed" and explicitly notify the user in your response that the block had to be dropped due to lack of time.
+
+🧠 PROBLEM COMPLEXITY AWARENESS:
+- Detect whether the user's prompt requires a basic or complex solution.
+- Basic requests (e.g. "Move gym to 5 PM") get basic solutions (a simple move_block). Don't touch the rest of the schedule unless it overlaps (in which case, cascade!).
+- Complex requests (e.g. "My whole day is ruined") require complex, aggressive solutions (replanning the day, skipping meals). Decide practically and suggest accordingly.
 When the user gives an unstructured request like "I need to go grocery shopping today" or "Meet friends at 9 PM tomorrow", you must evaluate the calendar carefully:
 1. IDENTIFY THE DURATION: Estimate the duration if not explicitly provided (e.g. Grocery shopping = ~60 mins, Meeting friends = ~90-120 mins).
 2. CHECK FREE SLOTS FIRST: Look at the target day's VERIFIED FREE SLOTS. If there is a slot large enough, generate a \`create_block\` to fit entirely inside it.
-3. CONFLICT RESOLUTION (IF NO FREE TIME): If the requested time is occupied (e.g., "Meet friends at 9 PM" but 9 PM has a "Reading" goal block), you MUST displace the occupying block IF the occupying block is lower or equal priority. 
-   -> Generate a \`delete_block\` OR \`move_block\` for the occupying block FIRST.
-   -> THEN generate the \`create_block\` for the ad-hoc request at the exact time.
-4. TRADEOFF COMMUNICATION: When displacing blocks, explicitly fill out the \`tradeoff\` field in the option to warn the user (e.g. "Warning: This replaces your 9 PM reading goal. Severity: caution").
-5. NEVER displace immutable blocks (sleep, meals, anchors). If they conflict, refuse the insertion and offer alternative times.
+3. STRICT CONFLICT RESOLUTION (CRITICAL - NO MATH REQUIRED): If the user's requested time is already occupied (e.g., "Meet friends from 9 AM to 12 PM" but 9:00 AM has "Side Project" and 10:15 AM has "Gym Workout"), you do NOT need to manually calculate and move the existing blocks yourself!
+   Instead, you will leverage the calendar's Auto-Cascade engine by generating exactly TWO operations in this exact order:
+   -> FIRST: Generate a \`create_block\` operation for the new ad-hoc block at the exact time, BUT you MUST add \`"is_locked": true\` to its data payload. This locks it in place.
+   -> THEN: Generate a \`replan_day\` operation.
+   The engine will automatically clear the overlapping blocks and perfectly cascade/reorganize them around your new locked block!
+4. TRADEOFF COMMUNICATION: When using Auto-Cascade, explicitly fill out the \`tradeoff\` field to warn the user (e.g. "Warning: This will cascade your existing morning blocks to later in the day. Severity: info").
+5. NEVER overlap with immutable blocks (sleep, meals, anchors). If they conflict, refuse the insertion and offer alternative times.
 
 🔄 MISSED BLOCK 4-OPTION PROTOCOL (STRICT EXECUTION):
 When the user says they missed or will miss a block and want to reschedule, you MUST ALWAYS provide exactly these 4 options in this specific order.
@@ -767,7 +792,7 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
 1. Does ANY move_block or create_block overlap with a sleep, meal, wind_down, or anchor block on that date? If YES -> DISCARD this option.
 2. Does the option delete a block belonging to the SAME GOAL as the block being rescheduled? If YES -> DISCARD this option. Replacing "PlannrAI" with "PlannrAI" or "Study" with "Study" is USELESS.
 3. Does the new_date in the operation JSON match the day described in the title/description? If "Thursday evening" is described, new_date MUST be Thursday's date. If they differ -> FIX the operation.
-4. Does the new time slot overlap with any existing block on that day (check the FULL SCHEDULE)? If YES and the overlapping block is not being deleted in a prior op -> DISCARD this option.
+4. Does the new time slot overlap with any existing block on that day (check the FULL SCHEDULE)? If YES, you MUST ensure that your option's operations array contains either a \`replan_day\` operation OR explicit \`move_block\`/\`delete_block\` ops to clear the space. If it contains neither -> DISCARD this option.
 5. Is the target time in the past (before the current time today)? If YES -> DISCARD this option.
 6. Does the block FIT entirely within the free slot shown? Free slots show the FULL gap (e.g., "10:00–12:00 (2h free)"). If the block's end_time exceeds the slot's end, it overlaps the next block -> DISCARD this option.
 7. NEVER shorten any existing block to make room. The ONLY block that can be shortened is the missed block itself in Option 1.
@@ -779,6 +804,7 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
 - "summary": Must be a conversational string in your persona. NEVER include JSON or operations inside the summary string.
 {
   "summary": "Donna's conversational response. Speak directly to the user with tough love, high standards, and actionable advice. (2-3 sentences)",
+  "execution_tactics": "Specific, tactical advice on HOW to execute the next block based on their current energy (e.g., 'Use the Pomodoro technique', 'Do a 10-min micro-sprint').",
   "confidence_score": 0.0-1.0,
   "suggested_mode": "propose" | "execute",
   "strategic_insight": "A single sentence explaining WHY this optimization matters for their goals",
@@ -789,6 +815,7 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
       "description": "What this option does",
       "impact": "Concrete positive outcome (e.g., 'Reclaims 2 hours of peak focus')",
       "tradeoff": { "warning": "Any downsides", "severity": "info|caution|warning" },
+      "scenario_analysis": "Deviation Analyst breakdown of secondary impacts (e.g., 'Moving this to Friday will protect focus but cannibalize your wind-down time').",
       "operations": [
         { "type": "create_block|move_block|update_block|delete_block|replan_week|replan_day|create_todo|update_todo|delete_todo|create_goal|update_goal|delete_goal|update_settings", ... }
       ],
@@ -799,8 +826,8 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
 
     const recentHistory = conversationHistory.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n');
 
-    const isMissedBlock = /missed|miss|didn't|did not|avoided|avoid|option|options/i.test(userMessage) || 
-                          /missed|miss|didn't|did not|avoided|avoid|option|options/i.test(recentHistory);
+    const isMissedBlock = classification.primary_intent === CoachIntent.RESCHEDULE_DAY || 
+                          /missed|miss|didn't|did not|avoided|avoid/i.test(userMessage);
 
     const isRejection = /none|neither|don't like|dont like|manual|myself|reject|no|stop/i.test(userMessage);
 
@@ -829,10 +856,10 @@ ${classification.entities.duration ? `Duration: ${classification.entities.durati
 ${classification.extracted_constraint ? `Constraint: ${classification.extracted_constraint.type} ${classification.extracted_constraint.start_time}-${classification.extracted_constraint.end_time} on ${classification.extracted_constraint.date}` : ''}
 
 ${optionsInstruction}`;
-
     try {
         const response = await callAI<{
             summary: string;
+            execution_tactics?: string;
             confidence_score: number;
             suggested_mode: 'execute' | 'propose';
             strategic_insight?: string;
@@ -842,6 +869,7 @@ ${optionsInstruction}`;
                 description: string;
                 impact: string;
                 tradeoff?: { warning: string; severity: string };
+                scenario_analysis?: string;
                 operations: PatchOperation[];
                 blocks_added: number;
                 blocks_modified: number;
@@ -1101,14 +1129,15 @@ ${optionsInstruction}`;
                 });
 
                 return {
-                    id: opt.id || `option_${i}`,
-                    title: opt.title,
-                    description: opt.description,
-                    impact: opt.impact || data.strategic_insight || "Optimizing your schedule",
+                    id: opt.id || `opt_${i + 1}`,
+                    title: opt.title || `Option ${i + 1}`,
+                    description: opt.description || '',
+                    impact: opt.impact || '',
                     tradeoff: opt.tradeoff ? {
                         warning: opt.tradeoff.warning,
                         severity: (opt.tradeoff.severity as 'info' | 'caution' | 'warning') || 'info',
                     } : undefined,
+                    scenario_analysis: opt.scenario_analysis,
                     patch: {
                         operations: normalizedOps,
                         ops: calendarOps,
@@ -1134,7 +1163,8 @@ ${optionsInstruction}`;
                 timestamp: new Date().toISOString(),
                 mode: aiMode,
                 summary: data.summary || "Here are some options for you.",
-                options,
+                execution_tactics: data.execution_tactics,
+                options: options.length > 0 ? options : undefined,
                 minimal_mode: coachCtx.user_state.is_minimal_mode,
                 conversation_context: { can_undo: false },
                 options_expire_at: getExpirationTime(15),
@@ -1255,6 +1285,11 @@ function normalizeOperation(op: any): PatchOperation {
                 type: 'delete_todo',
                 todo_id: op.todo_id || op.id,
             };
+        case 'update_settings':
+            return {
+                type: 'update_settings',
+                data: op.data || {},
+            };
         default:
             console.warn('[CoachAI] Unknown operation type:', type);
             return op;
@@ -1347,6 +1382,12 @@ function convertToCalendarPatchOp(op: PatchOperation): any {
                 op: 'delete_todo',
                 todo_id: op.todo_id,
                 title: (op as any).title || 'Task',
+            };
+        case 'update_settings':
+            return {
+                op: 'update_settings',
+                payload: op.data,
+                title: 'Update Settings',
             };
         default:
             return op;
