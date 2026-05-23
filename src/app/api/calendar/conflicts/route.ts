@@ -39,7 +39,7 @@ export const GET = secureApiRoute(
         const mealWindows = profile?.meal_windows || {
             breakfast: { start: '07:00', end: '10:00' },
             lunch: { start: '12:00', end: '15:00' },
-            dinner: { start: '18:30', end: '21:30' },
+            dinner: { start: '20:00', end: '21:30' },
         };
 
         const weekDays: Record<string, any[]> = {};

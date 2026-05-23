@@ -33,7 +33,7 @@ const mockProfile = {
     meal_windows: {
         breakfast: { start: '07:00', end: '10:00' },
         lunch: { start: '12:00', end: '15:00' },
-        dinner: { start: '18:30', end: '21:30' },
+        dinner: { start: '20:00', end: '21:30' },
     },
     energy_level: 2, // Low
     stress_level: 8, // High

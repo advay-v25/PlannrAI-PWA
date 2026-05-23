@@ -259,10 +259,10 @@ export const useCoach = create<CoachState>()(
         if (!lastUndoToken) return false;
 
         try {
-          const res = await fetch('/api/calendar/undo', {
+          const res = await fetch('/api/coach/undo', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token: lastUndoToken })
+            body: JSON.stringify({ undo_token: lastUndoToken })
           });
 
           if (!res.ok) throw new Error('Undo failed');
@@ -296,10 +296,10 @@ export const useCoach = create<CoachState>()(
         set({ checkingProactive: true });
         
         try {
-          const raw = await apiClient.get('/api/coach/proactive');
-          const { response: coachRes } = extractCoachResponse(raw);
+          const raw = await apiClient.get('/api/coach/proactive') as any;
+          const proactiveData = raw?.proactive || (raw?.response && raw.response.proactive) || null;
           set({
-            proactiveSuggestion: coachRes?.proactive || null,
+            proactiveSuggestion: proactiveData,
             hasLoadedProactive: true,
             checkingProactive: false,
             lastSync: Date.now()
@@ -323,8 +323,30 @@ export const useCoach = create<CoachState>()(
               lastSync: data.state.lastSync
             }));
           } catch (error) {
-            console.error('[Coach] Failed to load history:', error);
+            console.error('[Coach] Failed to load local history:', error);
           }
+        }
+
+        // Fetch from server to sync state
+        try {
+          const res = await apiClient.get('/api/coach/history') as any;
+          if (res?.success && res?.messages && res.messages.length > 0) {
+            set(state => ({
+              messages: res.messages.map((m: any) => ({
+                id: m.id,
+                role: m.role,
+                content: m.content,
+                mode: m.mode,
+                options: m.options,
+                selected_option_id: m.selected_option_id,
+                timestamp: new Date(m.created_at).getTime()
+              })),
+              conversationId: res.conversation_id,
+              lastSync: Date.now()
+            }));
+          }
+        } catch (error) {
+          console.error('[Coach] Failed to load server history:', error);
         }
       },
 
@@ -334,7 +356,7 @@ export const useCoach = create<CoachState>()(
 
         try {
           await apiClient.post('/api/coach/dismiss', {
-            uid: suggestion.dismiss_uid
+            suggestion_id: suggestion.dismiss_uid
           });
           set({ proactiveSuggestion: null });
         } catch (error) {
