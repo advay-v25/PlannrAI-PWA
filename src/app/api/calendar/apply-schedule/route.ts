@@ -262,14 +262,22 @@ export const POST = secureApiRoute(
                     console.log(`[ApplySchedule] Goal enforcement: filtered out ${goalSkipped} blocks exceeding daily limits`);
                 }
 
-                const blocks = goalEnforcedBlocks.map((b: any) => ({
-                    ...b,
-                    user_id: userId,
-                    status: b.status || 'planned',
-                    block_type: normalizeBlockType(b.block_type || 'flex'),
-                    // Normalize pillar: lowercase and validate against DB constraint
-                    pillar: normalizePillar(b.pillar),
-                }));
+                const blocks = goalEnforcedBlocks.map((b: any) => {
+                    let adjustedEnd = b.end_time;
+                    if (timeToMin(adjustedEnd) <= timeToMin(b.start_time)) {
+                        adjustedEnd = '23:59:59';
+                    }
+                    
+                    return {
+                        ...b,
+                        end_time: adjustedEnd,
+                        user_id: userId,
+                        status: b.status || 'planned',
+                        block_type: normalizeBlockType(b.block_type || 'flex'),
+                        // Normalize pillar: lowercase and validate against DB constraint
+                        pillar: normalizePillar(b.pillar),
+                    };
+                });
 
                 if (blocks.length > 0) {
                     // DETAILED LOGGING FOR DEBUGGING

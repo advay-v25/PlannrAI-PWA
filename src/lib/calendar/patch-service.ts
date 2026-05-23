@@ -135,19 +135,30 @@ export class PatchService {
         try {
             for (const change of patch.changes) {
                 if (change.op === 'CREATE') {
+                    let end_time = change.block.end_time;
+                    if (end_time && change.block.start_time) {
+                        const t2m = (t: string) => { const [h,m] = t.split(':').map(Number); return (h||0)*60 + (m||0); };
+                        if (t2m(end_time) <= t2m(change.block.start_time)) end_time = '23:59:59';
+                    }
                     const { error } = await supabase.from('schedule_blocks').insert({
                         ...change.block,
+                        end_time,
                         user_id: userId,
                         created_at: new Date().toISOString()
                     });
                     if (error) throw error;
                 }
                 else if (change.op === 'MOVE') {
+                    let end_time = change.new_end_time;
+                    if (end_time && change.new_start_time) {
+                        const t2m = (t: string) => { const [h,m] = t.split(':').map(Number); return (h||0)*60 + (m||0); };
+                        if (t2m(end_time) <= t2m(change.new_start_time)) end_time = '23:59:59';
+                    }
                     const { error } = await supabase.from('schedule_blocks')
                         .update({
                             date: change.new_date,
                             start_time: change.new_start_time,
-                            end_time: change.new_end_time
+                            end_time: end_time
                         })
                         .eq('id', change.block_id)
                         .eq('user_id', userId);
