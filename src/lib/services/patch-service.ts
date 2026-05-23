@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { CalendarEngine } from '@/lib/calendar/calendar-engine';
 import { buildCalendarContext } from '@/lib/calendar/context-builder';
 import { generateWeekPlan } from '@/lib/calendar/ai/plan-week';
+import crypto from 'crypto';
 
 // --- Patch Op Types ---
 
@@ -111,23 +112,24 @@ export class PatchService {
         }
     }
 
+    private static timeToMin(t: string): number {
+        const [h, m] = (t || '0:0').split(':').map(Number);
+        return (h || 0) * 60 + (m || 0);
+    }
+
+    private static minToTime(m: number): string {
+        const h = Math.floor(m / 60);
+        const mm = m % 60;
+        return `${h.toString().padStart(2, '0')}:${mm.toString().padStart(2, '0')}:00`;
+    }
+
     /**
      * Recursively resolves overlapping blocks by shifting them forward in time.
      * Throws an error if an immutable block is encountered or if shifting pushes past midnight.
      */
     private static async cascadeOverlaps(userId: string, date: string, blockId: string, sTime: string, eTime: string, supabase: SupabaseClient) {
-        const timeToMin = (t: string) => {
-            const [h, m] = (t || '0:0').split(':').map(Number);
-            return (h || 0) * 60 + (m || 0);
-        };
-        const minToTime = (m: number) => {
-            const h = Math.floor(m / 60);
-            const mm = m % 60;
-            return `${h.toString().padStart(2, '0')}:${mm.toString().padStart(2, '0')}:00`;
-        };
-        
-        const newStart = timeToMin(sTime);
-        const newEnd = timeToMin(eTime);
+        const newStart = this.timeToMin(sTime);
+        const newEnd = this.timeToMin(eTime);
         
         // Find all blocks on this date
         const { data: blocks } = await supabase.from('schedule_blocks').select('*').eq('user_id', userId).eq('date', date);
@@ -137,8 +139,8 @@ export class PatchService {
         for (const block of blocks) {
             if (block.id === blockId) continue;
             
-            const bStart = timeToMin(block.start_time);
-            const bEnd = timeToMin(block.end_time);
+            const bStart = this.timeToMin(block.start_time);
+            const bEnd = this.timeToMin(block.end_time);
             
             // Overlap condition
             if (bStart < newEnd && bEnd > newStart) {
@@ -156,8 +158,8 @@ export class PatchService {
                     throw new Error(`Cascading failed: Pushes block "${block.title}" beyond midnight`);
                 }
                 
-                const newSTime = minToTime(cascadedStart);
-                const newETime = minToTime(cascadedEnd);
+                const newSTime = this.minToTime(cascadedStart);
+                const newETime = this.minToTime(cascadedEnd);
                 
                 const { error } = await supabase.from('schedule_blocks').update({ start_time: newSTime, end_time: newETime }).eq('id', block.id);
                 if (error) throw new Error(`Cascade update failed: ${error.message}`);
@@ -166,6 +168,355 @@ export class PatchService {
                 await this.cascadeOverlaps(userId, date, block.id, newSTime, newETime, supabase);
             }
         }
+    }
+
+    /**
+     * Simulates the execution of all operations in the patch in-memory.
+     * Computes the final state of all schedule blocks on the affected dates.
+     * Throws an error if any constraint is violated or if cascading fails.
+     */
+    private static async simulateAndValidatePatch(
+        userId: string,
+        patch: Patch,
+        supabase: SupabaseClient,
+        source: string
+    ): Promise<{
+        success: boolean;
+        errors: string[];
+        updates: Array<{ id: string; fields: Record<string, any> }>;
+        creates: any[];
+        deletes: string[];
+        preExecState: Record<string, any>;
+    }> {
+        const errors: string[] = [];
+        const dates = new Set<string>();
+        const blockIds = new Set<string>();
+
+        // Gather touched dates and block IDs
+        for (const op of patch.ops) {
+            if (op.date) dates.add(op.date);
+            if (op.payload?.date) dates.add(op.payload.date);
+            if (op.event?.date) dates.add(op.event.date);
+            if (op.event_id) blockIds.add(op.event_id);
+        }
+
+        // Fetch dates of modified blocks to cover moves/reschedules
+        if (blockIds.size > 0) {
+            try {
+                const { data: dbBlocks } = await supabase
+                    .from('schedule_blocks')
+                    .select('date')
+                    .in('id', Array.from(blockIds))
+                    .eq('user_id', userId);
+                if (dbBlocks) {
+                    dbBlocks.forEach(b => dates.add(b.date));
+                }
+            } catch (e: any) {
+                console.warn('[PatchService] Failed to pre-fetch dates:', e.message);
+            }
+        }
+
+        if (dates.size === 0) {
+            return { success: true, errors: [], updates: [], creates: [], deletes: [], preExecState: {} };
+        }
+
+        // Fetch all blocks on all touched dates
+        const { data: dbBlocks, error } = await supabase
+            .from('schedule_blocks')
+            .select('*')
+            .eq('user_id', userId)
+            .in('date', Array.from(dates));
+
+        if (error) {
+            return { success: false, errors: [`Database error: ${error.message}`], updates: [], creates: [], deletes: [], preExecState: {} };
+        }
+
+        const preExecState: Record<string, any> = {};
+        dbBlocks?.forEach(b => {
+            preExecState[b.id] = { ...b };
+        });
+
+        // Initialize simulated list
+        const simulatedBlocks = (dbBlocks || []).map(b => ({ ...b }));
+        const deletedIds = new Set<string>();
+
+        // Helper to perform in-memory cascade
+        const simulateCascade = (blockId: string, sTime: string, eTime: string, date: string) => {
+            const newStart = this.timeToMin(sTime);
+            const newEnd = this.timeToMin(eTime);
+
+            for (const block of simulatedBlocks) {
+                if (block.id === blockId || block.date !== date || deletedIds.has(block.id)) continue;
+
+                const bStart = this.timeToMin(block.start_time);
+                const bEnd = this.timeToMin(block.end_time);
+
+                // Overlap check
+                if (bStart < newEnd && bEnd > newStart) {
+                    if (['sleep', 'meal', 'wind_down', 'anchor'].includes(block.block_type)) {
+                        throw new Error(`Cascading failed: Block overlaps with immutable ${block.block_type} block "${block.title}"`);
+                    }
+
+                    const duration = bEnd - bStart;
+                    const cascadedStart = newEnd;
+                    const cascadedEnd = cascadedStart + duration;
+
+                    if (cascadedEnd > 1440) {
+                        throw new Error(`Cascading failed: Pushes block "${block.title}" beyond midnight`);
+                    }
+
+                    const newSTime = this.minToTime(cascadedStart);
+                    const newETime = this.minToTime(cascadedEnd);
+
+                    block.start_time = newSTime;
+                    block.end_time = newETime;
+
+                    // Recurse cascade
+                    simulateCascade(block.id, newSTime, newETime, date);
+                }
+            }
+        };
+
+        // Run simulation for each operation
+        for (const op of patch.ops) {
+            const operation = op.op;
+
+            if (operation === 'create' || operation === 'create_event') {
+                const event = op.event || op.payload || {};
+                let sTime = event.start_time || event.start || event.to_start;
+                let eTime = event.end_time || event.end || event.to_end;
+                const date = event.date || op.date;
+
+                if (!sTime || !eTime || !date) {
+                    return { success: false, errors: ['Create requires start_time, end_time, and date'], updates: [], creates: [], deletes: [], preExecState };
+                }
+
+                if (this.timeToMin(eTime) <= this.timeToMin(sTime)) {
+                    eTime = '23:59:59';
+                }
+
+                const newId = event.id || crypto.randomUUID();
+                op.event_id = newId; // Save generated ID back to op for undo mapping
+
+                // Validate goal constraints for creates
+                if (event.goal_id && event.block_type === 'goal') {
+                    const newBlockMins = Math.max(0, this.timeToMin(eTime) - this.timeToMin(sTime));
+                    try {
+                        await this.validateGoalConstraints(userId, event.goal_id, date, newBlockMins, null, supabase, source);
+                    } catch (goalErr: any) {
+                        return { success: false, errors: [goalErr.message], updates: [], creates: [], deletes: [], preExecState };
+                    }
+                }
+
+                const newBlock = {
+                    id: newId,
+                    user_id: userId,
+                    title: event.title || 'New Block',
+                    start_time: sTime,
+                    end_time: eTime,
+                    date,
+                    status: event.status || 'planned',
+                    block_type: ['anchor', 'goal', 'meal', 'buffer', 'routine', 'sleep', 'wind_down', 'flex'].includes(event.block_type) ? event.block_type : 'flex',
+                    pillar: event.pillar || null,
+                    goal_id: event.goal_id || null,
+                    checklist: Array.isArray(event.checklist) ? event.checklist : null,
+                    habit_stack_id: event.habit_stack_id || null,
+                };
+
+                simulatedBlocks.push(newBlock);
+
+                if (source === 'coach') {
+                    try {
+                        simulateCascade(newId, sTime, eTime, date);
+                    } catch (cascadeErr: any) {
+                        return { success: false, errors: [cascadeErr.message], updates: [], creates: [], deletes: [], preExecState };
+                    }
+                }
+            } 
+            else if (operation === 'update' || operation === 'update_event') {
+                const id = op.event_id;
+                const fields = op.fields || op.payload || {};
+                if (!id) {
+                    return { success: false, errors: ['Update requires event_id'], updates: [], creates: [], deletes: [], preExecState };
+                }
+
+                const block = simulatedBlocks.find(b => b.id === id);
+                if (!block) {
+                    return { success: false, errors: [`Block not found: ${id}`], updates: [], creates: [], deletes: [], preExecState };
+                }
+
+                if (['sleep', 'meal', 'wind_down', 'anchor'].includes(block.block_type) && source !== 'coach') {
+                    return { success: false, errors: [`Cannot modify immutable ${block.block_type} block "${block.title}"`], updates: [], creates: [], deletes: [], preExecState };
+                }
+
+                let sTime = fields.start_time || block.start_time;
+                let eTime = fields.end_time || block.end_time;
+                const date = fields.date || block.date;
+
+                if (this.timeToMin(eTime) <= this.timeToMin(sTime)) {
+                    eTime = '23:59:59';
+                    fields.end_time = eTime;
+                }
+
+                // Validate goal constraints for updates
+                if (block.goal_id) {
+                    const newBlockMins = Math.max(0, this.timeToMin(eTime) - this.timeToMin(sTime));
+                    try {
+                        await this.validateGoalConstraints(userId, block.goal_id, date, newBlockMins, id, supabase, source);
+                    } catch (goalErr: any) {
+                        return { success: false, errors: [goalErr.message], updates: [], creates: [], deletes: [], preExecState };
+                    }
+                }
+
+                Object.assign(block, fields);
+                block.start_time = sTime;
+                block.end_time = eTime;
+                block.date = date;
+
+                if (source === 'coach') {
+                    try {
+                        simulateCascade(id, sTime, eTime, date);
+                    } catch (cascadeErr: any) {
+                        return { success: false, errors: [cascadeErr.message], updates: [], creates: [], deletes: [], preExecState };
+                    }
+                }
+            }
+            else if (operation === 'move' || operation === 'move_event') {
+                const id = op.event_id;
+                const start = op.to_start || op.start_time;
+                const end = op.to_end || op.end_time;
+                const date = op.date || (op as any).new_date;
+
+                if (!id || !start || !end) {
+                    return { success: false, errors: ['Move requires event_id, to_start, to_end'], updates: [], creates: [], deletes: [], preExecState };
+                }
+
+                const block = simulatedBlocks.find(b => b.id === id);
+                if (!block) {
+                    return { success: false, errors: [`Block not found: ${id}`], updates: [], creates: [], deletes: [], preExecState };
+                }
+
+                if (['sleep', 'meal', 'wind_down', 'anchor'].includes(block.block_type) && source !== 'coach') {
+                    return { success: false, errors: [`Cannot move immutable ${block.block_type} block "${block.title}"`], updates: [], creates: [], deletes: [], preExecState };
+                }
+
+                let sTime = start;
+                let eTime = end;
+                if (this.timeToMin(eTime) <= this.timeToMin(sTime)) {
+                    eTime = '23:59:59';
+                }
+
+                const cascadeDate = date || block.date;
+
+                if (block.goal_id) {
+                    const newBlockMins = Math.max(0, this.timeToMin(eTime) - this.timeToMin(sTime));
+                    try {
+                        await this.validateGoalConstraints(userId, block.goal_id, cascadeDate, newBlockMins, id, supabase, source);
+                    } catch (goalErr: any) {
+                        return { success: false, errors: [goalErr.message], updates: [], creates: [], deletes: [], preExecState };
+                    }
+                }
+
+                block.start_time = sTime;
+                block.end_time = eTime;
+                if (date) block.date = date;
+
+                if (source === 'coach') {
+                    try {
+                        simulateCascade(id, sTime, eTime, cascadeDate);
+                    } catch (cascadeErr: any) {
+                        return { success: false, errors: [cascadeErr.message], updates: [], creates: [], deletes: [], preExecState };
+                    }
+                }
+            }
+            else if (operation === 'delete' || operation === 'delete_event') {
+                const id = op.event_id;
+                if (!id) {
+                    return { success: false, errors: ['Delete requires event_id'], updates: [], creates: [], deletes: [], preExecState };
+                }
+
+                const block = simulatedBlocks.find(b => b.id === id);
+                if (block) {
+                    if (['sleep', 'meal', 'wind_down', 'anchor'].includes(block.block_type) && source !== 'coach') {
+                        return { success: false, errors: [`Cannot delete immutable ${block.block_type} block "${block.title}"`], updates: [], creates: [], deletes: [], preExecState };
+                    }
+                    deletedIds.add(id);
+                    const idx = simulatedBlocks.findIndex(b => b.id === id);
+                    if (idx !== -1) simulatedBlocks.splice(idx, 1);
+                }
+            }
+        }
+
+        // Perform final overlap checks on simulated blocks
+        const groupedByDate: Record<string, typeof simulatedBlocks> = {};
+        simulatedBlocks.forEach(b => {
+            if (deletedIds.has(b.id)) return;
+            if (!groupedByDate[b.date]) groupedByDate[b.date] = [];
+            groupedByDate[b.date].push(b);
+        });
+
+        for (const [date, blocks] of Object.entries(groupedByDate)) {
+            const sorted = [...blocks].sort((a, b) => this.timeToMin(a.start_time) - this.timeToMin(b.start_time));
+            for (let i = 0; i < sorted.length - 1; i++) {
+                const b1 = sorted[i];
+                const b2 = sorted[i + 1];
+                const b1End = this.timeToMin(b1.end_time);
+                const b2Start = this.timeToMin(b2.start_time);
+                if (b1End > b2Start) {
+                    errors.push(`Overlap detected on ${date} between "${b1.title}" (${b1.start_time}-${b1.end_time}) and "${b2.title}" (${b2.start_time}-${b2.end_time})`);
+                }
+            }
+        }
+
+        if (errors.length > 0) {
+            return { success: false, errors, updates: [], creates: [], deletes: [], preExecState };
+        }
+
+        // Determine updates and creates
+        const updates: Array<{ id: string; fields: Record<string, any> }> = [];
+        const creates: any[] = [];
+        const deletes = Array.from(deletedIds);
+
+        simulatedBlocks.forEach(sb => {
+            const original = preExecState[sb.id];
+            if (!original) {
+                creates.push(sb);
+            } else {
+                const hasChanged =
+                    sb.start_time !== original.start_time ||
+                    sb.end_time !== original.end_time ||
+                    sb.date !== original.date ||
+                    sb.title !== original.title ||
+                    sb.block_type !== original.block_type ||
+                    JSON.stringify(sb.checklist) !== JSON.stringify(original.checklist);
+
+                if (hasChanged) {
+                    updates.push({
+                        id: sb.id,
+                        fields: {
+                            start_time: sb.start_time,
+                            end_time: sb.end_time,
+                            date: sb.date,
+                            title: sb.title,
+                            block_type: sb.block_type,
+                            pillar: sb.pillar,
+                            goal_id: sb.goal_id,
+                            checklist: sb.checklist,
+                            status: sb.status
+                        }
+                    });
+                }
+            }
+        });
+
+        return {
+            success: true,
+            errors: [],
+            updates,
+            creates,
+            deletes,
+            preExecState
+        };
     }
 
     /**
@@ -180,6 +531,100 @@ export class PatchService {
     ): Promise<PatchResult> {
         let errors: string[] = [];
         let changes = 0;
+
+        const blockModOps = ['create', 'create_event', 'update', 'update_event', 'move', 'move_event', 'delete', 'delete_event'];
+        const isBlockModsOnly = patch.ops.length > 0 && patch.ops.every(op => blockModOps.includes(op.op));
+
+        if (isBlockModsOnly) {
+            // 1. Create Snapshot (BEFORE applying) — for full-scope undo
+            if (patch.scope === 'week' || patch.snapshot_requested) {
+                try {
+                    await this.createSnapshot(userId, patch, supabase);
+                } catch (snapErr: any) {
+                    console.warn('[PatchService] Snapshot failed:', snapErr.message);
+                }
+            }
+
+            // 2. Pre-flight simulation
+            const simResult = await this.simulateAndValidatePatch(userId, patch, supabase, source);
+            if (!simResult.success) {
+                console.error(`[PatchService] Simulation validation failed:`, simResult.errors);
+                return { success: false, undo_token: null, changes: 0, errors: simResult.errors };
+            }
+
+            const { updates, creates, deletes, preExecState } = simResult;
+
+            // 3. Sequential database execution
+            // A. Deletes
+            if (deletes.length > 0) {
+                const { error: delErr } = await supabase.from('schedule_blocks').delete().in('id', deletes).eq('user_id', userId);
+                if (delErr) {
+                    console.error('[PatchService] DB Delete failed:', delErr.message);
+                    return { success: false, undo_token: null, changes: 0, errors: [`Delete failed: ${delErr.message}`] };
+                }
+                changes += deletes.length;
+            }
+
+            // B. Updates (including cascaded)
+            for (const upd of updates) {
+                const { error: updErr } = await supabase.from('schedule_blocks').update(upd.fields).eq('id', upd.id).eq('user_id', userId);
+                if (updErr) {
+                    console.error('[PatchService] DB Update failed:', updErr.message);
+                    return { success: false, undo_token: null, changes: 0, errors: [`Update failed: ${updErr.message}`] };
+                }
+                changes += 1;
+            }
+
+            // C. Creates
+            if (creates.length > 0) {
+                const { error: insErr } = await supabase.from('schedule_blocks').insert(creates);
+                if (insErr) {
+                    console.error('[PatchService] DB Insert failed:', insErr.message);
+                    return { success: false, undo_token: null, changes: 0, errors: [`Insert failed: ${insErr.message}`] };
+                }
+                changes += creates.length;
+            }
+
+            // 4. Calculate Inverse Patch
+            let inversePatch: Patch = { ops: [] };
+            try {
+                inversePatch = this.buildInversePatchFromOps(patch, preExecState);
+            } catch (invErr: any) {
+                console.warn('[PatchService] Inverse patch calc failed:', invErr.message);
+            }
+
+            // 5. Store Undo Token
+            let undoToken: string | null = null;
+            if (patch.undoable !== false) {
+                try {
+                    const { data: run, error } = await supabase
+                        .from('patch_runs')
+                        .insert({
+                            user_id: userId,
+                            patch: patch as any,
+                            inverse_patch: inversePatch as any,
+                            applied: true,
+                            source,
+                            created_at: new Date().toISOString()
+                        })
+                        .select('id')
+                        .single();
+
+                    if (error) {
+                        console.error('[PatchService] Failed to store patch run:', error);
+                    } else {
+                        undoToken = run.id;
+                        console.log(`[PatchService] Undo token created: ${undoToken} with ${inversePatch.ops.length} inverse ops`);
+                    }
+                } catch (e: any) {
+                    console.error('[PatchService] Undo storage failed:', e.message);
+                }
+            }
+
+            return { success: true, undo_token: undoToken, changes, errors: [] };
+        }
+
+        // --- Traditional Fallback Path (For non-block-modification operations) ---
 
         // 0. Pre-Flight Validation via Engine (Deterministic Check)
         // Skip for coach patches — AI may generate approximate block IDs that fail lookup
@@ -209,8 +654,6 @@ export class PatchService {
         }
 
         // 2. Calculate pre-execution state for inverse patch
-        // We need to capture the CURRENT state of blocks that will be modified/deleted/moved
-        // BEFORE executing, so we can revert them.
         let preExecState: Record<string, any> = {};
         try {
             const touchedEventIds = patch.ops
@@ -259,7 +702,6 @@ export class PatchService {
         }
 
         // 4. Calculate Inverse Patch AFTER execution
-        // Now create_event ops have their generated IDs stored on op.event_id
         let inversePatch: Patch = { ops: [] };
         try {
             inversePatch = this.buildInversePatchFromOps(patch, preExecState);

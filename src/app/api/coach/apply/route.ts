@@ -513,17 +513,14 @@ async function validateCoachOps(patch: any, userId: string, supabase: any): Prom
             // Skip blocks being deleted in the same patch
             if (deletedIds.has(block.id)) continue;
             
-            // If the patch includes a replan_day operation, ONLY check for overlaps with IMMUTABLE blocks.
-            // All other non-immutable blocks will be automatically deleted and cascaded by the replan engine.
-            if (hasReplan && !IMMUTABLE_TYPES.includes(block.block_type)) {
-                continue;
-            }
-            
-            // Check for overlaps against ANY block (or just immutable if hasReplan)
-            if (overlaps(slot.start, slot.end, block.start_time, block.end_time)) {
-                errors.push(
-                    `Cannot ${slot.op} "${slot.title}" at ${slot.start}-${slot.end} — overlaps with existing ${block.block_type} block "${block.title}" (${block.start_time}-${block.end_time})`
-                );
+            // Check for overlaps: Coach patches can cascade flexible blocks,
+            // so we ONLY reject overlaps with IMMUTABLE blocks (sleep, meal, wind_down, anchor).
+            if (IMMUTABLE_TYPES.includes(block.block_type)) {
+                if (overlaps(slot.start, slot.end, block.start_time, block.end_time)) {
+                    errors.push(
+                        `Cannot ${slot.op} "${slot.title}" at ${slot.start}-${slot.end} — overlaps with immutable ${block.block_type} block "${block.title}" (${block.start_time}-${block.end_time})`
+                    );
+                }
             }
         }
     }

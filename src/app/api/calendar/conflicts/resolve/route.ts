@@ -13,7 +13,7 @@ export const POST = secureApiRoute(
             return apiError("Missing proposed timing", 400);
         }
 
-        const supabase = createClient() as unknown as SupabaseClient<any, "public", any>;
+        const supabase = await createClient() as unknown as SupabaseClient<any, "public", any>;
 
         // 1. Fetch Schedule
         const { data: schedule } = await supabase

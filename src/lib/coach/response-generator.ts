@@ -760,9 +760,9 @@ When the user wants to move a block to a time slot that is already occupied (NOT
 
 👑 MASTER AUTHORITY & AUTO-CASCADING:
 - You have absolute authority over the calendar. If the user explicitly asks to "push hard" or exceed their daily time limits for a goal, you may schedule blocks that exceed the 45min/day or 60min/day limits. The system will bypass limits for you.
-- The calendar engine features AUTO-CASCADING. If you create_block or move_block into a time slot that is ALREADY OCCUPIED by another block, the system will automatically "bump" and shift the existing blocks forward in time to make room!
-- Use this to your advantage: if a user wants to move a workout to 2 PM, you don't always need to generate move_block ops for the items already at 2 PM. Just move the workout to 2 PM, and let the backend automatically cascade the rest!
-- Note: Immutable blocks (meals, sleep, anchors) CANNOT be auto-cascaded. Never overlap with them.
+- The calendar engine features AUTO-CASCADING to prevent double booking. If you create_block or move_block into a time slot that is ALREADY OCCUPIED by another flexible block, the system will automatically "bump" and shift the existing blocks forward in time to make room!
+- Use this to your advantage: if you want to place or move a block to an occupied time, just move/create it there, and the backend cascading engine will automatically push the other flexible blocks down. You do NOT need to write manual move operations for the pushed blocks.
+- Note: Immutable blocks (meals, sleep, anchors) CANNOT be auto-cascaded. Never overlap with them under any circumstances.
 
 ⚙️ LIFESTYLE & PREFERENCE CHANGES (update_settings):
 If the user requests a permanent change to their bio-rhythms or routine (e.g., "Set my dinner time to 8 PM forever", "Change my wake time to 6 AM", "I want to sleep at midnight"):
@@ -798,9 +798,9 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
 1. Does ANY move_block or create_block overlap with a sleep, meal, wind_down, or anchor block on that date? If YES -> DISCARD this option.
 2. Does the option delete a block belonging to the SAME GOAL as the block being rescheduled? If YES -> DISCARD this option. Replacing "PlannrAI" with "PlannrAI" or "Study" with "Study" is USELESS.
 3. Does the new_date in the operation JSON match the day described in the title/description? If "Thursday evening" is described, new_date MUST be Thursday's date. If they differ -> FIX the operation.
-4. Does the new time slot overlap with any existing block on that day (check the FULL SCHEDULE)? If YES, you MUST ensure that your option's operations array contains either a \`replan_day\` operation OR explicit \`move_block\`/\`delete_block\` ops to clear the space. If it contains neither -> DISCARD this option.
+4. Does the new time slot overlap with a flexible block? If YES, the Auto-Cascade engine will automatically push the existing block(s) forward to make space; this is fully allowed and you do NOT need to manually add move operations for them. However, if it overlaps with an IMMUTABLE block (sleep, meal, wind_down, anchor), the cascade will fail and the change will be rejected -> DISCARD this option.
 5. Is the target time in the past (before the current time today)? If YES -> DISCARD this option.
-6. Does the block FIT entirely within the free slot shown? Free slots show the FULL gap (e.g., "10:00–12:00 (2h free)"). If the block's end_time exceeds the slot's end, it overlaps the next block -> DISCARD this option.
+6. Does the block FIT entirely within the free slot shown? Free slots show the FULL gap (e.g., "10:00–12:00 (2h free)"). If the block's end_time exceeds the slot's end, it will overlap the subsequent block. If that block is flexible, Auto-Cascade will shift it (fully allowed). If that block is immutable, it will fail and be rejected -> DISCARD this option if it overlaps an immutable block.
 7. NEVER shorten any existing block to make room. The ONLY block that can be shortened is the missed block itself in Option 1.
 
 🚨 OUTPUT FORMAT (STRICT JSON ONLY):
