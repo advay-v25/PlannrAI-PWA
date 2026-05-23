@@ -205,6 +205,35 @@ export const PatchOpSchema = z.discriminatedUnion("op", [
         op: z.literal("analyze_content"),
         analysis: z.record(z.string(), z.any()),
     }),
+    z.object({
+        op: z.literal("replan_week"),
+        payload: z.record(z.string(), z.any()).optional(),
+    }),
+    z.object({
+        op: z.literal("replan_day"),
+        payload: z.record(z.string(), z.any()).optional(),
+    }),
+    z.object({
+        op: z.literal("create_goal"),
+        payload: z.record(z.string(), z.any()),
+    }),
+    z.object({
+        op: z.literal("delete_goal"),
+        goal_id: z.string().min(1),
+    }),
+    z.object({
+        op: z.literal("create_todo"),
+        payload: z.record(z.string(), z.any()),
+    }),
+    z.object({
+        op: z.literal("update_todo"),
+        todo_id: z.string().min(1),
+        fields: z.record(z.string(), z.any()),
+    }),
+    z.object({
+        op: z.literal("delete_todo"),
+        todo_id: z.string().min(1),
+    }),
 ]);
 
 export const PatchSchema = z.object({
