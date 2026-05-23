@@ -127,11 +127,16 @@ export async function saveCoachMessage(
     if (convs && convs.length > 0) {
         conversationId = convs[0].id;
     } else {
-        const { data: newConv } = await supabase
+        const { data: newConv, error } = await supabase
             .from('coach_conversations')
             .insert({ user_id: userId, initial_intent: 'general', primary_topic: 'general' })
             .select()
             .single();
+            
+        if (error || !newConv) {
+            console.error('[CoachContext] Failed to create new conversation:', error);
+            throw new Error('Failed to create coach conversation');
+        }
         conversationId = newConv.id;
     }
 

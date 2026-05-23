@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { callAI } from '@/lib/ai/unified-client';
 import { startOfWeek, endOfWeek, format, subWeeks } from 'date-fns';
 
+export const maxDuration = 60;
+
 export async function POST(req: Request) {
     try {
         const supabase = await createClient();

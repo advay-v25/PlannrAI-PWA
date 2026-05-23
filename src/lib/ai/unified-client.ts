@@ -386,23 +386,8 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
 
     const getRemainingTime = () => Math.max(5000, MAX_TOTAL_TIME - (Date.now() - totalStartTime));
 
-    // Calendar-dedicated key: bypass normal provider chain and use Nvidia
-    if (options.useNvidia) {
-        const nvidiaModel = tier === 'fast' ? 'meta/llama-3.1-8b-instruct' : 'meta/llama-3.1-70b-instruct';
-        console.log(`\x1b[36m[AI ✨]\x1b[0m Using Nvidia API (${nvidiaModel}) for Generation...`);
-        const calendarProvider = getNvidiaConfig(nvidiaModel);
-        const result = await callProvider<T>(calendarProvider, { ...options, timeout: getRemainingTime() });
-        if (result.success) return result;
-        
-        // Fall back to Groq Llama 3.3 70B if Nvidia fails and time remains
-        const remaining = getRemainingTime();
-        if (remaining > 10000) {
-            console.log('\x1b[33m[AI →]\x1b[0m Nvidia key failed, falling back to Groq...');
-            const groqFallback = getGroqConfig('llama-3.3-70b-versatile');
-            return callProvider<T>(groqFallback, { ...options, timeout: remaining });
-        }
-        return result;
-    }
+    // Removed Nvidia logic as it frequently times out and causes Next.js AbortErrors.
+    // Proceed immediately to Groq/OpenRouter standard fast-fallback chain.
 
     const [primary, fallback] = getProviderChain(options);
 
