@@ -11,7 +11,7 @@ export const POST = secureApiRoute(
             return apiError("Missing fields", 400);
         }
 
-        const supabase = createClient() as unknown as SupabaseClient<any, "public", any>;
+        const supabase = await createClient() as unknown as SupabaseClient<any, "public", any>;
 
         try {
             const result = await CalendarEngine.updateBlock(context.user.id, blockId, updates, supabase);

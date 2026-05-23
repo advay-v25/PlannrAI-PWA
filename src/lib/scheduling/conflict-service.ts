@@ -37,18 +37,8 @@ export class ConflictService {
             return { status: 'allowed' };
         }
 
-        // 3. Priority-Based Auto-Resolution
-        // If the incoming block has higher priority than ALL collisions, and none are fixed/locked,
-        // auto-resolve by allowing the block and shifting collisions forward
-        const hasFixed = collisions.some(c => c.is_fixed || c.commitment_id);
-        const proposalPriority = proposal.priority || 0;
-        const allLowerPriority = !hasFixed && collisions.every(c => (c.priority || 0) < proposalPriority);
-
-        if (allLowerPriority && proposalPriority > 0) {
-            // Auto-resolve: allow the higher-priority block to take the slot
-            console.log(`[ConflictService] Auto-resolving: "${proposal.title}" (priority ${proposalPriority}) overrides ${collisions.map(c => `"${c.title}" (priority ${c.priority || 0})`).join(', ')}`);
-            return { status: 'allowed' };
-        }
+        // 3. Priority-Based Auto-Resolution - Removed to prevent silent double-bookings.
+        // All conflicts must be explicitly resolved through choice options or cascading.
 
         const options: ResolutionOption[] = [];
 
@@ -77,6 +67,7 @@ export class ConflictService {
         }
 
         // Strategy 2: Shift Chain (Only if no collisions are fixed)
+        const hasFixed = collisions.some(c => c.is_fixed || c.commitment_id);
         if (!hasFixed) {
             const shiftPatch = this.calculateShiftChain(proposal, collisions);
             if (shiftPatch) {
