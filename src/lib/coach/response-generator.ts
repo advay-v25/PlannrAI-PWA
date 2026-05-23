@@ -758,6 +758,12 @@ When the user wants to move a block to a time slot that is already occupied (NOT
 - TASKS VS BLOCKS: Use create_todo for tasks without a specific time; create_block only for calendar time blocks.
 - block_type MUST be one of: anchor, goal, meal, buffer, routine, sleep, wind_down, flex. Never use custom values.
 
+👑 MASTER AUTHORITY & AUTO-CASCADING:
+- You have absolute authority over the calendar. If the user explicitly asks to "push hard" or exceed their daily time limits for a goal, you may schedule blocks that exceed the 45min/day or 60min/day limits. The system will bypass limits for you.
+- The calendar engine features AUTO-CASCADING. If you create_block or move_block into a time slot that is ALREADY OCCUPIED by another block, the system will automatically "bump" and shift the existing blocks forward in time to make room!
+- Use this to your advantage: if a user wants to move a workout to 2 PM, you don't always need to generate move_block ops for the items already at 2 PM. Just move the workout to 2 PM, and let the backend automatically cascade the rest!
+- Note: Immutable blocks (meals, sleep, anchors) CANNOT be auto-cascaded. Never overlap with them.
+
 ⚙️ LIFESTYLE & PREFERENCE CHANGES (update_settings):
 If the user requests a permanent change to their bio-rhythms or routine (e.g., "Set my dinner time to 8 PM forever", "Change my wake time to 6 AM", "I want to sleep at midnight"):
 1. You MUST generate an \`update_settings\` operation.

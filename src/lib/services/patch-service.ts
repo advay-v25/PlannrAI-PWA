@@ -61,7 +61,7 @@ export interface PatchResult {
 
 export class PatchService {
 
-    private static async validateGoalConstraints(userId: string, goalId: string | null, date: string, newBlockMins: number, excludeBlockId: string | null, supabase: SupabaseClient) {
+    private static async validateGoalConstraints(userId: string, goalId: string | null, date: string, newBlockMins: number, excludeBlockId: string | null, supabase: SupabaseClient, source: string = 'ai') {
         if (!goalId) return;
         const timeToMin = (t: string) => {
             const [h, m] = (t || '0:0').split(':').map(Number);
@@ -69,6 +69,9 @@ export class PatchService {
         };
         const { data: goalData } = await supabase.from('goals').select('minutes_per_day, days_per_week').eq('id', goalId).maybeSingle();
         if (!goalData) return;
+        
+        // Coach has Master Authority to bypass user goal limits if instructed
+        if (source === 'coach') return;
         
         const dailyLimit = goalData.minutes_per_day || 60;
         const weeklyDaysLimit = goalData.days_per_week || 5;
@@ -104,6 +107,63 @@ export class PatchService {
             
             if (activeDays.size > weeklyDaysLimit) {
                 throw new Error(`Weekly limit reached: cannot schedule on ${activeDays.size} days (limit is ${weeklyDaysLimit} days/week)`);
+            }
+        }
+    }
+
+    /**
+     * Recursively resolves overlapping blocks by shifting them forward in time.
+     * Throws an error if an immutable block is encountered or if shifting pushes past midnight.
+     */
+    private static async cascadeOverlaps(userId: string, date: string, blockId: string, sTime: string, eTime: string, supabase: SupabaseClient) {
+        const timeToMin = (t: string) => {
+            const [h, m] = (t || '0:0').split(':').map(Number);
+            return (h || 0) * 60 + (m || 0);
+        };
+        const minToTime = (m: number) => {
+            const h = Math.floor(m / 60);
+            const mm = m % 60;
+            return `${h.toString().padStart(2, '0')}:${mm.toString().padStart(2, '0')}:00`;
+        };
+        
+        const newStart = timeToMin(sTime);
+        const newEnd = timeToMin(eTime);
+        
+        // Find all blocks on this date
+        const { data: blocks } = await supabase.from('schedule_blocks').select('*').eq('user_id', userId).eq('date', date);
+        if (!blocks) return;
+        
+        // Find overlapping blocks
+        for (const block of blocks) {
+            if (block.id === blockId) continue;
+            
+            const bStart = timeToMin(block.start_time);
+            const bEnd = timeToMin(block.end_time);
+            
+            // Overlap condition
+            if (bStart < newEnd && bEnd > newStart) {
+                // If immutable, we cannot cascade it!
+                if (['sleep', 'meal', 'wind_down', 'anchor'].includes(block.block_type)) {
+                    throw new Error(`Cascading failed: Block overlaps with immutable ${block.block_type} block "${block.title}"`);
+                }
+                
+                // Cascade it! Push it forward to start at newEnd
+                const duration = bEnd - bStart;
+                const cascadedStart = newEnd;
+                const cascadedEnd = cascadedStart + duration;
+                
+                if (cascadedEnd > 1440) { // beyond midnight
+                    throw new Error(`Cascading failed: Pushes block "${block.title}" beyond midnight`);
+                }
+                
+                const newSTime = minToTime(cascadedStart);
+                const newETime = minToTime(cascadedEnd);
+                
+                const { error } = await supabase.from('schedule_blocks').update({ start_time: newSTime, end_time: newETime }).eq('id', block.id);
+                if (error) throw new Error(`Cascade update failed: ${error.message}`);
+                
+                // Recursively cascade any new overlaps caused by THIS block
+                await this.cascadeOverlaps(userId, date, block.id, newSTime, newETime, supabase);
             }
         }
     }
@@ -496,7 +556,7 @@ export class PatchService {
                         return (h || 0) * 60 + (m || 0);
                     };
                     const newBlockMins = Math.max(0, timeToMin(insertData.end_time) - timeToMin(insertData.start_time));
-                    await this.validateGoalConstraints(userId, insertData.goal_id, insertData.date, newBlockMins, null, supabase);
+                    await this.validateGoalConstraints(userId, insertData.goal_id, insertData.date, newBlockMins, null, supabase, source);
                 }
 
                 const { data, error } = await supabase
@@ -505,9 +565,11 @@ export class PatchService {
                     .select('id')
                     .single();
                 if (error) throw new Error(`Create failed: ${error.message}`);
-                // Store the generated ID back on the op for inverse calculation
                 if (data?.id && !event.id) {
                     op.event_id = data.id;
+                }
+                if (source === 'coach') {
+                    await this.cascadeOverlaps(userId, insertData.date, data?.id || event.id, insertData.start_time, insertData.end_time, supabase);
                 }
                 break;
             }
@@ -545,7 +607,7 @@ export class PatchService {
                 if (existing.goal_id) {
                     const newDate = fields.date || existing.date;
                     const newBlockMins = Math.max(0, timeToMin(eTime) - timeToMin(sTime));
-                    await this.validateGoalConstraints(userId, existing.goal_id, newDate, newBlockMins, id, supabase);
+                    await this.validateGoalConstraints(userId, existing.goal_id, newDate, newBlockMins, id, supabase, source);
                 }
 
                 const { error } = await supabase
@@ -554,6 +616,11 @@ export class PatchService {
                     .eq('id', id)
                     .eq('user_id', userId);
                 if (error) throw new Error(`Update failed: ${error.message}`);
+                
+                if (source === 'coach') {
+                    const cascadeDate = fields.date || existing.date;
+                    await this.cascadeOverlaps(userId, cascadeDate, id, sTime, eTime, supabase);
+                }
                 break;
             }
 
@@ -617,7 +684,7 @@ export class PatchService {
                 if (moveTarget.goal_id) {
                     const newDate = op.date || moveTarget.date;
                     const newBlockMins = Math.max(0, timeToMin(eTime) - timeToMin(sTime));
-                    await this.validateGoalConstraints(userId, moveTarget.goal_id, newDate, newBlockMins, id, supabase);
+                    await this.validateGoalConstraints(userId, moveTarget.goal_id, newDate, newBlockMins, id, supabase, source);
                 }
 
                 const { data: moved, error } = await supabase
@@ -628,6 +695,11 @@ export class PatchService {
                     .select('id');
                 if (error) throw new Error(`Move failed: ${error.message}`);
                 if (!moved || moved.length === 0) throw new Error(`Move matched 0 rows for block ${id}`);
+                
+                if (source === 'coach') {
+                    const cascadeDate = op.date || moveTarget.date;
+                    await this.cascadeOverlaps(userId, cascadeDate, id, sTime, eTime, supabase);
+                }
                 break;
             }
             case 'create_goal': {
