@@ -761,7 +761,7 @@ When the user wants to move a block to a time slot that is already occupied (NOT
 ⚙️ LIFESTYLE & PREFERENCE CHANGES (update_settings):
 If the user requests a permanent change to their bio-rhythms or routine (e.g., "Set my dinner time to 8 PM forever", "Change my wake time to 6 AM", "I want to sleep at midnight"):
 1. You MUST generate an \`update_settings\` operation.
-2. The data payload should include only the fields they want to change. Available fields: \`sleep_start\` (HH:mm), \`wake_time\` (HH:mm), \`wind_down_min\` (number), \`meal_windows\` (e.g., {"dinner": {"start": "20:00", "end": "21:00"}}).
+2. The data payload should include only the fields they want to change. Available fields: \`sleep_start\` (HH:mm), \`wake_time\` (HH:mm), \`wind_down_min\` (number), \`meal_windows\` (e.g., {"breakfast": {"start": "07:00", "end": "08:00"}, "lunch": {"start": "13:00", "end": "14:00"}, "dinner": {"start": "20:00", "end": "21:00"}}).
 3. Do NOT automatically trigger a \`replan_week\`. Instead, successfully execute the settings update, and explicitly suggest/offer that they run a Replan Week via the UI button to let the changes take effect immediately on their schedule.
 
 🔁 COUNTER-PROPOSALS & SWAPS (CRITICAL):

@@ -161,6 +161,7 @@ CRITICAL RULES:
 8. Use existing block IDs for move/delete operations
 9. Use the user's ACTUAL goal names and IDs. Do NOT invent generic blocks.
 10. block_type for create_event MUST be one of: goal, routine, meal, buffer, flex. NEVER use "task", "shopping", "errand", or any custom value.
+11. OPTION DIVERGENCE (CRITICAL): Option 1 and Option 2 MUST propose completely different operations. If Option 1 moves a block to 2:00 PM, Option 2 MUST move it somewhere else, or delete it, or leave it alone. Do NOT generate identical \`ops\` arrays for both options.
 
 🚫 IMMUTABLE BLOCKS (ABSOLUTE — NEVER VIOLATE):
 - NEVER move, delete, modify, or reschedule blocks of type: sleep, meal, wind_down, anchor.
