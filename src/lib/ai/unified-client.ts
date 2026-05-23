@@ -387,17 +387,23 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
     const getRemainingTime = () => Math.max(5000, MAX_TOTAL_TIME - (Date.now() - totalStartTime));
 
     // Calendar-dedicated key: bypass normal provider chain and use Nvidia
+    // IMPORTANT: Nvidia often hangs. We enforce a strict 12-second timeout.
+    // If it fails or times out, we instantly fall back to the user's Groq backup API key.
     if (options.useNvidia) {
         const nvidiaModel = tier === 'fast' ? 'meta/llama-3.1-8b-instruct' : 'meta/llama-3.1-70b-instruct';
         console.log(`\x1b[36m[AI ✨]\x1b[0m Using Nvidia API (${nvidiaModel}) for Generation...`);
         const calendarProvider = getNvidiaConfig(nvidiaModel);
-        const result = await callProvider<T>(calendarProvider, { ...options, timeout: getRemainingTime() });
+        
+        // Strict 12s timeout for Nvidia to leave plenty of Vercel execution time for Groq
+        const nvidiaTimeout = Math.min(getRemainingTime(), 12000); 
+        
+        const result = await callProvider<T>(calendarProvider, { ...options, timeout: nvidiaTimeout });
         if (result.success) return result;
         
         // Fall back to Groq Llama 3.3 70B if Nvidia fails and time remains
         const remaining = getRemainingTime();
-        if (remaining > 10000) {
-            console.log('\x1b[33m[AI →]\x1b[0m Nvidia key failed, falling back to Groq...');
+        if (remaining > 5000) {
+            console.log('\x1b[33m[AI →]\x1b[0m Nvidia key failed/timed out, falling back to Groq backup...');
             const groqFallback = getGroqConfig('llama-3.3-70b-versatile');
             return callProvider<T>(groqFallback, { ...options, timeout: remaining });
         }

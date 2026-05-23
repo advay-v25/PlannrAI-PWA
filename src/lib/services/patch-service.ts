@@ -444,11 +444,22 @@ export class PatchService {
             case 'create':
             case 'create_event': {
                 const event = op.event || op.payload || {};
+                const timeToMin = (t: string) => {
+                    const [h, m] = (t || '0:0').split(':').map(Number);
+                    return (h || 0) * 60 + (m || 0);
+                };
+
+                let sTime = event.start_time || event.start || event.to_start;
+                let eTime = event.end_time || event.end || event.to_end;
+                if (eTime && sTime && timeToMin(eTime) <= timeToMin(sTime)) {
+                    eTime = '23:59:59';
+                }
+
                 const insertData: any = {
                     user_id: userId,
                     title: event.title || 'New Block',
-                    start_time: event.start_time || event.start || event.to_start,
-                    end_time: event.end_time || event.end || event.to_end,
+                    start_time: sTime,
+                    end_time: eTime,
                     date: event.date || op.date || new Date().toISOString().split('T')[0],
                     status: event.status || 'planned',
                     block_type: ['anchor', 'goal', 'meal', 'buffer', 'routine', 'sleep', 'wind_down', 'flex'].includes(event.block_type) ? event.block_type : 'flex',
@@ -520,15 +531,20 @@ export class PatchService {
                     break;
                 }
 
+                const timeToMin = (t: string) => {
+                    const [h, m] = (t || '0:0').split(':').map(Number);
+                    return (h || 0) * 60 + (m || 0);
+                };
+                let sTime = fields.start_time || existing.start_time;
+                let eTime = fields.end_time || existing.end_time;
+                if (eTime && sTime && timeToMin(eTime) <= timeToMin(sTime)) {
+                    eTime = '23:59:59';
+                    fields.end_time = eTime;
+                }
+
                 if (existing.goal_id) {
-                    const timeToMin = (t: string) => {
-                        const [h, m] = (t || '0:0').split(':').map(Number);
-                        return (h || 0) * 60 + (m || 0);
-                    };
-                    const newStart = fields.start_time || existing.start_time;
-                    const newEnd = fields.end_time || existing.end_time;
                     const newDate = fields.date || existing.date;
-                    const newBlockMins = Math.max(0, timeToMin(newEnd) - timeToMin(newStart));
+                    const newBlockMins = Math.max(0, timeToMin(eTime) - timeToMin(sTime));
                     await this.validateGoalConstraints(userId, existing.goal_id, newDate, newBlockMins, id, supabase);
                 }
 
@@ -584,16 +600,23 @@ export class PatchService {
                     console.log(`[PatchService] BLOCKED: Cannot move immutable ${moveTarget.block_type} block`);
                     break;
                 }
-                const updateData: any = { start_time: start, end_time: end };
+
+                const timeToMin = (t: string) => {
+                    const [h, m] = (t || '0:0').split(':').map(Number);
+                    return (h || 0) * 60 + (m || 0);
+                };
+                let sTime = start;
+                let eTime = end;
+                if (eTime && sTime && timeToMin(eTime) <= timeToMin(sTime)) {
+                    eTime = '23:59:59';
+                }
+
+                const updateData: any = { start_time: sTime, end_time: eTime };
                 if (op.date) updateData.date = op.date;
 
                 if (moveTarget.goal_id) {
-                    const timeToMin = (t: string) => {
-                        const [h, m] = (t || '0:0').split(':').map(Number);
-                        return (h || 0) * 60 + (m || 0);
-                    };
                     const newDate = op.date || moveTarget.date;
-                    const newBlockMins = Math.max(0, timeToMin(end) - timeToMin(start));
+                    const newBlockMins = Math.max(0, timeToMin(eTime) - timeToMin(sTime));
                     await this.validateGoalConstraints(userId, moveTarget.goal_id, newDate, newBlockMins, id, supabase);
                 }
 
