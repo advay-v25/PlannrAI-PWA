@@ -49,6 +49,7 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
     const [input, setInput] = useState('');
     const [pendingOption, setPendingOption] = useState<CoachOption | null>(null);
     const [showPreview, setShowPreview] = useState(false);
+    const [isApplyingChanges, setIsApplyingChanges] = useState(false);
 
     // Thinking state stages
     const [loadingStage, setLoadingStage] = useState(0);
@@ -109,15 +110,18 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
         const parentMessage = messages.find(m => m.options?.some(o => o.id === option.id));
         if (!parentMessage) return;
 
-        // Immediately close the modal and show the progress indicator toast
+        // Immediately close the modal and show the progress indicator
         setShowPreview(false);
         setPendingOption(null);
-        showToast('Changes in Progress...', 'ai', 3000);
+        setIsApplyingChanges(true);
 
-        const success = await applyOption(parentMessage.id, option.id);
-
-        if (success) {
-            onCalendarUpdate?.();
+        try {
+            const success = await applyOption(parentMessage.id, option.id);
+            if (success) {
+                onCalendarUpdate?.();
+            }
+        } finally {
+            setIsApplyingChanges(false);
         }
     };
 
@@ -329,6 +333,14 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
 
                 <div ref={messagesEndRef} />
             </div>
+
+            {/* Changes in Progress Popup */}
+            {isApplyingChanges && (
+                <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 z-50 bg-[var(--color-primary)] text-white px-6 py-3 rounded-full shadow-[0_0_20px_rgba(var(--color-primary-rgb),0.5)] flex items-center gap-3 animate-fade-in">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span className="font-bold tracking-wide text-sm uppercase">Changes in Progress...</span>
+                </div>
+            )}
 
             {/* Undo Action */}
             {canUndo && !isLoading && (
