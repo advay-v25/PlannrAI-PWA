@@ -779,8 +779,8 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
 
     const recentHistory = conversationHistory.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n');
 
-    const isMissedBlock = /missed|miss|didn't|did not|avoided|avoid|option|options/i.test(userMessage) || 
-                          /missed|miss|didn't|did not|avoided|avoid|option|options/i.test(recentHistory);
+    const isMissedBlock = /missed|miss|didn't|did not|avoided|avoid|option|options|reschedule/i.test(userMessage) || 
+                          /missed|miss|didn't|did not|avoided|avoid|option|options|reschedule/i.test(recentHistory);
 
     const isRejection = /none|neither|don't like|dont like|manual|myself|reject|no|stop/i.test(userMessage);
 
@@ -877,6 +877,21 @@ ${optionsInstruction}`;
                 if (!hasDelete && !isReplan && isMissedBlock) {
                     const moveOrCreateOp = normalizedOps.find(o => o.type === 'move_block' || o.type === 'create_block');
                     if (moveOrCreateOp) {
+                        const missedBlock = findMissedBlock(userMessage, classification, coachCtx);
+                        if (missedBlock) {
+                            if (moveOrCreateOp.type === 'create_block') {
+                                moveOrCreateOp.type = 'move_block';
+                                moveOrCreateOp.block_id = missedBlock.id;
+                                moveOrCreateOp.title = missedBlock.title;
+                                moveOrCreateOp.new_start = (moveOrCreateOp as any).data.start_time;
+                                moveOrCreateOp.new_end = (moveOrCreateOp as any).data.end_time;
+                                moveOrCreateOp.new_date = (moveOrCreateOp as any).data.date || coachCtx.current.date;
+                                delete (moveOrCreateOp as any).data;
+                            } else if (moveOrCreateOp.type === 'move_block') {
+                                moveOrCreateOp.block_id = missedBlock.id;
+                                moveOrCreateOp.title = missedBlock.title;
+                            }
+                        }
                         normalizedOps = [moveOrCreateOp];
                     }
                 }
@@ -957,14 +972,23 @@ ${optionsInstruction}`;
                                     
                                     const moveOrCreateOp = normalizedOps.find(o => o.type === 'move_block' || o.type === 'create_block');
                                     if (moveOrCreateOp) {
+                                        if (moveOrCreateOp.type === 'create_block') {
+                                            moveOrCreateOp.type = 'move_block';
+                                            moveOrCreateOp.block_id = missedBlock.id;
+                                            moveOrCreateOp.title = missedBlock.title;
+                                            moveOrCreateOp.new_start = (moveOrCreateOp as any).data.start_time;
+                                            moveOrCreateOp.new_end = (moveOrCreateOp as any).data.end_time;
+                                            moveOrCreateOp.new_date = (moveOrCreateOp as any).data.date || coachCtx.current.date;
+                                            delete (moveOrCreateOp as any).data;
+                                        } else if (moveOrCreateOp.type === 'move_block') {
+                                            moveOrCreateOp.block_id = missedBlock.id;
+                                            moveOrCreateOp.title = missedBlock.title;
+                                        }
+                                        
                                         if (moveOrCreateOp.type === 'move_block') {
                                             moveOrCreateOp.new_date = replacementCandidate.date;
                                             moveOrCreateOp.new_start = replacementCandidate.start_time;
                                             moveOrCreateOp.new_end = replacementCandidate.end_time;
-                                        } else if (moveOrCreateOp.type === 'create_block') {
-                                            (moveOrCreateOp as any).data.date = replacementCandidate.date;
-                                            (moveOrCreateOp as any).data.start_time = replacementCandidate.start_time;
-                                            (moveOrCreateOp as any).data.end_time = replacementCandidate.end_time;
                                         }
                                     }
                                 }
