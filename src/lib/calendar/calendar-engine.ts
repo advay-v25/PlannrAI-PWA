@@ -120,6 +120,28 @@ export class CalendarEngine {
 
         if (error) throw error;
 
+        // 4. Update Goal Progress if marked as done
+        if (updates.status === 'done' && original.status !== 'done' && data.goal_id) {
+            try {
+                // Calculate duration in minutes
+                const [startH, startM] = data.start_time.split(':').map(Number);
+                const [endH, endM] = data.end_time.split(':').map(Number);
+                let duration = (endH * 60 + endM) - (startH * 60 + startM);
+                if (duration < 0) duration += 24 * 60; // Handle cross-midnight if applicable
+                
+                // Fetch goal to update
+                const { data: goal } = await supabase.from('goals').select('total_completed_minutes').eq('id', data.goal_id).single();
+                
+                if (goal) {
+                    await supabase.from('goals').update({
+                        total_completed_minutes: (goal.total_completed_minutes || 0) + duration
+                    }).eq('id', data.goal_id);
+                }
+            } catch (err) {
+                console.error("Failed to update goal metrics:", err);
+            }
+        }
+
         // Post-MVP: Trigger Load Analysis
         const targetDate = updates.date || original.date;
         import('@/lib/intelligence/analysis-service').then(({ AnalysisService }) => {

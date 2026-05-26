@@ -36,6 +36,7 @@ interface ReportResponse {
 export default function WeeklyReviewPage() {
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(true);
+    const [loadingMessage, setLoadingMessage] = useState('Gathering your weekly data...');
     const [report, setReport] = useState<ReportResponse | null>(null);
     const [isExecuting, setIsExecuting] = useState(false);
     
@@ -44,6 +45,23 @@ export default function WeeklyReviewPage() {
     
     // Semi-auto state
     const [approvedChanges, setApprovedChanges] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        if (!isLoading) return;
+        const messages = [
+            'Gathering your weekly data...',
+            'Analyzing completion rates...',
+            'Identifying key struggles...',
+            'Drafting coaching insights...',
+            'Finalizing your weekly review...'
+        ];
+        let i = 0;
+        const interval = setInterval(() => {
+            i = (i + 1) % messages.length;
+            setLoadingMessage(messages[i]);
+        }, 2500);
+        return () => clearInterval(interval);
+    }, [isLoading]);
 
     useEffect(() => {
         // Fetch AI Report
@@ -194,9 +212,52 @@ export default function WeeklyReviewPage() {
                 <AnimatePresence mode="wait">
                     
                     {isLoading && (
-                        <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-32 space-y-4">
-                            <Loader2 className="w-8 h-8 animate-spin text-[var(--color-primary)]" />
-                            <p className="text-[var(--text-secondary)] font-medium animate-pulse">AI is reading your week's progress...</p>
+                        <motion.div key="loading" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} className="flex flex-col items-center justify-center py-32 space-y-8">
+                            <div className="relative">
+                                {/* Outer pulsing ring */}
+                                <motion.div 
+                                    animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.5, 0.2] }}
+                                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                                    className="absolute inset-0 rounded-full bg-[var(--color-primary)] blur-xl"
+                                />
+                                {/* Inner glow and icon */}
+                                <div className="relative w-24 h-24 bg-[var(--glass-bg)] border border-[var(--color-primary)]/30 rounded-3xl flex items-center justify-center shadow-2xl shadow-purple-500/20 overflow-hidden backdrop-blur-md">
+                                    <motion.div
+                                        animate={{ y: ['-100%', '100%'] }}
+                                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                                        className="absolute inset-0 bg-gradient-to-b from-transparent via-[var(--color-primary)]/20 to-transparent"
+                                    />
+                                    <Brain className="w-10 h-10 text-[var(--color-primary)] relative z-10" />
+                                </div>
+                            </div>
+                            <div className="text-center space-y-3">
+                                <h3 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[var(--color-primary)] to-purple-400">
+                                    AI Coach Processing
+                                </h3>
+                                <div className="flex flex-col items-center gap-3">
+                                    <AnimatePresence mode="wait">
+                                        <motion.p
+                                            key={loadingMessage}
+                                            initial={{ opacity: 0, y: 5 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -5 }}
+                                            className="text-sm font-medium text-[var(--text-secondary)] h-5"
+                                        >
+                                            {loadingMessage}
+                                        </motion.p>
+                                    </AnimatePresence>
+                                    <div className="flex gap-1.5 mt-2">
+                                        {[0, 1, 2].map((i) => (
+                                            <motion.div
+                                                key={i}
+                                                animate={{ scale: [1, 1.5, 1], opacity: [0.3, 1, 0.3] }}
+                                                transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+                                                className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)]"
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
                         </motion.div>
                     )}
 
