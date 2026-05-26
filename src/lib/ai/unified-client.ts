@@ -77,7 +77,7 @@ function getGroqConfig(model: string): ProviderConfig {
         url: 'https://api.groq.com/openai/v1/chat/completions',
         model,
         getHeaders: () => ({
-            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+            'Authorization': `Bearer ${process.env.GROQ_BACKUP_KEY || process.env.GROQ_API_KEY}`,
             'Content-Type': 'application/json',
         }),
         supportsResponseFormat: true,

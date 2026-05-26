@@ -891,6 +891,7 @@ ${optionsInstruction}`;
             maxTokens: 2500,
             requireJSON: true,
             timeout: 45000,
+            useNvidia: true,
         });
 
         if (response.success && response.data && response.data.options?.length) {

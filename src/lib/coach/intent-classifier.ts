@@ -428,6 +428,7 @@ export async function classifyIntent(
         maxTokens: 500,
         requireJSON: true,
         timeout: 5000, // 5 second timeout
+        useNvidia: true,
     });
 
     if (!response.success || !response.data) {
