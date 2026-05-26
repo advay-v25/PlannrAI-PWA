@@ -236,6 +236,33 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                         )}
                     </div>
 
+                    {/* AI Expert Strategy (if available) */}
+                    {block.goal?.ai_strategy && (
+                        <div className="rounded-xl glass-panel overflow-hidden border border-purple-500/20 bg-gradient-to-br from-purple-500/10 to-transparent">
+                            <div className="px-4 py-3 flex items-center gap-2 text-purple-200 border-b border-purple-500/10">
+                                <Sparkles className="w-3.5 h-3.5" />
+                                <span className="text-[10px] font-bold uppercase tracking-widest">
+                                    AI Expert Strategy
+                                </span>
+                            </div>
+                            <div className="p-4 space-y-3">
+                                <p className="text-sm font-bold text-white leading-tight">
+                                    "{block.goal.ai_strategy.strategy_one_liner}"
+                                </p>
+                                {block.goal.ai_strategy.routine?.steps && (
+                                    <div className="space-y-1.5 pt-1">
+                                        {block.goal.ai_strategy.routine.steps.map((step: string, idx: number) => (
+                                            <div key={idx} className="flex gap-2 text-xs">
+                                                <span className="text-purple-400 font-mono font-bold">{idx + 1}.</span>
+                                                <span className="text-white/80">{step}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Checklist / Habit Stacks */}
                     {hasSubTasks && (
                         <div className="rounded-xl glass-panel overflow-hidden">

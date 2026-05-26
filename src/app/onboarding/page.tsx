@@ -129,6 +129,11 @@ export default function OnboardingPage() {
                     </div>
                 </div>
 
+                <div className="absolute top-6 right-6 px-3 py-1.5 bg-white/5 border border-white/10 rounded-full flex items-center gap-2 backdrop-blur-md z-20">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[10px] font-mono font-bold tracking-widest uppercase text-white/60">Basic Plan</span>
+                </div>
+
                 {/* Main Content Area */}
                 <AnimatePresence mode="wait">
                     <motion.div

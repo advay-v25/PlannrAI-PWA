@@ -16,6 +16,7 @@ import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
 import { useGoalsManager } from '@/hooks/use-goals-manager';
 import { AddGoalModal } from '@/components/goals/add-goal-modal';
+import { GoalStrategyWizard } from '@/components/goals/goal-strategy-wizard';
 import type { Goal } from '@/types/database';
 
 export default function GoalDetailPage() {
@@ -24,6 +25,7 @@ export default function GoalDetailPage() {
     const { goals, fetchGoals, updateGoal } = useGoalsManager();
     const [goal, setGoal] = useState<Goal | null>(null);
     const [isEditing, setIsEditing] = useState(false);
+    const [isWizardOpen, setIsWizardOpen] = useState(false);
 
     useEffect(() => {
         if (!goals.length) {
@@ -49,9 +51,16 @@ export default function GoalDetailPage() {
         </div>
     );
 
-    // Physics Calculations (Mocked if data missing, scaling based on V1 PRD)
-    const level = goal.level || 1;
-    const currentStreak = goal.current_streak_days || 0;
+    // Neutral Metrics Calculations
+    const totalMinutes = goal.total_completed_minutes || 0;
+    const hoursInvested = Math.floor(totalMinutes / 60);
+    const minsInvested = totalMinutes % 60;
+    
+    // Simple mock for adherence/rhythm based on streak for MVP
+    const rhythm = Math.min(100, Math.round(((goal.current_streak_days || 0) / 7) * 100)) || 0;
+    
+    const currentPhase = goal.ai_strategy ? "Active Protocol" : "Calibration Phase";
+    const energyDemand = goal.energy_demand || "Moderate";
     const weeklyTarget = goal.weekly_target_minutes || 180;
 
     // Cycle Progess
@@ -82,8 +91,8 @@ export default function GoalDetailPage() {
                             <span className="capitalize">{goal.category}</span>
                             <span>•</span>
                             <span className="flex items-center gap-1">
-                                <Zap className="w-3 h-3 text-orange-400" />
-                                Lvl {level}
+                                <Activity className="w-3 h-3 text-[var(--color-primary)]" />
+                                {currentPhase}
                             </span>
                         </div>
                     </div>
@@ -101,42 +110,45 @@ export default function GoalDetailPage() {
                 />
             )}
 
-            {/* 2. Physics Dashboard (Momentum, Streak, Velocity) */}
+            {/* 2. Neutral Progress Dashboard */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {/* Level Badge */}
+                {/* Total Investment */}
                 <GlassCard padding="md" className="flex flex-col items-center justify-center text-center">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center mb-2 border border-purple-500/30">
-                        <Trophy className="w-6 h-6 text-purple-400" />
+                        <Clock className="w-6 h-6 text-purple-400" />
                     </div>
-                    <span className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Current Level</span>
-                    <span className="text-2xl font-black font-mono mt-1">{level}</span>
+                    <span className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Total Investment</span>
+                    <span className="text-2xl font-black font-mono mt-1">
+                        {hoursInvested}<span className="text-sm font-sans text-[var(--text-tertiary)] font-normal mr-1">h</span>
+                        {minsInvested}<span className="text-sm font-sans text-[var(--text-tertiary)] font-normal">m</span>
+                    </span>
                 </GlassCard>
 
-                {/* Streak Badge */}
+                {/* Rhythm / Adherence */}
                 <GlassCard padding="md" className="flex flex-col items-center justify-center text-center">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-500/20 to-red-500/20 flex items-center justify-center mb-2 border border-orange-500/30">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center mb-2 border border-emerald-500/30">
+                        <Activity className="w-6 h-6 text-emerald-400" />
+                    </div>
+                    <span className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Current Rhythm</span>
+                    <span className="text-2xl font-black font-mono mt-1">{rhythm}<span className="text-sm font-sans text-[var(--text-tertiary)] font-normal">%</span></span>
+                </GlassCard>
+
+                {/* Phase */}
+                <GlassCard padding="md" className="flex flex-col items-center justify-center text-center">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500/20 to-violet-500/20 flex items-center justify-center mb-2 border border-indigo-500/30">
+                        <Target className="w-6 h-6 text-indigo-400" />
+                    </div>
+                    <span className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Focus Phase</span>
+                    <span className="text-sm font-bold mt-2 text-white/90">{currentPhase}</span>
+                </GlassCard>
+
+                {/* Energy Alignment */}
+                <GlassCard padding="md" className="flex flex-col items-center justify-center text-center">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-500/20 to-amber-500/20 flex items-center justify-center mb-2 border border-orange-500/30">
                         <Zap className="w-6 h-6 text-orange-400" />
                     </div>
-                    <span className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Active Streak</span>
-                    <span className="text-2xl font-black font-mono mt-1">{currentStreak} <span className="text-sm font-sans text-[var(--text-tertiary)] font-normal">days</span></span>
-                </GlassCard>
-
-                {/* Velocity */}
-                <GlassCard padding="md" className="flex flex-col items-center justify-center text-center">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-green-500/20 to-emerald-500/20 flex items-center justify-center mb-2 border border-green-500/30">
-                        <Activity className="w-6 h-6 text-green-400" />
-                    </div>
-                    <span className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Velocity</span>
-                    <span className="text-xl font-black font-mono mt-1 text-[var(--text-tertiary)]">TBD<span className="text-sm font-sans font-normal ml-1">v2.1</span></span>
-                </GlassCard>
-
-                {/* Weekly Target */}
-                <GlassCard padding="md" className="flex flex-col items-center justify-center text-center">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center mb-2 border border-blue-500/30">
-                        <Target className="w-6 h-6 text-blue-400" />
-                    </div>
-                    <span className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Weekly Target</span>
-                    <span className="text-2xl font-black font-mono mt-1">{weeklyTarget}<span className="text-sm font-sans text-[var(--text-tertiary)] font-normal">m</span></span>
+                    <span className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Energy Demand</span>
+                    <span className="text-sm font-bold mt-2 text-white/90 capitalize">{energyDemand}</span>
                 </GlassCard>
             </div>
 
@@ -175,7 +187,7 @@ export default function GoalDetailPage() {
                 </div>
             </GlassCard>
 
-            {/* 4. AI Strategy & Expert Routines (Placeholder for MVP) */}
+            {/* 4. AI Strategy & Expert Routines */}
             <GlassCard padding="lg" className="border border-purple-500/20 bg-gradient-to-b from-purple-500/5 to-transparent">
                 <div className="flex items-start justify-between">
                     <div className="space-y-2">
@@ -184,14 +196,23 @@ export default function GoalDetailPage() {
                             <h2 className="text-lg font-bold text-purple-100">AI Expert Strategy</h2>
                         </div>
                         <p className="text-sm text-[var(--text-tertiary)] max-w-xl">
-                            {goal.ai_strategy ? "We've mapped a path based on your energy patterns." : "Unlock the physics-engine to generate a specialized path for this cycle."}
+                            {goal.ai_strategy ? "We've mapped a path based on your energy patterns." : "Unlock the intelligence engine to generate a specialized path for this cycle."}
                         </p>
                     </div>
-                    <GlassButton variant="primary">
+                    <GlassButton variant="primary" onClick={() => setIsWizardOpen(true)}>
                         {goal.ai_strategy ? 'View Path' : 'Generate'}
                     </GlassButton>
                 </div>
             </GlassCard>
+
+            <GoalStrategyWizard
+                goal={goal}
+                isOpen={isWizardOpen}
+                onClose={() => setIsWizardOpen(false)}
+                onStrategyApplied={(strategy) => {
+                    setGoal((prev) => prev ? { ...prev, ai_strategy: strategy } : prev);
+                }}
+            />
 
         </div>
     );

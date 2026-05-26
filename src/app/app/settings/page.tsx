@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
 import {
     User, LogOut, Trash2, AlertTriangle, Loader2,
-    Clock, Brain, Shield, Save, ChevronRight, Calendar, Download, Bell
+    Clock, Brain, Shield, Save, ChevronRight, Calendar, Download, Bell, Sparkles
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { apiClient } from '@/lib/api-client';
@@ -299,10 +300,12 @@ function DangerZone() {
 
     return (
         <div className="space-y-5">
-            <div>
+            <div className="pt-8">
                 <h2 className="text-lg font-semibold text-[var(--color-error)]">Danger Zone</h2>
                 <p className="text-sm text-[var(--text-tertiary)] mt-0.5">Irreversible actions — proceed carefully.</p>
             </div>
+
+
 
             {/* Clear Schedule */}
             <div className="p-5 rounded-2xl bg-[var(--color-error)]/[0.03] border border-[var(--color-error)]/15 space-y-3">

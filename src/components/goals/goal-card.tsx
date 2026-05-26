@@ -30,6 +30,7 @@ interface GoalCardProps {
 export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor }: GoalCardProps) {
     const router = useRouter();
     const [isExpanded, setIsExpanded] = useState(false);
+    const isPreview = process.env.NEXT_PUBLIC_IS_PREVIEW_BUILD === 'true';
 
     // Local buffering for inputs to prevent API spam on every keystroke/pixel drag
     const [localTitle, setLocalTitle] = useState(goal.title || '');
@@ -127,14 +128,17 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
 
                 <div className="flex items-center gap-2">
                     <button
-                        onClick={(e) => { e.stopPropagation(); onOpenStrategy(goal); }}
+                        onClick={(e) => { 
+                            e.stopPropagation(); 
+                            if (isPreview) onOpenStrategy(goal); 
+                        }}
                         className={`p-2 rounded-full transition-all group ${goal.ai_strategy
                             ? 'bg-[var(--color-primary)]/10 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/20'
                             : 'hover:bg-[var(--glass-bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--color-primary)]'
-                            }`}
-                        title="AI Strategy"
+                            } ${!isPreview && 'opacity-50 cursor-not-allowed hover:text-[var(--text-tertiary)] hover:bg-transparent'}`}
+                        title={isPreview ? "AI Strategy" : "Pro Feature - Coming Soon"}
                     >
-                        <Sparkles className={`w-4 h-4 ${!goal.ai_strategy && 'group-hover:scale-110 transition-transform'}`} />
+                        <Sparkles className={`w-4 h-4 ${!goal.ai_strategy && isPreview && 'group-hover:scale-110 transition-transform'}`} />
                     </button>
 
                     <button className="p-2 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">
@@ -279,21 +283,29 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                             <div className="flex gap-3 pt-2">
                                 <GlassButton
                                     variant="ghost"
-                                    className="flex-1 justify-center border border-dashed border-[var(--color-primary)]/30 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5"
-                                    onClick={() => onOpenStrategy(goal)}
+                                    className={`flex-1 justify-center border border-dashed border-[var(--color-primary)]/30 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 ${!isPreview && 'opacity-50 cursor-not-allowed hover:bg-transparent'}`}
+                                    onClick={(e) => {
+                                        if (isPreview) {
+                                            onOpenStrategy(goal);
+                                        } else {
+                                            e.preventDefault();
+                                        }
+                                    }}
                                 >
                                     <Sparkles className="w-4 h-4 mr-2" />
-                                    {goal.ai_strategy ? 'View Expert Strategy' : 'Generate Expert Strategy'}
+                                    {goal.ai_strategy ? 'View Expert Strategy' : (isPreview ? 'Generate Expert Strategy' : 'Expert Strategy (Pro - Soon)')}
                                 </GlassButton>
 
-                                <GlassButton
-                                    variant="ghost"
-                                    className="flex-[0.3] justify-center border border-dashed border-[var(--text-tertiary)]/30 text-[var(--text-secondary)] hover:bg-[var(--text-secondary)]/5"
-                                    onClick={() => router.push(`/app/goals/${goal.id}`)}
-                                >
-                                    <Target className="w-4 h-4 mr-2" />
-                                    Plan
-                                </GlassButton>
+                                {isPreview && (
+                                    <GlassButton
+                                        variant="ghost"
+                                        className="flex-[0.3] justify-center border border-dashed border-[var(--text-tertiary)]/30 text-[var(--text-secondary)] hover:bg-[var(--text-secondary)]/5"
+                                        onClick={() => router.push(`/app/goals/${goal.id}`)}
+                                    >
+                                        <Target className="w-4 h-4 mr-2" />
+                                        Plan
+                                    </GlassButton>
+                                )}
                             </div>
 
                             {/* Footer Actions */}

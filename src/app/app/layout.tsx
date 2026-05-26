@@ -31,12 +31,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         })();
     }, [profile, supabase, setProfile]);
 
+    const isPreview = process.env.NEXT_PUBLIC_IS_PREVIEW_BUILD === 'true';
+
     const navItems = [
         { href: '/app', icon: LayoutDashboard, label: 'Home' },
         { href: '/app/goals', icon: Target, label: 'Goals' },
         { href: '/app/tasks', icon: ListTodo, label: 'Tasks' },
         { href: '/app/calendar', icon: Calendar, label: 'Calendar' },
-        { href: '/app/weekly-review', icon: Activity, label: 'Review' },
+        { href: isPreview ? '/app/weekly-review' : '#', icon: Activity, label: 'Review', disabled: !isPreview, badge: !isPreview ? 'SOON' : undefined },
     ];
 
     return (
@@ -59,15 +61,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                             <Link
                                 key={item.href}
                                 href={item.href}
+                                onClick={(e) => item.disabled && e.preventDefault()}
                                 className={cn(
                                     "flex items-center gap-3 px-4 py-3 rounded-xl transition-all group",
                                     isActive
                                         ? "bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--color-primary)] shadow-[var(--shadow-sm)]"
-                                        : "text-[var(--text-secondary)] hover:bg-[var(--glass-bg-hover)] hover:text-[var(--text-primary)]"
+                                        : "text-[var(--text-secondary)] hover:bg-[var(--glass-bg-hover)] hover:text-[var(--text-primary)]",
+                                    item.disabled && "opacity-50 cursor-not-allowed hover:bg-transparent hover:text-[var(--text-secondary)]"
                                 )}
                             >
                                 <item.icon className={cn("w-5 h-5", isActive ? "text-[var(--color-primary)]" : "text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]")} />
-                                <span className="font-medium">{item.label}</span>
+                                <span className="font-semibold text-sm flex-1">{item.label}</span>
+                                {item.badge && (
+                                    <span className="text-[9px] font-black uppercase tracking-wider bg-[var(--color-primary)]/10 text-[var(--color-primary)] px-2 py-0.5 rounded-full border border-[var(--color-primary)]/20">
+                                        {item.badge}
+                                    </span>
+                                )}
                             </Link>
                         );
                     })}
@@ -91,7 +100,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     </button>
                 </nav>
 
-                <div className="p-4 border-t border-[var(--glass-border)]">
+                <div className="p-4 border-t border-[var(--glass-border)] flex flex-col gap-3">
+                    {/* Pro Upgrade Button */}
+                    <Link
+                        href="/app/pro"
+                        className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-[var(--color-primary)]/10 to-orange-500/10 border border-[var(--color-primary)]/30 hover:border-[var(--color-primary)]/60 transition-all cursor-pointer group"
+                    >
+                        <div className="w-8 h-8 rounded-full bg-[var(--color-primary)]/20 flex items-center justify-center group-hover:scale-110 transition-transform shadow-[0_0_10px_rgba(250,204,21,0.2)]">
+                            <Sparkles className="w-4 h-4 text-[var(--color-primary)]" />
+                        </div>
+                        <div className="flex-1 min-w-0 flex flex-col justify-center">
+                            <p className="text-sm font-bold text-[var(--color-primary)] truncate flex items-center gap-2">
+                                Upgrade to Pro
+                            </p>
+                        </div>
+                    </Link>
+
                     <Link
                         href="/app/settings"
                         className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] hover:bg-[var(--glass-bg-hover)] transition-all cursor-pointer group"
@@ -145,9 +169,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Link
               key={item.href}
               href={item.href}
+              onClick={(e) => item.disabled && e.preventDefault()}
               className={cn(
                 "flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all",
-                isActive ? "text-[var(--color-primary)] bg-[var(--color-primary)]/10" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                isActive ? "text-[var(--color-primary)] bg-[var(--color-primary)]/10" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]",
+                item.disabled && "opacity-50 cursor-not-allowed"
               )}
             >
               <item.icon className="w-5 h-5" />

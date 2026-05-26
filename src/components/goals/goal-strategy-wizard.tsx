@@ -30,7 +30,7 @@ interface GoalStrategyWizardProps {
     };
 }
 
-type WizardStep = 'intro' | 'analyzing' | 'review' | 'schedule';
+type WizardStep = 'intro' | 'analyzing' | 'review';
 
 interface GoalStrategy {
     strategy_one_liner: string;
@@ -57,9 +57,6 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied }:
 
     // UI State
     const [isGenerating, setIsGenerating] = useState(false);
-    const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
-    const [scheduleTime, setScheduleTime] = useState('09:00');
-    const [isScheduling, setIsScheduling] = useState(false);
 
     // 1. Generate Strategy — API saves directly to DB
     const handleGenerate = async () => {
@@ -87,34 +84,7 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied }:
         }
     };
 
-    // 2. Schedule First Session — direct POST, no patch-ops
-    const handleSchedule = async () => {
-        setIsScheduling(true);
-        try {
-            const startD = new Date(`${scheduleDate}T${scheduleTime}:00`);
-            const duration = strategy?.routine?.duration_mins || goal.minutes_per_day || 60;
-            const endD = new Date(startD.getTime() + duration * 60000);
 
-            await fetch('/api/schedule', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    date: scheduleDate,
-                    start_time: scheduleTime,
-                    end_time: `${String(endD.getHours()).padStart(2, '0')}:${String(endD.getMinutes()).padStart(2, '0')}`,
-                    goal_id: goal.id,
-                    context: goal.title
-                })
-            });
-
-            showToast('✅ First session scheduled!', 'success');
-            onClose();
-        } catch (error) {
-            showToast('Failed to schedule session', 'error');
-        } finally {
-            setIsScheduling(false);
-        }
-    };
 
     if (!isOpen) return null;
 
@@ -125,7 +95,7 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied }:
                 {/* Header */}
                 <div className="flex justify-between items-center mb-6">
                     <div className="flex items-center gap-2">
-                        {(step === 'review' || step === 'schedule') && (
+                        {step === 'review' && (
                             <button onClick={() => setStep('intro')} className="p-1 hover:bg-white/10 rounded-full mr-1">
                                 <ChevronLeft className="w-4 h-4" />
                             </button>
@@ -285,64 +255,10 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied }:
                                     <GlassButton variant="ghost" onClick={handleGenerate} disabled={isGenerating} className="flex-shrink-0">
                                         <RefreshCw className={`w-4 h-4 mr-1 ${isGenerating ? 'animate-spin' : ''}`} /> Regenerate
                                     </GlassButton>
-                                    <GlassButton variant="primary" className="flex-1 h-12 text-base" onClick={() => setStep('schedule')}>
-                                        Schedule First Session <ArrowRight className="w-4 h-4 ml-2" />
+                                    <GlassButton variant="primary" className="flex-1 h-12 text-base" onClick={onClose}>
+                                        Done <Check className="w-4 h-4 ml-2" />
                                     </GlassButton>
                                 </div>
-                            </motion.div>
-                        )}
-
-                        {/* STEP 4: SCHEDULE */}
-                        {step === 'schedule' && (
-                            <motion.div
-                                key="schedule"
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -20 }}
-                                className="flex-1 flex flex-col justify-center space-y-6"
-                            >
-                                <div className="text-center space-y-2">
-                                    <h3 className="text-lg font-bold">Let&apos;s make it real.</h3>
-                                    <p className="text-sm text-[var(--text-tertiary)]">Commitment is the first step to transformation.</p>
-                                </div>
-
-                                <div className="bg-white/5 p-6 rounded-xl space-y-4 border border-white/10">
-                                    <div className="space-y-1">
-                                        <label className="text-xs uppercase text-[var(--text-tertiary)] font-bold">Start Date</label>
-                                        <input
-                                            type="date"
-                                            value={scheduleDate}
-                                            onChange={(e) => setScheduleDate(e.target.value)}
-                                            className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-white focus:border-[var(--color-primary)] outline-none transition-colors"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-xs uppercase text-[var(--text-tertiary)] font-bold">Start Time</label>
-                                        <input
-                                            type="time"
-                                            value={scheduleTime}
-                                            onChange={(e) => setScheduleTime(e.target.value)}
-                                            className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-3 text-white focus:border-[var(--color-primary)] outline-none transition-colors"
-                                        />
-                                    </div>
-                                    {strategy && (
-                                        <div className="text-xs text-[var(--text-tertiary)] flex items-center gap-2">
-                                            <Clock className="w-3 h-3" />
-                                            Session: {strategy.routine.duration_mins} minutes
-                                            {strategy.routine.best_time && ` • Best: ${strategy.routine.best_time}`}
-                                        </div>
-                                    )}
-                                </div>
-
-                                <GlassButton
-                                    variant="primary"
-                                    className="w-full h-12 text-base"
-                                    onClick={handleSchedule}
-                                    disabled={isScheduling}
-                                >
-                                    {isScheduling ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Calendar className="w-4 h-4 mr-2" />}
-                                    {isScheduling ? 'Scheduling...' : 'Confirm Session'}
-                                </GlassButton>
                             </motion.div>
                         )}
 
