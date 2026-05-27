@@ -339,6 +339,8 @@ async function callProvider<T>(
     } catch (error: any) {
         clearTimeout(timeoutId);
         
+        console.error(`\x1b[31m[AI ✗]\x1b[0m ${config.name}/${config.model} failed:`, error.message);
+        
         if (error.name === 'AbortError') {
             recordFailure(config.name, 504); // Treat timeout as Gateway Timeout
         } else if (error.status) {
