@@ -34,7 +34,7 @@ export interface AIResponse<T = any> {
 // ── Provider Config ──────────────────────────────────────────────
 
 interface ProviderConfig {
-    name: 'openrouter' | 'groq' | 'nvidia' | 'gemini';
+    name: 'openrouter' | 'groq' | 'nvidia' | 'gemini' | 'cerebras';
     url: string;
     model: string;
     getHeaders: () => Record<string, string>;
@@ -55,6 +55,32 @@ function getNvidiaConfig(model: string): ProviderConfig {
     };
 }
 
+function getGroqConfig(model: string): ProviderConfig {
+    return {
+        name: 'groq',
+        url: 'https://api.groq.com/openai/v1/chat/completions',
+        model,
+        getHeaders: () => ({
+            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+            'Content-Type': 'application/json',
+        }),
+        supportsResponseFormat: true,
+    };
+}
+
+function getCerebrasConfig(model: string): ProviderConfig {
+    return {
+        name: 'cerebras',
+        url: 'https://api.cerebras.ai/v1/chat/completions',
+        model,
+        getHeaders: () => ({
+            'Authorization': `Bearer ${process.env.CEREBRAS_API_KEY}`,
+            'Content-Type': 'application/json',
+        }),
+        supportsResponseFormat: true,
+    };
+}
+
 function getGeminiConfig(model: string): ProviderConfig {
     return {
         name: 'gemini',
@@ -68,40 +94,32 @@ function getGeminiConfig(model: string): ProviderConfig {
     };
 }
 
-// Smart = complex reasoning (coach, goals, weekly review) → Nvidia primary
-// Fast = simple extraction (brain dump, habits, briefings) → Gemini primary
+// Smart = complex reasoning (coach, goals, weekly review) → Groq primary (70B)
+// Fast = simple extraction (brain dump, habits, briefings) → Groq primary (8B)
 function getProviderChain(options: AICallOptions): [ProviderConfig, ProviderConfig] {
     const tier = options.model || 'fast';
 
     if (options.useNvidia) {
-        // Force NVIDIA endpoints for coach and calendar operations
-        const nvidiaModel = tier === 'smart' ? 'meta/llama-3.1-70b-instruct' : 'meta/llama-3.1-8b-instruct';
+        // Force Groq endpoints for coach and calendar operations because the new key is fast and paid
+        const groqModel = tier === 'smart' ? 'llama-3.3-70b-versatile' : 'llama-3.1-8b-instant';
         return [
-            getNvidiaConfig(nvidiaModel),
+            getGroqConfig(groqModel),
             getGeminiConfig('gemini-3.5-flash') // fallback
         ];
     }
 
     switch (tier) {
         case 'smart':
-            return [
-                getNvidiaConfig('meta/llama-3.1-70b-instruct'),
-                getGeminiConfig('gemini-3.5-flash'),
-            ];
-        case 'fast':
-            return [
-                getGeminiConfig('gemini-3.5-flash'),
-                getNvidiaConfig('meta/llama-3.1-8b-instruct'),
-            ];
         case 'creative':
             return [
-                getGeminiConfig('gemini-3.5-flash'),
+                getGroqConfig('llama-3.3-70b-versatile'),
                 getNvidiaConfig('meta/llama-3.1-70b-instruct'),
             ];
+        case 'fast':
         default:
             return [
+                getGroqConfig('llama-3.1-8b-instant'),
                 getGeminiConfig('gemini-3.5-flash'),
-                getNvidiaConfig('meta/llama-3.1-8b-instruct'),
             ];
     }
 }
@@ -356,22 +374,21 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
 
     const getRemainingTime = () => Math.max(5000, MAX_TOTAL_TIME - (Date.now() - totalStartTime));
 
-    // Calendar-dedicated key: bypass normal provider chain and use Nvidia
-    // IMPORTANT: Nvidia often hangs. We enforce a strict 12-second timeout.
+    // Coach/Calendar dedicated engine (labeled useNvidia for legacy reasons, but routes to Groq)
     if (options.useNvidia) {
-        const nvidiaModel = tier === 'fast' ? 'meta/llama-3.1-8b-instruct' : 'meta/llama-3.1-70b-instruct';
-        console.log(`\x1b[36m[AI ✨]\x1b[0m Using Nvidia API (${nvidiaModel}) for Generation...`);
-        const calendarProvider = getNvidiaConfig(nvidiaModel);
+        const groqModel = tier === 'fast' ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile';
+        console.log(`\x1b[36m[AI ✨]\x1b[0m Using Groq API (${groqModel}) for Generation...`);
+        const calendarProvider = getGroqConfig(groqModel);
         
-        const nvidiaTimeout = Math.min(getRemainingTime(), 55000); 
+        const groqTimeout = Math.min(getRemainingTime(), 55000); 
         
-        const result = await callProvider<T>(calendarProvider, { ...options, timeout: nvidiaTimeout });
+        const result = await callProvider<T>(calendarProvider, { ...options, timeout: groqTimeout });
         if (result.success) return result;
         
         // 2nd layer of redundancy: Ultimate Gemini Backup
         const ultimateRemaining = getRemainingTime();
         if (ultimateRemaining > 5000) {
-            console.log('\x1b[36m[AI ULTIMATE]\x1b[0m Nvidia failed. Falling back to Gemini 3.5 Flash...');
+            console.log('\x1b[36m[AI ULTIMATE]\x1b[0m Groq failed. Falling back to Gemini 3.5 Flash...');
             const geminiProvider = getGeminiConfig('gemini-3.5-flash');
             return callProvider<T>(geminiProvider, { ...options, timeout: ultimateRemaining });
         }
