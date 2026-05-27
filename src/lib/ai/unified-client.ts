@@ -81,6 +81,7 @@ function getCerebrasConfig(model: string): ProviderConfig {
     };
 }
 
+
 function getGeminiConfig(model: string): ProviderConfig {
     return {
         name: 'gemini',
@@ -100,10 +101,9 @@ function getProviderChain(options: AICallOptions): [ProviderConfig, ProviderConf
     const tier = options.model || 'fast';
 
     if (options.useNvidia) {
-        // Force Groq endpoints for coach and calendar operations because the new key is fast and paid
-        const groqModel = tier === 'smart' ? 'llama-3.3-70b-versatile' : 'llama-3.1-8b-instant';
+        const nvidiaModel = tier === 'smart' ? 'meta/llama-3.1-70b-instruct' : 'meta/llama-3.1-8b-instruct';
         return [
-            getGroqConfig(groqModel),
+            getNvidiaConfig(nvidiaModel),
             getGeminiConfig('gemini-3.5-flash') // fallback
         ];
     }
@@ -374,21 +374,21 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
 
     const getRemainingTime = () => Math.max(5000, MAX_TOTAL_TIME - (Date.now() - totalStartTime));
 
-    // Coach/Calendar dedicated engine (labeled useNvidia for legacy reasons, but routes to Groq)
+    // Coach/Calendar dedicated engine: Use Nvidia since user provided a dedicated Nvidia key
     if (options.useNvidia) {
-        const groqModel = tier === 'fast' ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile';
-        console.log(`\x1b[36m[AI ✨]\x1b[0m Using Groq API (${groqModel}) for Generation...`);
-        const calendarProvider = getGroqConfig(groqModel);
+        const nvidiaModel = tier === 'fast' ? 'meta/llama-3.1-8b-instruct' : 'meta/llama-3.1-70b-instruct';
+        console.log(`\x1b[36m[AI ✨]\x1b[0m Using Nvidia API (${nvidiaModel}) for Generation...`);
+        const calendarProvider = getNvidiaConfig(nvidiaModel);
         
-        const groqTimeout = Math.min(getRemainingTime(), 55000); 
+        const nvidiaTimeout = Math.min(getRemainingTime(), 55000); 
         
-        const result = await callProvider<T>(calendarProvider, { ...options, timeout: groqTimeout });
+        const result = await callProvider<T>(calendarProvider, { ...options, timeout: nvidiaTimeout });
         if (result.success) return result;
         
         // 2nd layer of redundancy: Ultimate Gemini Backup
         const ultimateRemaining = getRemainingTime();
         if (ultimateRemaining > 5000) {
-            console.log('\x1b[36m[AI ULTIMATE]\x1b[0m Groq failed. Falling back to Gemini 3.5 Flash...');
+            console.log('\x1b[36m[AI ULTIMATE]\x1b[0m Nvidia failed. Falling back to Gemini 3.5 Flash...');
             const geminiProvider = getGeminiConfig('gemini-3.5-flash');
             return callProvider<T>(geminiProvider, { ...options, timeout: ultimateRemaining });
         }
