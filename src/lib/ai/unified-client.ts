@@ -34,7 +34,7 @@ export interface AIResponse<T = any> {
 // ── Provider Config ──────────────────────────────────────────────
 
 interface ProviderConfig {
-    name: 'openrouter' | 'groq' | 'nvidia';
+    name: 'openrouter' | 'groq' | 'nvidia' | 'gemini';
     url: string;
     model: string;
     getHeaders: () => Record<string, string>;
@@ -91,6 +91,19 @@ function getNvidiaConfig(model: string): ProviderConfig {
         model,
         getHeaders: () => ({
             'Authorization': `Bearer ${process.env.CALENDAR_NVIDIA_API_KEY || process.env.NVIDIA_API_KEY}`,
+            'Content-Type': 'application/json',
+        }),
+        supportsResponseFormat: true,
+    };
+}
+
+function getGeminiConfig(model: string): ProviderConfig {
+    return {
+        name: 'gemini',
+        url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+        model,
+        getHeaders: () => ({
+            'Authorization': `Bearer ${process.env.GEMINI_API_KEY}`,
             'Content-Type': 'application/json',
         }),
         supportsResponseFormat: true,
@@ -415,7 +428,17 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
             if (emergencyRemaining > 5000) {
                 console.log('\x1b[35m[AI ALERT]\x1b[0m Nvidia & Groq failed. Trying OpenRouter Emergency (Llama-3.3-70B)...');
                 const emergencyProvider = getOpenRouterConfig('meta-llama/llama-3.3-70b-instruct');
-                return callProvider<T>(emergencyProvider, { ...options, timeout: emergencyRemaining });
+                const openRouterResult = await callProvider<T>(emergencyProvider, { ...options, timeout: Math.min(emergencyRemaining, 20000) });
+                if (openRouterResult.success) return openRouterResult;
+                
+                // 4th layer of redundancy: Ultimate Gemini Backup
+                const ultimateRemaining = getRemainingTime();
+                if (ultimateRemaining > 5000) {
+                    console.log('\x1b[36m[AI ULTIMATE]\x1b[0m All primary models failed. Falling back to Gemini 3.5 Flash...');
+                    const geminiProvider = getGeminiConfig('gemini-3.5-flash');
+                    return callProvider<T>(geminiProvider, { ...options, timeout: ultimateRemaining });
+                }
+                return openRouterResult;
             }
             return groqResult;
         }
