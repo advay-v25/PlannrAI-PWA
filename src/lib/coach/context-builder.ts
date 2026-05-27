@@ -176,7 +176,7 @@ export async function buildCoachContext(
             .select('key, value, kind')
             .eq('user_id', userId)
             .eq('kind', 'preference')
-            .limit(20),
+            .limit(5),
 
         // Count missed blocks in last 24 hours (relative to local today)
         supabase.from('schedule_blocks')
@@ -190,7 +190,7 @@ export async function buildCoachContext(
             .eq('user_id', userId)
             .eq('is_completed', false)
             .order('order_index', { ascending: true })
-            .limit(20)
+            .limit(5)
     ]);
 
 

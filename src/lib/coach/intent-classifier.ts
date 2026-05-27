@@ -427,8 +427,7 @@ export async function classifyIntent(
         temperature: 0.3, // Low temperature for consistent classification
         maxTokens: 500,
         requireJSON: true,
-        timeout: 5000, // 5 second timeout
-        useNvidia: true,
+        timeout: 10000, // 10 second timeout
     });
 
     if (!response.success || !response.data) {
