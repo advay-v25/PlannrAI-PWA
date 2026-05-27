@@ -397,7 +397,7 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
         const calendarProvider = getNvidiaConfig(nvidiaModel);
         
         // Strict 12s timeout for Nvidia to leave plenty of Vercel execution time for Groq
-        const nvidiaTimeout = Math.min(getRemainingTime(), 20000); 
+        const nvidiaTimeout = Math.min(getRemainingTime(), 40000); 
         
         const result = await callProvider<T>(calendarProvider, { ...options, timeout: nvidiaTimeout });
         if (result.success) return result;

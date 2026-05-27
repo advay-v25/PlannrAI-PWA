@@ -890,7 +890,7 @@ ${optionsInstruction}`;
             temperature: 0.5,
             maxTokens: 2500,
             requireJSON: true,
-            timeout: 45000,
+            timeout: 55000,
             useNvidia: true,
         });
 
