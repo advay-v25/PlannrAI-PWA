@@ -408,11 +408,11 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
             const groqResult = await callProvider<T>(groqFallback, { ...options, timeout: Math.min(remaining, 15000) });
             if (groqResult.success) return groqResult;
             
-            // 3rd layer of redundancy: Emergency GPT-4o-Mini via OpenRouter if Groq also fails (e.g. rate limits)
+            // 3rd layer of redundancy: Emergency Llama 3.3 70B via OpenRouter if Groq also fails (e.g. rate limits)
             const emergencyRemaining = getRemainingTime();
             if (emergencyRemaining > 5000) {
-                console.log('\x1b[35m[AI ALERT]\x1b[0m Nvidia & Groq failed. Trying OpenRouter Emergency (GPT-4o-Mini)...');
-                const emergencyProvider = getOpenRouterConfig('openai/gpt-4o-mini');
+                console.log('\x1b[35m[AI ALERT]\x1b[0m Nvidia & Groq failed. Trying OpenRouter Emergency (Llama-3.3-70B)...');
+                const emergencyProvider = getOpenRouterConfig('meta-llama/llama-3.3-70b-instruct');
                 return callProvider<T>(emergencyProvider, { ...options, timeout: emergencyRemaining });
             }
             return groqResult;
