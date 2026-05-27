@@ -115,6 +115,8 @@ export const INTENT_EXAMPLES = {
         "Fix today's schedule",
         "Optimize today",
         "I need a different plan for today",
+        "I need to go out with friends tonight",
+        "I have to go grocery shopping today",
     ],
 
     [CoachIntent.RESCHEDULE_WEEK]: [
@@ -289,7 +291,7 @@ CLASSIFICATION RULES:
 1. Choose the PRIMARY intent that best matches.
 2. STRATEGIC BIAS: If the user mentions "focus", "peak", "energy", or "strategy", prioritize DEEP_WORK_OPTIMIZE or ENERGY_OFFSET.
 3. If message contains 2 clear intents, identify SECONDARY intent.
-4. If message is ambiguous, set primary_intent to "clarification_needed".
+4. NEVER use clarification_needed unless the text is absolute gibberish. If the user gives an unstructured request (e.g. "I need to go out with friends tonight", "grocery shopping today"), classify it as MOVE_BLOCK, ADD_TASK, or RESCHEDULE_DAY. The main Coach AI will figure out the details.
 5. Extract entities: times, dates, durations, block/goal references.
 6. Identify if the request asks for "Silent Intelligence" (proactive management) vs simple manual commands.
 
