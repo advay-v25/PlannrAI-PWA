@@ -837,13 +837,13 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
 
     const isRejection = /none|neither|don't like|dont like|manual|myself|reject|no|stop/i.test(userMessage);
 
-    let optionsInstruction = "Generate 2-3 actionable options with concrete patch operations. Return valid JSON only.";
+    let optionsInstruction = "Generate 1-2 actionable options with concrete patch operations. Return valid JSON only.";
     
     if (isMissedBlock) {
         if (isRejection && !/missed|miss|reschedule|another|new/i.test(userMessage)) {
              optionsInstruction = "The user rejected the previous AI options. Provide EXACTLY ONE option: 'Manual Movement', which instructs them to manually move the block in the calendar UI themselves. Do NOT generate any patch operations (empty operations array []). Return valid JSON only.";
         } else {
-             optionsInstruction = "Generate EXACTLY 4 actionable options in this exact order: Option 1: Reschedule Today (same or reduced duration, min 30m), Option 2: Reschedule This Week (same or reduced duration, min 30m), Option 3: Replace Lower Priority Block (same pillar, different goal), Option 4: Replan Week (using 'replan_week' operation). However, if there are absolutely NO verified free slots remaining for the rest of the week, skip Options 1-2 and rely on Option 3 and Option 4. Return valid JSON only.";
+             optionsInstruction = "Generate EXACTLY 2 actionable options in this exact order: Option 1: Reschedule Today or This Week (min 30m), Option 2: Replace Lower Priority Block (same pillar). Return valid JSON only.";
         }
     }
 
