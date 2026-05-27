@@ -577,12 +577,12 @@ export default function HomePage() {
                         {/* Overlay to dim */}
                         <div className="absolute inset-0 bg-black/60 z-10 flex items-center justify-center">
                             {/* Construction Tape */}
-                            <div className="absolute -rotate-[12deg] scale-[1.2] w-full h-12 bg-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.3)] border-y-2 border-yellow-500 flex items-center justify-center gap-6 overflow-hidden z-20">
+                            <div className="absolute -rotate-[12deg] w-[130%] h-14 bg-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.3)] border-y-2 border-yellow-500 flex items-center justify-center gap-4 overflow-hidden z-20 whitespace-nowrap">
                                 {/* Diagonal stripes pattern inside the tape */}
                                 <div className="absolute inset-0 opacity-20 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,#000_10px,#000_20px)]" />
-                                <span className="font-mono text-black font-black uppercase tracking-widest text-sm md:text-base relative z-10 drop-shadow-sm">Habit Stacks In Development</span>
-                                <span className="font-mono text-black font-black uppercase tracking-widest text-sm md:text-base relative z-10 drop-shadow-sm">•</span>
-                                <span className="font-mono text-black font-black uppercase tracking-widest text-sm md:text-base relative z-10 drop-shadow-sm">Pro Feature</span>
+                                <span className="font-mono text-black font-black uppercase tracking-widest text-xs md:text-sm relative z-10 drop-shadow-sm whitespace-nowrap">Habit Stacks In Development</span>
+                                <span className="font-mono text-black font-black uppercase tracking-widest text-xs md:text-sm relative z-10 drop-shadow-sm whitespace-nowrap">•</span>
+                                <span className="font-mono text-black font-black uppercase tracking-widest text-xs md:text-sm relative z-10 drop-shadow-sm whitespace-nowrap">Pro Feature</span>
                             </div>
                         </div>
                     </div>

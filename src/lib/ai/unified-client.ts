@@ -77,7 +77,7 @@ function getGroqConfig(model: string): ProviderConfig {
         url: 'https://api.groq.com/openai/v1/chat/completions',
         model,
         getHeaders: () => ({
-            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+            'Authorization': `Bearer ${process.env.GROQ_BACKUP_KEY || process.env.GROQ_API_KEY}`,
             'Content-Type': 'application/json',
         }),
         supportsResponseFormat: true,
@@ -395,7 +395,7 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
         const calendarProvider = getNvidiaConfig(nvidiaModel);
         
         // Strict 12s timeout for Nvidia to leave plenty of Vercel execution time for Groq
-        const nvidiaTimeout = Math.min(getRemainingTime(), 12000); 
+        const nvidiaTimeout = Math.min(getRemainingTime(), 20000); 
         
         const result = await callProvider<T>(calendarProvider, { ...options, timeout: nvidiaTimeout });
         if (result.success) return result;
@@ -405,7 +405,17 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
         if (remaining > 5000) {
             console.log('\x1b[33m[AI →]\x1b[0m Nvidia key failed/timed out, falling back to Groq backup...');
             const groqFallback = getGroqConfig('llama-3.3-70b-versatile');
-            return callProvider<T>(groqFallback, { ...options, timeout: remaining });
+            const groqResult = await callProvider<T>(groqFallback, { ...options, timeout: Math.min(remaining, 15000) });
+            if (groqResult.success) return groqResult;
+            
+            // 3rd layer of redundancy: Emergency GPT-4o-Mini via OpenRouter if Groq also fails (e.g. rate limits)
+            const emergencyRemaining = getRemainingTime();
+            if (emergencyRemaining > 5000) {
+                console.log('\x1b[35m[AI ALERT]\x1b[0m Nvidia & Groq failed. Trying OpenRouter Emergency (GPT-4o-Mini)...');
+                const emergencyProvider = getOpenRouterConfig('openai/gpt-4o-mini');
+                return callProvider<T>(emergencyProvider, { ...options, timeout: emergencyRemaining });
+            }
+            return groqResult;
         }
         return result;
     }
