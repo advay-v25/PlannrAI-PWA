@@ -397,7 +397,7 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
         const calendarProvider = getNvidiaConfig(nvidiaModel);
         
         // Strict 12s timeout for Nvidia to leave plenty of Vercel execution time for Groq
-        const nvidiaTimeout = Math.min(getRemainingTime(), 40000); 
+        const nvidiaTimeout = Math.min(getRemainingTime(), 55000); 
         
         const result = await callProvider<T>(calendarProvider, { ...options, timeout: nvidiaTimeout });
         if (result.success) return result;
@@ -406,7 +406,7 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
         const remaining = getRemainingTime();
         if (remaining > 5000) {
             console.log('\x1b[33m[AI →]\x1b[0m Nvidia key failed/timed out, falling back to Groq backup...');
-            const groqFallback = getGroqConfig('llama-3.3-70b-versatile');
+            const groqFallback = getGroqConfig('llama-3.1-8b-instant');
             const groqResult = await callProvider<T>(groqFallback, { ...options, timeout: Math.min(remaining, 15000) });
             if (groqResult.success) return groqResult;
             
