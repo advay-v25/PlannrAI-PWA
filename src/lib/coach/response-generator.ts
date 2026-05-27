@@ -386,15 +386,8 @@ ${bioContext}
 
 ━━━ 3-DAY BIO-RHYTHM TREND ━━━
 ${coachCtx.bio_rhythm_trend && coachCtx.bio_rhythm_trend.length > 0 
-    ? coachCtx.bio_rhythm_trend.map(t => `  - ${t.date}: Energy ${t.energy_level}/10, Mood: ${t.mood} ${t.notes ? `(Notes: ${t.notes})` : ''}`).join('\n')
+    ? coachCtx.bio_rhythm_trend.map(t => `  - ${t.date}: Energy ${t.energy_level}/10, Mood: ${t.mood} ${t.notes ? `(Notes: ${t.notes})` : ''}`).join('\\n')
     : '  (No trend data available)'}
-
-━━━ TODAY'S SCHEDULE (${now.date}) ━━━
-${todayText}
-
-━━━ TOMORROW'S SCHEDULE ━━━
-${tomorrowText}
-${freeSlotsText}
 
 ━━━ THIS WEEK'S FULL SCHEDULE + FREE SLOTS ━━━
 ${(() => {
@@ -847,7 +840,7 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
         if (isRejection && !/missed|miss|reschedule|another|new/i.test(userMessage)) {
              optionsInstruction = "The user rejected the previous AI options. Provide EXACTLY ONE option: 'Manual Movement', which instructs them to manually move the block in the calendar UI themselves. Do NOT generate any patch operations (empty operations array []). Return valid JSON only.";
         } else {
-             optionsInstruction = "Generate EXACTLY 2 actionable options in this exact order: Option 1: Reschedule Today or This Week (min 30m), Option 2: Replace Lower Priority Block (same pillar). Return valid JSON only.";
+             optionsInstruction = "Generate EXACTLY 4 actionable options in this exact order: Option 1: Reschedule Today, Option 2: Reschedule Later in the Week, Option 3: Replace Lower Priority Block (same pillar), Option 4: Replan Week. Return valid JSON only.";
         }
     }
 
