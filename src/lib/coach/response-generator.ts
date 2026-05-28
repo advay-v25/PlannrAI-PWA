@@ -300,7 +300,7 @@ function buildScheduleContextForAI(
         ? todayBlocks.map((b: any) => {
             const goal = coachCtx.goals.find(g => g.id === b.goal_id);
             const pillarInfo = goal ? ` [Pillar: ${goal.pillar}, Priority: ${goal.priority}]` : '';
-            return `  ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${b.goal_id ? ` → Goal: ${b.goal_id}` : ''}${pillarInfo}${b.id ? ` ID:${b.id}` : ''}`;
+            return `  [${b.start_time} - ${b.end_time}] "${b.context || b.title}" [${b.block_type}] (${b.status})${b.goal_id ? ` → Goal: ${b.goal_id}` : ''}${pillarInfo}${b.id ? ` ID:${b.id}` : ''}`;
         }).join('\n')
         : '  (No blocks scheduled today)';
 
@@ -308,7 +308,7 @@ function buildScheduleContextForAI(
         ? tomorrowBlocks.slice(0, 10).map((b: any) => {
             const goal = coachCtx.goals.find(g => g.id === b.goal_id);
             const pillarInfo = goal ? ` [Pillar: ${goal.pillar}, Priority: ${goal.priority}]` : '';
-            return `  ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${pillarInfo}${b.id ? ` ID:${b.id}` : ''}`;
+            return `  [${b.start_time} - ${b.end_time}] "${b.context || b.title}" [${b.block_type}] (${b.status})${pillarInfo}${b.id ? ` ID:${b.id}` : ''}`;
         }).join('\n')
         : '  (No blocks for tomorrow)';
 
@@ -415,7 +415,7 @@ ${(() => {
             lines = blocks.map((b: any) => {
                 const goal = coachCtx.goals.find(g => g.id === b.goal_id);
                 const pillarInfo = goal ? ` [Pillar: ${goal.pillar}, Priority: ${goal.priority}]` : '';
-                return `    ${b.start_time}–${b.end_time}: "${b.context || b.title}" [${b.block_type}] (${b.status})${b.goal_id ? ` → Goal: ${b.goal_id}` : ''}${pillarInfo}${b.id ? ` ID:${b.id}` : ''}`;
+                return `    [${b.start_time} - ${b.end_time}] "${b.context || b.title}" [${b.block_type}] (${b.status})${b.goal_id ? ` → Goal: ${b.goal_id}` : ''}${pillarInfo}${b.id ? ` ID:${b.id}` : ''}`;
             }).join('\n');
         }
 
@@ -736,10 +736,10 @@ C) NO HALLUCINATIONS & DURATION MATCHING (CRITICAL):
 - The chosen target free slot MUST have a duration greater than or equal to the block's duration. You CANNOT place a 45-minute block into a 30-minute free slot. Doing so will overlap with the subsequent block, which is a fatal error!
 
 --- THE 4 OPTIONS ---
-1. Reschedule Today: Find an empty slot during the same day of the same exact time duration as the missed block. If that is not possible, then a reduced duration empty slot on the same day, with a minimum time of 30 minutes. Use move_block.
-2. Reschedule Later in the Week: Find an empty slot during the week (tomorrow or later) of the same exact time duration as the missed block. If that is not possible, then a reduced duration empty slot anytime in the week, with a minimum time of 30 minutes. Use move_block.
-3. Replace Lower Priority Block (Same Pillar): Replace a block that is accomplishing a different goal, in the SAME pillar (mind, body, craft), that has a LOWER priority than the missed block. The missed block simply replaces the scheduled block of lower priority. Target a block of the same duration first, or less duration if needed. Never replace a block of higher priority, an anchor, sleep, meals, buffer times, or a block for the exact same goal. Generate delete_block FIRST, then move_block for the missed block into that exact slot.
-4. Replan Week: The week from the next day onward would be replanned. The schedule for today and before must remain the same. The missed block should be scheduled for the next day, and blocks will be reorganized accordingly, removing or reducing lower priority blocks. Use the 'replan_week' operation.
+1. Reschedule Today: Move the block to an empty slot during the same day of the same exact time duration as the missed block. If that is not possible, then a reduced duration empty slot on the same day, with a minimum time of 30 minutes.
+2. Reschedule Later in the Week: Move the block to an empty slot during the week (tomorrow or later) of the same exact time duration as the missed block. If that is not possible, then a reduced duration empty slot anytime in the week, with a minimum time of 30 minutes.
+3. Replace Lower Priority Block: Replace a block that is accomplishing a different goal, in the SAME pillar (mind, body, craft), that has a LOWER priority than the missed block. The missed block simply replaces the scheduled block of lower priority. Target a block of the same duration first, or less duration if needed. Never replace a block of higher priority, an anchor, sleep, meals, buffer times, or a block for the exact same goal.
+4. Replan Week: The week from the next day onward would be replanned. The schedule for today and before must remain the same. The missed block should be scheduled for the next day, and blocks will be reorganized accordingly, removing or reducing lower priority blocks. Use the replan_week operation, but carry the missed block into tomorrow and have it replace a lower priority block on that day. The replaced block would then be carried to the next day, and would replace a lower priority block. This cycle will continue until the last block being replaced is permanently deleted. This will ensure that the schedule still remains as similar as possible.
 
 ⚖️ PRIORITY-BASED DISPLACEMENT (GENERAL BEHAVIOUR):
 When the user wants to move a block to a time slot that is already occupied (NOT following the missed block waterfall):
@@ -830,7 +830,8 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
     const recentHistory = conversationHistory.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n');
 
     const isMissedBlock = classification.primary_intent === CoachIntent.RESCHEDULE_DAY || 
-                          /missed|miss|didn't|did not|avoided|avoid/i.test(userMessage);
+                          /missed|miss|didn't|did not|avoided|avoid|option|options|reschedule/i.test(userMessage) || 
+                          /missed|miss|didn't|did not|avoided|avoid|option|options|reschedule/i.test(recentHistory);
 
     const isRejection = /none|neither|don't like|dont like|manual|myself|reject|no|stop/i.test(userMessage);
 
@@ -840,7 +841,21 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
         if (isRejection && !/missed|miss|reschedule|another|new/i.test(userMessage)) {
              optionsInstruction = "The user rejected the previous AI options. Provide EXACTLY ONE option: 'Manual Movement', which instructs them to manually move the block in the calendar UI themselves. Do NOT generate any patch operations (empty operations array []). Return valid JSON only.";
         } else {
-             optionsInstruction = "Generate EXACTLY 4 actionable options in this exact order: Option 1: Reschedule Today, Option 2: Reschedule Later in the Week, Option 3: Replace Lower Priority Block (same pillar), Option 4: Replan Week. Return valid JSON only.";
+             optionsInstruction = `Generate EXACTLY 3 actionable options in this exact order:
+Option 1: Reschedule Today (same or reduced duration, min 30m).
+Option 2: Reschedule This Week (same or reduced duration, min 30m).
+Option 3: Replace Lower Priority Block (same pillar, different goal).
+
+CRITICAL FORMATTING REQUIREMENTS:
+1. For the 'description' field:
+   - Options 1 & 2 MUST state the specific time the block will be moved to (e.g., 'Move to 14:00 - 15:30').
+   - Option 3 MUST state the exact name, day, and time of the lower priority block being replaced.
+2. For the 'impact' field:
+   - MUST be formatted as a string containing 2-3 concise bullet points (using • symbol) explaining exactly what changes will occur. (e.g. "• Moves block to 14:00\\n• Replaces lower priority Gym block")
+3. For Option 3 operations:
+   - You MUST output exactly two patch operations for Option 3: first a 'delete_block' operation to remove the lower priority block, and then a 'move_block' operation to move the missed block into that exact time slot.
+
+However, if there are absolutely NO verified free slots remaining for the rest of the week, skip Options 1-2 and rely on Option 3. Return valid JSON only.`;
         }
     }
 
@@ -917,20 +932,34 @@ ${optionsInstruction}`;
                 const hasDelete = normalizedOps.some(o => o.type === 'delete_block');
                 const isReplan = normalizedOps.some(o => o.type === 'replan_week' || o.type === 'replan_day');
 
-                if (isMissedBlock) {
-                    // 1. For Option 4 (Replan Week): Keep only the replan operation to keep today's schedule entirely untouched
-                    if (isReplan) {
-                        const replanOp = normalizedOps.find(o => o.type === 'replan_week' || o.type === 'replan_day');
-                        if (replanOp) {
-                            normalizedOps = [replanOp];
-                        }
+                // 1. For Option 4 (Replan Week): Keep only the replan operation to keep today's schedule entirely untouched
+                if (isMissedBlock && isReplan) {
+                    const replanOp = normalizedOps.find(o => o.type === 'replan_week' || o.type === 'replan_day');
+                    if (replanOp) {
+                        normalizedOps = [replanOp];
                     }
-                    // 2. For Options 1 & 2: Keep only the single move/create operation (no random secondary displacements)
-                    else if (!hasDelete) {
-                        const moveOrCreateOp = normalizedOps.find(o => o.type === 'move_block' || o.type === 'create_block');
-                        if (moveOrCreateOp) {
-                            normalizedOps = [moveOrCreateOp];
+                }
+
+                // 2. For Options 1 & 2: Keep only the single move/create operation (no random secondary displacements)
+                if (!hasDelete && !isReplan && isMissedBlock) {
+                    const moveOrCreateOp = normalizedOps.find(o => o.type === 'move_block' || o.type === 'create_block');
+                    if (moveOrCreateOp) {
+                        const missedBlock = findMissedBlock(userMessage, classification, coachCtx);
+                        if (missedBlock) {
+                            if (moveOrCreateOp.type === 'create_block') {
+                                moveOrCreateOp.type = 'move_block';
+                                moveOrCreateOp.block_id = missedBlock.id;
+                                moveOrCreateOp.title = missedBlock.title;
+                                moveOrCreateOp.new_start = (moveOrCreateOp as any).data.start_time;
+                                moveOrCreateOp.new_end = (moveOrCreateOp as any).data.end_time;
+                                moveOrCreateOp.new_date = (moveOrCreateOp as any).data.date || coachCtx.current.date;
+                                delete (moveOrCreateOp as any).data;
+                            } else if (moveOrCreateOp.type === 'move_block') {
+                                moveOrCreateOp.block_id = missedBlock.id;
+                                moveOrCreateOp.title = missedBlock.title;
+                            }
                         }
+                        normalizedOps = [moveOrCreateOp];
                     }
                 }
 
@@ -1010,14 +1039,23 @@ ${optionsInstruction}`;
                                     
                                     const moveOrCreateOp = normalizedOps.find(o => o.type === 'move_block' || o.type === 'create_block');
                                     if (moveOrCreateOp) {
+                                        if (moveOrCreateOp.type === 'create_block') {
+                                            moveOrCreateOp.type = 'move_block';
+                                            moveOrCreateOp.block_id = missedBlock.id;
+                                            moveOrCreateOp.title = missedBlock.title;
+                                            moveOrCreateOp.new_start = (moveOrCreateOp as any).data.start_time;
+                                            moveOrCreateOp.new_end = (moveOrCreateOp as any).data.end_time;
+                                            moveOrCreateOp.new_date = (moveOrCreateOp as any).data.date || coachCtx.current.date;
+                                            delete (moveOrCreateOp as any).data;
+                                        } else if (moveOrCreateOp.type === 'move_block') {
+                                            moveOrCreateOp.block_id = missedBlock.id;
+                                            moveOrCreateOp.title = missedBlock.title;
+                                        }
+                                        
                                         if (moveOrCreateOp.type === 'move_block') {
                                             moveOrCreateOp.new_date = replacementCandidate.date;
                                             moveOrCreateOp.new_start = replacementCandidate.start_time;
                                             moveOrCreateOp.new_end = replacementCandidate.end_time;
-                                        } else if (moveOrCreateOp.type === 'create_block') {
-                                            (moveOrCreateOp as any).data.date = replacementCandidate.date;
-                                            (moveOrCreateOp as any).data.start_time = replacementCandidate.start_time;
-                                            (moveOrCreateOp as any).data.end_time = replacementCandidate.end_time;
                                         }
                                     }
                                 }
@@ -1589,80 +1627,60 @@ Respond with helpful, data-driven information. Return valid JSON only.`;
     return generateFallbackResponse(coachCtx, classification, userMessage);
 }
 
-/**
- * Response for general chat / acknowledgment
- */
-function generateAcknowledgmentResponse(
-    coachCtx: CoachContext
-): CoachResponse {
-    const message = coachCtx.last_user_message || '';
-    const lower = message.toLowerCase();
-    const missedBlocks = coachCtx.user_state.recent_missed_blocks;
-    const name = coachCtx.user.first_name || '';
-    const currentHour = parseInt(coachCtx.current.time.split(':')[0]) || 12;
-    const isEvening = currentHour >= 18;
-    const isLateNight = currentHour >= 22;
+async function generateAIGeneralResponse(
+    userMessage: string,
+    conversationHistory: Array<{ role: string; content: string }>,
+    coachCtx: CoachContext,
+    classification: IntentClassification
+): Promise<CoachResponse> {
+    const systemPrompt = `You are PlannrAI Coach, an elite scheduling assistant and productivity coach.
+The user is chatting with you generally. Respond naturally, concisely, and with a confident, supportive tone.
+If they ask something completely unrelated to productivity, scheduling, or goals, politely remind them of your purpose.
 
-    // Tough Love acknowledgments based on emotional context + schedule state + time
-    let ack = { message: "Got it. Now let's make it count.", offer: "Need me to optimize something?" };
+Current Context:
+Time: ${coachCtx.current.time}
+User: ${coachCtx.user.first_name || 'User'}
+Recent Energy: ${coachCtx.user_state.last_energy_checkin || 'Unknown'}/10
 
-    if (/(hate|frustrated|annoying|ugh|terrible)/i.test(lower)) {
-        ack = missedBlocks >= 3
-            ? { message: `I hear you${name ? `, ${name}` : ''}. But ${missedBlocks} missed blocks today isn't frustration — that's avoidance. Let's fix the root cause.`, offer: "Want me to cut the fat from your schedule?" }
-            : { message: "Frustration is signal, not noise. Something about your schedule isn't working. Let's fix it.", offer: "Tell me what's not working and I'll restructure." };
-    } else if (/(stressed|anxious|worried|overwhelmed)/i.test(lower)) {
-        ack = { message: "Your brain is telling you it's overloaded. That's actually useful data. Let's lighten the load strategically — not randomly.", offer: "I can clear everything except your top 2 priorities." };
-    } else if (/(thanks|thank you|great|awesome|perfect)/i.test(lower)) {
-        ack = isEvening
-            ? { message: `Good work today${name ? `, ${name}` : ''}. Rest well — tomorrow's a fresh page. 💪`, offer: "Want me to preview tomorrow's plan?" }
-            : { message: "Good. Stay locked in. 💪", offer: "What's next on your radar?" };
-    } else if (/(tired|sleepy|exhausted|drained)/i.test(lower)) {
-        ack = isLateNight
-            ? { message: `${name ? `${name}, ` : ''}It's late. Your body is keeping score — go rest. Everything can wait until tomorrow.`, offer: "Want me to move remaining blocks to tomorrow?" }
-            : { message: "Your body is keeping score. Rest isn't weakness — it's strategy. Let me adjust your remaining blocks.", offer: "Want me to switch to recovery mode?" };
-    } else if (/(excited|pumped|motivated|let's go|crush it)/i.test(lower)) {
-        ack = { message: `That's the energy${name ? `, ${name}` : ''}. Let's channel it. 🔥`, offer: "Want me to front-load your hardest tasks while you're in this zone?" };
+Respond in strict JSON matching this schema:
+{
+    "response": "Your natural, concise response (1-3 sentences max)"
+}`;
+
+    const recentHistory = conversationHistory.slice(-4).map(m => `${m.role === 'user' ? 'User' : 'Coach'}: ${m.content}`).join('\n');
+    const prompt = `${recentHistory ? `Recent Conversation:\n${recentHistory}\n\n` : ''}User: ${userMessage}\n\nGenerate your JSON response:`;
+
+    let responseText = "I'm here to help you crush your goals. What's on your mind?";
+
+    try {
+        const aiRes = await callAI<{ response: string }>({
+            prompt,
+            systemPrompt,
+            model: 'fast',
+            requireJSON: true,
+            useNvidia: true,
+        });
+
+        if (aiRes.success && aiRes.data?.response) {
+            responseText = aiRes.data.response;
+        }
+    } catch (e) {
+        console.warn('[CoachAI] General chat fallback:', e);
     }
 
     return {
         id: generateId(),
         timestamp: new Date().toISOString(),
         mode: 'acknowledge',
-        summary: ack.message,
-        acknowledgment: { message: ack.message, offer: ack.offer },
-        options: [{
-            id: 'lighten_load',
-            title: 'Lighten my load',
-            description: "Reduce today's workload",
-            impact: 'Fewer tasks, more breathing room',
-            patch: { operations: [], requires_confirmation: false },
-            preview: { blocks_added: 0, blocks_modified: 0, blocks_removed: 0, affected_dates: [] },
-            recommended: false,
-        }],
+        summary: responseText,
+        acknowledgment: { message: responseText },
         minimal_mode: coachCtx.user_state.is_minimal_mode,
         conversation_context: { can_undo: false },
         options_expire_at: getExpirationTime(10),
     };
 }
 
-/**
- * Out of scope response
- */
-function generateOutOfScopeResponse(coachCtx: CoachContext): CoachResponse {
-    return {
-        id: generateId(),
-        timestamp: new Date().toISOString(),
-        mode: 'acknowledge',
-        summary: "I'm your scheduling assistant — I focus on helping you plan your time, manage goals, and optimize your calendar.",
-        acknowledgment: {
-            message: "I'm your scheduling assistant — I focus on helping you plan your time.",
-            offer: "Try asking me to reorganize your day, add a task, or check your progress!",
-        },
-        minimal_mode: coachCtx.user_state.is_minimal_mode,
-        conversation_context: { can_undo: false },
-        options_expire_at: getExpirationTime(10),
-    };
-}
+// Removed generateOutOfScopeResponse as it's handled by generateAIGeneralResponse
 
 /**
  * Clarification response
@@ -1740,29 +1758,47 @@ function generateUndoResponse(coachCtx: CoachContext): CoachResponse {
 export async function generateCoachResponse(
     userMessage: string,
     conversationHistory: Array<{ role: string; content: string }>,
-    context: CoachContext,
+    lightOrFullContext: any, // Could be LightContext or CoachContext
     supabase?: any,
-    prebuiltCalCtx?: CalendarContext | null
+    prebuiltCalCtx?: CalendarContext | null,
+    precomputedClassification?: IntentClassification
 ): Promise<CoachResponse> {
-    // 1. Classify intent
-    const classification = await classifyIntent(
-        userMessage,
-        conversationHistory,
-        {
-            current_time: context.current.time,
-            today_blocks: context.schedule.today,
-            goals: context.goals,
-            recent_energy: context.user_state.last_energy_checkin,
-        }
-    );
+    // 1. Classify intent (or use pre-computed)
+    let classification = precomputedClassification;
+    if (!classification) {
+        classification = await classifyIntent(
+            userMessage,
+            conversationHistory,
+            {
+                current_time: lightOrFullContext.current?.time || lightOrFullContext.current_time,
+                today_blocks: lightOrFullContext.schedule?.today || lightOrFullContext.today_blocks,
+                goals: lightOrFullContext.goals,
+                recent_energy: lightOrFullContext.user_state?.last_energy_checkin || lightOrFullContext.recent_energy,
+            }
+        );
+    }
 
     const intent = classification.primary_intent;
 
-    // 2. Use pre-built calendar context if provided, otherwise build fresh (deduplication)
+    // 2. Upgrade to full CoachContext if this is a Heavy intent
+    let context = lightOrFullContext;
+    if (intent !== CoachIntent.GENERAL_CHAT && intent !== CoachIntent.OUT_OF_SCOPE) {
+        if (!context.schedule?.tomorrow && supabase) {
+            // Need full context
+            try {
+                const { buildCoachContext } = await import('@/lib/coach/context-builder');
+                context = await buildCoachContext(lightOrFullContext.user_id || lightOrFullContext.user.id, supabase);
+            } catch (e) {
+                console.warn('[CoachAI] Failed to upgrade context:', e);
+            }
+        }
+    }
+
+    // 3. Use pre-built calendar context if provided, otherwise build fresh (ONLY IF HEAVY INTENT)
     let calCtx: CalendarContext | null = prebuiltCalCtx || null;
-    if (!calCtx && supabase) {
+    if (!calCtx && supabase && intent !== CoachIntent.GENERAL_CHAT && intent !== CoachIntent.OUT_OF_SCOPE) {
         try {
-            calCtx = await buildCalendarContext(context.user.id, supabase);
+            calCtx = await buildCalendarContext(context.user_id || context.user?.id, supabase);
         } catch (e) {
             console.warn('[CoachAI] Failed to build calendar context:', e);
         }
@@ -1777,12 +1813,26 @@ export async function generateCoachResponse(
         return generateUndoResponse(context);
     }
 
-    if (intent === CoachIntent.GENERAL_CHAT) {
-        return generateAcknowledgmentResponse(context);
+
+    if (classification.requires_clarification && intent === CoachIntent.CLARIFICATION_NEEDED) {
+        return generateClarificationResponse(context, classification);
     }
 
-    if (intent === CoachIntent.OUT_OF_SCOPE) {
-        return generateOutOfScopeResponse(context);
+    if (intent === CoachIntent.UNDO_LAST) {
+        return generateUndoResponse(context);
+    }
+
+    if (intent === CoachIntent.GENERAL_CHAT || intent === CoachIntent.OUT_OF_SCOPE) {
+        // Upgrade context to mock CoachContext just for the prompt
+        const mockContext: any = {
+            current: { time: context.current_time || context.current?.time },
+            user: { first_name: context.first_name || context.user?.first_name },
+            user_state: { 
+                last_energy_checkin: context.recent_energy || context.user_state?.last_energy_checkin,
+                is_minimal_mode: false 
+            }
+        };
+        return generateAIGeneralResponse(userMessage, conversationHistory, mockContext, classification);
     }
 
     if (INFORMATION_INTENTS.has(intent)) {

@@ -7,9 +7,19 @@ export const POST = secureApiRoute(
             full_name, timezone,
             sleep_start, sleep_end, wind_down_mins,
             meals_per_day, meal_timing, default_buffer_duration,
+            two_meals_selection, custom_meal_times,
             commitments, goals, failure_modes,
             selected_variant_id
         } = body as any;
+
+        const addMinsToTime = (timeStr: string, mins: number) => {
+            if (!timeStr) return '';
+            const [h, m] = timeStr.split(':').map(Number);
+            const totalMins = h * 60 + m + mins;
+            const newH = Math.floor(totalMins / 60) % 24;
+            const newM = totalMins % 60;
+            return `${newH.toString().padStart(2, '0')}:${newM.toString().padStart(2, '0')}`;
+        };
 
         // Basic validation
         if (!full_name || !sleep_start || !sleep_end) {
@@ -63,6 +73,29 @@ export const POST = secureApiRoute(
         let safeBufferMin = default_buffer_duration || 10;
         if (![5, 10, 15].includes(safeBufferMin)) safeBufferMin = 15;
 
+        // Build explicit meal windows based on UI selections
+        const meal_windows: Record<string, any> = {};
+        const isTwoMeals = meals_per_day === 2;
+        
+        if (!isTwoMeals || (isTwoMeals && two_meals_selection?.includes('breakfast'))) {
+            meal_windows.breakfast = {
+                start: custom_meal_times?.breakfast || '08:00',
+                end: custom_meal_times?.breakfast ? addMinsToTime(custom_meal_times.breakfast, 30) : '08:30'
+            };
+        }
+        if (!isTwoMeals || (isTwoMeals && two_meals_selection?.includes('lunch'))) {
+            meal_windows.lunch = {
+                start: custom_meal_times?.lunch || '13:00',
+                end: custom_meal_times?.lunch ? addMinsToTime(custom_meal_times.lunch, 45) : '13:45'
+            };
+        }
+        if (!isTwoMeals || (isTwoMeals && two_meals_selection?.includes('dinner'))) {
+            meal_windows.dinner = {
+                start: custom_meal_times?.dinner || '19:00',
+                end: custom_meal_times?.dinner ? addMinsToTime(custom_meal_times.dinner, 45) : '19:45'
+            };
+        }
+
         // 1.5 Update Profile Preferences
         const { error: prefError } = await supabase
             .from('profile_preferences')
@@ -72,6 +105,7 @@ export const POST = secureApiRoute(
                 wake_time: sleep_end,
                 wind_down_min: wind_down_mins,
                 meals_per_day,
+                meal_windows,
                 buffer_min: safeBufferMin,
                 updated_at: new Date().toISOString()
             });
@@ -179,7 +213,10 @@ export const POST = secureApiRoute(
                     reason: 'Onboarding initial schedule generation',
                 };
 
-                await PatchService.applyPatch(effectiveUserId, calendarPatch, supabase as any);
+                const patchResult = await PatchService.applyPatch(effectiveUserId, calendarPatch as any, supabase as any, 'coach');
+                if (!patchResult.success) {
+                    console.error('Initial schedule patch failed:', patchResult.errors);
+                }
                 blocksCreated = bestVariant.blocks.length;
             }
         } catch (genError) {

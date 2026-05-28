@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { Lock, Check, Plus } from 'lucide-react';
 import { calculateLayout, LayoutBlock } from '@/lib/calendar-layout';
 import { motion } from 'framer-motion';
+import { usePremiumCalendar } from './premium-calendar-styles';
 
 interface WeekGridProps {
     date: Date;
@@ -283,12 +284,29 @@ function BlockCard({ block, layout, onClick, isDayView, index = 0 }: { block: an
         width: `calc(${widthPercent}% - ${gap * 2}px)`
     };
 
+    const animatingBlocks = usePremiumCalendar(state => state.animatingBlocks);
+    const animBlock = animatingBlocks.find(b => b.id === block.id);
+    const [isHidden, setIsHidden] = useState(() => {
+        return animBlock ? Date.now() < animBlock.showAfter : false;
+    });
+
+    useEffect(() => {
+        if (animBlock && Date.now() < animBlock.showAfter) {
+            setIsHidden(true);
+            const delay = animBlock.showAfter - Date.now();
+            const timer = setTimeout(() => setIsHidden(false), delay);
+            return () => clearTimeout(timer);
+        } else {
+            setIsHidden(false);
+        }
+    }, [animBlock]);
+
     return (
         <motion.div
             ref={setNodeRef}
-            initial={{ opacity: 0, scale: 0.97 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={transform ? { duration: 0 } : { type: 'spring', stiffness: 400, damping: 30, delay: index * 0.05 }}
+            initial={isHidden ? { opacity: 0 } : { opacity: 0, scale: 0.97 }}
+            animate={isHidden ? { opacity: 0 } : { opacity: 1, scale: 1 }}
+            transition={transform ? { duration: 0 } : { type: 'spring', stiffness: 400, damping: 30, delay: isHidden ? 0 : index * 0.05 }}
             style={style}
             {...listeners}
             {...attributes}

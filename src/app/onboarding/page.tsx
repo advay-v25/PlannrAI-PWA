@@ -61,8 +61,8 @@ export default function OnboardingPage() {
             // Mark session as complete client-side too
             await supabase.auth.updateUser({ data: { onboarding_complete: true } });
 
-            reset();
             router.push('/app/calendar?setup=complete');
+            setTimeout(() => reset(), 2000);
 
         } catch (err: any) {
             console.error('Onboarding finalization failed:', err);
@@ -193,7 +193,7 @@ export default function OnboardingPage() {
                         {isSaving ? (
                             <div className="flex items-center justify-center gap-3 relative z-10 w-[140px]">
                                 <Loader2 className="w-5 h-5 animate-spin" />
-                                <span className="font-mono text-xs">PROCESSING...</span>
+                                <span className="font-mono text-[10px] sm:text-xs">INITIALIZING OS...</span>
                             </div>
                         ) : isLastStep ? (
                             <span className="relative z-10 px-4">ACTIVATE OS</span>
