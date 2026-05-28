@@ -41,7 +41,7 @@ interface CoachState extends PersistentCoachData {
   connectionStatus: 'connected' | 'disconnected' | 'connecting';
   
   sendMessage: (text: string) => Promise<{ success: boolean; error?: string }>;
-  applyOption: (messageId: string, optionId: string) => Promise<boolean>;
+  applyOption: (messageId: string, optionId: string) => Promise<CoachOption | boolean>;
   undo: () => Promise<boolean>;
   clearError: () => void;
   loadProactiveInsight: () => Promise<void>;
@@ -190,7 +190,7 @@ export const useCoach = create<CoachState>()(
                 : m
             )
           }));
-          return true;
+          return option;
         }
 
         set(state => ({
@@ -237,7 +237,7 @@ export const useCoach = create<CoachState>()(
             window.dispatchEvent(new Event('calendar-refresh'));
           }
 
-          return true;
+          return option;
         } catch (error: any) {
           console.error('[Coach] Apply option error:', error);
           
