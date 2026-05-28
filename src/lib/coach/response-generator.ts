@@ -386,15 +386,8 @@ ${bioContext}
 
 ━━━ 3-DAY BIO-RHYTHM TREND ━━━
 ${coachCtx.bio_rhythm_trend && coachCtx.bio_rhythm_trend.length > 0 
-    ? coachCtx.bio_rhythm_trend.map(t => `  - ${t.date}: Energy ${t.energy_level}/10, Mood: ${t.mood} ${t.notes ? `(Notes: ${t.notes})` : ''}`).join('\n')
+    ? coachCtx.bio_rhythm_trend.map(t => `  - ${t.date}: Energy ${t.energy_level}/10, Mood: ${t.mood} ${t.notes ? `(Notes: ${t.notes})` : ''}`).join('\\n')
     : '  (No trend data available)'}
-
-━━━ TODAY'S SCHEDULE (${now.date}) ━━━
-${todayText}
-
-━━━ TOMORROW'S SCHEDULE ━━━
-${tomorrowText}
-${freeSlotsText}
 
 ━━━ THIS WEEK'S FULL SCHEDULE + FREE SLOTS ━━━
 ${(() => {
@@ -719,8 +712,12 @@ When the user gives an unstructured request like "I need to go grocery shopping 
    -> FIRST: Generate a \`create_block\` operation for the new ad-hoc block at the exact time, BUT you MUST add \`"is_locked": true\` to its data payload. This locks it in place.
    -> THEN: Generate a \`replan_day\` operation.
    The engine will automatically clear the overlapping blocks and perfectly cascade/reorganize them around your new locked block!
-4. TRADEOFF COMMUNICATION: When using Auto-Cascade, explicitly fill out the \`tradeoff\` field to warn the user (e.g. "Warning: This will cascade your existing morning blocks to later in the day. Severity: info").
-5. NEVER overlap with immutable blocks (sleep, meals, anchors). If they conflict, refuse the insertion and offer alternative times.
+4. REPLANNING TO FIT NEW TASKS: If the user asks to add a task/block but the target day is completely full (no free slots), you must ALWAYS generate TWO operations:
+   -> FIRST: \`create_todo\` (for a task without a specific time) or \`create_block\` (for a specific time block).
+   -> THEN: \`replan_week\` or \`replan_day\` to reorganize the schedule around the newly added task.
+   NEVER generate \`replan_week\` by itself when adding a task; the optimizer needs the new task in the database first!
+5. TRADEOFF COMMUNICATION: When using Auto-Cascade, explicitly fill out the \`tradeoff\` field to warn the user (e.g. "Warning: This will cascade your existing morning blocks to later in the day. Severity: info").
+6. NEVER overlap with immutable blocks (sleep, meals, anchors). If they conflict, refuse the insertion and offer alternative times.
 
 🔄 MISSED BLOCK 4-OPTION PROTOCOL (STRICT EXECUTION):
 When the user says they missed or will miss a block and want to reschedule, you MUST ALWAYS provide exactly these 4 options in this specific order.
@@ -843,7 +840,7 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
         if (isRejection && !/missed|miss|reschedule|another|new/i.test(userMessage)) {
              optionsInstruction = "The user rejected the previous AI options. Provide EXACTLY ONE option: 'Manual Movement', which instructs them to manually move the block in the calendar UI themselves. Do NOT generate any patch operations (empty operations array []). Return valid JSON only.";
         } else {
-             optionsInstruction = "Generate EXACTLY 2 actionable options in this exact order: Option 1: Reschedule Today or This Week (min 30m), Option 2: Replace Lower Priority Block (same pillar). Return valid JSON only.";
+             optionsInstruction = "Generate EXACTLY 4 actionable options in this exact order: Option 1: Reschedule Today, Option 2: Reschedule Later in the Week, Option 3: Replace Lower Priority Block (same pillar), Option 4: Replan Week. Return valid JSON only.";
         }
     }
 
@@ -920,19 +917,20 @@ ${optionsInstruction}`;
                 const hasDelete = normalizedOps.some(o => o.type === 'delete_block');
                 const isReplan = normalizedOps.some(o => o.type === 'replan_week' || o.type === 'replan_day');
 
-                // 1. For Option 4 (Replan Week): Keep only the replan operation to keep today's schedule entirely untouched
-                if (isReplan) {
-                    const replanOp = normalizedOps.find(o => o.type === 'replan_week' || o.type === 'replan_day');
-                    if (replanOp) {
-                        normalizedOps = [replanOp];
+                if (isMissedBlock) {
+                    // 1. For Option 4 (Replan Week): Keep only the replan operation to keep today's schedule entirely untouched
+                    if (isReplan) {
+                        const replanOp = normalizedOps.find(o => o.type === 'replan_week' || o.type === 'replan_day');
+                        if (replanOp) {
+                            normalizedOps = [replanOp];
+                        }
                     }
-                }
-
-                // 2. For Options 1 & 2: Keep only the single move/create operation (no random secondary displacements)
-                if (!hasDelete && !isReplan && isMissedBlock) {
-                    const moveOrCreateOp = normalizedOps.find(o => o.type === 'move_block' || o.type === 'create_block');
-                    if (moveOrCreateOp) {
-                        normalizedOps = [moveOrCreateOp];
+                    // 2. For Options 1 & 2: Keep only the single move/create operation (no random secondary displacements)
+                    else if (!hasDelete) {
+                        const moveOrCreateOp = normalizedOps.find(o => o.type === 'move_block' || o.type === 'create_block');
+                        if (moveOrCreateOp) {
+                            normalizedOps = [moveOrCreateOp];
+                        }
                     }
                 }
 
