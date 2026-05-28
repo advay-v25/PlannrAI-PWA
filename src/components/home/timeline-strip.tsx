@@ -2,14 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Lock, Clock, ArrowRight } from 'lucide-react';
+import { Lock, Clock, ArrowRight, X } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
 interface TimelineStripProps {
     blocks: any[];
     anchors?: any[];
+    onStatusChange?: (blockId: string, status: string) => void;
 }
 
 function formatSafeTime(timeStr: string) {
@@ -21,7 +23,8 @@ function formatSafeTime(timeStr: string) {
 }
 
 
-export function TimelineStrip({ blocks, anchors = [] }: TimelineStripProps) {
+export function TimelineStrip({ blocks, anchors = [], onStatusChange }: TimelineStripProps) {
+    const router = useRouter();
     const [currentTime, setCurrentTime] = useState(new Date().toTimeString().slice(0, 5));
 
     useEffect(() => {
@@ -34,8 +37,13 @@ export function TimelineStrip({ blocks, anchors = [] }: TimelineStripProps) {
     // Sort blocks chronologically
     const sorted = [...blocks].sort((a, b) => a.start_time.localeCompare(b.start_time));
 
-    // Filter to show: the current block, and upcoming blocks. Hide old ones (except maybe the very last one missed)
-    const upcomingBlocks = sorted.filter(b => b.end_time > currentTime).slice(0, 4);
+    // Filter to show: the current block, and upcoming blocks that haven't been completed/missed yet.
+    const upcomingBlocks = sorted.filter(b => 
+        b.end_time > currentTime && 
+        b.status !== 'done' && 
+        b.status !== 'missed' && 
+        b.status !== 'cancelled'
+    ).slice(0, 4);
 
     return (
         <div className="w-full rounded-3xl border border-white/5 bg-black/40 backdrop-blur-xl p-5 shadow-2xl">
@@ -60,55 +68,82 @@ export function TimelineStrip({ blocks, anchors = [] }: TimelineStripProps) {
                         const isCurrent = block.start_time <= currentTime && block.end_time > currentTime;
 
                         return (
-                            <Link key={block.id} href={`/app/calendar?date=${block.date}`} className="block">
-                                <motion.div
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: index * 0.05 }}
-                                    whileHover={{ scale: 1.01, x: 2 }}
-                                    className={cn(
-                                        "group relative flex items-stretch gap-3 rounded-2xl p-3 outline-none transition-all",
-                                        isCurrent
-                                            ? "bg-[var(--color-primary)]/10 ring-1 ring-[var(--color-primary)]/30 backdrop-blur-md shadow-[0_0_20px_rgba(var(--color-primary-rgb),0.1)]"
-                                            : "hover:bg-white/[0.03] ring-1 ring-white/5 bg-black/20"
-                                    )}
-                                >
-                                    {/* Timeline Line & Indicator */}
-                                    <div className="flex flex-col items-center gap-1 min-w-[48px]">
-                                        <span className={cn(
-                                            "text-xs font-bold font-mono",
-                                            isCurrent ? "text-[var(--color-primary)]" : "text-white/50"
-                                        )}>
-                                            {formatSafeTime(block.start_time)}
-                                        </span>
-                                        <div className="flex-1 w-[2px] rounded-full bg-white/5 relative">
-                                            {isCurrent && (
-                                                <div className="absolute top-0 w-[2px] bg-[var(--color-primary)] rounded-full animate-pulse h-full" />
-                                            )}
-                                        </div>
+                            <motion.div
+                                key={block.id}
+                                onClick={() => router.push(`/app/calendar?date=${block.date}`)}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: index * 0.05 }}
+                                whileHover={{ scale: 1.01, x: 2 }}
+                                className={cn(
+                                    "group relative flex items-stretch gap-3 rounded-2xl p-3 outline-none transition-all cursor-pointer",
+                                    isCurrent
+                                        ? "bg-[var(--color-primary)]/10 ring-1 ring-[var(--color-primary)]/30 backdrop-blur-md shadow-[0_0_20px_rgba(var(--color-primary-rgb),0.1)]"
+                                        : "hover:bg-white/[0.03] ring-1 ring-white/5 bg-black/20"
+                                )}
+                            >
+                                {/* Timeline Line & Indicator */}
+                                <div className="flex flex-col items-center gap-1 min-w-[48px]">
+                                    <span className={cn(
+                                        "text-xs font-bold font-mono",
+                                        isCurrent ? "text-[var(--color-primary)]" : "text-white/50"
+                                    )}>
+                                        {formatSafeTime(block.start_time)}
+                                    </span>
+                                    <div className="flex-1 w-[2px] rounded-full bg-white/5 relative">
+                                        {isCurrent && (
+                                            <div className="absolute top-0 w-[2px] bg-[var(--color-primary)] rounded-full animate-pulse h-full" />
+                                        )}
                                     </div>
+                                </div>
 
-                                    {/* Content */}
-                                    <div className="flex-1 pb-1">
-                                        <div className="flex items-start justify-between gap-2">
-                                            <div className="flex flex-col">
-                                                <span className={cn(
-                                                    "text-sm font-semibold truncate",
-                                                    isCurrent ? "text-white" : "text-white/80"
-                                                )}>
-                                                    {block.title}
-                                                </span>
-                                                <span className="text-[10px] text-white/40 font-mono mt-0.5">
-                                                    {block.end_time.slice(0, 5)} {block.pillar ? `• ${block.pillar.toUpperCase()}` : ''}
-                                                </span>
-                                            </div>
-                                            {block.block_type === 'anchor' && (
+                                {/* Content */}
+                                <div className="flex-1 pb-1">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="flex flex-col">
+                                            <span className={cn(
+                                                "text-sm font-semibold truncate",
+                                                isCurrent ? "text-white" : "text-white/80"
+                                            )}>
+                                                {block.title}
+                                            </span>
+                                            <span className="text-[10px] text-white/40 font-mono mt-0.5">
+                                                {block.end_time.slice(0, 5)} {block.pillar ? `• ${block.pillar.toUpperCase()}` : ''}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            {block.block_type === 'anchor' ? (
                                                 <Lock className="w-3.5 h-3.5 text-white/20 shrink-0" />
-                                            )}
+                                            ) : onStatusChange ? (
+                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onStatusChange(block.id, 'done');
+                                                        }}
+                                                        disabled={['done', 'missed', 'cancelled'].includes(block.status)}
+                                                        className="p-1.5 rounded-md hover:bg-emerald-500/20 text-emerald-400/50 hover:text-emerald-400 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onStatusChange(block.id, 'missed');
+                                                        }}
+                                                        disabled={['done', 'missed', 'cancelled'].includes(block.status)}
+                                                        className="p-1.5 rounded-md hover:bg-red-500/20 text-red-400/50 hover:text-red-400 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            ) : null}
                                         </div>
                                     </div>
-                                </motion.div>
-                            </Link>
+                                </div>
+                            </motion.div>
                         );
                     })
                 )}

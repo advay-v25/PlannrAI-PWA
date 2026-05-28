@@ -245,8 +245,8 @@ export class WeekOrchestrator {
                 preferred_workdays: [0, 1, 2, 3, 4, 5, 6],
                 meal_windows: {
                     breakfast: { start: "07:00", end: "10:00" },
-                    lunch: { start: "12:00", end: "15:00" },
-                    dinner: { start: "18:30", end: "21:30" },
+                    lunch: { start: "13:00", end: "14:00" },
+                    dinner: { start: "20:00", end: "21:30" },
                 },
                 bio: { energy: 'medium', stress: 'low', chronotype: 'bear' }
             };
@@ -271,8 +271,8 @@ export class WeekOrchestrator {
             preferred_workdays: (data.preferred_workdays ?? [0, 1, 2, 3, 4, 5, 6]) as number[],
             meal_windows: data.meal_windows ?? {
                 breakfast: { start: "07:00", end: "10:00" },
-                lunch: { start: "12:00", end: "15:00" },
-                dinner: { start: "18:30", end: "21:30" },
+                lunch: { start: "13:00", end: "14:00" },
+                dinner: { start: "20:00", end: "21:30" },
             },
             pillar_preferences: data.pillar_preferences ?? undefined,
             // New Bio-Context
@@ -361,8 +361,12 @@ export class WeekOrchestrator {
         // - sleep from sleep_start -> 24:00
         // - sleep from 00:00 -> sleep_end
         // - plus 45 min pre-bed quiet buffer inside winddown window (already covered if winddown >=45)
-        const sleepStartMin = this.hhmmToMin(sleep_start);
+        let sleepStartMin = this.hhmmToMin(sleep_start);
         const sleepEndMin = this.hhmmToMin(sleep_end);
+
+        if (sleepStartMin <= sleepEndMin) {
+            sleepStartMin += 1440;
+        }
 
         // Winddown starts:
         const winddownStartMin = Math.max(0, sleepStartMin - winddown_mins);
@@ -378,7 +382,12 @@ export class WeekOrchestrator {
         // Block sleep
         if (sleepEndMin < sleepStartMin) {
             // sleep crosses midnight: block [sleepStart..1440] on this date
-            dc.blocked.push({ date: dc.date, startMin: sleepStartMin, endMin: 1440 });
+            // Wait, if sleepStartMin is >= 1440, it's technically already the next day.
+            // But we should block from the original sleep_start (before +1440) up to 1440 ONLY if it was < 1440.
+            const originalSleepStart = this.hhmmToMin(sleep_start);
+            if (originalSleepStart < 1440 && originalSleepStart > sleepEndMin) {
+                dc.blocked.push({ date: dc.date, startMin: originalSleepStart, endMin: 1440 });
+            }
             // and block [0..sleepEnd] on next day; handled when next day's dc runs:
             // We'll add a helper in placement if needed. For skeleton: also block early day until sleepEnd.
             dc.blocked.push({ date: dc.date, startMin: 0, endMin: sleepEndMin }); // NOTE: simplistic; refine with timezone/day boundaries
@@ -670,7 +679,15 @@ export class WeekOrchestrator {
     private static enumerateFreeSlots(dc: DayContext, minutesNeeded: number): TimeSlot[] {
         // Very simple: scan the active day window from wake to (sleep_start - 45) with 5-min steps
         const wakeMin = this.hhmmToMin(dc.prefs.sleep_end);
-        const endMin = Math.max(0, this.hhmmToMin(dc.prefs.sleep_start) - 45);
+        let sleepStartMin = this.hhmmToMin(dc.prefs.sleep_start);
+        
+        // If sleep_start is numerically less than wake time (e.g. sleep at 00:00/01:00, wake at 08:00), 
+        // it means they go to sleep the NEXT day. Add 1440 mins to correctly calculate the active day length.
+        if (sleepStartMin <= wakeMin) {
+            sleepStartMin += 1440;
+        }
+        
+        const endMin = Math.max(0, sleepStartMin - 45);
 
         const step = 5;
         const slots: TimeSlot[] = [];
@@ -860,7 +877,13 @@ export class WeekOrchestrator {
 
     private static estimateCapacity(dc: DayContext): number {
         const wakeMin = this.hhmmToMin(dc.prefs.sleep_end);
-        const endMin = Math.max(0, this.hhmmToMin(dc.prefs.sleep_start) - 45);
+        let sleepStartMin = this.hhmmToMin(dc.prefs.sleep_start);
+        
+        if (sleepStartMin <= wakeMin) {
+            sleepStartMin += 1440;
+        }
+        
+        const endMin = Math.max(0, sleepStartMin - 45);
         const active = Math.max(0, endMin - wakeMin);
         const blocked = dc.blocked.reduce((acc, b) => acc + (b.endMin - b.startMin), 0);
         return Math.max(0, active - blocked);

@@ -44,8 +44,16 @@ export interface CoachContext {
     user_state: {
         is_minimal_mode: boolean;
         last_energy_checkin?: number;
+        emotional_state?: string;
         recent_missed_blocks: number;
     };
+
+    bio_rhythm_trend: Array<{
+        date: string;
+        energy_level: number;
+        mood: string;
+        notes: string;
+    }>;
 
     learned_preferences: Array<{
         category: string;
@@ -112,6 +120,7 @@ export async function buildCoachContext(
         tomorrowBlocksRes,
         weekBlocksRes,
         energyRes,
+        dailyLogsRes,
         preferencesRes,
         missedBlocksRes,
         todosRes
@@ -154,6 +163,14 @@ export async function buildCoachContext(
             .limit(1)
             .maybeSingle(),
 
+        // Fetch last 3 days of daily logs for trend analysis
+        supabase.from('daily_logs')
+            .select('log_date, energy_level, mood, notes')
+            .eq('user_id', userId)
+            .lte('log_date', today)
+            .gte('log_date', dateFormatter.format(new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000)))
+            .order('log_date', { ascending: true }),
+
         // coach_learned_preferences doesn't exist — use memory_facts for behavioral intelligence
         supabase.from('memory_facts')
             .select('key, value, kind')
@@ -183,6 +200,15 @@ export async function buildCoachContext(
     const tomorrowBlocks = tomorrowBlocksRes.data || [];
     const weekBlocks = weekBlocksRes.data || [];
     const lastEnergy = energyRes.data;
+    const dailyLogs = dailyLogsRes.data || [];
+    
+    const bioTrend = dailyLogs.map((log: any) => ({
+        date: log.log_date,
+        energy_level: log.energy_level || 5,
+        mood: log.mood || 'neutral',
+        notes: log.notes || ''
+    }));
+
     // Transform memory_facts into the learned_preferences shape the Coach expects
     const rawFacts = preferencesRes.data || [];
     const preferences = rawFacts.map((f: any) => ({
@@ -222,8 +248,10 @@ export async function buildCoachContext(
         user_state: {
             is_minimal_mode: isMinimalMode,
             last_energy_checkin: lastEnergy?.energy_level,
+            emotional_state: lastEnergy?.emotional_state,
             recent_missed_blocks: missedCount,
         },
+        bio_rhythm_trend: bioTrend,
         learned_preferences: preferences,
         current: {
             date: today,

@@ -34,40 +34,24 @@ export interface AIResponse<T = any> {
 // ── Provider Config ──────────────────────────────────────────────
 
 interface ProviderConfig {
-    name: 'openrouter' | 'groq' | 'nvidia';
+    name: 'openrouter' | 'groq' | 'nvidia' | 'gemini' | 'cerebras';
     url: string;
     model: string;
     getHeaders: () => Record<string, string>;
     supportsResponseFormat: boolean;
 }
 
-function getOpenRouterConfig(model: string): ProviderConfig {
-    return {
-        name: 'openrouter',
-        url: 'https://openrouter.ai/api/v1/chat/completions',
-        model,
-        getHeaders: () => ({
-            'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'https://plannrai.in',
-            'X-Title': 'PlannrAI',
-        }),
-        supportsResponseFormat: false,
-    };
-}
 
-function getCalendarOpenRouterConfig(model: string): ProviderConfig {
+function getNvidiaConfig(model: string): ProviderConfig {
     return {
-        name: 'openrouter',
-        url: 'https://openrouter.ai/api/v1/chat/completions',
+        name: 'nvidia',
+        url: 'https://integrate.api.nvidia.com/v1/chat/completions',
         model,
         getHeaders: () => ({
-            'Authorization': `Bearer ${process.env.CALENDAR_OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY}`,
+            'Authorization': `Bearer ${process.env.CALENDAR_NVIDIA_API_KEY || process.env.NVIDIA_API_KEY}`,
             'Content-Type': 'application/json',
-            'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'https://plannrai.in',
-            'X-Title': 'PlannrAI Calendar',
         }),
-        supportsResponseFormat: false,
+        supportsResponseFormat: true,
     };
 }
 
@@ -84,56 +68,58 @@ function getGroqConfig(model: string): ProviderConfig {
     };
 }
 
-function getNvidiaConfig(model: string): ProviderConfig {
+function getCerebrasConfig(model: string): ProviderConfig {
     return {
-        name: 'nvidia',
-        url: 'https://integrate.api.nvidia.com/v1/chat/completions',
+        name: 'cerebras',
+        url: 'https://api.cerebras.ai/v1/chat/completions',
         model,
         getHeaders: () => ({
-            'Authorization': `Bearer ${process.env.CALENDAR_NVIDIA_API_KEY || process.env.NVIDIA_API_KEY}`,
+            'Authorization': `Bearer ${process.env.CEREBRAS_API_KEY}`,
             'Content-Type': 'application/json',
         }),
         supportsResponseFormat: true,
     };
 }
 
-// Map model tier → provider configs (primary, fallback)
-// Smart = complex reasoning (coach, goals, weekly review) → OpenRouter primary
-// Fast = simple extraction (brain dump, habits, briefings) → Groq primary
+function getGeminiConfig(model: string): ProviderConfig {
+    return {
+        name: 'gemini',
+        url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+        model,
+        getHeaders: () => ({
+            'Authorization': `Bearer ${process.env.GEMINI_API_KEY}`,
+            'Content-Type': 'application/json',
+        }),
+        supportsResponseFormat: true,
+    };
+}
+
+// Smart = complex reasoning (coach, goals, weekly review) → Groq primary (70B)
+// Fast = simple extraction (brain dump, habits, briefings) → Groq primary (8B)
 function getProviderChain(options: AICallOptions): [ProviderConfig, ProviderConfig] {
     const tier = options.model || 'fast';
 
     if (options.useNvidia) {
-        // Force NVIDIA endpoints for coach and calendar operations
-        const nvidiaModel = tier === 'smart' ? 'meta/llama-3.1-70b-instruct' : 'meta/llama-3.1-8b-instruct';
+        // Force Groq endpoints for coach and calendar operations because the new key is fast and paid
+        const groqModel = tier === 'smart' ? 'llama-3.3-70b-versatile' : 'llama-3.1-8b-instant';
         return [
-            getNvidiaConfig(nvidiaModel),
-            getCalendarOpenRouterConfig(nvidiaModel) // fallback
+            getGroqConfig(groqModel),
+            getGeminiConfig('gemini-3.5-flash') // fallback
         ];
     }
 
-    const getPrimaryOpenRouterConfig = getOpenRouterConfig;
-
     switch (tier) {
         case 'smart':
-            return [
-                getGroqConfig('llama-3.3-70b-versatile'),
-                getPrimaryOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'),
-            ];
-        case 'fast':
-            return [
-                getGroqConfig('llama-3.1-8b-instant'),
-                getPrimaryOpenRouterConfig('meta-llama/llama-3.1-8b-instruct'),
-            ];
         case 'creative':
             return [
                 getGroqConfig('llama-3.3-70b-versatile'),
-                getPrimaryOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'),
+                getNvidiaConfig('meta/llama-3.1-70b-instruct'),
             ];
+        case 'fast':
         default:
             return [
                 getGroqConfig('llama-3.1-8b-instant'),
-                getPrimaryOpenRouterConfig('meta-llama/llama-3.1-8b-instruct'),
+                getGeminiConfig('gemini-3.5-flash'),
             ];
     }
 }
@@ -339,6 +325,8 @@ async function callProvider<T>(
     } catch (error: any) {
         clearTimeout(timeoutId);
         
+        console.error(`\x1b[31m[AI ✗]\x1b[0m ${config.name}/${config.model} failed:`, error.message);
+        
         if (error.name === 'AbortError') {
             recordFailure(config.name, 504); // Treat timeout as Gateway Timeout
         } else if (error.status) {
@@ -386,21 +374,25 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
 
     const getRemainingTime = () => Math.max(5000, MAX_TOTAL_TIME - (Date.now() - totalStartTime));
 
-    // Calendar-dedicated key: bypass normal provider chain and use Nvidia
+    // Coach/Calendar dedicated engine (labeled useNvidia for legacy reasons, but routes to Groq)
     if (options.useNvidia) {
-        const nvidiaModel = tier === 'fast' ? 'meta/llama-3.1-8b-instruct' : 'meta/llama-3.1-70b-instruct';
-        console.log(`\x1b[36m[AI ✨]\x1b[0m Using Nvidia API (${nvidiaModel}) for Generation...`);
-        const calendarProvider = getNvidiaConfig(nvidiaModel);
-        const result = await callProvider<T>(calendarProvider, { ...options, timeout: getRemainingTime() });
+        const groqModel = tier === 'fast' ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile';
+        console.log(`\x1b[36m[AI ✨]\x1b[0m Using Groq API (${groqModel}) for Generation...`);
+        const calendarProvider = getGroqConfig(groqModel);
+        
+        const groqTimeout = Math.min(getRemainingTime(), 55000); 
+        
+        const result = await callProvider<T>(calendarProvider, { ...options, timeout: groqTimeout });
         if (result.success) return result;
         
-        // Fall back to Groq Llama 3.3 70B if Nvidia fails and time remains
-        const remaining = getRemainingTime();
-        if (remaining > 10000) {
-            console.log('\x1b[33m[AI →]\x1b[0m Nvidia key failed, falling back to Groq...');
-            const groqFallback = getGroqConfig('llama-3.3-70b-versatile');
-            return callProvider<T>(groqFallback, { ...options, timeout: remaining });
+        // 2nd layer of redundancy: Ultimate Gemini Backup
+        const ultimateRemaining = getRemainingTime();
+        if (ultimateRemaining > 5000) {
+            console.log('\x1b[36m[AI ULTIMATE]\x1b[0m Groq failed. Falling back to Gemini 3.5 Flash...');
+            const geminiProvider = getGeminiConfig('gemini-3.5-flash');
+            return callProvider<T>(geminiProvider, { ...options, timeout: ultimateRemaining });
         }
+        
         return result;
     }
 
@@ -421,11 +413,11 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
             return fallbackResult;
         }
 
-        // Emergency Fallback: GPT-4o-Mini (Cheap & highly reliable)
+        // Emergency Fallback: Gemini 3.5 Flash (Huge context & highly reliable)
         const remainingAfterFallback = getRemainingTime();
         if (remainingAfterFallback > 5000) {
-            console.log(`\x1b[35m[AI ALERT]\x1b[0m Both providers failed. Trying emergency fallback (GPT-4o-Mini)...`);
-            const emergencyProvider = getOpenRouterConfig('openai/gpt-4o-mini');
+            console.log(`\x1b[35m[AI ALERT]\x1b[0m Both providers failed. Trying emergency fallback (Gemini 3.5 Flash)...`);
+            const emergencyProvider = getGeminiConfig('gemini-3.5-flash');
             const emergencyResult = await callProvider<T>(emergencyProvider, { ...options, timeout: remainingAfterFallback });
             if (emergencyResult.success) {
                 return emergencyResult;

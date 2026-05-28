@@ -59,6 +59,48 @@ export default function CoreConstraints({ preferences, onChange }: Props) {
                             </SelectContent>
                         </Select>
                     </div>
+                    <div className="space-y-2">
+                        <Label>Breakfast Start Time</Label>
+                        <Input
+                            type="time"
+                            value={preferences.meal_windows?.breakfast?.start || '07:00'}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ 
+                                meal_windows: { 
+                                    ...preferences.meal_windows, 
+                                    breakfast: { start: e.target.value, end: preferences.meal_windows?.breakfast?.end || '10:00' } 
+                                } 
+                            })}
+                            className="bg-transparent"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Lunch Start Time</Label>
+                        <Input
+                            type="time"
+                            value={preferences.meal_windows?.lunch?.start || '12:00'}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ 
+                                meal_windows: { 
+                                    ...preferences.meal_windows, 
+                                    lunch: { start: e.target.value, end: preferences.meal_windows?.lunch?.end || '15:00' } 
+                                } 
+                            })}
+                            className="bg-transparent"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Dinner Start Time</Label>
+                        <Input
+                            type="time"
+                            value={preferences.meal_windows?.dinner?.start || '20:00'}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ 
+                                meal_windows: { 
+                                    ...preferences.meal_windows, 
+                                    dinner: { start: e.target.value, end: preferences.meal_windows?.dinner?.end || '21:30' } 
+                                } 
+                            })}
+                            className="bg-transparent"
+                        />
+                    </div>
                 </CardContent>
             </Card>
 

@@ -42,6 +42,8 @@ export default function HomePage() {
     const [showWeeklyReviewPrompt, setShowWeeklyReviewPrompt] = useState(false);
     const [manualFeedback, setManualFeedback] = useState<string | null>(null);
 
+    const isPreview = process.env.NEXT_PUBLIC_IS_PREVIEW_BUILD === 'true';
+
     // Schedule Sync: Energy/Mood → Calendar mode banner
     const { currentMode, isReoptimizing, handleReoptimize, clearMode } = useScheduleSync({
         onCalendarRefresh: () => fetchHomeData(),
@@ -360,7 +362,7 @@ export default function HomePage() {
                 </div>
             )}
 
-            {showWeeklyReviewPrompt && (
+            {isPreview && showWeeklyReviewPrompt && (
                 <div className="mb-6 bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/30 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-[var(--color-primary)]/20 rounded-full">
@@ -512,6 +514,16 @@ export default function HomePage() {
                 <TimelineStrip
                     blocks={effectiveData.schedule_blocks}
                     anchors={effectiveData.anchors}
+                    onStatusChange={async (blockId: string, status: string) => {
+                        toast.loading('Updating block...', { id: 'block-status' });
+                        try {
+                            await apiClient.post('/api/calendar/block-status', { block_id: blockId, status });
+                            toast.success('Block updated', { id: 'block-status' });
+                            handleRefresh();
+                        } catch (e) {
+                            toast.error('Failed to update block', { id: 'block-status' });
+                        }
+                    }}
                 />
             }
             energyCheckin={
@@ -549,10 +561,32 @@ export default function HomePage() {
                 />
             }
             stacks={
-                <StacksModule
-                    stacks={effectiveData.habit_stacks}
-                    onUpdate={handleRefresh}
-                />
+                isPreview ? (
+                    <StacksModule
+                        stacks={effectiveData.habit_stacks}
+                        onUpdate={handleRefresh}
+                    />
+                ) : (
+                    <div className="relative overflow-hidden rounded-3xl opacity-80 pointer-events-none">
+                        <div className="blur-[3px] grayscale">
+                            <StacksModule
+                                stacks={effectiveData.habit_stacks}
+                                onUpdate={handleRefresh}
+                            />
+                        </div>
+                        {/* Overlay to dim */}
+                        <div className="absolute inset-0 bg-black/60 z-10 flex items-center justify-center">
+                            {/* Construction Tape */}
+                            <div className="absolute -rotate-[12deg] w-[130%] h-14 bg-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.3)] border-y-2 border-yellow-500 flex items-center justify-center gap-4 overflow-hidden z-20 whitespace-nowrap">
+                                {/* Diagonal stripes pattern inside the tape */}
+                                <div className="absolute inset-0 opacity-20 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,#000_10px,#000_20px)]" />
+                                <span className="font-mono text-black font-black uppercase tracking-widest text-xs md:text-sm relative z-10 drop-shadow-sm whitespace-nowrap">Habit Stacks In Development</span>
+                                <span className="font-mono text-black font-black uppercase tracking-widest text-xs md:text-sm relative z-10 drop-shadow-sm whitespace-nowrap">•</span>
+                                <span className="font-mono text-black font-black uppercase tracking-widest text-xs md:text-sm relative z-10 drop-shadow-sm whitespace-nowrap">Pro Feature</span>
+                            </div>
+                        </div>
+                    </div>
+                )
             }
             nextMove={<NextMoveCard />}
             />

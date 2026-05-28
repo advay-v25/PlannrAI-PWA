@@ -24,6 +24,7 @@ export interface CalendarContext {
         bio_data: any;
         chronotype: string;
         weekend_intensity: string;
+        default_buffer_duration?: number;
     };
 
 
@@ -398,7 +399,10 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
             energy_level: profile.energy_level || 5,
             stress_level: profile.stress_level || 3,
             meals_per_day: profile.meals_per_day || 3,
-            meal_windows: profile.meal_windows || deriveMealWindows(profile.meal_timing, profile.sleep_end),
+            meal_windows: {
+                ...deriveMealWindows(profile.meal_timing, profile.sleep_end),
+                ...(typeof profile.meal_windows === 'object' && profile.meal_windows !== null ? profile.meal_windows : {})
+            },
             body_preferences: profile.body_preferences || {},
             bio_data: profile.bio_data || {},
             default_buffer_duration: profile.default_buffer_duration || 10,

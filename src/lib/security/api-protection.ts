@@ -77,6 +77,8 @@ export function secureApiRoute(
                 'https://plannrai.com',
                 'https://www.plannrai.com',
                 'https://plannr-ai.vercel.app',
+                'http://localhost:3000',
+                'http://localhost:3001',
             ].filter(Boolean);
 
             // Also allow any Vercel preview/branch deploy for this project
