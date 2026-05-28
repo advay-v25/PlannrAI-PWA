@@ -932,14 +932,14 @@ ${optionsInstruction}`;
                 const hasDelete = normalizedOps.some(o => o.type === 'delete_block');
                 const isReplan = normalizedOps.some(o => o.type === 'replan_week' || o.type === 'replan_day');
 
-                if (isMissedBlock) {
-                    // 1. For Option 4 (Replan Week): Keep only the replan operation to keep today's schedule entirely untouched
-                    if (isReplan) {
-                        const replanOp = normalizedOps.find(o => o.type === 'replan_week' || o.type === 'replan_day');
-                        if (replanOp) {
-                            normalizedOps = [replanOp];
-                        }
+                // 1. For Option 4 (Replan Week): Keep only the replan operation to keep today's schedule entirely untouched
+                if (isMissedBlock && isReplan) {
+                    const replanOp = normalizedOps.find(o => o.type === 'replan_week' || o.type === 'replan_day');
+                    if (replanOp) {
+                        normalizedOps = [replanOp];
                     }
+                }
+
                 // 2. For Options 1 & 2: Keep only the single move/create operation (no random secondary displacements)
                 if (!hasDelete && !isReplan && isMissedBlock) {
                     const moveOrCreateOp = normalizedOps.find(o => o.type === 'move_block' || o.type === 'create_block');
@@ -960,8 +960,6 @@ ${optionsInstruction}`;
                             }
                         }
                         normalizedOps = [moveOrCreateOp];
-                    }
-                }
                     }
                 }
 
