@@ -10,6 +10,7 @@ import { CoachOption } from '@/types/coach-v4';
 import { CoachOptionCard } from './CoachOptionCard';
 import { CoachMessageBubble } from './CoachMessageBubble';
 import { ConfirmationModal } from './ConfirmationModal';
+import { usePremiumCalendar } from '@/components/calendar/premium-calendar-styles';
 
 interface CoachChatProps {
     onClose?: () => void;
@@ -100,13 +101,12 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
             setShowPreview(true);
         } else {
             // Apply directly
-            applyAndRefresh(option);
+            handleApply(option);
         }
     };
 
     // Apply option and refresh calendar
-    const applyAndRefresh = async (option: CoachOption) => {
-        // Find the assistant message that contains this option
+    const handleApply = async (option: CoachOption) => {
         const parentMessage = messages.find(m => m.options?.some(o => o.id === option.id));
         if (!parentMessage) return;
 
@@ -116,9 +116,38 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
         setIsApplyingChanges(true);
 
         try {
-            const success = await applyOption(parentMessage.id, option.id);
-            if (success) {
+            const result = await applyOption(parentMessage.id, option.id);
+            if (result) {
+                const appliedOption = typeof result === 'object' ? result : option;
+                const ops = (appliedOption.patch as any)?.operations || [];
+                
+                let isReplan = false;
+                const blockIdsToAnimate: string[] = [];
+
+                ops.forEach((op: any) => {
+                    if (op.type === 'replan_week') {
+                        isReplan = true;
+                    } else if (op.type === 'move_block' || op.type === 'update_block') {
+                        if (op.payload?.id) blockIdsToAnimate.push(op.payload.id);
+                    }
+                });
+
+                if (isReplan) {
+                    usePremiumCalendar.getState().setIsAnimating(true);
+                } else if (blockIdsToAnimate.length > 0) {
+                    blockIdsToAnimate.forEach(id => {
+                        usePremiumCalendar.getState().addAnimatingBlock(id, 1000);
+                    });
+                }
+
                 onCalendarUpdate?.();
+
+                // Turn off generation animation after a delay if replan
+                if (isReplan) {
+                    setTimeout(() => {
+                        usePremiumCalendar.getState().setIsAnimating(false);
+                    }, 2500); // Wait for generation animation to complete
+                }
             }
         } finally {
             setIsApplyingChanges(false);
@@ -337,8 +366,8 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
             {/* Changes in Progress Popup */}
             {isApplyingChanges && (
                 <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 z-50 bg-[var(--color-primary)] text-white px-6 py-3 rounded-full shadow-[0_0_20px_rgba(var(--color-primary-rgb),0.5)] flex items-center gap-3 animate-fade-in">
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    <span className="font-bold tracking-wide text-sm uppercase">Changes in Progress...</span>
+                    <div className="w-2.5 h-2.5 bg-white rounded-full animate-pulse shadow-[0_0_10px_rgba(255,255,255,0.8)]" />
+                    <span className="font-bold tracking-wide text-sm uppercase">Applying protocol...</span>
                 </div>
             )}
 

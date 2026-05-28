@@ -9,6 +9,7 @@ export interface PremiumCalendarState {
   currentView: 'day' | 'week' | 'month';
   zoomLevel: number;
   isAnimating: boolean;
+  animatingBlocks: { id: string; showAfter: number }[];
   
   setHoveredBlock: (id: string | null) => void;
   setDraggedBlock: (id: string | null) => void;
@@ -17,6 +18,8 @@ export interface PremiumCalendarState {
   setCurrentView: (view: 'day' | 'week' | 'month') => void;
   setZoomLevel: (level: number) => void;
   setIsAnimating: (animating: boolean) => void;
+  addAnimatingBlock: (id: string, delayMs: number) => void;
+  removeAnimatingBlock: (id: string) => void;
   resetPreview: () => void;
 }
 
@@ -28,6 +31,7 @@ export const usePremiumCalendar = create<PremiumCalendarState>((set) => ({
   currentView: 'week',
   zoomLevel: 1.0,
   isAnimating: false,
+  animatingBlocks: [],
   
   setHoveredBlock: (id) => set({ hoveredBlock: id }),
   setDraggedBlock: (id) => set({ draggedBlock: id }),
@@ -36,6 +40,12 @@ export const usePremiumCalendar = create<PremiumCalendarState>((set) => ({
   setCurrentView: (view) => set({ currentView: view }),
   setZoomLevel: (level) => set({ zoomLevel: level }),
   setIsAnimating: (animating) => set({ isAnimating: animating }),
+  addAnimatingBlock: (id, delayMs) => set((state) => ({ 
+      animatingBlocks: [...state.animatingBlocks, { id, showAfter: Date.now() + delayMs }] 
+  })),
+  removeAnimatingBlock: (id) => set((state) => ({
+      animatingBlocks: state.animatingBlocks.filter(b => b.id !== id)
+  })),
   resetPreview: () => set({ hoveredBlock: null, selectedDay: null, selectedTime: null }),
 }));
 

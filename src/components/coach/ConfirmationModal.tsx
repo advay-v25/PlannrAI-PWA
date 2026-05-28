@@ -43,8 +43,10 @@ export function ConfirmationModal({
 
                     {/* Impact */}
                     <div className="bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-lg p-3">
-                        <p className="text-sm text-[var(--text-secondary)]">
-                            <span className="font-medium text-[var(--text-primary)]">Impact:</span> {option.impact}
+                        <p className="text-sm text-[var(--text-secondary)] whitespace-pre-wrap">
+                            <span className="font-medium text-[var(--text-primary)]">Impact:</span> 
+                            <br />
+                            {option.impact}
                         </p>
                     </div>
 

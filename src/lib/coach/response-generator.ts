@@ -790,8 +790,23 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
         if (isRejection && !/missed|miss|reschedule|another|new/i.test(userMessage)) {
              optionsInstruction = "The user rejected the previous AI options. Provide EXACTLY ONE option: 'Manual Movement', which instructs them to manually move the block in the calendar UI themselves. Do NOT generate any patch operations (empty operations array []). Return valid JSON only.";
         } else {
-             optionsInstruction = "Generate EXACTLY 4 actionable options in this exact order: Option 1: Reschedule Today (same or reduced duration, min 30m), Option 2: Reschedule This Week (same or reduced duration, min 30m), Option 3: Replace Lower Priority Block (same pillar, different goal), Option 4: Replan Week (using 'replan_week' operation). However, if there are absolutely NO verified free slots remaining for the rest of the week, skip Options 1-2 and rely on Option 3 and Option 4. Return valid JSON only.";
-        }
+             optionsInstruction = `Generate EXACTLY 4 actionable options in this exact order:
+Option 1: Reschedule Today (same or reduced duration, min 30m).
+Option 2: Reschedule This Week (same or reduced duration, min 30m).
+Option 3: Replace Lower Priority Block (same pillar, different goal).
+Option 4: Replan Week (using 'replan_week' operation).
+
+CRITICAL FORMATTING REQUIREMENTS:
+1. For the 'description' field:
+   - Options 1 & 2 MUST state the specific time the block will be moved to (e.g., 'Move to 14:00 - 15:30').
+   - Option 3 MUST state the exact name, day, and time of the lower priority block being replaced.
+   - Option 4 MUST explicitly state what part of the week is being replanned (e.g., 'From Tuesday to Sunday').
+2. For the 'impact' field:
+   - MUST be formatted as a string containing 2-3 concise bullet points (using • symbol) explaining exactly what changes will occur. (e.g. "• Moves block to 14:00\n• Replaces lower priority Gym block")
+3. For Option 3 operations:
+   - You MUST output exactly two patch operations for Option 3: first a 'delete_block' operation to remove the lower priority block, and then a 'move_block' operation to move the missed block into that exact time slot.
+
+However, if there are absolutely NO verified free slots remaining for the rest of the week, skip Options 1-2 and rely on Option 3 and Option 4. Return valid JSON only.`;
     }
 
     const userPrompt = `${scheduleContext}
