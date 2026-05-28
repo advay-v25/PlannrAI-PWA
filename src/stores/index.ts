@@ -43,7 +43,12 @@ export interface OnboardingData {
     sleep_end: string;
     wind_down_mins: number;
     meals_per_day: number;
-    meal_timing: 'early' | 'normal' | 'late';
+    two_meals_selection: 'breakfast_lunch' | 'lunch_dinner' | 'breakfast_dinner';
+    custom_meal_times: {
+        breakfast?: string;
+        lunch?: string;
+        dinner?: string;
+    };
     default_buffer_duration: number;
 
     // Step 3: Anchors
@@ -129,7 +134,12 @@ const defaultOnboardingData: OnboardingData = {
     sleep_end: '07:00',
     wind_down_mins: 30,
     meals_per_day: 3,
-    meal_timing: 'normal',
+    two_meals_selection: 'lunch_dinner',
+    custom_meal_times: {
+        breakfast: '08:00',
+        lunch: '13:00',
+        dinner: '19:30',
+    },
     default_buffer_duration: 10,
 
     // Step 3: Anchors
