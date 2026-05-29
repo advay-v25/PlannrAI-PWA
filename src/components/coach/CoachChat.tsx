@@ -55,11 +55,11 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
     // Thinking state stages
     const [loadingStage, setLoadingStage] = useState(0);
     const stages = [
-        "Consulting temporal protocols...",
-        "Analyzing focus constraints...",
-        "Evaluating energy availability...",
-        "Synchronizing with goals...",
-        "Drafting strategic response..."
+        "Reading your schedule...",
+        "Analyzing goals and blocks...",
+        "Finding free slots...",
+        "Finding optimal placement...",
+        "Preparing your options..."
     ];
 
     useEffect(() => {
@@ -411,7 +411,7 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
                 <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-md">
                    <ConfirmationModal
                         option={pendingOption}
-                        onConfirm={() => applyAndRefresh(pendingOption)}
+                        onConfirm={() => handleApply(pendingOption)}
                         onCancel={() => {
                             setShowPreview(false);
                             setPendingOption(null);

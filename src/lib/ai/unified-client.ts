@@ -25,7 +25,7 @@ export interface AIResponse<T = any> {
     data?: T;
     raw?: string;
     error?: string;
-    provider: 'openrouter' | 'groq' | 'nvidia';
+    provider: 'openrouter' | 'groq' | 'nvidia' | 'gemini' | 'cerebras';
     model: string;
     latency_ms: number;
     tokens_used?: number;

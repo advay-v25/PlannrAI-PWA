@@ -10,7 +10,8 @@ import {
     Activity,
     Calendar,
     Target,
-    Sparkles
+    Sparkles,
+    Clock
 } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';

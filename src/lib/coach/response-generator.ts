@@ -722,13 +722,13 @@ When the user gives an unstructured request like "I need to go grocery shopping 
 4. TRADEOFF COMMUNICATION: When using Auto-Cascade, explicitly fill out the \`tradeoff\` field to warn the user (e.g. "Warning: This will cascade your existing morning blocks to later in the day. Severity: info").
 5. NEVER overlap with immutable blocks (sleep, meals, anchors). If they conflict, refuse the insertion and offer alternative times.
 
-🔄 MISSED BLOCK 4-OPTION PROTOCOL (STRICT EXECUTION):
-When the user says they missed or will miss a block and want to reschedule, you MUST ALWAYS provide exactly these 4 options in this specific order.
-However, if there are absolutely NO verified free slots remaining for the rest of the week, skip Options 1-3 and ONLY provide Option 4.
+🔄 MISSED BLOCK RESCHEDULING PROTOCOL (3 OPTIONS):
+When the user says they missed or will miss a block and want to reschedule, you MUST ALWAYS provide exactly these 3 options in this specific order.
+However, if there are absolutely NO verified free slots remaining for the rest of the week, skip Options 1 and 2 and ONLY provide Option 3.
 
 ⚠️ REJECTION PROTOCOL:
-If the user rejects the previous options (e.g., "none of these work", "I don't like these", "do it manually") for the SAME missed block, DO NOT give the 4 options again. Instead, provide exactly ONE option: "Manual Movement", which has an EMPTY operations array [] and instructs them to drag-and-drop the block in the calendar themselves.
-However, if they ask to reschedule a DIFFERENT/NEW block, provide the 4 standard options for the new block.
+If the user rejects the previous options (e.g., "none of these work", "I don't like these", "do it manually") for the SAME missed block, DO NOT give the 3 options again. Instead, provide exactly ONE option: "Manual Movement", which has an EMPTY operations array [] and instructs them to drag-and-drop the block in the calendar themselves.
+However, if they ask to reschedule a DIFFERENT/NEW block, provide the 3 standard options for the new block.
 
 --- ABSOLUTE RULES ---
 A) SAME-GOAL PROTECTION: NEVER delete or replace a block belonging to the SAME GOAL as the block being rescheduled.
@@ -738,11 +738,10 @@ C) NO HALLUCINATIONS & DURATION MATCHING (CRITICAL):
 - STRICT DURATION CHECK: Determine the duration of the missed block first.
 - The chosen target free slot MUST have a duration greater than or equal to the block's duration. You CANNOT place a 45-minute block into a 30-minute free slot. Doing so will overlap with the subsequent block, which is a fatal error!
 
---- THE 4 OPTIONS ---
+--- THE 3 OPTIONS ---
 1. Reschedule Today: Move the block to an empty slot during the same day of the same exact time duration as the missed block. If that is not possible, then a reduced duration empty slot on the same day, with a minimum time of 30 minutes.
 2. Reschedule Later in the Week: Move the block to an empty slot during the week (tomorrow or later) of the same exact time duration as the missed block. If that is not possible, then a reduced duration empty slot anytime in the week, with a minimum time of 30 minutes.
 3. Replace Lower Priority Block: Replace a block that is accomplishing a different goal, in the SAME pillar (mind, body, craft), that has a LOWER priority than the missed block. The missed block simply replaces the scheduled block of lower priority. Target a block of the same duration first, or less duration if needed. Never replace a block of higher priority, an anchor, sleep, meals, buffer times, or a block for the exact same goal.
-4. Replan Week: The week from the next day onward would be replanned. The schedule for today and before must remain the same. The missed block should be scheduled for the next day, and blocks will be reorganized accordingly, removing or reducing lower priority blocks. Use the replan_week operation, but carry the missed block into tomorrow and have it replace a lower priority block on that day. The replaced block would then be carried to the next day, and would replace a lower priority block. This cycle will continue until the last block being replaced is permanently deleted. This will ensure that the schedule still remains as similar as possible.
 
 ⚖️ PRIORITY-BASED DISPLACEMENT (GENERAL BEHAVIOUR):
 When the user wants to move a block to a time slot that is already occupied (NOT following the missed block waterfall):
@@ -950,16 +949,18 @@ ${optionsInstruction}`;
                         const missedBlock = findMissedBlock(userMessage, classification, coachCtx);
                         if (missedBlock) {
                             if (moveOrCreateOp.type === 'create_block') {
-                                moveOrCreateOp.type = 'move_block';
-                                moveOrCreateOp.block_id = missedBlock.id;
-                                moveOrCreateOp.title = missedBlock.title;
-                                moveOrCreateOp.new_start = (moveOrCreateOp as any).data.start_time;
-                                moveOrCreateOp.new_end = (moveOrCreateOp as any).data.end_time;
-                                moveOrCreateOp.new_date = (moveOrCreateOp as any).data.date || coachCtx.current.date;
-                                delete (moveOrCreateOp as any).data;
+                                const op = moveOrCreateOp as any;
+                                op.type = 'move_block';
+                                op.block_id = missedBlock.id;
+                                op.title = missedBlock.title;
+                                op.new_start = op.data.start_time;
+                                op.new_end = op.data.end_time;
+                                op.new_date = op.data.date || coachCtx.current.date;
+                                delete op.data;
                             } else if (moveOrCreateOp.type === 'move_block') {
-                                moveOrCreateOp.block_id = missedBlock.id;
-                                moveOrCreateOp.title = missedBlock.title;
+                                const op = moveOrCreateOp as any;
+                                op.block_id = missedBlock.id;
+                                op.title = missedBlock.title;
                             }
                         }
                         normalizedOps = [moveOrCreateOp];
@@ -1043,22 +1044,25 @@ ${optionsInstruction}`;
                                     const moveOrCreateOp = normalizedOps.find(o => o.type === 'move_block' || o.type === 'create_block');
                                     if (moveOrCreateOp) {
                                         if (moveOrCreateOp.type === 'create_block') {
-                                            moveOrCreateOp.type = 'move_block';
-                                            moveOrCreateOp.block_id = missedBlock.id;
-                                            moveOrCreateOp.title = missedBlock.title;
-                                            moveOrCreateOp.new_start = (moveOrCreateOp as any).data.start_time;
-                                            moveOrCreateOp.new_end = (moveOrCreateOp as any).data.end_time;
-                                            moveOrCreateOp.new_date = (moveOrCreateOp as any).data.date || coachCtx.current.date;
-                                            delete (moveOrCreateOp as any).data;
+                                            const op = moveOrCreateOp as any;
+                                            op.type = 'move_block';
+                                            op.block_id = missedBlock.id;
+                                            op.title = missedBlock.title;
+                                            op.new_start = op.data.start_time;
+                                            op.new_end = op.data.end_time;
+                                            op.new_date = op.data.date || coachCtx.current.date;
+                                            delete op.data;
                                         } else if (moveOrCreateOp.type === 'move_block') {
-                                            moveOrCreateOp.block_id = missedBlock.id;
-                                            moveOrCreateOp.title = missedBlock.title;
+                                            const op = moveOrCreateOp as any;
+                                            op.block_id = missedBlock.id;
+                                            op.title = missedBlock.title;
                                         }
                                         
                                         if (moveOrCreateOp.type === 'move_block') {
-                                            moveOrCreateOp.new_date = replacementCandidate.date;
-                                            moveOrCreateOp.new_start = replacementCandidate.start_time;
-                                            moveOrCreateOp.new_end = replacementCandidate.end_time;
+                                            const op = moveOrCreateOp as any;
+                                            op.new_date = replacementCandidate.date;
+                                            op.new_start = replacementCandidate.start_time;
+                                            op.new_end = replacementCandidate.end_time;
                                         }
                                     }
                                 }
@@ -1801,7 +1805,14 @@ export async function generateCoachResponse(
 
     // 2. Use pre-built calendar context if provided, otherwise build fresh (deduplication)
     let calCtx: CalendarContext | null = prebuiltCalCtx || null;
-    if (!calCtx && supabase) {
+    
+    const isReschedulingIntent = 
+        /missed|miss|didn't|did not|reschedule|rescheduling/i.test(userMessage) ||
+        classification.primary_intent === CoachIntent.MOVE_BLOCK ||
+        classification.primary_intent === CoachIntent.RESCHEDULE_DAY ||
+        classification.primary_intent === CoachIntent.RESCHEDULE_WEEK;
+
+    if (!calCtx && supabase && !isReschedulingIntent) {
         try {
             calCtx = await buildCalendarContext(context.user.id, supabase);
         } catch (e) {
