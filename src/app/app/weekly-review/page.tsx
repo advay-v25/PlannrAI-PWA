@@ -210,64 +210,117 @@ export default function WeeklyReviewPage() {
 
             <div className="flex-1 flex flex-col items-center">
                 <AnimatePresence mode="wait">
-                    
                     {isLoading && (
                         <motion.div key="loading" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} className="flex flex-col items-center justify-center py-32 space-y-8 w-full max-w-4xl mx-auto">
-                            <div className="relative w-full h-40 flex items-center justify-center overflow-visible">
-                                <svg className="absolute w-[150%] max-w-[1200px] h-full" viewBox="0 0 1000 200" preserveAspectRatio="none">
+                            <div className="relative w-full h-56 flex items-center justify-center overflow-visible">
+                                {/* Volumetric center glow */}
+                                <motion.div 
+                                    animate={{ scale: [1, 1.2, 1], opacity: [0.15, 0.3, 0.15] }}
+                                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-orange-500/30 rounded-full blur-[64px]"
+                                />
+
+                                <svg className="absolute w-[150%] max-w-[1200px] h-full drop-shadow-2xl" viewBox="0 0 1000 200" preserveAspectRatio="none">
                                     <defs>
-                                        <filter id="orange-glow" x="-20%" y="-20%" width="140%" height="140%">
-                                            <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
+                                        <filter id="premium-glow" x="-30%" y="-30%" width="160%" height="160%">
+                                            <feGaussianBlur stdDeviation="8" result="blur1"/>
+                                            <feGaussianBlur stdDeviation="20" result="blur2"/>
                                             <feMerge>
-                                                <feMergeNode in="coloredBlur"/>
+                                                <feMergeNode in="blur2"/>
+                                                <feMergeNode in="blur1"/>
                                                 <feMergeNode in="SourceGraphic"/>
                                             </feMerge>
                                         </filter>
-                                        <linearGradient id="shine-grad" x1="0" y1="0" x2="1" y2="0">
-                                            <stop offset="0%" stopColor="transparent" />
-                                            <stop offset="50%" stopColor="#fff" />
-                                            <stop offset="100%" stopColor="transparent" />
+                                        <linearGradient id="flow-grad" x1="0" y1="0" x2="1" y2="0">
+                                            <stop offset="0%" stopColor="#ea580c" stopOpacity="0" />
+                                            <stop offset="20%" stopColor="#f97316" stopOpacity="0.8" />
+                                            <stop offset="50%" stopColor="#fde047" stopOpacity="1" />
+                                            <stop offset="80%" stopColor="#f97316" stopOpacity="0.8" />
+                                            <stop offset="100%" stopColor="#ea580c" stopOpacity="0" />
+                                        </linearGradient>
+                                        <linearGradient id="core-grad" x1="0" y1="0" x2="1" y2="0">
+                                            <stop offset="0%" stopColor="#ffffff" stopOpacity="0" />
+                                            <stop offset="50%" stopColor="#ffffff" stopOpacity="1" />
+                                            <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
                                         </linearGradient>
                                     </defs>
                                     
-                                    {/* Faint background track */}
+                                    {/* Deep background glass track */}
                                     <path 
-                                        d="M 0 100 L 350 100 L 400 40 L 450 160 L 500 20 L 550 140 L 600 100 L 1000 100" 
+                                        d="M 0 100 L 250 100 C 320 100, 320 40, 390 40 C 460 40, 460 160, 530 160 C 600 160, 600 40, 670 40 C 740 40, 740 100, 810 100 L 1000 100" 
                                         fill="none" 
                                         stroke="#ea580c" 
-                                        strokeWidth="2" 
-                                        strokeOpacity="0.15"
-                                    />
-                                    
-                                    {/* Glowing animated line pulse */}
-                                    <motion.path 
-                                        d="M 0 100 L 350 100 L 400 40 L 450 160 L 500 20 L 550 140 L 600 100 L 1000 100" 
-                                        fill="none" 
-                                        stroke="#f97316" 
-                                        strokeWidth="5" 
+                                        strokeWidth="4" 
+                                        strokeOpacity="0.1"
                                         strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        filter="url(#orange-glow)"
-                                        initial={{ pathLength: 0.3, pathOffset: 1 }}
-                                        animate={{ pathOffset: -0.3 }}
-                                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                                     />
                                     
-                                    {/* Thin white shine line in the core */}
+                                    {/* Outer glowing aura */}
                                     <motion.path 
-                                        d="M 0 100 L 350 100 L 400 40 L 450 160 L 500 20 L 550 140 L 600 100 L 1000 100" 
+                                        d="M 0 100 L 250 100 C 320 100, 320 40, 390 40 C 460 40, 460 160, 530 160 C 600 160, 600 40, 670 40 C 740 40, 740 100, 810 100 L 1000 100" 
                                         fill="none" 
-                                        stroke="url(#shine-grad)" 
+                                        stroke="url(#flow-grad)" 
+                                        strokeWidth="10" 
+                                        strokeLinecap="round"
+                                        filter="url(#premium-glow)"
+                                        initial={{ pathLength: 0.6, pathOffset: -0.6 }}
+                                        animate={{ pathOffset: 1 }}
+                                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                                    />
+                                    
+                                    {/* Solid bright center */}
+                                    <motion.path 
+                                        d="M 0 100 L 250 100 C 320 100, 320 40, 390 40 C 460 40, 460 160, 530 160 C 600 160, 600 40, 670 40 C 740 40, 740 100, 810 100 L 1000 100" 
+                                        fill="none" 
+                                        stroke="url(#flow-grad)" 
+                                        strokeWidth="4" 
+                                        strokeLinecap="round"
+                                        initial={{ pathLength: 0.4, pathOffset: -0.5 }}
+                                        animate={{ pathOffset: 1.1 }}
+                                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                                    />
+                                    
+                                    {/* Core shine line */}
+                                    <motion.path 
+                                        d="M 0 100 L 250 100 C 320 100, 320 40, 390 40 C 460 40, 460 160, 530 160 C 600 160, 600 40, 670 40 C 740 40, 740 100, 810 100 L 1000 100" 
+                                        fill="none" 
+                                        stroke="url(#core-grad)" 
                                         strokeWidth="1.5"
                                         strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        initial={{ pathLength: 0.1, pathOffset: 1.1 }}
-                                        animate={{ pathOffset: -0.1 }}
-                                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                                        initial={{ pathLength: 0.2, pathOffset: -0.4 }}
+                                        animate={{ pathOffset: 1.2 }}
+                                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                                     />
                                 </svg>
+
+                                {/* Floating 3D dust particles */}
+                                <div className="absolute inset-0 pointer-events-none z-10 hidden md:block">
+                                    {[...Array(6)].map((_, i) => (
+                                        <motion.div 
+                                            key={`particle-${i}`}
+                                            animate={{ 
+                                                y: [0, -20 - (i * 5), 0], 
+                                                opacity: [0, 0.4 + (i * 0.1), 0],
+                                                scale: [1, 1.2, 1]
+                                            }} 
+                                            transition={{ 
+                                                duration: 3 + (i * 0.5), 
+                                                repeat: Infinity, 
+                                                ease: "easeInOut", 
+                                                delay: i * 0.3 
+                                            }}
+                                            className={`absolute rounded-full blur-[1px] ${i % 2 === 0 ? 'bg-amber-300' : 'bg-orange-500'}`}
+                                            style={{
+                                                left: `${20 + (i * 12)}%`,
+                                                top: `${40 + ((i % 3) * 15)}%`,
+                                                width: `${2 + (i % 3)}px`,
+                                                height: `${2 + (i % 3)}px`,
+                                            }}
+                                        />
+                                    ))}
+                                </div>
                             </div>
-                            <div className="text-center space-y-3 z-10">
+                            <div className="text-center space-y-3 z-10 relative">
                                 <h3 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-orange-500 to-amber-300">
                                     Weekly Review Engine
                                 </h3>
