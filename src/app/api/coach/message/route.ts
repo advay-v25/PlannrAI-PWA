@@ -97,14 +97,46 @@ export async function POST(request: NextRequest) {
 
         const conversationHistory = (history || []).reverse();
 
-        const context = await buildCoachContext(user.id, supabase);
-        context.last_user_message = message;
+        // OPTIMIZATION: Only build light context for intent classification
+        const profileRes = await supabase.from('profiles').select('id, first_name, timezone').eq('id', user.id).single();
+        const timezone = profileRes.data?.timezone || 'UTC';
+        const now = new Date();
+        const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
+        const timeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false });
+        const today = dateFormatter.format(now);
+        const currentTime = timeFormatter.format(now);
+
+        const [goalsRes, todayBlocksRes, energyRes, missedBlocksRes] = await Promise.all([
+            supabase.from('goals').select('title').eq('user_id', user.id).eq('status', 'active'),
+            supabase.from('schedule_blocks').select('title, context, start_time, end_time, status').eq('user_id', user.id).eq('date', today),
+            supabase.from('energy_checkins').select('energy_level').eq('user_id', user.id).order('checked_in_at', { ascending: false }).limit(1).maybeSingle(),
+            supabase.from('schedule_blocks').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('status', 'missed').gte('date', dateFormatter.format(new Date(now.getTime() - 24 * 60 * 60 * 1000))),
+        ]);
+
+        const lightContext = {
+            current_time: currentTime,
+            today_blocks: todayBlocksRes.data || [],
+            goals: goalsRes.data || [],
+            recent_energy: energyRes.data?.energy_level,
+            user_id: user.id,
+            first_name: profileRes.data?.first_name || '',
+            timezone,
+            missed_blocks: missedBlocksRes.count || 0,
+        };
+
+        const intentClassification = await classifyIntent(
+            message,
+            conversationHistory,
+            lightContext
+        );
 
         const response = await generateCoachResponse(
             message,
             conversationHistory,
-            context,
-            supabase
+            lightContext as any, // We pass lightContext, and generateCoachResponse will upgrade it if needed
+            supabase,
+            null,
+            intentClassification
         );
 
         await supabase.from('coach_messages').insert({

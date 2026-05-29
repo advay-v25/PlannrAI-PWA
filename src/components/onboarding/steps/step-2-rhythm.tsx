@@ -101,26 +101,67 @@ export function Step2Rhythm() {
                         </div>
                     </div>
 
+                    {data.meals_per_day === 2 && (
+                        <div className="space-y-3 pt-2">
+                            <label className="text-[10px] font-bold tracking-widest text-white/50 uppercase ml-1">Which two meals?</label>
+                            <div className="flex gap-2.5">
+                                {[
+                                    { id: 'breakfast_lunch', label: 'Breakfast & Lunch' },
+                                    { id: 'lunch_dinner', label: 'Lunch & Dinner' },
+                                    { id: 'breakfast_dinner', label: 'Breakfast & Dinner' }
+                                ].map((opt) => (
+                                    <button
+                                        key={opt.id}
+                                        onClick={() => updateData({ two_meals_selection: opt.id as any })}
+                                        className={`py-3 rounded-2xl text-xs font-bold transition-all duration-300 flex-1 border tracking-wide ${
+                                            data.two_meals_selection === opt.id 
+                                                ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)] scale-[1.03] border-transparent' 
+                                                : 'bg-black/20 text-white/50 border-white/10 hover:bg-white/10 hover:text-white hover:scale-[1.02]'
+                                        }`}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     <div className="space-y-3 pt-4">
-                        <label className="text-[10px] font-bold tracking-widest text-white/50 uppercase ml-1">Meal timing preference</label>
-                        <div className="flex gap-2.5">
-                            {[
-                                { id: 'early', label: 'Early bird 🌅' },
-                                { id: 'normal', label: 'Normal ⏰' },
-                                { id: 'late', label: 'Night owl 🌙' }
-                            ].map((opt) => (
-                                <button
-                                    key={opt.id}
-                                    onClick={() => updateData({ meal_timing: opt.id as any })}
-                                    className={`py-4 rounded-2xl text-xs font-bold transition-all duration-300 flex-1 border tracking-wide whitespace-nowrap ${
-                                        data.meal_timing === opt.id 
-                                            ? 'bg-[var(--color-primary)] text-black shadow-[0_0_20px_rgba(var(--color-primary-rgb),0.4)] scale-[1.03] border-transparent' 
-                                            : 'bg-black/20 text-white/50 border-white/10 hover:bg-white/10 hover:text-white hover:scale-[1.02]'
-                                    }`}
-                                >
-                                    {opt.label}
-                                </button>
-                            ))}
+                        <label className="text-[10px] font-bold tracking-widest text-white/50 uppercase ml-1">Usual Meal Times</label>
+                        <div className="grid grid-cols-3 gap-3">
+                            {(data.meals_per_day === 3 || data.two_meals_selection.includes('breakfast')) && (
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-white/50 uppercase ml-1 block">Breakfast</label>
+                                    <input
+                                        type="time"
+                                        value={data.custom_meal_times.breakfast || '08:00'}
+                                        onChange={(e) => updateData({ custom_meal_times: { ...data.custom_meal_times, breakfast: e.target.value } })}
+                                        className="w-full bg-black/40 border border-white/10 hover:border-white/30 rounded-xl p-3 text-white focus:outline-none focus:border-white transition-all font-mono text-sm text-center shadow-inner"
+                                    />
+                                </div>
+                            )}
+                            {(data.meals_per_day === 3 || data.two_meals_selection.includes('lunch')) && (
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-white/50 uppercase ml-1 block">Lunch</label>
+                                    <input
+                                        type="time"
+                                        value={data.custom_meal_times.lunch || '13:00'}
+                                        onChange={(e) => updateData({ custom_meal_times: { ...data.custom_meal_times, lunch: e.target.value } })}
+                                        className="w-full bg-black/40 border border-white/10 hover:border-white/30 rounded-xl p-3 text-white focus:outline-none focus:border-white transition-all font-mono text-sm text-center shadow-inner"
+                                    />
+                                </div>
+                            )}
+                            {(data.meals_per_day === 3 || data.two_meals_selection.includes('dinner')) && (
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-white/50 uppercase ml-1 block">Dinner</label>
+                                    <input
+                                        type="time"
+                                        value={data.custom_meal_times.dinner || '19:30'}
+                                        onChange={(e) => updateData({ custom_meal_times: { ...data.custom_meal_times, dinner: e.target.value } })}
+                                        className="w-full bg-black/40 border border-white/10 hover:border-white/30 rounded-xl p-3 text-white focus:outline-none focus:border-white transition-all font-mono text-sm text-center shadow-inner"
+                                    />
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

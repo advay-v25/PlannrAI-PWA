@@ -386,15 +386,8 @@ ${bioContext}
 
 ━━━ 3-DAY BIO-RHYTHM TREND ━━━
 ${coachCtx.bio_rhythm_trend && coachCtx.bio_rhythm_trend.length > 0 
-    ? coachCtx.bio_rhythm_trend.map(t => `  - ${t.date}: Energy ${t.energy_level}/10, Mood: ${t.mood} ${t.notes ? `(Notes: ${t.notes})` : ''}`).join('\n')
+    ? coachCtx.bio_rhythm_trend.map(t => `  - ${t.date}: Energy ${t.energy_level}/10, Mood: ${t.mood} ${t.notes ? `(Notes: ${t.notes})` : ''}`).join('\\n')
     : '  (No trend data available)'}
-
-━━━ TODAY'S SCHEDULE (${now.date}) ━━━
-${todayText}
-
-━━━ TOMORROW'S SCHEDULE ━━━
-${tomorrowText}
-${freeSlotsText}
 
 ━━━ THIS WEEK'S FULL SCHEDULE + FREE SLOTS ━━━
 ${(() => {
@@ -719,8 +712,12 @@ When the user gives an unstructured request like "I need to go grocery shopping 
    -> FIRST: Generate a \`create_block\` operation for the new ad-hoc block at the exact time, BUT you MUST add \`"is_locked": true\` to its data payload. This locks it in place.
    -> THEN: Generate a \`replan_day\` operation.
    The engine will automatically clear the overlapping blocks and perfectly cascade/reorganize them around your new locked block!
-4. TRADEOFF COMMUNICATION: When using Auto-Cascade, explicitly fill out the \`tradeoff\` field to warn the user (e.g. "Warning: This will cascade your existing morning blocks to later in the day. Severity: info").
-5. NEVER overlap with immutable blocks (sleep, meals, anchors). If they conflict, refuse the insertion and offer alternative times.
+4. REPLANNING TO FIT NEW TASKS: If the user asks to add a task/block but the target day is completely full (no free slots), you must ALWAYS generate TWO operations:
+   -> FIRST: \`create_todo\` (for a task without a specific time) or \`create_block\` (for a specific time block).
+   -> THEN: \`replan_week\` or \`replan_day\` to reorganize the schedule around the newly added task.
+   NEVER generate \`replan_week\` by itself when adding a task; the optimizer needs the new task in the database first!
+5. TRADEOFF COMMUNICATION: When using Auto-Cascade, explicitly fill out the \`tradeoff\` field to warn the user (e.g. "Warning: This will cascade your existing morning blocks to later in the day. Severity: info").
+6. NEVER overlap with immutable blocks (sleep, meals, anchors). If they conflict, refuse the insertion and offer alternative times.
 
 🔄 MISSED BLOCK RESCHEDULING PROTOCOL (3 OPTIONS):
 When the user says they missed or will miss a block and want to reschedule, you MUST ALWAYS provide exactly these 3 options in this specific order.
@@ -853,7 +850,7 @@ CRITICAL FORMATTING REQUIREMENTS:
    - Options 1 & 2 MUST state the specific time the block will be moved to (e.g., 'Move to 14:00 - 15:30').
    - Option 3 MUST state the exact name, day, and time of the lower priority block being replaced.
 2. For the 'impact' field:
-   - MUST be formatted as a string containing 2-3 concise bullet points (using • symbol) explaining exactly what changes will occur. (e.g. "• Moves block to 14:00\n• Replaces lower priority Gym block")
+   - MUST be formatted as a string containing 2-3 concise bullet points (using • symbol) explaining exactly what changes will occur. (e.g. "• Moves block to 14:00\\n• Replaces lower priority Gym block")
 3. For Option 3 operations:
    - You MUST output exactly two patch operations for Option 3: first a 'delete_block' operation to remove the lower priority block, and then a 'move_block' operation to move the missed block into that exact time slot.
 
@@ -935,7 +932,7 @@ ${optionsInstruction}`;
                 const isReplan = normalizedOps.some(o => o.type === 'replan_week' || o.type === 'replan_day');
 
                 // 1. For Option 4 (Replan Week): Keep only the replan operation to keep today's schedule entirely untouched
-                if (isReplan) {
+                if (isMissedBlock && isReplan) {
                     const replanOp = normalizedOps.find(o => o.type === 'replan_week' || o.type === 'replan_day');
                     if (replanOp) {
                         normalizedOps = [replanOp];
@@ -1634,80 +1631,60 @@ Respond with helpful, data-driven information. Return valid JSON only.`;
     return generateFallbackResponse(coachCtx, classification, userMessage);
 }
 
-/**
- * Response for general chat / acknowledgment
- */
-function generateAcknowledgmentResponse(
-    coachCtx: CoachContext
-): CoachResponse {
-    const message = coachCtx.last_user_message || '';
-    const lower = message.toLowerCase();
-    const missedBlocks = coachCtx.user_state.recent_missed_blocks;
-    const name = coachCtx.user.first_name || '';
-    const currentHour = parseInt(coachCtx.current.time.split(':')[0]) || 12;
-    const isEvening = currentHour >= 18;
-    const isLateNight = currentHour >= 22;
+async function generateAIGeneralResponse(
+    userMessage: string,
+    conversationHistory: Array<{ role: string; content: string }>,
+    coachCtx: CoachContext,
+    classification: IntentClassification
+): Promise<CoachResponse> {
+    const systemPrompt = `You are PlannrAI Coach, an elite scheduling assistant and productivity coach.
+The user is chatting with you generally. Respond naturally, concisely, and with a confident, supportive tone.
+If they ask something completely unrelated to productivity, scheduling, or goals, politely remind them of your purpose.
 
-    // Tough Love acknowledgments based on emotional context + schedule state + time
-    let ack = { message: "Got it. Now let's make it count.", offer: "Need me to optimize something?" };
+Current Context:
+Time: ${coachCtx.current.time}
+User: ${coachCtx.user.first_name || 'User'}
+Recent Energy: ${coachCtx.user_state.last_energy_checkin || 'Unknown'}/10
 
-    if (/(hate|frustrated|annoying|ugh|terrible)/i.test(lower)) {
-        ack = missedBlocks >= 3
-            ? { message: `I hear you${name ? `, ${name}` : ''}. But ${missedBlocks} missed blocks today isn't frustration — that's avoidance. Let's fix the root cause.`, offer: "Want me to cut the fat from your schedule?" }
-            : { message: "Frustration is signal, not noise. Something about your schedule isn't working. Let's fix it.", offer: "Tell me what's not working and I'll restructure." };
-    } else if (/(stressed|anxious|worried|overwhelmed)/i.test(lower)) {
-        ack = { message: "Your brain is telling you it's overloaded. That's actually useful data. Let's lighten the load strategically — not randomly.", offer: "I can clear everything except your top 2 priorities." };
-    } else if (/(thanks|thank you|great|awesome|perfect)/i.test(lower)) {
-        ack = isEvening
-            ? { message: `Good work today${name ? `, ${name}` : ''}. Rest well — tomorrow's a fresh page. 💪`, offer: "Want me to preview tomorrow's plan?" }
-            : { message: "Good. Stay locked in. 💪", offer: "What's next on your radar?" };
-    } else if (/(tired|sleepy|exhausted|drained)/i.test(lower)) {
-        ack = isLateNight
-            ? { message: `${name ? `${name}, ` : ''}It's late. Your body is keeping score — go rest. Everything can wait until tomorrow.`, offer: "Want me to move remaining blocks to tomorrow?" }
-            : { message: "Your body is keeping score. Rest isn't weakness — it's strategy. Let me adjust your remaining blocks.", offer: "Want me to switch to recovery mode?" };
-    } else if (/(excited|pumped|motivated|let's go|crush it)/i.test(lower)) {
-        ack = { message: `That's the energy${name ? `, ${name}` : ''}. Let's channel it. 🔥`, offer: "Want me to front-load your hardest tasks while you're in this zone?" };
+Respond in strict JSON matching this schema:
+{
+    "response": "Your natural, concise response (1-3 sentences max)"
+}`;
+
+    const recentHistory = conversationHistory.slice(-4).map(m => `${m.role === 'user' ? 'User' : 'Coach'}: ${m.content}`).join('\n');
+    const prompt = `${recentHistory ? `Recent Conversation:\n${recentHistory}\n\n` : ''}User: ${userMessage}\n\nGenerate your JSON response:`;
+
+    let responseText = "I'm here to help you crush your goals. What's on your mind?";
+
+    try {
+        const aiRes = await callAI<{ response: string }>({
+            prompt,
+            systemPrompt,
+            model: 'fast',
+            requireJSON: true,
+            useNvidia: true,
+        });
+
+        if (aiRes.success && aiRes.data?.response) {
+            responseText = aiRes.data.response;
+        }
+    } catch (e) {
+        console.warn('[CoachAI] General chat fallback:', e);
     }
 
     return {
         id: generateId(),
         timestamp: new Date().toISOString(),
         mode: 'acknowledge',
-        summary: ack.message,
-        acknowledgment: { message: ack.message, offer: ack.offer },
-        options: [{
-            id: 'lighten_load',
-            title: 'Lighten my load',
-            description: "Reduce today's workload",
-            impact: 'Fewer tasks, more breathing room',
-            patch: { operations: [], requires_confirmation: false },
-            preview: { blocks_added: 0, blocks_modified: 0, blocks_removed: 0, affected_dates: [] },
-            recommended: false,
-        }],
+        summary: responseText,
+        acknowledgment: { message: responseText },
         minimal_mode: coachCtx.user_state.is_minimal_mode,
         conversation_context: { can_undo: false },
         options_expire_at: getExpirationTime(10),
     };
 }
 
-/**
- * Out of scope response
- */
-function generateOutOfScopeResponse(coachCtx: CoachContext): CoachResponse {
-    return {
-        id: generateId(),
-        timestamp: new Date().toISOString(),
-        mode: 'acknowledge',
-        summary: "I'm your scheduling assistant — I focus on helping you plan your time, manage goals, and optimize your calendar.",
-        acknowledgment: {
-            message: "I'm your scheduling assistant — I focus on helping you plan your time.",
-            offer: "Try asking me to reorganize your day, add a task, or check your progress!",
-        },
-        minimal_mode: coachCtx.user_state.is_minimal_mode,
-        conversation_context: { can_undo: false },
-        options_expire_at: getExpirationTime(10),
-    };
-}
+// Removed generateOutOfScopeResponse as it's handled by generateAIGeneralResponse
 
 /**
  * Clarification response
@@ -1785,36 +1762,53 @@ function generateUndoResponse(coachCtx: CoachContext): CoachResponse {
 export async function generateCoachResponse(
     userMessage: string,
     conversationHistory: Array<{ role: string; content: string }>,
-    context: CoachContext,
+    lightOrFullContext: any, // Could be LightContext or CoachContext
     supabase?: any,
-    prebuiltCalCtx?: CalendarContext | null
+    prebuiltCalCtx?: CalendarContext | null,
+    precomputedClassification?: IntentClassification
 ): Promise<CoachResponse> {
-    // 1. Classify intent
-    const classification = await classifyIntent(
-        userMessage,
-        conversationHistory,
-        {
-            current_time: context.current.time,
-            today_blocks: context.schedule.today,
-            goals: context.goals,
-            recent_energy: context.user_state.last_energy_checkin,
-        }
-    );
+    // 1. Classify intent (or use pre-computed)
+    let classification = precomputedClassification;
+    if (!classification) {
+        classification = await classifyIntent(
+            userMessage,
+            conversationHistory,
+            {
+                current_time: lightOrFullContext.current?.time || lightOrFullContext.current_time,
+                today_blocks: lightOrFullContext.schedule?.today || lightOrFullContext.today_blocks,
+                goals: lightOrFullContext.goals,
+                recent_energy: lightOrFullContext.user_state?.last_energy_checkin || lightOrFullContext.recent_energy,
+            }
+        );
+    }
 
     const intent = classification.primary_intent;
 
-    // 2. Use pre-built calendar context if provided, otherwise build fresh (deduplication)
+    // 2. Upgrade to full CoachContext if this is a Heavy intent
+    let context = lightOrFullContext;
+    if (intent !== CoachIntent.GENERAL_CHAT && intent !== CoachIntent.OUT_OF_SCOPE) {
+        if (!context.schedule?.tomorrow && supabase) {
+            // Need full context
+            try {
+                const { buildCoachContext } = await import('@/lib/coach/context-builder');
+                context = await buildCoachContext(lightOrFullContext.user_id || lightOrFullContext.user.id, supabase);
+            } catch (e) {
+                console.warn('[CoachAI] Failed to upgrade context:', e);
+            }
+        }
+    }
+
+    // 3. Use pre-built calendar context if provided, otherwise build fresh (ONLY IF HEAVY INTENT)
     let calCtx: CalendarContext | null = prebuiltCalCtx || null;
-    
     const isReschedulingIntent = 
         /missed|miss|didn't|did not|reschedule|rescheduling/i.test(userMessage) ||
         classification.primary_intent === CoachIntent.MOVE_BLOCK ||
         classification.primary_intent === CoachIntent.RESCHEDULE_DAY ||
         classification.primary_intent === CoachIntent.RESCHEDULE_WEEK;
 
-    if (!calCtx && supabase && !isReschedulingIntent) {
+    if (!calCtx && supabase && intent !== CoachIntent.GENERAL_CHAT && intent !== CoachIntent.OUT_OF_SCOPE && !isReschedulingIntent) {
         try {
-            calCtx = await buildCalendarContext(context.user.id, supabase);
+            calCtx = await buildCalendarContext(context.user_id || context.user?.id, supabase);
         } catch (e) {
             console.warn('[CoachAI] Failed to build calendar context:', e);
         }
@@ -1829,12 +1823,26 @@ export async function generateCoachResponse(
         return generateUndoResponse(context);
     }
 
-    if (intent === CoachIntent.GENERAL_CHAT) {
-        return generateAcknowledgmentResponse(context);
+
+    if (classification.requires_clarification && intent === CoachIntent.CLARIFICATION_NEEDED) {
+        return generateClarificationResponse(context, classification);
     }
 
-    if (intent === CoachIntent.OUT_OF_SCOPE) {
-        return generateOutOfScopeResponse(context);
+    if (intent === CoachIntent.UNDO_LAST) {
+        return generateUndoResponse(context);
+    }
+
+    if (intent === CoachIntent.GENERAL_CHAT || intent === CoachIntent.OUT_OF_SCOPE) {
+        // Upgrade context to mock CoachContext just for the prompt
+        const mockContext: any = {
+            current: { time: context.current_time || context.current?.time },
+            user: { first_name: context.first_name || context.user?.first_name },
+            user_state: { 
+                last_energy_checkin: context.recent_energy || context.user_state?.last_energy_checkin,
+                is_minimal_mode: false 
+            }
+        };
+        return generateAIGeneralResponse(userMessage, conversationHistory, mockContext, classification);
     }
 
     if (INFORMATION_INTENTS.has(intent)) {
