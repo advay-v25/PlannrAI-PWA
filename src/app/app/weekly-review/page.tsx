@@ -211,138 +211,106 @@ export default function WeeklyReviewPage() {
             <div className="flex-1 flex flex-col items-center">
                 <AnimatePresence mode="wait">
                     {isLoading && (
-                        <motion.div key="loading" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} className="flex flex-col items-center justify-center py-32 space-y-8 w-full max-w-4xl mx-auto">
-                            <div className="relative w-full h-56 flex items-center justify-center overflow-visible">
-                                {/* Volumetric center glow */}
-                                <motion.div 
-                                    animate={{ scale: [1, 1.2, 1], opacity: [0.15, 0.3, 0.15] }}
-                                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-orange-500/30 rounded-full blur-[64px]"
-                                />
-
-                                <svg className="absolute w-[150%] max-w-[1200px] h-full drop-shadow-2xl" viewBox="0 0 1000 200" preserveAspectRatio="none">
-                                    <defs>
-                                        <filter id="premium-glow" x="-30%" y="-30%" width="160%" height="160%">
-                                            <feGaussianBlur stdDeviation="8" result="blur1"/>
-                                            <feGaussianBlur stdDeviation="20" result="blur2"/>
-                                            <feMerge>
-                                                <feMergeNode in="blur2"/>
-                                                <feMergeNode in="blur1"/>
-                                                <feMergeNode in="SourceGraphic"/>
-                                            </feMerge>
-                                        </filter>
-                                        <linearGradient id="flow-grad" x1="0" y1="0" x2="1" y2="0">
-                                            <stop offset="0%" stopColor="#ea580c" stopOpacity="0" />
-                                            <stop offset="20%" stopColor="#f97316" stopOpacity="0.8" />
-                                            <stop offset="50%" stopColor="#fde047" stopOpacity="1" />
-                                            <stop offset="80%" stopColor="#f97316" stopOpacity="0.8" />
-                                            <stop offset="100%" stopColor="#ea580c" stopOpacity="0" />
-                                        </linearGradient>
-                                        <linearGradient id="core-grad" x1="0" y1="0" x2="1" y2="0">
-                                            <stop offset="0%" stopColor="#ffffff" stopOpacity="0" />
-                                            <stop offset="50%" stopColor="#ffffff" stopOpacity="1" />
-                                            <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
-                                        </linearGradient>
-                                    </defs>
-                                    
-                                    {/* Deep background glass track */}
-                                    <path 
-                                        d="M 0 100 L 250 100 C 320 100, 320 40, 390 40 C 460 40, 460 160, 530 160 C 600 160, 600 40, 670 40 C 740 40, 740 100, 810 100 L 1000 100" 
-                                        fill="none" 
-                                        stroke="#ea580c" 
-                                        strokeWidth="4" 
-                                        strokeOpacity="0.1"
-                                        strokeLinecap="round"
+                        <motion.div key="loading" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-5xl mx-auto py-12 flex flex-col items-center">
+                            {/* Main Glass Display Panel */}
+                            <div className="relative w-full h-[400px] rounded-[2.5rem] bg-[#0a0a0a] border border-white/10 shadow-[0_20px_60px_-15px_rgba(249,115,22,0.3)] overflow-hidden flex flex-col items-center justify-center">
+                                
+                                {/* Background Ambient Glows */}
+                                <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                                    <motion.div 
+                                        animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
+                                        transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+                                        className="absolute top-1/2 left-1/4 -translate-y-1/2 w-96 h-96 bg-orange-600/30 rounded-full blur-[100px]"
                                     />
-                                    
-                                    {/* Outer glowing aura */}
-                                    <motion.path 
-                                        d="M 0 100 L 250 100 C 320 100, 320 40, 390 40 C 460 40, 460 160, 530 160 C 600 160, 600 40, 670 40 C 740 40, 740 100, 810 100 L 1000 100" 
-                                        fill="none" 
-                                        stroke="url(#flow-grad)" 
-                                        strokeWidth="10" 
-                                        strokeLinecap="round"
-                                        filter="url(#premium-glow)"
-                                        initial={{ pathLength: 0.6, pathOffset: -0.6 }}
-                                        animate={{ pathOffset: 1 }}
-                                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                                    <motion.div 
+                                        animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0.4, 0.2] }}
+                                        transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
+                                        className="absolute top-1/2 right-1/4 -translate-y-1/2 w-96 h-96 bg-rose-600/20 rounded-full blur-[100px]"
                                     />
-                                    
-                                    {/* Solid bright center */}
-                                    <motion.path 
-                                        d="M 0 100 L 250 100 C 320 100, 320 40, 390 40 C 460 40, 460 160, 530 160 C 600 160, 600 40, 670 40 C 740 40, 740 100, 810 100 L 1000 100" 
-                                        fill="none" 
-                                        stroke="url(#flow-grad)" 
-                                        strokeWidth="4" 
-                                        strokeLinecap="round"
-                                        initial={{ pathLength: 0.4, pathOffset: -0.5 }}
-                                        animate={{ pathOffset: 1.1 }}
-                                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                                    />
-                                    
-                                    {/* Core shine line */}
-                                    <motion.path 
-                                        d="M 0 100 L 250 100 C 320 100, 320 40, 390 40 C 460 40, 460 160, 530 160 C 600 160, 600 40, 670 40 C 740 40, 740 100, 810 100 L 1000 100" 
-                                        fill="none" 
-                                        stroke="url(#core-grad)" 
-                                        strokeWidth="1.5"
-                                        strokeLinecap="round"
-                                        initial={{ pathLength: 0.2, pathOffset: -0.4 }}
-                                        animate={{ pathOffset: 1.2 }}
-                                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                                    />
-                                </svg>
-
-                                {/* Floating 3D dust particles */}
-                                <div className="absolute inset-0 pointer-events-none z-10 hidden md:block">
-                                    {[...Array(6)].map((_, i) => (
-                                        <motion.div 
-                                            key={`particle-${i}`}
-                                            animate={{ 
-                                                y: [0, -20 - (i * 5), 0], 
-                                                opacity: [0, 0.4 + (i * 0.1), 0],
-                                                scale: [1, 1.2, 1]
-                                            }} 
-                                            transition={{ 
-                                                duration: 3 + (i * 0.5), 
-                                                repeat: Infinity, 
-                                                ease: "easeInOut", 
-                                                delay: i * 0.3 
-                                            }}
-                                            className={`absolute rounded-full blur-[1px] ${i % 2 === 0 ? 'bg-amber-300' : 'bg-orange-500'}`}
-                                            style={{
-                                                left: `${20 + (i * 12)}%`,
-                                                top: `${40 + ((i % 3) * 15)}%`,
-                                                width: `${2 + (i % 3)}px`,
-                                                height: `${2 + (i % 3)}px`,
-                                            }}
-                                        />
-                                    ))}
                                 </div>
-                            </div>
-                            <div className="text-center space-y-3 z-10 relative">
-                                <h3 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-orange-500 to-amber-300">
-                                    Weekly Review Engine
-                                </h3>
-                                <div className="flex flex-col items-center gap-3">
-                                    <AnimatePresence mode="wait">
-                                        <motion.p
-                                            key={loadingMessage}
-                                            initial={{ opacity: 0, y: 5 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, y: -5 }}
-                                            className="text-sm font-medium text-[var(--text-secondary)] h-5"
-                                        >
-                                            {loadingMessage}
-                                        </motion.p>
-                                    </AnimatePresence>
-                                    <div className="flex gap-1.5 mt-2">
+
+                                {/* Faint Grid */}
+                                <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.2) 1px, transparent 1px)', backgroundSize: '40px 40px', backgroundPosition: 'center center' }} />
+
+                                {/* Isolated Layer for Scanner Blend Mode */}
+                                <div className="absolute inset-0" style={{ isolation: 'isolate' }}>
+                                    
+                                    {/* The EKG SVG */}
+                                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 1000 300" preserveAspectRatio="none">
+                                        <defs>
+                                            <filter id="neon-glow" x="-50%" y="-50%" width="200%" height="200%">
+                                                <feGaussianBlur stdDeviation="4" result="blur1" />
+                                                <feGaussianBlur stdDeviation="12" result="blur2" />
+                                                <feMerge>
+                                                    <feMergeNode in="blur2" />
+                                                    <feMergeNode in="blur1" />
+                                                    <feMergeNode in="SourceGraphic" />
+                                                </feMerge>
+                                            </filter>
+                                        </defs>
+                                        
+                                        {/* Sharp, jagged, extended heartbeat path */}
+                                        <path 
+                                            d="M 0 150 L 150 150 L 190 40 L 230 260 L 280 20 L 330 280 L 380 70 L 420 200 L 470 120 L 510 180 L 560 150 L 1000 150" 
+                                            stroke="#ea580c" 
+                                            strokeWidth="4" 
+                                            fill="none" 
+                                            strokeLinejoin="miter"
+                                            strokeMiterlimit="10"
+                                            filter="url(#neon-glow)"
+                                            className="opacity-40"
+                                        />
+                                    </svg>
+
+                                    {/* The Color-Dodge Illuminator Box */}
+                                    <motion.div 
+                                        className="absolute top-0 bottom-0 w-[500px]"
+                                        style={{ 
+                                            background: 'linear-gradient(to right, transparent 0%, rgba(255,150,50,0.5) 70%, rgba(255,255,255,1) 100%)',
+                                            mixBlendMode: 'color-dodge',
+                                            marginLeft: '-500px'
+                                        }}
+                                        animate={{ left: ['-20%', '130%'] }}
+                                        transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                                    />
+                                </div>
+
+                                {/* The Physical Laser Line */}
+                                <motion.div 
+                                    className="absolute top-0 bottom-0 w-1 bg-white z-20"
+                                    style={{ boxShadow: '0 0 40px 10px rgba(255,255,255,0.5), 0 0 80px 30px rgba(249,115,22,0.6)' }}
+                                    animate={{ left: ['-20%', '130%'] }}
+                                    transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                                />
+                                
+                                {/* Central Text & Branding Overlay */}
+                                <div className="absolute inset-0 flex flex-col items-center justify-center z-30 pointer-events-none text-center bg-black/10">
+                                    <h3 className="text-4xl font-extrabold tracking-tight text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.6)]">
+                                        Weekly Review Engine
+                                    </h3>
+                                    
+                                    <div className="mt-6 flex items-center justify-center h-8">
+                                        <AnimatePresence mode="wait">
+                                            <motion.p
+                                                key={loadingMessage}
+                                                initial={{ opacity: 0, y: 15, filter: 'blur(8px)' }}
+                                                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                                                exit={{ opacity: 0, y: -15, filter: 'blur(8px)' }}
+                                                transition={{ duration: 0.6, ease: "easeOut" }}
+                                                className="text-xl font-medium text-orange-200 drop-shadow-[0_0_15px_rgba(249,115,22,0.8)]"
+                                            >
+                                                {loadingMessage}
+                                            </motion.p>
+                                        </AnimatePresence>
+                                    </div>
+                                    
+                                    <div className="flex gap-2.5 mt-8">
                                         {[0, 1, 2].map((i) => (
                                             <motion.div
                                                 key={i}
-                                                animate={{ scale: [1, 1.5, 1], opacity: [0.3, 1, 0.3] }}
-                                                transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
-                                                className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)]"
+                                                animate={{ scale: [1, 1.8, 1], opacity: [0.2, 1, 0.2] }}
+                                                transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.25, ease: "easeInOut" }}
+                                                className="w-2.5 h-2.5 rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.9)]"
                                             />
                                         ))}
                                     </div>
