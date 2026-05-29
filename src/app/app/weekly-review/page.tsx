@@ -218,37 +218,15 @@ export default function WeeklyReviewPage() {
                             exit={{ opacity: 0, scale: 0.98, filter: 'blur(10px)' }} 
                             className="w-full flex-1 flex flex-col items-center justify-center py-20 relative"
                         >
-                            {/* Free-floating ambient background glows */}
-                            <div className="absolute inset-0 pointer-events-none overflow-hidden flex items-center justify-center opacity-70">
-                                <motion.div 
-                                    animate={{ 
-                                        scale: [1, 1.2, 1], 
-                                        x: ['-10%', '10%', '-10%'],
-                                        y: ['-5%', '5%', '-5%']
-                                    }}
-                                    transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-                                    className="absolute w-[800px] h-[800px] bg-violet-600/20 rounded-full blur-[120px]"
-                                />
-                                <motion.div 
-                                    animate={{ 
-                                        scale: [1, 1.3, 1], 
-                                        x: ['10%', '-10%', '10%'],
-                                        y: ['5%', '-5%', '5%']
-                                    }}
-                                    transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-                                    className="absolute w-[800px] h-[800px] bg-fuchsia-600/20 rounded-full blur-[120px]"
-                                />
-                            </div>
-
-                            {/* The Premium Thick Heartbeat Path */}
-                            <div className="relative z-10 w-full max-w-4xl h-72 mb-16 flex items-center justify-center">
-                                <svg className="w-full h-full overflow-visible drop-shadow-[0_0_30px_rgba(217,70,239,0.3)]" viewBox="0 0 1000 300" preserveAspectRatio="none">
+                            {/* The Premium Thick Heartbeat Path extending across the screen */}
+                            <div className="relative z-10 w-[100vw] left-1/2 -translate-x-1/2 h-72 mb-16 flex items-center justify-center pointer-events-none">
+                                <svg className="w-full h-full overflow-visible drop-shadow-[0_0_30px_rgba(217,70,239,0.5)]" viewBox="0 0 1000 300" preserveAspectRatio="none">
                                     <defs>
                                         <linearGradient id="premium-pulse" x1="0" y1="0" x2="1" y2="0">
                                             <stop offset="0%" stopColor="transparent" />
-                                            <stop offset="15%" stopColor="#7c3aed" /> {/* violet-600 */}
+                                            <stop offset="10%" stopColor="#7c3aed" /> {/* violet-600 */}
                                             <stop offset="50%" stopColor="#d946ef" /> {/* fuchsia-500 */}
-                                            <stop offset="85%" stopColor="#f472b6" /> {/* pink-400 */}
+                                            <stop offset="90%" stopColor="#f472b6" /> {/* pink-400 */}
                                             <stop offset="100%" stopColor="transparent" />
                                         </linearGradient>
                                         <filter id="ultra-glow" x="-50%" y="-50%" width="200%" height="200%">
@@ -267,7 +245,7 @@ export default function WeeklyReviewPage() {
                                     
                                     {/* Thick Ambient Background Track */}
                                     <path 
-                                        d="M 0 150 L 150 150 L 220 40 L 290 260 L 380 20 L 460 280 L 530 70 L 600 200 L 670 120 L 740 180 L 820 150 L 1000 150" 
+                                        d="M -100 150 L 150 150 L 220 40 L 290 260 L 380 20 L 460 280 L 530 70 L 600 200 L 670 120 L 740 180 L 820 150 L 1100 150" 
                                         stroke="url(#premium-pulse)" 
                                         strokeWidth="24" 
                                         strokeOpacity="0.15"
@@ -278,7 +256,7 @@ export default function WeeklyReviewPage() {
 
                                     {/* Deep Glowing Aura Trail */}
                                     <motion.path 
-                                        d="M 0 150 L 150 150 L 220 40 L 290 260 L 380 20 L 460 280 L 530 70 L 600 200 L 670 120 L 740 180 L 820 150 L 1000 150" 
+                                        d="M -100 150 L 150 150 L 220 40 L 290 260 L 380 20 L 460 280 L 530 70 L 600 200 L 670 120 L 740 180 L 820 150 L 1100 150" 
                                         stroke="url(#premium-pulse)" 
                                         strokeWidth="32" 
                                         fill="none" 
@@ -292,7 +270,7 @@ export default function WeeklyReviewPage() {
 
                                     {/* The Thick Solid Colorful Tube */}
                                     <motion.path 
-                                        d="M 0 150 L 150 150 L 220 40 L 290 260 L 380 20 L 460 280 L 530 70 L 600 200 L 670 120 L 740 180 L 820 150 L 1000 150" 
+                                        d="M -100 150 L 150 150 L 220 40 L 290 260 L 380 20 L 460 280 L 530 70 L 600 200 L 670 120 L 740 180 L 820 150 L 1100 150" 
                                         stroke="url(#premium-pulse)" 
                                         strokeWidth="20" 
                                         fill="none" 
@@ -305,7 +283,7 @@ export default function WeeklyReviewPage() {
 
                                     {/* Bright White Volume Core */}
                                     <motion.path 
-                                        d="M 0 150 L 150 150 L 220 40 L 290 260 L 380 20 L 460 280 L 530 70 L 600 200 L 670 120 L 740 180 L 820 150 L 1000 150" 
+                                        d="M -100 150 L 150 150 L 220 40 L 290 260 L 380 20 L 460 280 L 530 70 L 600 200 L 670 120 L 740 180 L 820 150 L 1100 150" 
                                         stroke="#ffffff" 
                                         strokeWidth="6" 
                                         fill="none" 
