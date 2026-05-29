@@ -52,7 +52,7 @@ export default function WeeklyReviewPage() {
             'Gathering your weekly data...',
             'Analyzing completion rates...',
             'Identifying key struggles...',
-            'Drafting coaching insights...',
+            'Generating performance insights...',
             'Finalizing your weekly review...'
         ];
         let i = 0;
@@ -143,7 +143,7 @@ export default function WeeklyReviewPage() {
     };
 
     return (
-        <div className="w-full min-h-screen relative">
+        <div className="w-full min-h-screen relative overflow-x-hidden">
             {/* SVG organic ribbon flows — purple palette */}
             <div className="absolute inset-0 pointer-events-none z-[-1]">
               <div aria-hidden style={{ position: 'sticky', top: 0, height: '100dvh', width: '100%', overflow: 'hidden' }}>
@@ -210,52 +210,114 @@ export default function WeeklyReviewPage() {
 
             <div className="flex-1 flex flex-col items-center">
                 <AnimatePresence mode="wait">
-                    
                     {isLoading && (
-                        <motion.div key="loading" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} className="flex flex-col items-center justify-center py-32 space-y-8">
-                            <div className="relative">
-                                {/* Outer pulsing ring */}
-                                <motion.div 
-                                    animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.5, 0.2] }}
-                                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                                    className="absolute inset-0 rounded-full bg-[var(--color-primary)] blur-xl"
-                                />
-                                {/* Inner glow and icon */}
-                                <div className="relative w-24 h-24 bg-[var(--glass-bg)] border border-[var(--color-primary)]/30 rounded-3xl flex items-center justify-center shadow-2xl shadow-purple-500/20 overflow-hidden backdrop-blur-md">
-                                    <motion.div
-                                        animate={{ y: ['-100%', '100%'] }}
-                                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                                        className="absolute inset-0 bg-gradient-to-b from-transparent via-[var(--color-primary)]/20 to-transparent"
-                                    />
-                                    <Brain className="w-10 h-10 text-[var(--color-primary)] relative z-10" />
+                        <motion.div 
+                            key="loading" 
+                            initial={{ opacity: 0, scale: 0.98, filter: 'blur(10px)' }} 
+                            animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }} 
+                            exit={{ opacity: 0, scale: 0.98, filter: 'blur(10px)' }} 
+                            className="w-full flex-1 flex flex-col items-center justify-center py-20 relative"
+                        >
+                            {/* The Premium Thick Heartbeat Path extending across the screen */}
+                            <div className="relative z-10 w-full h-72 mb-16 flex items-center justify-center pointer-events-none">
+                                <div className="absolute left-1/2 -translate-x-1/2 w-[200vw] md:w-[100vw] h-full flex items-center justify-center">
+                                    <svg className="w-full h-full overflow-visible drop-shadow-[0_0_30px_rgba(217,70,239,0.5)]" viewBox="0 0 1000 300" preserveAspectRatio="none">
+                                        <defs>
+                                            <linearGradient id="premium-pulse" x1="0" y1="0" x2="1" y2="0">
+                                                <stop offset="0%" stopColor="transparent" />
+                                                <stop offset="30%" stopColor="#7c3aed" /> {/* violet-600 */}
+                                                <stop offset="50%" stopColor="#d946ef" /> {/* fuchsia-500 */}
+                                                <stop offset="70%" stopColor="#f472b6" /> {/* pink-400 */}
+                                                <stop offset="100%" stopColor="transparent" />
+                                            </linearGradient>
+                                            <filter id="ultra-glow" x="-50%" y="-50%" width="200%" height="200%">
+                                                <feGaussianBlur stdDeviation="10" result="blur1" />
+                                                <feGaussianBlur stdDeviation="24" result="blur2" />
+                                                <feMerge>
+                                                    <feMergeNode in="blur2" />
+                                                    <feMergeNode in="blur1" />
+                                                    <feMergeNode in="SourceGraphic" />
+                                                </feMerge>
+                                            </filter>
+                                            <filter id="core-glow" x="-20%" y="-20%" width="140%" height="140%">
+                                                <feGaussianBlur stdDeviation="3" />
+                                            </filter>
+                                        </defs>
+                                        
+                                        {/* Thick Ambient Background Track */}
+                                        <path 
+                                            d="M 0 150 L 350 150 L 380 70 L 410 230 L 450 30 L 490 270 L 530 80 L 570 200 L 610 120 L 650 150 L 1000 150" 
+                                            stroke="url(#premium-pulse)" 
+                                            strokeWidth="16" 
+                                            strokeOpacity="0.2"
+                                            fill="none" 
+                                            strokeLinejoin="round"
+                                            strokeLinecap="round"
+                                        />
+
+                                        {/* Deep Glowing Aura Trail */}
+                                        <motion.path 
+                                            d="M 0 150 L 350 150 L 380 70 L 410 230 L 450 30 L 490 270 L 530 80 L 570 200 L 610 120 L 650 150 L 1000 150" 
+                                            stroke="url(#premium-pulse)" 
+                                            strokeWidth="24" 
+                                            fill="none" 
+                                            strokeLinejoin="round"
+                                            strokeLinecap="round"
+                                            filter="url(#ultra-glow)"
+                                            initial={{ pathLength: 0.5, pathOffset: -0.5 }}
+                                            animate={{ pathOffset: 1 }}
+                                            transition={{ duration: 3.5, repeat: Infinity, ease: 'linear' }}
+                                        />
+
+                                        {/* The Thick Solid Colorful Tube */}
+                                        <motion.path 
+                                            d="M 0 150 L 350 150 L 380 70 L 410 230 L 450 30 L 490 270 L 530 80 L 570 200 L 610 120 L 650 150 L 1000 150" 
+                                            stroke="url(#premium-pulse)" 
+                                            strokeWidth="12" 
+                                            fill="none" 
+                                            strokeLinejoin="round"
+                                            strokeLinecap="round"
+                                            initial={{ pathLength: 0.35, pathOffset: -0.35 }}
+                                            animate={{ pathOffset: 1.15 }}
+                                            transition={{ duration: 3.5, repeat: Infinity, ease: 'linear' }}
+                                        />
+
+                                        {/* Bright White Volume Core */}
+                                        <motion.path 
+                                            d="M 0 150 L 350 150 L 380 70 L 410 230 L 450 30 L 490 270 L 530 80 L 570 200 L 610 120 L 650 150 L 1000 150" 
+                                            stroke="#ffffff" 
+                                            strokeWidth="4" 
+                                            fill="none" 
+                                            strokeLinejoin="round"
+                                            strokeLinecap="round"
+                                            filter="url(#core-glow)"
+                                            initial={{ pathLength: 0.25, pathOffset: -0.25 }}
+                                            animate={{ pathOffset: 1.25 }}
+                                            transition={{ duration: 3.5, repeat: Infinity, ease: 'linear' }}
+                                        />
+                                    </svg>
                                 </div>
                             </div>
-                            <div className="text-center space-y-3">
-                                <h3 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[var(--color-primary)] to-purple-400">
-                                    AI Coach Processing
+
+                            {/* Text Area */}
+                            <div className="relative z-10 text-center flex flex-col items-center px-4">
+                                <h3 className="text-4xl md:text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white to-purple-200 drop-shadow-sm mb-4">
+                                    Analyzing Your Week
                                 </h3>
-                                <div className="flex flex-col items-center gap-3">
+                                
+                                <div className="h-10 flex items-center justify-center">
                                     <AnimatePresence mode="wait">
                                         <motion.p
                                             key={loadingMessage}
-                                            initial={{ opacity: 0, y: 5 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, y: -5 }}
-                                            className="text-sm font-medium text-[var(--text-secondary)] h-5"
+                                            initial={{ opacity: 0, y: 15, filter: 'blur(8px)' }}
+                                            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                                            exit={{ opacity: 0, y: -15, filter: 'blur(8px)' }}
+                                            transition={{ duration: 0.5, ease: "easeOut" }}
+                                            className="text-lg md:text-xl font-bold text-purple-300/80 tracking-wide"
                                         >
                                             {loadingMessage}
                                         </motion.p>
                                     </AnimatePresence>
-                                    <div className="flex gap-1.5 mt-2">
-                                        {[0, 1, 2].map((i) => (
-                                            <motion.div
-                                                key={i}
-                                                animate={{ scale: [1, 1.5, 1], opacity: [0.3, 1, 0.3] }}
-                                                transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
-                                                className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)]"
-                                            />
-                                        ))}
-                                    </div>
                                 </div>
                             </div>
                         </motion.div>
