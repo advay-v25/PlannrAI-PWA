@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
-import { Loader2, ArrowRight, ArrowLeft, Brain, Zap, Target, Star, AlertTriangle, MessageCircle, X, CheckCircle2, Circle, ArrowDownRight } from 'lucide-react';
+import { Loader2, ArrowRight, ArrowLeft, Brain, Zap, Target, Star, AlertTriangle, MessageCircle, X, CheckCircle2, Circle, ArrowDownRight, Activity } from 'lucide-react';
 
 interface ProposedChange {
     goal_id: string;
@@ -52,7 +52,7 @@ export default function WeeklyReviewPage() {
             'Gathering your weekly data...',
             'Analyzing completion rates...',
             'Identifying key struggles...',
-            'Drafting coaching insights...',
+            'Generating performance insights...',
             'Finalizing your weekly review...'
         ];
         let i = 0;
@@ -214,25 +214,31 @@ export default function WeeklyReviewPage() {
                     {isLoading && (
                         <motion.div key="loading" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} className="flex flex-col items-center justify-center py-32 space-y-8">
                             <div className="relative">
-                                {/* Outer pulsing ring */}
+                                {/* Outer pulsing ring - Heartbeat style */}
                                 <motion.div 
-                                    animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.5, 0.2] }}
-                                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                                    animate={{ scale: [1, 1.3, 1.1, 1.3, 1], opacity: [0.1, 0.4, 0.2, 0.4, 0.1] }}
+                                    transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
                                     className="absolute inset-0 rounded-full bg-[var(--color-primary)] blur-xl"
                                 />
                                 {/* Inner glow and icon */}
                                 <div className="relative w-24 h-24 bg-[var(--glass-bg)] border border-[var(--color-primary)]/30 rounded-3xl flex items-center justify-center shadow-2xl shadow-purple-500/20 overflow-hidden backdrop-blur-md">
                                     <motion.div
-                                        animate={{ y: ['-100%', '100%'] }}
-                                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                                        className="absolute inset-0 bg-gradient-to-b from-transparent via-[var(--color-primary)]/20 to-transparent"
+                                        animate={{ x: ['-100%', '100%'] }}
+                                        transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                                        className="absolute inset-0 w-[50%] bg-gradient-to-r from-transparent via-[var(--color-primary)]/40 to-transparent skew-x-12"
                                     />
-                                    <Brain className="w-10 h-10 text-[var(--color-primary)] relative z-10" />
+                                    <motion.div
+                                        animate={{ scale: [1, 1.2, 1, 1.2, 1] }}
+                                        transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+                                        className="relative z-10"
+                                    >
+                                        <Activity className="w-10 h-10 text-[var(--color-primary)]" />
+                                    </motion.div>
                                 </div>
                             </div>
                             <div className="text-center space-y-3">
                                 <h3 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[var(--color-primary)] to-purple-400">
-                                    AI Coach Processing
+                                    Weekly Review Engine
                                 </h3>
                                 <div className="flex flex-col items-center gap-3">
                                     <AnimatePresence mode="wait">
