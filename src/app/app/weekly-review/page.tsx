@@ -211,111 +211,84 @@ export default function WeeklyReviewPage() {
             <div className="flex-1 flex flex-col items-center">
                 <AnimatePresence mode="wait">
                     {isLoading && (
-                        <motion.div key="loading" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-5xl mx-auto py-12 flex flex-col items-center">
-                            {/* Main Glass Display Panel */}
-                            <div className="relative w-full h-[400px] rounded-[2.5rem] bg-[#0a0a0a] border border-white/10 shadow-[0_20px_60px_-15px_rgba(249,115,22,0.3)] overflow-hidden flex flex-col items-center justify-center">
-                                
-                                {/* Background Ambient Glows */}
-                                <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                        <motion.div 
+                            key="loading" 
+                            initial={{ opacity: 0, scale: 0.98, filter: 'blur(10px)' }} 
+                            animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }} 
+                            exit={{ opacity: 0, scale: 0.98, filter: 'blur(10px)' }} 
+                            className="w-full flex-1 flex flex-col items-center justify-center py-10"
+                        >
+                            <motion.div 
+                                whileHover={{ scale: 1.02 }}
+                                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                className="relative w-full h-[450px] rounded-[3rem] overflow-hidden flex flex-col items-center justify-center bg-[#0a0a0a]/40 border border-white/10 shadow-[0_30px_100px_-20px_rgba(168,85,247,0.3)] backdrop-blur-2xl cursor-default group"
+                            >
+                                {/* Interactive ambient background glows */}
+                                <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-60 group-hover:opacity-100 transition-opacity duration-1000">
                                     <motion.div 
-                                        animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
-                                        transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-                                        className="absolute top-1/2 left-1/4 -translate-y-1/2 w-96 h-96 bg-orange-600/30 rounded-full blur-[100px]"
-                                    />
-                                    <motion.div 
-                                        animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0.4, 0.2] }}
-                                        transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
-                                        className="absolute top-1/2 right-1/4 -translate-y-1/2 w-96 h-96 bg-rose-600/20 rounded-full blur-[100px]"
-                                    />
-                                </div>
-
-                                {/* Faint Grid */}
-                                <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.2) 1px, transparent 1px)', backgroundSize: '40px 40px', backgroundPosition: 'center center' }} />
-
-                                {/* Isolated Layer for Scanner Blend Mode */}
-                                <div className="absolute inset-0" style={{ isolation: 'isolate' }}>
-                                    
-                                    {/* The EKG SVG */}
-                                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 1000 300" preserveAspectRatio="none">
-                                        <defs>
-                                            <filter id="neon-glow" x="-50%" y="-50%" width="200%" height="200%">
-                                                <feGaussianBlur stdDeviation="4" result="blur1" />
-                                                <feGaussianBlur stdDeviation="12" result="blur2" />
-                                                <feMerge>
-                                                    <feMergeNode in="blur2" />
-                                                    <feMergeNode in="blur1" />
-                                                    <feMergeNode in="SourceGraphic" />
-                                                </feMerge>
-                                            </filter>
-                                        </defs>
-                                        
-                                        {/* Sharp, jagged, extended heartbeat path */}
-                                        <path 
-                                            d="M 0 150 L 150 150 L 190 40 L 230 260 L 280 20 L 330 280 L 380 70 L 420 200 L 470 120 L 510 180 L 560 150 L 1000 150" 
-                                            stroke="#ea580c" 
-                                            strokeWidth="4" 
-                                            fill="none" 
-                                            strokeLinejoin="miter"
-                                            strokeMiterlimit="10"
-                                            filter="url(#neon-glow)"
-                                            className="opacity-40"
-                                        />
-                                    </svg>
-
-                                    {/* The Color-Dodge Illuminator Box */}
-                                    <motion.div 
-                                        className="absolute top-0 bottom-0 w-[500px]"
-                                        style={{ 
-                                            background: 'linear-gradient(to right, transparent 0%, rgba(255,150,50,0.5) 70%, rgba(255,255,255,1) 100%)',
-                                            mixBlendMode: 'color-dodge',
-                                            marginLeft: '-500px'
+                                        animate={{ 
+                                            scale: [1, 1.2, 1], 
+                                            x: ['-20%', '20%', '-20%'],
+                                            y: ['-20%', '20%', '-20%']
                                         }}
-                                        animate={{ left: ['-20%', '130%'] }}
-                                        transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                                        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+                                        className="absolute -top-[20%] -left-[10%] w-[70%] h-[70%] bg-violet-600/40 rounded-full blur-[80px]"
+                                    />
+                                    <motion.div 
+                                        animate={{ 
+                                            scale: [1, 1.3, 1], 
+                                            x: ['20%', '-20%', '20%'],
+                                            y: ['20%', '-20%', '20%']
+                                        }}
+                                        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+                                        className="absolute -bottom-[20%] -right-[10%] w-[70%] h-[70%] bg-fuchsia-600/40 rounded-full blur-[80px]"
                                     />
                                 </div>
 
-                                {/* The Physical Laser Line */}
-                                <motion.div 
-                                    className="absolute top-0 bottom-0 w-1 bg-white z-20"
-                                    style={{ boxShadow: '0 0 40px 10px rgba(255,255,255,0.5), 0 0 80px 30px rgba(249,115,22,0.6)' }}
-                                    animate={{ left: ['-20%', '130%'] }}
-                                    transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-                                />
-                                
-                                {/* Central Text & Branding Overlay */}
-                                <div className="absolute inset-0 flex flex-col items-center justify-center z-30 pointer-events-none text-center bg-black/10">
-                                    <h3 className="text-4xl font-extrabold tracking-tight text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.6)]">
-                                        Weekly Review Engine
+                                {/* The Spotify Wrapped Style Audio Wave / Data Bars */}
+                                <div className="relative z-10 flex items-center justify-center gap-2 md:gap-3 h-40 mb-10 w-full px-8">
+                                    {[
+                                        { h: [30, 70, 40, 80, 30] },
+                                        { h: [50, 90, 60, 100, 50] },
+                                        { h: [70, 100, 80, 50, 70] },
+                                        { h: [90, 50, 100, 70, 90] },
+                                        { h: [100, 80, 50, 90, 100] }, // Center
+                                        { h: [90, 60, 100, 50, 90] },
+                                        { h: [70, 100, 50, 90, 70] },
+                                        { h: [50, 80, 90, 40, 50] },
+                                        { h: [30, 60, 50, 80, 30] },
+                                    ].map((anim, i) => (
+                                        <motion.div
+                                            key={`wave-${i}`}
+                                            animate={{ height: anim.h.map(v => `${v}%`) }}
+                                            transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: i * 0.15 }}
+                                            className="w-full max-w-[1.5rem] rounded-full bg-gradient-to-t from-violet-600 via-fuchsia-500 to-pink-400 shadow-[0_0_20px_rgba(217,70,239,0.3)] group-hover:shadow-[0_0_30px_rgba(217,70,239,0.8)] transition-shadow duration-700"
+                                        />
+                                    ))}
+                                </div>
+
+                                {/* Text Area */}
+                                <div className="relative z-10 text-center flex flex-col items-center px-4">
+                                    <h3 className="text-4xl md:text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white to-purple-200 drop-shadow-sm mb-4">
+                                        Analyzing Your Week
                                     </h3>
                                     
-                                    <div className="mt-6 flex items-center justify-center h-8">
+                                    <div className="h-10 flex items-center justify-center">
                                         <AnimatePresence mode="wait">
                                             <motion.p
                                                 key={loadingMessage}
                                                 initial={{ opacity: 0, y: 15, filter: 'blur(8px)' }}
                                                 animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                                                 exit={{ opacity: 0, y: -15, filter: 'blur(8px)' }}
-                                                transition={{ duration: 0.6, ease: "easeOut" }}
-                                                className="text-xl font-medium text-orange-200 drop-shadow-[0_0_15px_rgba(249,115,22,0.8)]"
+                                                transition={{ duration: 0.5, ease: "easeOut" }}
+                                                className="text-lg md:text-xl font-bold text-purple-300/80 tracking-wide"
                                             >
                                                 {loadingMessage}
                                             </motion.p>
                                         </AnimatePresence>
                                     </div>
-                                    
-                                    <div className="flex gap-2.5 mt-8">
-                                        {[0, 1, 2].map((i) => (
-                                            <motion.div
-                                                key={i}
-                                                animate={{ scale: [1, 1.8, 1], opacity: [0.2, 1, 0.2] }}
-                                                transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.25, ease: "easeInOut" }}
-                                                className="w-2.5 h-2.5 rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.9)]"
-                                            />
-                                        ))}
-                                    </div>
                                 </div>
-                            </div>
+                            </motion.div>
                         </motion.div>
                     )}
 
