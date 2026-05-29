@@ -52,7 +52,7 @@ export default function WeeklyReviewPage() {
             'Gathering your weekly data...',
             'Analyzing completion rates...',
             'Identifying key struggles...',
-            'Drafting coaching insights...',
+            'Generating performance insights...',
             'Finalizing your weekly review...'
         ];
         let i = 0;
@@ -212,27 +212,64 @@ export default function WeeklyReviewPage() {
                 <AnimatePresence mode="wait">
                     
                     {isLoading && (
-                        <motion.div key="loading" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} className="flex flex-col items-center justify-center py-32 space-y-8">
-                            <div className="relative">
-                                {/* Outer pulsing ring */}
-                                <motion.div 
-                                    animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.5, 0.2] }}
-                                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                                    className="absolute inset-0 rounded-full bg-[var(--color-primary)] blur-xl"
-                                />
-                                {/* Inner glow and icon */}
-                                <div className="relative w-24 h-24 bg-[var(--glass-bg)] border border-[var(--color-primary)]/30 rounded-3xl flex items-center justify-center shadow-2xl shadow-purple-500/20 overflow-hidden backdrop-blur-md">
-                                    <motion.div
-                                        animate={{ y: ['-100%', '100%'] }}
-                                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                                        className="absolute inset-0 bg-gradient-to-b from-transparent via-[var(--color-primary)]/20 to-transparent"
+                        <motion.div key="loading" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} className="flex flex-col items-center justify-center py-32 space-y-8 w-full max-w-4xl mx-auto">
+                            <div className="relative w-full h-40 flex items-center justify-center overflow-visible">
+                                <svg className="absolute w-[150%] max-w-[1200px] h-full" viewBox="0 0 1000 200" preserveAspectRatio="none">
+                                    <defs>
+                                        <filter id="orange-glow" x="-20%" y="-20%" width="140%" height="140%">
+                                            <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
+                                            <feMerge>
+                                                <feMergeNode in="coloredBlur"/>
+                                                <feMergeNode in="SourceGraphic"/>
+                                            </feMerge>
+                                        </filter>
+                                        <linearGradient id="shine-grad" x1="0" y1="0" x2="1" y2="0">
+                                            <stop offset="0%" stopColor="transparent" />
+                                            <stop offset="50%" stopColor="#fff" />
+                                            <stop offset="100%" stopColor="transparent" />
+                                        </linearGradient>
+                                    </defs>
+                                    
+                                    {/* Faint background track */}
+                                    <path 
+                                        d="M 0 100 L 350 100 L 400 40 L 450 160 L 500 20 L 550 140 L 600 100 L 1000 100" 
+                                        fill="none" 
+                                        stroke="#ea580c" 
+                                        strokeWidth="2" 
+                                        strokeOpacity="0.15"
                                     />
-                                    <Brain className="w-10 h-10 text-[var(--color-primary)] relative z-10" />
-                                </div>
+                                    
+                                    {/* Glowing animated line pulse */}
+                                    <motion.path 
+                                        d="M 0 100 L 350 100 L 400 40 L 450 160 L 500 20 L 550 140 L 600 100 L 1000 100" 
+                                        fill="none" 
+                                        stroke="#f97316" 
+                                        strokeWidth="5" 
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        filter="url(#orange-glow)"
+                                        initial={{ pathLength: 0.3, pathOffset: 1 }}
+                                        animate={{ pathOffset: -0.3 }}
+                                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                                    />
+                                    
+                                    {/* Thin white shine line in the core */}
+                                    <motion.path 
+                                        d="M 0 100 L 350 100 L 400 40 L 450 160 L 500 20 L 550 140 L 600 100 L 1000 100" 
+                                        fill="none" 
+                                        stroke="url(#shine-grad)" 
+                                        strokeWidth="1.5"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        initial={{ pathLength: 0.1, pathOffset: 1.1 }}
+                                        animate={{ pathOffset: -0.1 }}
+                                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                                    />
+                                </svg>
                             </div>
-                            <div className="text-center space-y-3">
-                                <h3 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[var(--color-primary)] to-purple-400">
-                                    AI Coach Processing
+                            <div className="text-center space-y-3 z-10">
+                                <h3 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-orange-500 to-amber-300">
+                                    Weekly Review Engine
                                 </h3>
                                 <div className="flex flex-col items-center gap-3">
                                     <AnimatePresence mode="wait">
