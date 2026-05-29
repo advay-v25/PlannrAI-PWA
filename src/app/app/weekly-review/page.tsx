@@ -143,7 +143,7 @@ export default function WeeklyReviewPage() {
     };
 
     return (
-        <div className="w-full min-h-screen relative">
+        <div className="w-full min-h-screen relative overflow-x-hidden">
             {/* SVG organic ribbon flows — purple palette */}
             <div className="absolute inset-0 pointer-events-none z-[-1]">
               <div aria-hidden style={{ position: 'sticky', top: 0, height: '100dvh', width: '100%', overflow: 'hidden' }}>
@@ -219,82 +219,84 @@ export default function WeeklyReviewPage() {
                             className="w-full flex-1 flex flex-col items-center justify-center py-20 relative"
                         >
                             {/* The Premium Thick Heartbeat Path extending across the screen */}
-                            <div className="relative z-10 w-[100vw] left-1/2 -translate-x-1/2 h-72 mb-16 flex items-center justify-center pointer-events-none">
-                                <svg className="w-full h-full overflow-visible drop-shadow-[0_0_30px_rgba(217,70,239,0.5)]" viewBox="0 0 1000 300" preserveAspectRatio="none">
-                                    <defs>
-                                        <linearGradient id="premium-pulse" x1="0" y1="0" x2="1" y2="0">
-                                            <stop offset="0%" stopColor="transparent" />
-                                            <stop offset="10%" stopColor="#7c3aed" /> {/* violet-600 */}
-                                            <stop offset="50%" stopColor="#d946ef" /> {/* fuchsia-500 */}
-                                            <stop offset="90%" stopColor="#f472b6" /> {/* pink-400 */}
-                                            <stop offset="100%" stopColor="transparent" />
-                                        </linearGradient>
-                                        <filter id="ultra-glow" x="-50%" y="-50%" width="200%" height="200%">
-                                            <feGaussianBlur stdDeviation="15" result="blur1" />
-                                            <feGaussianBlur stdDeviation="30" result="blur2" />
-                                            <feMerge>
-                                                <feMergeNode in="blur2" />
-                                                <feMergeNode in="blur1" />
-                                                <feMergeNode in="SourceGraphic" />
-                                            </feMerge>
-                                        </filter>
-                                        <filter id="core-glow" x="-20%" y="-20%" width="140%" height="140%">
-                                            <feGaussianBlur stdDeviation="4" />
-                                        </filter>
-                                    </defs>
-                                    
-                                    {/* Thick Ambient Background Track */}
-                                    <path 
-                                        d="M -100 150 L 150 150 L 220 40 L 290 260 L 380 20 L 460 280 L 530 70 L 600 200 L 670 120 L 740 180 L 820 150 L 1100 150" 
-                                        stroke="url(#premium-pulse)" 
-                                        strokeWidth="24" 
-                                        strokeOpacity="0.15"
-                                        fill="none" 
-                                        strokeLinejoin="round"
-                                        strokeLinecap="round"
-                                    />
+                            <div className="relative z-10 w-full h-72 mb-16 flex items-center justify-center pointer-events-none">
+                                <div className="absolute left-1/2 -translate-x-1/2 w-[200vw] md:w-[100vw] h-full flex items-center justify-center">
+                                    <svg className="w-full h-full overflow-visible drop-shadow-[0_0_30px_rgba(217,70,239,0.5)]" viewBox="0 0 1000 300" preserveAspectRatio="none">
+                                        <defs>
+                                            <linearGradient id="premium-pulse" x1="0" y1="0" x2="1" y2="0">
+                                                <stop offset="0%" stopColor="transparent" />
+                                                <stop offset="30%" stopColor="#7c3aed" /> {/* violet-600 */}
+                                                <stop offset="50%" stopColor="#d946ef" /> {/* fuchsia-500 */}
+                                                <stop offset="70%" stopColor="#f472b6" /> {/* pink-400 */}
+                                                <stop offset="100%" stopColor="transparent" />
+                                            </linearGradient>
+                                            <filter id="ultra-glow" x="-50%" y="-50%" width="200%" height="200%">
+                                                <feGaussianBlur stdDeviation="10" result="blur1" />
+                                                <feGaussianBlur stdDeviation="24" result="blur2" />
+                                                <feMerge>
+                                                    <feMergeNode in="blur2" />
+                                                    <feMergeNode in="blur1" />
+                                                    <feMergeNode in="SourceGraphic" />
+                                                </feMerge>
+                                            </filter>
+                                            <filter id="core-glow" x="-20%" y="-20%" width="140%" height="140%">
+                                                <feGaussianBlur stdDeviation="3" />
+                                            </filter>
+                                        </defs>
+                                        
+                                        {/* Thick Ambient Background Track */}
+                                        <path 
+                                            d="M 0 150 L 350 150 L 380 70 L 410 230 L 450 30 L 490 270 L 530 80 L 570 200 L 610 120 L 650 150 L 1000 150" 
+                                            stroke="url(#premium-pulse)" 
+                                            strokeWidth="16" 
+                                            strokeOpacity="0.2"
+                                            fill="none" 
+                                            strokeLinejoin="round"
+                                            strokeLinecap="round"
+                                        />
 
-                                    {/* Deep Glowing Aura Trail */}
-                                    <motion.path 
-                                        d="M -100 150 L 150 150 L 220 40 L 290 260 L 380 20 L 460 280 L 530 70 L 600 200 L 670 120 L 740 180 L 820 150 L 1100 150" 
-                                        stroke="url(#premium-pulse)" 
-                                        strokeWidth="32" 
-                                        fill="none" 
-                                        strokeLinejoin="round"
-                                        strokeLinecap="round"
-                                        filter="url(#ultra-glow)"
-                                        initial={{ pathLength: 0.5, pathOffset: -0.5 }}
-                                        animate={{ pathOffset: 1 }}
-                                        transition={{ duration: 3.5, repeat: Infinity, ease: 'linear' }}
-                                    />
+                                        {/* Deep Glowing Aura Trail */}
+                                        <motion.path 
+                                            d="M 0 150 L 350 150 L 380 70 L 410 230 L 450 30 L 490 270 L 530 80 L 570 200 L 610 120 L 650 150 L 1000 150" 
+                                            stroke="url(#premium-pulse)" 
+                                            strokeWidth="24" 
+                                            fill="none" 
+                                            strokeLinejoin="round"
+                                            strokeLinecap="round"
+                                            filter="url(#ultra-glow)"
+                                            initial={{ pathLength: 0.5, pathOffset: -0.5 }}
+                                            animate={{ pathOffset: 1 }}
+                                            transition={{ duration: 3.5, repeat: Infinity, ease: 'linear' }}
+                                        />
 
-                                    {/* The Thick Solid Colorful Tube */}
-                                    <motion.path 
-                                        d="M -100 150 L 150 150 L 220 40 L 290 260 L 380 20 L 460 280 L 530 70 L 600 200 L 670 120 L 740 180 L 820 150 L 1100 150" 
-                                        stroke="url(#premium-pulse)" 
-                                        strokeWidth="20" 
-                                        fill="none" 
-                                        strokeLinejoin="round"
-                                        strokeLinecap="round"
-                                        initial={{ pathLength: 0.35, pathOffset: -0.35 }}
-                                        animate={{ pathOffset: 1.15 }}
-                                        transition={{ duration: 3.5, repeat: Infinity, ease: 'linear' }}
-                                    />
+                                        {/* The Thick Solid Colorful Tube */}
+                                        <motion.path 
+                                            d="M 0 150 L 350 150 L 380 70 L 410 230 L 450 30 L 490 270 L 530 80 L 570 200 L 610 120 L 650 150 L 1000 150" 
+                                            stroke="url(#premium-pulse)" 
+                                            strokeWidth="12" 
+                                            fill="none" 
+                                            strokeLinejoin="round"
+                                            strokeLinecap="round"
+                                            initial={{ pathLength: 0.35, pathOffset: -0.35 }}
+                                            animate={{ pathOffset: 1.15 }}
+                                            transition={{ duration: 3.5, repeat: Infinity, ease: 'linear' }}
+                                        />
 
-                                    {/* Bright White Volume Core */}
-                                    <motion.path 
-                                        d="M -100 150 L 150 150 L 220 40 L 290 260 L 380 20 L 460 280 L 530 70 L 600 200 L 670 120 L 740 180 L 820 150 L 1100 150" 
-                                        stroke="#ffffff" 
-                                        strokeWidth="6" 
-                                        fill="none" 
-                                        strokeLinejoin="round"
-                                        strokeLinecap="round"
-                                        filter="url(#core-glow)"
-                                        initial={{ pathLength: 0.25, pathOffset: -0.25 }}
-                                        animate={{ pathOffset: 1.25 }}
-                                        transition={{ duration: 3.5, repeat: Infinity, ease: 'linear' }}
-                                    />
-                                </svg>
+                                        {/* Bright White Volume Core */}
+                                        <motion.path 
+                                            d="M 0 150 L 350 150 L 380 70 L 410 230 L 450 30 L 490 270 L 530 80 L 570 200 L 610 120 L 650 150 L 1000 150" 
+                                            stroke="#ffffff" 
+                                            strokeWidth="4" 
+                                            fill="none" 
+                                            strokeLinejoin="round"
+                                            strokeLinecap="round"
+                                            filter="url(#core-glow)"
+                                            initial={{ pathLength: 0.25, pathOffset: -0.25 }}
+                                            animate={{ pathOffset: 1.25 }}
+                                            transition={{ duration: 3.5, repeat: Infinity, ease: 'linear' }}
+                                        />
+                                    </svg>
+                                </div>
                             </div>
 
                             {/* Text Area */}
