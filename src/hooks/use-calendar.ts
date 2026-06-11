@@ -245,7 +245,7 @@ export function useCalendar(initialDate: Date = new Date()) {
                 title: data.title,
                 start_time: data.start_time,
                 end_time: data.end_time,
-                days_of_week: [new Date(data.date).getDay()]
+                days_of_week: [new Date(data.date + 'T12:00:00').getDay()]
             });
             showToast("Anchor created", "success");
             await loadData();
@@ -421,7 +421,8 @@ export function useCalendar(initialDate: Date = new Date()) {
     };
 
     // Derived State
-    const blocksForSelectedDate = state.blocks.filter(b => isSameDay(new Date(b.date), selectedDate));
+    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+    const blocksForSelectedDate = state.blocks.filter(b => b.date === selectedDateStr);
 
     return {
         ...state,

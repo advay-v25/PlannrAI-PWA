@@ -169,7 +169,7 @@ Based on this analysis:
     },
     {
         requireAuth: true,
-        rateLimit: 'ai',
+        rateLimit: 'aiCoach',
         auditAction: 'ai_habit_optimization',
     }
 );

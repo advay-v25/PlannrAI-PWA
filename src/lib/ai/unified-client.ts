@@ -255,7 +255,7 @@ async function callProvider<T>(
         model: config.model,
         messages,
         temperature: options.temperature ?? 0.7,
-        max_tokens: options.maxTokens ?? 4000,
+        max_tokens: options.maxTokens ?? 1500,
     };
 
     // Add response_format for providers that support it and when JSON required

@@ -24,6 +24,16 @@ export function formatTime(date: Date | string): string {
     });
 }
 
+export function formatTimeString(timeString: string): string {
+    if (!timeString) return '';
+    const [hours, minutes] = timeString.split(':');
+    const h = parseInt(hours, 10);
+    const m = minutes || '00';
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hour12 = h % 12 || 12;
+    return `${hour12}:${m} ${ampm}`;
+}
+
 export function getGreeting(): string {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';

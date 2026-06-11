@@ -255,10 +255,10 @@ export default function HomePage() {
             <div className="flex items-center gap-4">
                 <div className="hidden md:block text-right">
                     <div className="text-xs font-bold text-white/60">
-                        {Math.round(effectiveData.metrics.completed_min / 60)}h {Math.round(effectiveData.metrics.completed_min % 60)}m DONE
+                        {Math.round(effectiveData.metrics.completed_min / 60)}<span className="lowercase">h</span> {Math.round(effectiveData.metrics.completed_min % 60)}<span className="lowercase">m</span> <span className="uppercase">DONE</span>
                     </div>
-                    <div className="text-[10px] text-white/30 uppercase tracking-widest">
-                        {Math.round(effectiveData.metrics.planned_min / 60)}h {Math.round(effectiveData.metrics.planned_min % 60)}m PLANNED
+                    <div className="text-[10px] text-white/30 tracking-widest">
+                        {Math.round(effectiveData.metrics.planned_min / 60)}<span className="lowercase">h</span> {Math.round(effectiveData.metrics.planned_min % 60)}<span className="lowercase">m</span> <span className="uppercase">PLANNED</span>
                     </div>
                 </div>
                 <Link href="/app/settings">
@@ -448,7 +448,10 @@ export default function HomePage() {
                     currentTime={effectiveState.current_time}
                     activeBlock={effectiveState.active_block}
                     nextBlock={effectiveState.next_block}
-                    metrics={effectiveState.metrics}
+                    metrics={{
+                        timeRemainingInBlock: effectiveState.metrics?.time_remaining_in_block ?? null,
+                        timeUntilNextBlock: effectiveState.metrics?.time_until_next_block ?? null
+                    }}
                     insight={effectiveState.proactive_insight}
                     onAction={async (action) => {
                         console.log('Action Triggered:', action);

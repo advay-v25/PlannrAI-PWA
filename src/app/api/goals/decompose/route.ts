@@ -19,6 +19,11 @@ export const POST = secureApiRoute(
         const { userId } = context;
 
         try {
+            // Rate Limit Check
+            const { requireRateLimit } = await import('@/lib/rate-limit');
+            const rateLimitCheck = await requireRateLimit(`decompose:${userId}`, 5, 900);
+            if (typeof rateLimitCheck !== 'boolean') return rateLimitCheck;
+
             const systemPrompt = `You are PlannrAI's Goal Architect. Your task is to break down a complex goal into logical, actionable sub-tasks and a clear roadmap.
             Respond ONLY with valid JSON.`;
 
@@ -58,5 +63,5 @@ export const POST = secureApiRoute(
             return apiError(e.message || 'Internal error', 500);
         }
     },
-    { requireAuth: true, rateLimit: 'user', auditAction: 'goal_decompose' }
+    { requireAuth: true, rateLimit: 'aiCoach', auditAction: 'goal_decompose' }
 );

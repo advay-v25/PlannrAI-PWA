@@ -101,9 +101,16 @@ export const apiClient = {
                             let errorData;
                             try {
                                 const clone = response.clone();
-                                try { errorData = await clone.json(); } catch { errorData = { message: await response.text() }; }
+                                try { 
+                                    errorData = await clone.json(); 
+                                    if (errorData?.error && !errorData?.message) {
+                                        errorData.message = errorData.error;
+                                    }
+                                } catch { 
+                                    errorData = { message: await response.text() }; 
+                                }
                             } catch { errorData = { message: 'Unknown error' }; }
-                            throw new ApiError(response.status, response.statusText, errorData);
+                            throw new Error(errorData?.message || `${response.status} ${response.statusText}`);
                         }
                         return {} as T;
                     }

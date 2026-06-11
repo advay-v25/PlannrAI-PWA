@@ -83,7 +83,8 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
     const dayLayouts = useMemo(() => {
         const layouts = new Map<number, Map<string, LayoutBlock>>();
         days.forEach((day, i) => {
-            const dayBlocks = blocks.filter(b => isSameDay(new Date(b.date), day));
+            const dayStr = format(day, 'yyyy-MM-dd');
+            const dayBlocks = blocks.filter(b => b.date === dayStr);
             layouts.set(i, calculateLayout(dayBlocks, CELL_HEIGHT));
         });
         return layouts;
@@ -125,7 +126,8 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                     <div className="w-14 shrink-0 border-r border-white/[0.04]" />
                     {days.map((day, i) => {
                         const isToday = isSameDay(day, new Date());
-                        const dayBlocks = blocks.filter(b => isSameDay(new Date(b.date), day));
+                        const dayStr = format(day, 'yyyy-MM-dd');
+                        const dayBlocks = blocks.filter(b => b.date === dayStr);
                         const done = dayBlocks.filter(b => b.status === 'done').length;
                         return (
                             <div key={i} className={cn(
@@ -173,7 +175,8 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
 
                     {/* Day Columns */}
                     {days.map((day, dayIndex) => {
-                        const dayBlocks = blocks.filter(b => isSameDay(new Date(b.date), day));
+                        const dayStr = format(day, 'yyyy-MM-dd');
+                        const dayBlocks = blocks.filter(b => b.date === dayStr);
                         const layoutMap = dayLayouts.get(dayIndex) || new Map();
                         const isToday = isSameDay(day, new Date());
                         const isPast = day < new Date(new Date().setHours(0,0,0,0));

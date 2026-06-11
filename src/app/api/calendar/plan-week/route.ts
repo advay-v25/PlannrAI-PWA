@@ -109,5 +109,5 @@ export const POST = secureApiRoute(
             return apiError(`Planning failed: ${e.message}`, 500);
         }
     },
-    { requireAuth: true }
+    { requireAuth: true, rateLimit: 'aiPlanWeek' }
 );

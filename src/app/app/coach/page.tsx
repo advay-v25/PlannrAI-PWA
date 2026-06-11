@@ -23,10 +23,9 @@ function CoachPageInner() {
     }, [context, messages.length, sendMessage]);
 
     return (
-        <div className="h-screen flex flex-col">
+        <div className="h-full flex flex-col">
             <DynamicBackground variant="coach" />
             <CoachChat
-                onClose={() => router.push('/app')}
                 onCalendarUpdate={() => {
                     router.refresh();
                     window.dispatchEvent(new Event('calendar-refresh'));
@@ -38,7 +37,7 @@ function CoachPageInner() {
 
 export default function CoachPage() {
     return (
-        <Suspense fallback={<div className="flex items-center justify-center h-screen text-foreground/40">Loading coach...</div>}>
+        <Suspense fallback={<div className="flex items-center justify-center h-full text-foreground/40">Loading coach...</div>}>
             <CoachPageInner />
         </Suspense>
     );

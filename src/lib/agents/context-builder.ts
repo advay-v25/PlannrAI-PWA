@@ -86,7 +86,7 @@ export class ContextBuilder {
 
         let recentMemories: any[] = [];
         if (recentConvo) {
-            recentMemories = await MemoryService.getHistory(recentConvo.id, 30, supabase);
+            recentMemories = await MemoryService.getHistory(recentConvo.id, 10, supabase);
         }
 
         const recentSignals = await MemoryService.getRecentSignals(userId, 5, supabase);

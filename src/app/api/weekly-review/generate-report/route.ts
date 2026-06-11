@@ -7,6 +7,11 @@ export const maxDuration = 60;
 
 export async function POST(req: Request) {
     try {
+            // Rate Limit Check
+            const { requireRateLimit } = await import('@/lib/rate-limit');
+            const rateLimitCheck = await requireRateLimit(`weekly-report:${userId}`, 3, 3600);
+            if (typeof rateLimitCheck !== 'boolean') return rateLimitCheck;
+
         const supabase = await createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

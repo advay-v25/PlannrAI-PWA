@@ -42,3 +42,4 @@ next-env.d.ts
 .env*.local
 # Added by code-review-graph
 .code-review-graph/
+playwright/.auth/

@@ -7,7 +7,20 @@ import { motion } from 'framer-motion';
 function AllTimeProgress() {
     const { todos, isLoading } = useTodos();
     
-    if (isLoading || todos.length === 0) return null;
+    if (isLoading) return null;
+    if (todos.length === 0) {
+        return (
+            <motion.div 
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.3 }}
+                className="hidden lg:flex flex-col items-center justify-center p-4 h-full w-full opacity-50"
+            >
+                <div className="text-sm font-mono uppercase tracking-widest text-center text-white/50">Your canvas is empty</div>
+                <div className="text-xs text-white/30 mt-2 max-w-xs text-center">Add your first task on the right to start building momentum.</div>
+            </motion.div>
+        );
+    }
     
     const completed = todos.filter(t => t.is_completed).length;
     const total = todos.length;

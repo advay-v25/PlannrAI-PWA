@@ -15,7 +15,6 @@ import { createClient } from '@/lib/supabase/client';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
-    const [isCoachOpen, setIsCoachOpen] = useState(false);
     const { profile, setProfile } = useUserStore();
     const supabase = useMemo(() => createClient(), []);
     const displayName = profile?.full_name?.split(' ')[0] || profile?.full_name || 'User';
@@ -38,6 +37,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { href: '/app/goals', icon: Target, label: 'Goals' },
         { href: '/app/tasks', icon: ListTodo, label: 'Tasks' },
         { href: '/app/calendar', icon: Calendar, label: 'Calendar' },
+        { href: '/app/coach', icon: Sparkles, label: 'AI Coach' },
         { href: isPreview ? '/app/weekly-review' : '#', icon: Activity, label: 'Review', disabled: !isPreview, badge: !isPreview ? 'SOON' : undefined },
     ];
 
@@ -81,23 +81,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         );
                     })}
 
-                    {/* AI Coach Button in Sidebar */}
-                    <button
-                        onClick={() => setIsCoachOpen(!isCoachOpen)}
-                        className={cn(
-                            "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all group",
-                            isCoachOpen
-                                ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/20"
-                                : "text-[var(--text-secondary)] hover:bg-[var(--glass-bg-hover)] hover:text-[var(--text-primary)]"
-                        )}
-                    >
-                        <Sparkles className={cn("w-5 h-5", isCoachOpen ? "text-[var(--color-primary)]" : "text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]")} />
-                        <span className="font-medium">AI Coach</span>
-                        <span className="relative flex h-1.5 w-1.5 ml-auto">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-orange-500 animate-scifi-blink"></span>
-                        </span>
-                    </button>
                 </nav>
 
                 <div className="p-4 border-t border-[var(--glass-border)] flex flex-col gap-3">
@@ -132,10 +115,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </aside>
 
   {/* Content Area with AI Coach - Using CSS Grid for fluid animations */}
-  <div className={cn(
-    "flex-1 grid transition-[grid-template-columns] duration-300 ease-in-out",
-    isCoachOpen ? "grid-cols-[1fr_400px]" : "grid-cols-[1fr_0px]"
-  )}>
+  <div className="flex-1 grid grid-cols-[1fr] transition-[grid-template-columns] duration-300 ease-in-out">
     {/* Main Content */}
     <main className="relative flex flex-col overflow-hidden">
       {/* Top System Bar */}
@@ -145,15 +125,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="w-2 h-2 rounded-full bg-[var(--color-primary)] animate-pulse-slow" />
           <span className="text-xs font-mono text-[var(--text-tertiary)] uppercase tracking-widest">Neural OS</span>
         </div>
-        <button
-          onClick={() => setIsCoachOpen(!isCoachOpen)}
-          className={cn(
-            "p-2 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg)] transition-all",
-            isCoachOpen ? "text-[var(--color-primary)] border-[var(--color-primary)]/30" : "text-[var(--text-secondary)]"
-          )}
-        >
-          <Sparkles className={cn("w-4 h-4", isCoachOpen && "animate-pulse")} />
-        </button>
       </header>
 
       {/* Scrollable Page Content */}
@@ -192,17 +163,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </Link>
       </nav>
     </main>
-
-    {/* AI Coach Panel - Slides in with grid animation */}
-    <aside className={cn(
-      "overflow-hidden h-full transition-all duration-300",
-      isCoachOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-    )}>
-      <CoachChat
-        onClose={() => setIsCoachOpen(false)}
-        onCalendarUpdate={() => window.dispatchEvent(new Event('calendar-refresh'))}
-      />
-    </aside>
   </div>
         </div>
     );

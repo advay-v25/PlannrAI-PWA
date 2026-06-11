@@ -404,6 +404,7 @@ OUTPUT FORMAT (JSON):
         }
     },
     { requireAuth: true, rateLimit: 'ai', auditAction: 'ai_optimize_day' }
+    }, { rateLimit: "aiPlanDay" }
 );
 
 function subtractMinutes(time: string, mins: number): string {

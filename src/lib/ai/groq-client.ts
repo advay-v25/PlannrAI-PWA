@@ -94,7 +94,7 @@ export async function groqChat(params: {
     // Sanitize & Rate Limit if userId provided
     if (userId) {
         const rateLimitKey = createRateLimitKey('user', userId);
-        const rateLimitResult = checkRateLimit(rateLimitKey, 'ai');
+        const rateLimitResult = await checkRateLimit(rateLimitKey, 'ai');
         if (!rateLimitResult.allowed) throw new Error(`Rate limited. Try again in ${rateLimitResult.retryAfter}s`);
     }
 

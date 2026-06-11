@@ -13,11 +13,10 @@ import { ConfirmationModal } from './ConfirmationModal';
 import { usePremiumCalendar } from '@/components/calendar/premium-calendar-styles';
 
 interface CoachChatProps {
-    onClose?: () => void;
     onCalendarUpdate?: () => void;
 }
 
-export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
+export function CoachChat({ onCalendarUpdate }: CoachChatProps) {
     const { showToast } = useToast();
     const {
         messages,
@@ -205,16 +204,6 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                         </svg>
                     </button>
-                    {onClose && (
-                        <button
-                            onClick={onClose}
-                            className="p-1.5 rounded-lg hover:bg-white/5 transition-colors text-foreground/40 hover:text-foreground/70"
-                        >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    )}
                 </div>
             </div>
 

@@ -4,6 +4,11 @@ import { cookies } from 'next/headers';
 
 export async function GET(request: NextRequest) {
     try {
+            // Rate Limit Check
+            const { requireRateLimit } = await import('@/lib/rate-limit');
+            const rateLimitCheck = await requireRateLimit(`proactive:${userId}`, 10, 300);
+            if (typeof rateLimitCheck !== 'boolean') return rateLimitCheck;
+
         const cookieStore = await cookies();
         const supabase = createServerClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -46,10 +51,10 @@ export async function GET(request: NextRequest) {
 
         const completedBlocks = blocks.filter((b: any) => b.status === 'completed');
 
-        // Check for needs_rescheduling flag in profile
-        const { data: profile } = await supabase.from('profiles').select('needs_rescheduling, bio_data').eq('id', user.id).single();
-        const needsRescheduling = profile?.needs_rescheduling === true;
+        // Check for needs_rescheduling flag in profile bio_data
+        const { data: profile } = await supabase.from('profiles').select('bio_data').eq('id', user.id).single();
         const bioData = (profile?.bio_data as any) || {};
+        const needsRescheduling = bioData.needs_rescheduling === true;
         const pendingGoal = bioData.pending_goal_update || 'your settings';
 
         // Generate a proactive suggestion based on schedule state

@@ -5,6 +5,9 @@ import { apiClient } from '@/lib/api-client';
 
 export const POST = secureApiRoute(
     async (context, body) => {
+        if (!body || typeof body !== 'object' || !('patch' in body) || !body.patch || !Array.isArray((body as any).patch.ops)) {
+            return apiError('Invalid request body. "patch.ops" is required.', 400);
+        }
         const { patch } = body as { patch: any };
         const { userId } = context;
 

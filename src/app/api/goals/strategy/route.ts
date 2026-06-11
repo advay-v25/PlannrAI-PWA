@@ -29,6 +29,11 @@ export const POST = secureApiRoute(
 
         // 2. Call AI via callAI (with fallback)
         try {
+            // Rate Limit Check
+            const { requireRateLimit } = await import('@/lib/rate-limit');
+            const rateLimitCheck = await requireRateLimit(`strategy:${userId}`, 5, 900);
+            if (typeof rateLimitCheck !== 'boolean') return rateLimitCheck;
+
             const systemPrompt = `You are PlannrAI's Expert Goal Strategist. Your mission is to decompose a high-level goal into a sustainable, science-backed routine.
             Respond ONLY with valid JSON.`;
 

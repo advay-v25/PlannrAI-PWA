@@ -122,5 +122,5 @@ export const POST = secureApiRoute(
 
         return apiSuccess(rec);
     },
-    { requireAuth: true, auditAction: 'generate_routine' }
+    { requireAuth: true, rateLimit: 'aiPlanDay', auditAction: 'generate_routine' }
 );

@@ -41,7 +41,7 @@ function InteractiveGlobe() {
             ref={globeRef}
             width={dimensions.width}
             height={dimensions.height}
-            globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
+            globeImageUrl="/earth-night.jpg"
             backgroundColor="rgba(0,0,0,0)"
             showAtmosphere={true}
             atmosphereColor="#3b82f6"

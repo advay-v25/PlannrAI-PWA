@@ -19,7 +19,6 @@ export async function GET() {
             status: dbError ? 'degraded' : 'healthy',
             supabase_ok: !dbError,
             ai_ok: env.groq_key_present, // Primary AI is Groq now
-            env,
             version: '1.0.0'
         };
 

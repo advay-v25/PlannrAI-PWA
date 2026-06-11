@@ -21,7 +21,7 @@ export const POST = secureApiRoute(
     },
     {
         requireAuth: true,
-        rateLimit: 'ai',
+        rateLimit: 'aiCoach',
         auditAction: 'ai_execute',
     }
 );

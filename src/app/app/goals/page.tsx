@@ -235,8 +235,19 @@ export default function GoalsPage() {
 
             {/* Empty State */}
             {goals.length === 0 && (
-                <div className="text-center py-20 opacity-50">
-                    <p className="text-sm">No goals set yet. Start by designing your ideal life.</p>
+                <div className="text-center py-20 flex flex-col items-center justify-center space-y-4">
+                    <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-2 shadow-inner">
+                        <Anchor className="w-8 h-8 text-white/40" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-bold text-white/80">No goals set yet</h3>
+                        <p className="text-sm text-white/50 max-w-sm mt-2">
+                            Start by designing your ideal life. Set your first goal across Mind, Body, or Craft to establish your baseline.
+                        </p>
+                    </div>
+                    <GlassButton variant="primary" className="mt-4" onClick={() => setIsAdding(true)}>
+                        <Plus className="w-4 h-4 mr-2" /> Add your first goal
+                    </GlassButton>
                 </div>
             )}
 

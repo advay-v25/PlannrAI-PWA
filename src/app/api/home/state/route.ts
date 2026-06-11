@@ -171,18 +171,30 @@ export const GET = secureApiRoute(
 
                 // PRIORITY 2: Fall back to sleep/wake/morning/day-complete boundaries
                 if (!foundState) {
-                    if (currentMins >= sleepMins || currentMins < wakeMins) {
-                        currentState = currentMins >= sleepMins ? 'DAY_COMPLETE' : 'MORNING_ROUTINE';
-                        if (currentState === 'DAY_COMPLETE') activeBlock = lastBlock;
-                    }
-                    else if (currentMins >= wakeMins && currentMins < timeToMinutes(firstBlock.start_time)) {
+                    const hasFutureBlocks = blocks.some((b: any) => timeToMinutes(b.start_time) > currentMins);
+
+                    if (currentMins >= sleepMins && !hasFutureBlocks) {
+                        currentState = 'DAY_COMPLETE';
+                        activeBlock = lastBlock;
+                    } else if (currentMins < wakeMins || (currentMins >= sleepMins && hasFutureBlocks)) {
+                        currentState = 'MORNING_ROUTINE';
+                        nextBlock = hasFutureBlocks ? blocks.find((b: any) => timeToMinutes(b.start_time) > currentMins) : firstBlock;
+                        if (nextBlock) {
+                            let diff = timeToMinutes(nextBlock.start_time) - currentMins;
+                            if (diff < 0) diff += 24 * 60;
+                            timeUntilNextBlock = diff;
+                        }
+                    } else if (currentMins >= wakeMins && currentMins < timeToMinutes(firstBlock.start_time)) {
                         currentState = 'MORNING_ROUTINE';
                         nextBlock = firstBlock;
                         timeUntilNextBlock = timeToMinutes(firstBlock.start_time) - currentMins;
-                    }
-                    else if (currentMins >= timeToMinutes(lastBlock.end_time)) {
+                    } else if (currentMins >= timeToMinutes(lastBlock.end_time)) {
                         currentState = 'DAY_COMPLETE';
                         activeBlock = lastBlock;
+                    } else if (hasFutureBlocks) {
+                        currentState = 'BETWEEN_BLOCKS';
+                        nextBlock = blocks.find((b: any) => timeToMinutes(b.start_time) > currentMins);
+                        timeUntilNextBlock = nextBlock ? timeToMinutes(nextBlock.start_time) - currentMins : null;
                     }
                 }
 
@@ -242,7 +254,9 @@ export const GET = secureApiRoute(
                     time_remaining_in_block: null,
                     time_until_next_block: null
                 },
-                proactive_insight: "Loading your schedule..."
+                proactive_insight: "Loading your schedule...",
+                is_fallback: true,
+                error_message: error?.message || 'Unknown error'
             });
         }
     },

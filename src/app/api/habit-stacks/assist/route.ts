@@ -28,6 +28,11 @@ export const POST = secureApiRoute(
 
         // 2. Call AI Service
         try {
+            // Rate Limit Check
+            const { requireRateLimit } = await import('@/lib/rate-limit');
+            const rateLimitCheck = await requireRateLimit(`habit-assist:${userId}`, 10, 300);
+            if (typeof rateLimitCheck !== 'boolean') return rateLimitCheck;
+
             const aiResult = await executeAI(userId, {
                 channel: 'habit_stack',
                 input: mode === 'build' ? "Build new habit stack based on my goals" : "Improve my existing stacks",
@@ -78,7 +83,7 @@ export const POST = secureApiRoute(
                         title: `🗓️ ${stack.name || triggerStep}`,
                         start_time: startTime,
                         end_time: endTime,
-                        days_of_week: [1, 2, 3, 4, 5, 6, 7], // Every day by default
+                        days_of_week: [0, 1, 2, 3, 4, 5, 6], // Every day by default
                         is_active: true
                     });
                     if (anchorError) {

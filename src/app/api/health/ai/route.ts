@@ -3,8 +3,16 @@ import { groqChat } from '@/lib/ai/groq-client';
 
 export const runtime = 'nodejs';
 
-export async function GET() {
+export async function GET(request: Request) {
     const hasKey = !!process.env.GROQ_API_KEY;
+
+    // Optional auth check for external monitors
+    const authHeader = request.headers.get('authorization');
+    const isValidCron = authHeader === `Bearer ${process.env.CRON_SECRET}` || process.env.NODE_ENV === 'development';
+    
+    if (!isValidCron) {
+        return NextResponse.json({ status: 'error', message: 'Unauthorized' }, { status: 401 });
+    }
 
     try {
         if (!hasKey) throw new Error('GROQ_API_KEY missing');

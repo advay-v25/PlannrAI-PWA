@@ -513,7 +513,7 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
             return apiError(`Schedule generation failed: ${e.message}`, 500);
         }
     },
-    { requireAuth: true }
+    { requireAuth: true, rateLimit: 'aiPlanDay' }
 );
 
 // ── Flow-State-Aware Fallback Generator ──────────────────────────

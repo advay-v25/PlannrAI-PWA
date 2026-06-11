@@ -71,5 +71,5 @@ export const POST = secureApiRoute(
             return apiError("AI Intake Failed", 500);
         }
     },
-    { requireAuth: true }
+    { requireAuth: true, rateLimit: 'aiCoach' }
 );
