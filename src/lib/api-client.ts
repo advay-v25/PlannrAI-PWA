@@ -225,24 +225,24 @@ export const apiClient = {
 
             // Mutations via apply-patch (Single Source of Truth)
             createBlock: (data: { date: string; start_time: string; end_time: string; title: string; goal_id?: string | null; context?: string | null; is_locked?: boolean }) =>
-                this.post('/api/calendar/apply-schedule', {
+                this.post('/api/patch/apply', {
                     action: 'manual',
                     patch: { add: [{ ...data, is_locked: data.is_locked ?? true }] }
                 }),
 
             updateBlock: (id: string, updates: Record<string, any>) =>
-                this.post('/api/calendar/apply-schedule', {
+                this.post('/api/patch/apply', {
                     action: 'manual',
-                    patch: { update: [{ id, changes: updates }] }
+                    patch: { update: [{ id, ...updates, is_locked: updates.is_locked ?? true }] }
                 }),
 
             moveBlock: (id: string, newDate: string, newStart: string, newEnd: string, resolution_strategy?: string) =>
                 this.post('/api/calendar/move-block', { block_id: id, new_date: newDate, new_start_time: newStart, new_end_time: newEnd, resolution_strategy }),
 
             deleteBlock: (id: string) =>
-                this.post('/api/calendar/apply-schedule', {
+                this.post('/api/patch/apply', {
                     action: 'manual',
-                    patch: { remove: [id] }
+                    patch: { delete: [id] }
                 }),
 
             updateStatus: (id: string, status: BlockStatus) =>

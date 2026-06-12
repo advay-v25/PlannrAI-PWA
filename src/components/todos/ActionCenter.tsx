@@ -201,7 +201,15 @@ export function ActionCenter() {
                                             
                                             {/* Due Date & Priority */}
                                             <div className="flex gap-3 border-l border-white/10 pl-4">
-                                                <div className="flex items-center gap-1.5 text-white/50 hover:text-white cursor-pointer transition-colors group/date relative">
+                                                <div 
+                                                    className="flex items-center gap-1.5 text-white/50 hover:text-white cursor-pointer transition-colors group/date"
+                                                    onClick={(e) => {
+                                                        const input = e.currentTarget.querySelector('input');
+                                                        if (input && 'showPicker' in input) {
+                                                            try { input.showPicker(); } catch (e) {}
+                                                        }
+                                                    }}
+                                                >
                                                     <CalendarIcon className="w-4 h-4" />
                                                     <span className="text-[11px] font-bold uppercase tracking-widest">
                                                         {dueDate ? format(new Date(dueDate), 'MMM d') : 'Date'}
@@ -210,7 +218,7 @@ export function ActionCenter() {
                                                         type="date"
                                                         value={dueDate}
                                                         onChange={(e) => setDueDate(e.target.value)}
-                                                        className="absolute inset-0 opacity-0 cursor-pointer"
+                                                        className="sr-only" // Hidden but accessible
                                                     />
                                                 </div>
                                                 <div className="flex items-center gap-1.5 text-white/50 hover:text-white transition-colors relative">
@@ -475,14 +483,14 @@ function NoteCardBase({ todo, onUpdate, onDelete, labels }: any) {
                             <div 
                                 onClick={() => setIsEditing(true)}
                                 className={cn(
-                                    "w-full bg-transparent border border-transparent hover:border-white/10 text-sm text-white/80 rounded px-2 -ml-2 py-1 transition-colors cursor-text min-h-[40px] prose prose-sm prose-invert",
+                                    "w-full bg-transparent border border-transparent hover:border-white/10 text-sm text-white/80 rounded px-2 -ml-2 py-1 transition-colors cursor-text min-h-[40px] text-white [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1 [&_table]:border-collapse [&_table]:w-full [&_table]:my-2 [&_td]:border [&_td]:border-white/20 [&_td]:p-2 [&_th]:border [&_th]:border-white/20 [&_th]:p-2 [&_th]:bg-white/10 [&_th]:font-bold [&_th]:text-left",
                                 )}
                                 dangerouslySetInnerHTML={{ __html: displayDescription || '<span class="text-white/30 italic">Empty note...</span>' }}
                             />
                         )
                     ) : (
                         <div 
-                            className="w-full text-sm text-white/30 line-through prose prose-sm prose-invert opacity-50 px-2 -ml-2 py-1"
+                            className="w-full text-sm text-white/30 line-through text-white [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1 [&_table]:border-collapse [&_table]:w-full [&_table]:my-2 [&_td]:border [&_td]:border-white/20 [&_td]:p-2 [&_th]:border [&_th]:border-white/20 [&_th]:p-2 [&_th]:bg-white/10 [&_th]:font-bold [&_th]:text-left opacity-50 px-2 -ml-2 py-1"
                             dangerouslySetInnerHTML={{ __html: displayDescription || 'Empty note...' }}
                         />
                     )}
@@ -526,7 +534,15 @@ function NoteCardBase({ todo, onUpdate, onDelete, labels }: any) {
                                 <option value="high">High</option>
                             </select>
                         </div>
-                        <div className="flex items-center gap-1.5 text-white/30 hover:text-white/60 cursor-pointer transition-colors group/date relative">
+                        <div 
+                            className="flex items-center gap-1.5 text-white/30 hover:text-white/60 cursor-pointer transition-colors group/date"
+                            onClick={(e) => {
+                                const input = e.currentTarget.querySelector('input');
+                                if (input && 'showPicker' in input) {
+                                    try { input.showPicker(); } catch (e) {}
+                                }
+                            }}
+                        >
                             <CalendarIcon className="w-3.5 h-3.5" />
                             <span className="text-[10px] font-bold uppercase tracking-widest">
                                 {todo.due_date ? format(new Date(todo.due_date), 'MMM d') : 'No Date'}
@@ -535,7 +551,7 @@ function NoteCardBase({ todo, onUpdate, onDelete, labels }: any) {
                                 type="date"
                                 value={todo.due_date ? todo.due_date.split('T')[0] : ''}
                                 onChange={(e) => onUpdate(todo.id, { dueDate: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                                className="absolute inset-0 opacity-0 cursor-pointer"
+                                className="sr-only"
                             />
                         </div>
                     </div>

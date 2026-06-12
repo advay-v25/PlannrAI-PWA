@@ -31,7 +31,7 @@ export function RichTextEditor({ content, onChange, placeholder = 'Take a note..
         content: content,
         editorProps: {
             attributes: {
-                class: `prose prose-sm prose-invert max-w-none focus:outline-none placeholder:text-white/30`,
+                class: `text-white max-w-none focus:outline-none placeholder:text-white/30 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1 [&_table]:border-collapse [&_table]:w-full [&_table]:my-2 [&_td]:border [&_td]:border-white/20 [&_td]:p-2 [&_th]:border [&_th]:border-white/20 [&_th]:p-2 [&_th]:bg-white/10 [&_th]:font-bold [&_th]:text-left`,
             },
         },
         onUpdate: ({ editor }) => {

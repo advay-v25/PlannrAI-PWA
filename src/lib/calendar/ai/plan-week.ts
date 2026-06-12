@@ -444,51 +444,83 @@ function generateVariant(
 
             for (const win of windows) {
                 if (remainingMinsForDay <= 0) break;
-                if (win.end - win.start < 30) continue;
-
-                const minsToPlace = Math.min(remainingMinsForDay, win.end - win.start);
-                let start = win.start;
                 
-                if (goal.pillar === 'body' && win.end - win.start > minsToPlace + 30) {
-                     start += 15;
-                }
+                let winStart = win.start;
+                let winEnd = win.end;
+                let availableInWin = winEnd - winStart;
                 
-                let buffer = protocolConfig?.bufferMinutes ?? 10;
-                if (!protocolConfig?.bufferMinutes) {
-                    if (strategyId === 'momentum') buffer = 0; 
-                    else if (strategyId === 'balanced') buffer = (ctx.user as any).default_buffer_duration || 15;
-                    else if (strategyId === 'recovery') buffer = Math.max(30, ((ctx.user as any).default_buffer_duration || 15) * 2);
+                while (remainingMinsForDay > 0 && availableInWin >= 30) {
+                    const MAX_BLOCK = 120;
+                    const MIN_BLOCK = 30;
+                    let minsToPlace = Math.min(remainingMinsForDay, availableInWin);
+
+                    if (remainingMinsForDay > Math.min(availableInWin, MAX_BLOCK)) {
+                        const maxAllowedChunk = Math.min(availableInWin, MAX_BLOCK);
+                        if (maxAllowedChunk < MIN_BLOCK) break; 
+                        
+                        let numSplits = Math.ceil(remainingMinsForDay / maxAllowedChunk);
+                        let bestSplitSize = Math.floor(remainingMinsForDay / numSplits);
+                        
+                        while (numSplits > 1 && bestSplitSize < MIN_BLOCK) {
+                            numSplits--;
+                            bestSplitSize = Math.floor(remainingMinsForDay / numSplits);
+                        }
+                        
+                        if (bestSplitSize <= availableInWin && bestSplitSize <= MAX_BLOCK) {
+                            minsToPlace = bestSplitSize;
+                        } else {
+                            minsToPlace = Math.min(MAX_BLOCK, availableInWin);
+                            if (remainingMinsForDay - minsToPlace > 0 && remainingMinsForDay - minsToPlace < MIN_BLOCK) {
+                                minsToPlace = remainingMinsForDay - MIN_BLOCK;
+                                if (minsToPlace < MIN_BLOCK) break; 
+                            }
+                        }
+                    }
+
+                    let start = winStart;
+                    if (goal.pillar === 'body' && availableInWin > minsToPlace + 30) {
+                        start += 15;
+                    }
+                    
+                    let buffer = protocolConfig?.bufferMinutes ?? 10;
+                    if (!protocolConfig?.bufferMinutes) {
+                        if (strategyId === 'momentum') buffer = 0; 
+                        else if (strategyId === 'balanced') buffer = (ctx.user as any).default_buffer_duration || 15;
+                        else if (strategyId === 'recovery') buffer = Math.max(30, ((ctx.user as any).default_buffer_duration || 15) * 2);
+                    }
+
+                    if (availableInWin < minsToPlace + buffer) {
+                        buffer = availableInWin - minsToPlace; 
+                    }
+
+                    blocks.push({
+                        date: dateStr,
+                        start_time: minutesToTime(start),
+                        end_time: minutesToTime(start + minsToPlace),
+                        title: minsToPlace < targetMinsPerDay ? `${goal.title} (Part)` : goal.title,
+                        block_type: 'goal',
+                        goal_id: goal.id,
+                        pillar: goal.pillar,
+                        checklist: goal.ai_strategy?.checklist || [{text: "Focus session"}, {text: "Review progress"}]
+                    });
+
+                    dayExclusions.push({
+                        start: start,
+                        end: start + minsToPlace + buffer,
+                        title: goal.title,
+                        type: 'goal'
+                    });
+
+                    workloadPerDay.set(isoDay, (workloadPerDay.get(isoDay) || 0) + minsToPlace);
+
+                    remainingMinsForDay -= minsToPlace;
+                    remainingWeeklyMins -= minsToPlace;
+                    
+                    // Consume time from this window
+                    const consumed = minsToPlace + buffer;
+                    winStart += consumed;
+                    availableInWin -= consumed;
                 }
-
-                // If placing this block with the recovery buffer causes us to miss the goal entirely, 
-                // we should compress the buffer to ensure the goal gets met!
-                // "the priority is to meet the goals without hampering with sleep, meals and anchors"
-                if (win.end - win.start < minsToPlace + buffer) {
-                    buffer = (win.end - win.start) - minsToPlace; // Compress buffer so the block fits!
-                }
-
-                blocks.push({
-                    date: dateStr,
-                    start_time: minutesToTime(start),
-                    end_time: minutesToTime(start + minsToPlace),
-                    title: minsToPlace < targetMinsPerDay ? `${goal.title} (Part)` : goal.title,
-                    block_type: 'goal',
-                    goal_id: goal.id,
-                    pillar: goal.pillar,
-                    checklist: goal.ai_strategy?.checklist || [{text: "Focus session"}, {text: "Review progress"}]
-                });
-
-                dayExclusions.push({
-                    start: start,
-                    end: start + minsToPlace + buffer,
-                    title: goal.title,
-                    type: 'goal'
-                });
-
-                workloadPerDay.set(isoDay, (workloadPerDay.get(isoDay) || 0) + minsToPlace);
-
-                remainingMinsForDay -= minsToPlace;
-                remainingWeeklyMins -= minsToPlace;
             }
         }
 
@@ -525,33 +557,68 @@ function generateVariant(
 
                 for (const win of windows) {
                     if (remainingToPlace <= 0) break;
-                    if (win.end - win.start < 30) continue;
-
-                    const minsToPlace = Math.min(remainingToPlace, win.end - win.start);
-                    const start = win.start;
                     
-                    blocks.push({
-                        date: dateStr,
-                        start_time: minutesToTime(start),
-                        end_time: minutesToTime(start + minsToPlace),
-                        title: minsToPlace < targetMinsPerDay ? `${goal.title} (Part)` : goal.title,
-                        block_type: 'goal',
-                        goal_id: goal.id,
-                        pillar: goal.pillar,
-                        checklist: goal.ai_strategy?.checklist || [{text: "Focus session"}, {text: "Review progress"}]
-                    });
+                    let winStart = win.start;
+                    let winEnd = win.end;
+                    let availableInWin = winEnd - winStart;
+                    
+                    while (remainingToPlace > 0 && availableInWin >= 30) {
+                        const MAX_BLOCK = 120;
+                        const MIN_BLOCK = 30;
+                        let minsToPlace = Math.min(remainingToPlace, availableInWin);
 
-                    dayExclusions.push({
-                        start: start,
-                        end: start + minsToPlace,
-                        title: goal.title,
-                        type: 'goal'
-                    });
+                        if (remainingToPlace > Math.min(availableInWin, MAX_BLOCK)) {
+                            const maxAllowedChunk = Math.min(availableInWin, MAX_BLOCK);
+                            if (maxAllowedChunk < MIN_BLOCK) break; 
+                            
+                            let numSplits = Math.ceil(remainingToPlace / maxAllowedChunk);
+                            let bestSplitSize = Math.floor(remainingToPlace / numSplits);
+                            
+                            while (numSplits > 1 && bestSplitSize < MIN_BLOCK) {
+                                numSplits--;
+                                bestSplitSize = Math.floor(remainingToPlace / numSplits);
+                            }
+                            
+                            if (bestSplitSize <= availableInWin && bestSplitSize <= MAX_BLOCK) {
+                                minsToPlace = bestSplitSize;
+                            } else {
+                                minsToPlace = Math.min(MAX_BLOCK, availableInWin);
+                                if (remainingToPlace - minsToPlace > 0 && remainingToPlace - minsToPlace < MIN_BLOCK) {
+                                    minsToPlace = remainingToPlace - MIN_BLOCK;
+                                    if (minsToPlace < MIN_BLOCK) break; 
+                                }
+                            }
+                        }
 
-                    workloadPerDay.set(isoDay, (workloadPerDay.get(isoDay) || 0) + minsToPlace);
+                        let start = winStart;
+                        
+                        blocks.push({
+                            date: dateStr,
+                            start_time: minutesToTime(start),
+                            end_time: minutesToTime(start + minsToPlace),
+                            title: minsToPlace < targetMinsPerDay ? `${goal.title} (Part)` : goal.title,
+                            block_type: 'goal',
+                            goal_id: goal.id,
+                            pillar: goal.pillar,
+                            checklist: goal.ai_strategy?.checklist || [{text: "Focus session"}, {text: "Review progress"}]
+                        });
 
-                    remainingToPlace -= minsToPlace;
-                    remainingWeeklyMins -= minsToPlace;
+                        dayExclusions.push({
+                            start: start,
+                            end: start + minsToPlace,
+                            title: goal.title,
+                            type: 'goal'
+                        });
+
+                        workloadPerDay.set(isoDay, (workloadPerDay.get(isoDay) || 0) + minsToPlace);
+
+                        remainingToPlace -= minsToPlace;
+                        remainingWeeklyMins -= minsToPlace;
+                        
+                        const consumed = minsToPlace;
+                        winStart += consumed;
+                        availableInWin -= consumed;
+                    }
                 }
             }
         }
