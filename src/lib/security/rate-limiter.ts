@@ -33,6 +33,11 @@ const LIMITS = {
     // AI burst protection (prevent rapid-fire abuse)
     aiBurst: { windowMs: 10 * 1000, maxRequests: 5 },   // 5 req/10s for AI
 
+    // Preview Feature Limits (to control costs)
+    aiWeeklyReview: { windowMs: 7 * 24 * 60 * 60 * 1000, maxRequests: 3 }, // 3 req/week
+    aiHabits: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 5 }, // 5 req/day
+    aiStrategy: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 5 }, // 5 req/day
+
     // Brain dump (less strict)
     brainDump: { windowMs: 60 * 1000, maxRequests: 10 },
     

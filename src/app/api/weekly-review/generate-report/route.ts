@@ -1,23 +1,15 @@
-import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { callAI } from '@/lib/ai/unified-client';
 import { startOfWeek, endOfWeek, format, subWeeks } from 'date-fns';
+import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 
 export const maxDuration = 60;
 
-export async function POST(req: Request) {
-    try {
-            // Rate Limit Check
-            const { requireRateLimit } = await import('@/lib/rate-limit');
-            const rateLimitCheck = await requireRateLimit(`weekly-report:${userId}`, 3, 3600);
-            if (typeof rateLimitCheck !== 'boolean') return rateLimitCheck;
+export const POST = secureApiRoute(
+    async (context, bodyData) => {
+        const { userId, supabase } = context;
 
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-        const body = await req.json().catch(() => ({}));
-        let { weekStart, weekEnd } = body;
+        let { weekStart, weekEnd } = (bodyData as any) || {};
 
         // Default to the past week if not provided
         if (!weekStart || !weekEnd) {
@@ -38,14 +30,14 @@ export async function POST(req: Request) {
         const [blocksRes, goalsRes] = await Promise.all([
             supabase.from('schedule_blocks')
                 .select('*')
-                .eq('user_id', user.id)
+                .eq('user_id', userId)
                 .gte('date', weekStart)
                 .lte('date', weekEnd)
                 .order('date', { ascending: true })
                 .order('start_time', { ascending: true }),
             supabase.from('goals')
                 .select('*')
-                .eq('user_id', user.id)
+                .eq('user_id', userId)
                 .eq('is_paused', false)
         ]);
 
@@ -156,7 +148,7 @@ If no changes are needed, leave proposed_goal_changes empty.`;
             throw new Error(aiRes.error || 'Failed to generate AI report');
         }
 
-        return NextResponse.json({
+        return apiSuccess({
             data: aiRes.data,
             metrics: {
                 plannedMinutes,
@@ -168,8 +160,6 @@ If no changes are needed, leave proposed_goal_changes empty.`;
             weekEnd
         });
 
-    } catch (error: any) {
-        console.error('Generate Report error:', error);
-        return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
-    }
-}
+    },
+    { requireAuth: true, rateLimit: 'aiWeeklyReview' }
+);

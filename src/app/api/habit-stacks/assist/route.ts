@@ -28,10 +28,6 @@ export const POST = secureApiRoute(
 
         // 2. Call AI Service
         try {
-            // Rate Limit Check
-            const { requireRateLimit } = await import('@/lib/rate-limit');
-            const rateLimitCheck = await requireRateLimit(`habit-assist:${userId}`, 10, 300);
-            if (typeof rateLimitCheck !== 'boolean') return rateLimitCheck;
 
             const aiResult = await executeAI(userId, {
                 channel: 'habit_stack',
@@ -102,9 +98,9 @@ export const POST = secureApiRoute(
             });
 
         } catch (e: any) {
-            console.error("AI Error", e);
-            return apiError("Failed to generate habit stacks. Please try again.", 500);
+            console.error('[habit_stacks_assist] Error:', e);
+            return apiError('Failed to process habit stacks', 500);
         }
     },
-    { requireAuth: true, auditAction: 'habit_assist' }
+    { requireAuth: true, rateLimit: 'aiHabits' }
 );

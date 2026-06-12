@@ -403,8 +403,7 @@ OUTPUT FORMAT (JSON):
             return apiError(error.message || "Optimization failed. Try again.", 422, API_ERROR_CODES.INTERNAL_ERROR, { stack: error.stack });
         }
     },
-    { requireAuth: true, rateLimit: 'ai', auditAction: 'ai_optimize_day' }
-    }, { rateLimit: "aiPlanDay" }
+    { requireAuth: true, rateLimit: 'aiPlanDay', auditAction: 'ai_optimize_day' }
 );
 
 function subtractMinutes(time: string, mins: number): string {

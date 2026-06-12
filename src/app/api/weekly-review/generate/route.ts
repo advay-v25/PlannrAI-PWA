@@ -96,10 +96,6 @@ export const POST = secureApiRoute(
 
         // 4. Call AI via callAI (resilient)
         try {
-            // Rate Limit Check
-            const { requireRateLimit } = await import('@/lib/rate-limit');
-            const rateLimitCheck = await requireRateLimit(`weekly-review:${userId}`, 3, 3600);
-            if (typeof rateLimitCheck !== 'boolean') return rateLimitCheck;
 
             const systemPrompt = `You are PlannrAI's weekly review analyst. Analyze the user's week and return JSON.
             Output JSON format:
@@ -161,5 +157,5 @@ export const POST = secureApiRoute(
             });
         }
     },
-    { requireAuth: true, rateLimit: 'aiPlanWeek', auditAction: 'weekly_review_generate' }
+    { requireAuth: true, rateLimit: 'aiWeeklyReview', auditAction: 'weekly_review_generate' }
 );

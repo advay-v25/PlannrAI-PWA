@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { format, addDays, startOfWeek, isSameDay, differenceInMinutes } from 'date-fns';
 import { DndContext, useDraggable, useDroppable, DragEndEvent, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
-import { cn } from '@/lib/utils';
+import { cn, formatTimeString } from '@/lib/utils';
 import { Lock, Check, Plus } from 'lucide-react';
 import { calculateLayout, LayoutBlock } from '@/lib/calendar-layout';
 import { motion } from 'framer-motion';
@@ -339,7 +339,7 @@ function BlockCard({ block, layout, onClick, isDayView, index = 0 }: { block: an
                 {/* Time display — always show in day view, or when block is tall enough */}
                 {(isDayView || layout.height > 35) && (
                     <div className={cn("text-[10px] font-mono mt-0.5 opacity-60", colors.text)}>
-                        {block.start_time?.slice(0, 5)} - {block.end_time?.slice(0, 5)}
+                        {formatTimeString(block.start_time || '')} - {formatTimeString(block.end_time || '')}
                     </div>
                 )}
 

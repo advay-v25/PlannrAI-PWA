@@ -3,22 +3,13 @@ import { apiSuccess, apiFail } from '@/lib/api/envelope';
 
 export async function GET() {
     try {
-        // Check 1: Env Vars
-        const env = {
-            supabase_url_present: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-            supabase_anon_present: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-            openai_key_present: !!process.env.OPENAI_API_KEY,
-            groq_key_present: !!process.env.GROQ_API_KEY,
-        };
-
-        // Check 2: Supabase Connectivity
+        // Check: Supabase Connectivity
         const supabase = await createClient();
         const { error: dbError } = await supabase.from('profiles').select('id').limit(1);
 
         const healthData = {
             status: dbError ? 'degraded' : 'healthy',
             supabase_ok: !dbError,
-            ai_ok: env.groq_key_present, // Primary AI is Groq now
             version: '1.0.0'
         };
 

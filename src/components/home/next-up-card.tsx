@@ -23,7 +23,7 @@ export function NextUpCard({ nextBlock, onAction }: any) {
                         {nextBlock.title}
                     </h3>
                     <p className="text-sm text-white/50 font-mono mt-1">
-                        {nextBlock.start_time.slice(0, 5)} - {nextBlock.end_time.slice(0, 5)}
+                        {formatTimeString(nextBlock.start_time)} - {formatTimeString(nextBlock.end_time)}
                     </p>
                 </div>
                 {/* Pillar Icon or similar could go here */}

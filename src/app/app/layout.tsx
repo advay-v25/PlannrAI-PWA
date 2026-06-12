@@ -37,7 +37,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { href: '/app/goals', icon: Target, label: 'Goals' },
         { href: '/app/tasks', icon: ListTodo, label: 'Tasks' },
         { href: '/app/calendar', icon: Calendar, label: 'Calendar' },
-        { href: '/app/coach', icon: Sparkles, label: 'AI Coach' },
+        { href: '/app/coach', icon: Sparkles, label: 'Coach Hub' },
         { href: isPreview ? '/app/weekly-review' : '#', icon: Activity, label: 'Review', disabled: !isPreview, badge: !isPreview ? 'SOON' : undefined },
     ];
 
