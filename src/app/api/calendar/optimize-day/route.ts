@@ -48,5 +48,5 @@ export const POST = secureApiRoute(
             return apiError(`Optimization failed: ${e.message}`, 500);
         }
     },
-    { requireAuth: true }
+    { requireAuth: true, rateLimit: 'aiPlanDay' }
 );

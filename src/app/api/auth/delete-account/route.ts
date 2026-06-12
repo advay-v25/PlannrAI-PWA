@@ -11,6 +11,19 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // 2. Validate Confirmation payload
+    try {
+        const body = await request.json();
+        if (!body || body.confirm !== 'delete') {
+            return NextResponse.json(
+                { error: 'Confirmation required. Please type "delete" to confirm.' },
+                { status: 400 }
+            );
+        }
+    } catch {
+        return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    }
+
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -23,66 +36,22 @@ export async function POST(request: Request) {
     });
 
     const userId = user.id;
-    const cleanupLog: string[] = [];
 
-    // 2. Delete user data — fully non-fatal, best-effort cleanup
-    const userIdTables = [
-        'schedule_blocks',
-        'goals',
-        'commitments',
-        'brain_dumps',
-        'brain_dump_entries',
-        'coach_conversations',
-        'coach_messages',
-        'coach_interactions',
-        'memory_facts',
-        'user_context',
-        'user_states',
-        'weekly_reviews',
-        'personal_rules',
-        'profile_preferences',
-        'habit_stacks',
-        'habit_entries',
-        'audit_logs',
-        'todos',
-        'todo_lists',
-        'energy_checkins',
-    ];
+    console.log(`[DeleteAccount] Triggering atomic cascade deletion for user: ${userId}`);
 
-    for (const table of userIdTables) {
-        try {
-            const { error } = await admin.from(table).delete().eq('user_id', userId);
-            if (error) {
-                // Table may not exist (PGRST204) or have no rows — both are fine
-                cleanupLog.push(`${table}: skipped (${error.code})`);
-            } else {
-                cleanupLog.push(`${table}: cleared`);
-            }
-        } catch (e: any) {
-            cleanupLog.push(`${table}: error (${e.message})`);
-        }
-    }
-
-    // Clean profile (keyed by id, not user_id)
-    try {
-        await admin.from('profiles').delete().eq('id', userId);
-        cleanupLog.push('profiles: cleared');
-    } catch (e: any) {
-        cleanupLog.push(`profiles: error (${e})`);
-    }
-
-    console.log('[DeleteAccount] Cleanup complete:', cleanupLog.join(', '));
-
-    // 3. Hard-delete the auth user — this is the only step that can fail hard
+    // 3. Hard-delete the auth user first.
+    // This is a single atomic database operation. Supabase Auth will delete the auth.users record,
+    // which cascades to profiles, goals, schedule_blocks, commitments, weekly_reviews, and all other tables.
     const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
 
     if (deleteError) {
         console.error('[DeleteAccount] Auth user deletion failed:', deleteError);
         return NextResponse.json(
-            { error: 'Failed to delete auth user: ' + deleteError.message },
+            { error: 'Failed to delete user account: ' + deleteError.message },
             { status: 500 }
         );
     }
 
+    console.log(`[DeleteAccount] Account and all cascaded data successfully deleted for user: ${userId}`);
     return NextResponse.json({ success: true });
 }

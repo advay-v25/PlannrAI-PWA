@@ -11,6 +11,11 @@ export const POST = secureApiRoute(
         }
 
         try {
+            // Rate Limit Check
+            const { requireRateLimit } = await import('@/lib/rate-limit');
+            const rateLimitCheck = await requireRateLimit(`brain-dump:${userId}`, 15, 300);
+            if (typeof rateLimitCheck !== 'boolean') return rateLimitCheck;
+
             // First, locate or create the Inbox List
             let { data: inbox } = await supabase
                 .from('todo_lists')

@@ -171,18 +171,27 @@ export const GET = secureApiRoute(
 
                 // PRIORITY 2: Fall back to sleep/wake/morning/day-complete boundaries
                 if (!foundState) {
-                    if (currentMins >= sleepMins || currentMins < wakeMins) {
-                        currentState = currentMins >= sleepMins ? 'DAY_COMPLETE' : 'MORNING_ROUTINE';
-                        if (currentState === 'DAY_COMPLETE') activeBlock = lastBlock;
-                    }
-                    else if (currentMins >= wakeMins && currentMins < timeToMinutes(firstBlock.start_time)) {
-                        currentState = 'MORNING_ROUTINE';
-                        nextBlock = firstBlock;
-                        timeUntilNextBlock = timeToMinutes(firstBlock.start_time) - currentMins;
-                    }
-                    else if (currentMins >= timeToMinutes(lastBlock.end_time)) {
-                        currentState = 'DAY_COMPLETE';
-                        activeBlock = lastBlock;
+                    const hasFutureBlocks = blocks.some((b: any) => timeToMinutes(b.start_time) > currentMins);
+
+                    if (hasFutureBlocks) {
+                        // If there are future blocks today, we are between blocks
+                        if (currentMins < timeToMinutes(firstBlock.start_time)) {
+                            // Before the very first block
+                            currentState = 'MORNING_ROUTINE';
+                        } else {
+                            currentState = 'BETWEEN_BLOCKS';
+                        }
+                        nextBlock = blocks.find((b: any) => timeToMinutes(b.start_time) > currentMins);
+                        timeUntilNextBlock = nextBlock ? timeToMinutes(nextBlock.start_time) - currentMins : null;
+                    } else {
+                        // No future blocks today
+                        if (currentMins >= timeToMinutes(lastBlock.end_time)) {
+                            currentState = 'DAY_COMPLETE';
+                            activeBlock = lastBlock;
+                        } else {
+                            // Fallback if something weird happened
+                            currentState = 'DAY_COMPLETE';
+                        }
                     }
                 }
 
@@ -242,10 +251,11 @@ export const GET = secureApiRoute(
                     time_remaining_in_block: null,
                     time_until_next_block: null
                 },
-                proactive_insight: "Loading your schedule..."
+                proactive_insight: "System degraded. Displaying fallback schedule.",
+                is_fallback: true,
+                error_message: error?.message || 'Unknown error'
             });
         }
     },
     { requireAuth: true, auditAction: 'home_state_read' }
 );
-

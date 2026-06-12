@@ -76,9 +76,6 @@ export function secureApiRoute(
                 'https://www.plannrai.in',
                 'https://plannrai.com',
                 'https://www.plannrai.com',
-                'https://plannr-ai.vercel.app',
-                'http://localhost:3000',
-                'http://localhost:3001',
             ].filter(Boolean);
 
             // Also allow any Vercel preview/branch deploy for this project
@@ -107,7 +104,7 @@ export function secureApiRoute(
 
             // 2. Rate limiting
             if (!skipRateLimit) {
-                const rateLimitResult = checkMultipleRateLimits(
+                const rateLimitResult = await checkMultipleRateLimits(
                     ip,
                     user?.id,
                     request.nextUrl.pathname,
@@ -119,8 +116,23 @@ export function secureApiRoute(
 
                     const headers = createRateLimitHeaders(rateLimitResult);
 
+                    const retryAfter = rateLimitResult.retryAfter || 0; // seconds
+                    let errorMsg = 'Too many requests. Please slow down.';
+                    if (retryAfter > 0) {
+                        const days = Math.floor(retryAfter / (24 * 3600));
+                        const hours = Math.floor((retryAfter % (24 * 3600)) / 3600);
+                        const mins = Math.floor((retryAfter % 3600) / 60);
+                        
+                        let timeStr = [];
+                        if (days > 0) timeStr.push(`${days}d`);
+                        if (hours > 0) timeStr.push(`${hours}h`);
+                        if (mins > 0 || timeStr.length === 0) timeStr.push(`${mins}m`);
+                        
+                        errorMsg = `Daily AI limit reached. Refreshes in ${timeStr.join(' ')}.`;
+                    }
+
                     return new NextResponse(
-                        JSON.stringify({ error: 'Too many requests. Please slow down.' }),
+                        JSON.stringify({ error: errorMsg, retryAfter, resetAt: rateLimitResult.resetAt.toISOString() }),
                         {
                             status: 429,
                             headers: {

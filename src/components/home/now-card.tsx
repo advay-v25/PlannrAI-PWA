@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion';
 import { Play, CheckSquare, SkipForward, RefreshCw, Clock, ArrowRight } from 'lucide-react';
 import { format, differenceInMinutes } from 'date-fns';
-import { cn } from '@/lib/utils';
+import { cn, formatTimeString } from '@/lib/utils';
 import { useCoach } from '@/hooks/use-coach';
 import { apiClient } from '@/lib/api-client';
 import { useToast } from '@/components/ui/toast';
@@ -97,7 +97,7 @@ export function NowCard({ block, onAction }: NowCardProps) {
                 </h2>
                 <div className="flex items-center gap-4 text-sm text-white/50">
                     <span className="font-mono">
-                        {block.start_time.slice(0, 5)} - {block.end_time.slice(0, 5)}
+                        {formatTimeString(block.start_time)} - {formatTimeString(block.end_time)}
                     </span>
                     {block.goal?.title && (
                         <>

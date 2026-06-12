@@ -310,6 +310,30 @@ export const DELETE = secureApiRoute(
 
         const supabase = await createClient();
 
+        // 1. Find all subgoals to prevent orphaned calendar blocks for subgoals
+        const { data: subgoals } = await supabase
+            .from('goals')
+            .select('id')
+            .eq('parent_id', id)
+            .eq('user_id', context.userId);
+
+        const subgoalIds = subgoals?.map(g => g.id) || [];
+        const allGoalIds = [id, ...subgoalIds];
+
+        // 2. Delete all future schedule blocks associated with these goals
+        const today = new Date().toISOString().split('T')[0];
+        const { error: blockDeleteError } = await supabase
+            .from('schedule_blocks')
+            .delete()
+            .eq('user_id', context.userId)
+            .in('goal_id', allGoalIds)
+            .gte('date', today);
+
+        if (blockDeleteError) {
+            console.error(`[Goals DELETE] Failed to delete future blocks for goal ${id}:`, blockDeleteError.message);
+        }
+
+        // 3. Delete the goal itself (cascades to subgoals in DB)
         const { error } = await supabase
             .from('goals')
             .delete()

@@ -144,7 +144,7 @@ OUTPUT FORMAT:
             return apiError(`Strategy generation failed: ${e.message}`, 500);
         }
     },
-    { requireAuth: true }
+    { requireAuth: true, rateLimit: 'aiStrategy' }
 );
 
 function generateFallbackStrategy(ctx: any) {

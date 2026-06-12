@@ -13,11 +13,11 @@ import { ConfirmationModal } from './ConfirmationModal';
 import { usePremiumCalendar } from '@/components/calendar/premium-calendar-styles';
 
 interface CoachChatProps {
-    onClose?: () => void;
     onCalendarUpdate?: () => void;
+    onPreviewOption?: (option: CoachOption | null) => void;
 }
 
-export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
+export function CoachChat({ onCalendarUpdate, onPreviewOption }: CoachChatProps) {
     const { showToast } = useToast();
     const {
         messages,
@@ -48,8 +48,6 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
     }, [messages]);
 
     const [input, setInput] = useState('');
-    const [pendingOption, setPendingOption] = useState<CoachOption | null>(null);
-    const [showPreview, setShowPreview] = useState(false);
     const [isApplyingChanges, setIsApplyingChanges] = useState(false);
 
     // Thinking state stages
@@ -95,12 +93,15 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
 
     // Handle option selection
     const handleOptionSelect = (option: CoachOption) => {
-        // If tradeoff requires confirmation, show modal
-        if (option.tradeoff || option.patch.requires_confirmation) {
-            setPendingOption(option);
-            setShowPreview(true);
+        // Always trigger preview in the right pane for changes
+        if (option.patch && (option.patch.ops?.length > 0 || option.patch.operations?.length > 0)) {
+            if (onPreviewOption) {
+                onPreviewOption(option);
+            } else {
+                handleApply(option);
+            }
         } else {
-            // Apply directly
+            // Apply directly if no visual changes needed
             handleApply(option);
         }
     };
@@ -110,9 +111,7 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
         const parentMessage = messages.find(m => m.options?.some(o => o.id === option.id));
         if (!parentMessage) return;
 
-        // Immediately close the modal and show the progress indicator
-        setShowPreview(false);
-        setPendingOption(null);
+        if (onPreviewOption) onPreviewOption(null);
         setIsApplyingChanges(true);
 
         try {
@@ -205,16 +204,6 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                         </svg>
                     </button>
-                    {onClose && (
-                        <button
-                            onClick={onClose}
-                            className="p-1.5 rounded-lg hover:bg-white/5 transition-colors text-foreground/40 hover:text-foreground/70"
-                        >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    )}
                 </div>
             </div>
 
@@ -384,7 +373,7 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
             )}
 
             {/* Input - Neural Control Bar */}
-            <form onSubmit={handleSubmit} className="z-10 p-6 border-t border-white/5 bg-bg-secondary/80 backdrop-blur-xl">
+            <form onSubmit={handleSubmit} className="z-10 p-6 border-t border-white/5 bg-bg-secondary/80 backdrop-blur-xl relative">
                 <div className="flex items-center space-x-3">
                     <input
                         type="text"
@@ -392,34 +381,23 @@ export function CoachChat({ onClose, onCalendarUpdate }: CoachChatProps) {
                         onChange={(e) => setInput(e.target.value)}
                         placeholder={messages.length > 0 ? "Ask a follow-up..." : "Define strategy..."}
                         disabled={isLoading}
-                        className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all placeholder:text-foreground/20 text-foreground"
+                        className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all placeholder:text-foreground/20 text-foreground disabled:opacity-50"
                     />
                     <button
                         type="submit"
                         disabled={isLoading || !input.trim()}
                         className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center shadow-glow hover:shadow-glow-intense active:scale-95 transition-all text-white disabled:opacity-30 disabled:grayscale"
                     >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                        </svg>
+                        {isLoading ? (
+                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                            </svg>
+                        )}
                     </button>
                 </div>
             </form>
-
-            {/* Confirmation Modal Overlay */}
-            {showPreview && pendingOption && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-md">
-                   <ConfirmationModal
-                        option={pendingOption}
-                        onConfirm={() => handleApply(pendingOption)}
-                        onCancel={() => {
-                            setShowPreview(false);
-                            setPendingOption(null);
-                        }}
-                        isLoading={isLoading}
-                    />
-                </div>
-            )}
         </div>
     );
 }

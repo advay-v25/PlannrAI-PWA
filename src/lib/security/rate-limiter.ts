@@ -26,12 +26,23 @@ const LIMITS = {
     user: { windowMs: 60 * 1000, maxRequests: 500 },    // 500 req/min per authenticated user
 
     // AI endpoint limits (protect API keys)
-    ai: { windowMs: 60 * 1000, maxRequests: 20 },       // 20 req/min for AI
+    aiPlanDay: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 2 }, // 2 req/day
+    aiCoach: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 10 },  // 10 req/day
+    aiPlanWeek: { windowMs: 7 * 24 * 60 * 60 * 1000, maxRequests: 3 }, // 3 req/week
+    ai: { windowMs: 60 * 1000, maxRequests: 20 },       // 20 req/min for general AI
     // AI burst protection (prevent rapid-fire abuse)
     aiBurst: { windowMs: 10 * 1000, maxRequests: 5 },   // 5 req/10s for AI
 
+    // Preview Feature Limits (to control costs)
+    aiWeeklyReview: { windowMs: 7 * 24 * 60 * 60 * 1000, maxRequests: 3 }, // 3 req/week
+    aiHabits: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 5 }, // 5 req/day
+    aiStrategy: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 5 }, // 5 req/day
+
     // Brain dump (less strict)
     brainDump: { windowMs: 60 * 1000, maxRequests: 10 },
+    
+    // Default user strict for generic supbase DB writes/reads
+    userStrict: { windowMs: 60 * 1000, maxRequests: 100 },
 } as const;
 
 export type RateLimitType = keyof typeof LIMITS;
@@ -46,12 +57,64 @@ export interface RateLimitResult {
 /**
  * Check rate limit for a given key
  */
-export function checkRateLimit(
+export async function checkRateLimit(
     key: string,
     type: RateLimitType = 'ip'
-): RateLimitResult {
+): Promise<RateLimitResult> {
     const config = LIMITS[type];
     const now = Date.now();
+
+    const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
+    const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+    
+    if (upstashUrl && upstashToken) {
+        try {
+            const pipeline = [
+                ["INCR", key]
+            ];
+            const resp = await fetch(`${upstashUrl}/pipeline`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${upstashToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(pipeline)
+            });
+            const result = await resp.json();
+            
+            let count = 1;
+            if (Array.isArray(result) && result[0] && !result[0].error) {
+                count = result[0].result;
+            }
+            
+            if (count === 1) {
+                await fetch(`${upstashUrl}/EXPIRE/${key}/${Math.ceil(config.windowMs / 1000)}`, {
+                    headers: { 'Authorization': `Bearer ${upstashToken}` }
+                });
+            }
+            
+            if (count <= config.maxRequests) {
+                return {
+                    allowed: true,
+                    remaining: config.maxRequests - count,
+                    resetAt: new Date(now + config.windowMs),
+                };
+            }
+            
+            const ttlResp = await fetch(`${upstashUrl}/PTTL/${key}`, {
+                headers: { 'Authorization': `Bearer ${upstashToken}` }
+            });
+            const ttlData = await ttlResp.json();
+            const pttl = ttlData.result > 0 ? ttlData.result : config.windowMs;
+            
+            return {
+                allowed: false,
+                remaining: 0,
+                resetAt: new Date(now + pttl),
+                retryAfter: Math.ceil(pttl / 1000),
+            };
+        } catch (error) {
+            console.error("Upstash Redis error, falling back to Map:", error);
+        }
+    }
+
     const entry = rateLimitStore.get(key);
 
     // Clean up expired entries periodically
@@ -112,15 +175,15 @@ export function createRateLimitKey(
 /**
  * Check multiple rate limits (IP + User + Endpoint)
  */
-export function checkMultipleRateLimits(
+export async function checkMultipleRateLimits(
     ip: string,
     userId?: string,
     endpoint?: string,
     endpointType?: RateLimitType
-): RateLimitResult {
+): Promise<RateLimitResult> {
     // Check IP limit first
     const ipKey = createRateLimitKey('ip', ip);
-    const ipResult = checkRateLimit(ipKey, 'ip');
+    const ipResult = await checkRateLimit(ipKey, 'ip');
     if (!ipResult.allowed) {
         return ipResult;
     }
@@ -128,7 +191,7 @@ export function checkMultipleRateLimits(
     // Check user limit if authenticated
     if (userId) {
         const userKey = createRateLimitKey('user', userId);
-        const userResult = checkRateLimit(userKey, 'user');
+        const userResult = await checkRateLimit(userKey, 'user');
         if (!userResult.allowed) {
             return userResult;
         }
@@ -137,7 +200,7 @@ export function checkMultipleRateLimits(
     // Check endpoint-specific limit
     if (endpoint && endpointType) {
         const endpointKey = createRateLimitKey('endpoint', ip, endpoint);
-        const endpointResult = checkRateLimit(endpointKey, endpointType);
+        const endpointResult = await checkRateLimit(endpointKey, endpointType);
         if (!endpointResult.allowed) {
             return endpointResult;
         }

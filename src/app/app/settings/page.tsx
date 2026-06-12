@@ -283,7 +283,13 @@ function DangerZone() {
         }
         setIsLoading(true);
         try {
-            const res = await fetch('/api/auth/delete-account', { method: 'POST' });
+            const res = await fetch('/api/auth/delete-account', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ confirm: 'delete' }),
+            });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to delete account');
 

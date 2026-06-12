@@ -22,6 +22,11 @@ export const POST = secureApiRoute(
         const duration = duration_minutes || 60;
         const type = block_type || 'flex';
 
+        // Rate Limit Check
+        const { requireRateLimit } = await import('@/lib/rate-limit');
+        const rateLimitCheck = await requireRateLimit(`generate-checklist:${userId}`, 15, 300);
+        if (typeof rateLimitCheck !== 'boolean') return rateLimitCheck;
+
         const systemPrompt = `You are PlannrAI's action planner. Generate a checklist of 3-5 specific, actionable sub-tasks for a schedule block. Each item should be concrete and completable within the block duration. Return valid JSON only.`;
 
         const userPrompt = `Generate a checklist for this schedule block:
@@ -81,5 +86,5 @@ Make each step concrete and relevant to the block. For example:
 
         return apiSuccess({ checklist });
     },
-    { requireAuth: true }
+    { requireAuth: true, rateLimit: 'aiCoach' }
 );

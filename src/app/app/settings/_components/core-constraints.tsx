@@ -17,7 +17,7 @@ export default function CoreConstraints({ preferences, onChange }: Props) {
             <div className="space-y-1">
                 <h2 className="text-lg font-semibold">Core Constraints</h2>
                 <p className="text-sm text-[var(--text-secondary)]">
-                    These hard limits define the boundaires of your day. Changing them impacts your entire schedule.
+                    These hard limits define the boundaries of your day. Changing them impacts your entire schedule.
                 </p>
             </div>
 

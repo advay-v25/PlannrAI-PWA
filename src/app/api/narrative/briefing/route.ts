@@ -32,6 +32,11 @@ export const POST = secureApiRoute(
 
         // 2. Generate briefing via callAI (resilient)
         try {
+            // Rate Limit Check
+            const { requireRateLimit } = await import('@/lib/rate-limit');
+            const rateLimitCheck = await requireRateLimit(`briefing:${userId}`, 3, 3600);
+            if (typeof rateLimitCheck !== 'boolean') return rateLimitCheck;
+
             const scheduleText = blocks?.map((b: any) => `${b.start_time}-${b.end_time}: ${b.title} (${b.block_type})`).join('\n') || 'No blocks scheduled';
             const goalsText = goals?.map((g: any) => g.title).join(', ') || 'None';
 

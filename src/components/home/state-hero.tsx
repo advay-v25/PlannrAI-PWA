@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { Sparkles, ArrowRight, Play, CheckCircle2, ShieldAlert, Zap, Coffee, Check, X } from 'lucide-react';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
+import { formatTimeString } from '@/lib/utils';
 import type { HomeState } from '@/app/api/home/state/route';
 
 interface StateHeroProps {
@@ -83,7 +84,7 @@ export function StateHero({ state, currentTime, activeBlock, nextBlock, metrics,
                                     <div className="flex justify-between items-center">
                                         <div>
                                             <div className="text-white font-medium">{nextBlock.title}</div>
-                                            <div className="text-sm text-[var(--color-text-secondary)]">{nextBlock.start_time}</div>
+                                            <div className="text-sm text-[var(--color-text-secondary)]">{formatTimeString(nextBlock.start_time)}</div>
                                         </div>
                                         <div className="flex gap-2">
                                             <button onClick={() => onAction('start_early')} className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-md text-xs font-bold text-white transition-colors">Start</button>

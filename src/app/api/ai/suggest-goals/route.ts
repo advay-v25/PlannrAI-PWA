@@ -181,7 +181,7 @@ Avoid suggesting duplicates of existing goals.
     },
     {
         requireAuth: true,
-        rateLimit: 'ai',
+        rateLimit: 'aiCoach',
         auditAction: 'ai_goal_suggestions',
     }
 );

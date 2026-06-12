@@ -96,6 +96,7 @@ export const POST = secureApiRoute(
 
         // 4. Call AI via callAI (resilient)
         try {
+
             const systemPrompt = `You are PlannrAI's weekly review analyst. Analyze the user's week and return JSON.
             Output JSON format:
             {
@@ -156,5 +157,5 @@ export const POST = secureApiRoute(
             });
         }
     },
-    { requireAuth: true, auditAction: 'weekly_review_generate' }
+    { requireAuth: true, rateLimit: 'aiWeeklyReview', auditAction: 'weekly_review_generate' }
 );

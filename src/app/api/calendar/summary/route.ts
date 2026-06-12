@@ -65,13 +65,12 @@ export const GET = secureApiRoute(
         for (let i = 0; i < days; i++) {
             const currentDate = addDays(startDate, i);
             const dateStr = format(currentDate, 'yyyy-MM-dd');
-            let dayOfWeek = currentDate.getDay(); // 0 is Sunday
-            const isoDay = dayOfWeek === 0 ? 7 : dayOfWeek;
+            const dayOfWeek = currentDate.getDay(); // 0 is Sunday
 
             commitments.forEach((cmt: any) => {
                 // STRICT: only render if days_of_week is a non-empty array containing this day
                 if (!Array.isArray(cmt.days_of_week) || cmt.days_of_week.length === 0) return;
-                if (!cmt.days_of_week.includes(isoDay)) return;
+                if (!cmt.days_of_week.includes(dayOfWeek)) return;
 
                 // Skip if a real schedule_block already exists for this commitment+date
                 const key = `${cmt.id}-${dateStr}`;

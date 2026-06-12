@@ -9,7 +9,14 @@ const Globe = dynamic(() => import('react-globe.gl'), { ssr: false });
 function InteractiveGlobe() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = React.useState({ width: 800, height: 800 });
+  const [mounted, setMounted] = React.useState(false);
   const globeRef = useRef<any>(null);
+
+  useEffect(() => {
+    // Delay globe initialization to prioritize primary content paint
+    const timer = setTimeout(() => setMounted(true), 1000);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -35,13 +42,13 @@ function InteractiveGlobe() {
 
   return (
     <div ref={containerRef} className="w-full h-full cursor-grab active:cursor-grabbing">
-      {dimensions.width > 0 && (
+      {mounted && dimensions.width > 0 && (
         <div style={{ width: '100%', height: '100%', filter: 'brightness(0.9) contrast(1.1)' }}>
           <Globe
             ref={globeRef}
             width={dimensions.width}
             height={dimensions.height}
-            globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
+            globeImageUrl="/earth-night.jpg"
             backgroundColor="rgba(0,0,0,0)"
             showAtmosphere={true}
             atmosphereColor="#3b82f6"

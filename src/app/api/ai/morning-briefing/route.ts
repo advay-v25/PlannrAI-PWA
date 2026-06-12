@@ -46,5 +46,5 @@ export const POST = secureApiRoute(
             tone: aiRes?.tone || 'focused'
         });
     },
-    { requireAuth: true, auditAction: 'morning_briefing' }
+    { requireAuth: true, rateLimit: 'aiCoach', auditAction: 'morning_briefing' }
 );
