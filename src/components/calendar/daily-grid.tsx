@@ -5,7 +5,6 @@ import { motion } from 'framer-motion';
 import { format, parseISO, startOfDay, addMinutes, differenceInMinutes } from 'date-fns';
 import { Clock, Anchor, Repeat, Brain, ListChecks, Check, X, Lock } from 'lucide-react';
 import type { ScheduleBlock, Goal } from '@/types/database';
-import { formatTimeString } from '@/lib/utils';
 
 interface DailyGridProps {
     date: Date;
@@ -146,18 +145,11 @@ export function DailyGrid({
 
                     const type = isAnchor ? 'anchor' : isRoutine ? 'routine' : block.goal?.category || 'default';
                     const baseColorClasses = colors[type] || colors.default;
-                    let colorClasses = block.status === 'done'
+                    const colorClasses = block.status === 'done'
                         ? 'from-emerald-500/20 to-emerald-500/10 border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.15)] opacity-70'
                         : block.status === 'missed'
                             ? 'from-red-500/10 to-red-500/5 border-red-500/20 opacity-50'
                             : baseColorClasses;
-
-                    // Support preview mode for the Coach Hub
-                    if ((block as any).is_preview) {
-                        colorClasses = 'from-primary/30 to-primary/10 border-dashed border-2 border-primary/60 shadow-[0_0_30px_rgba(var(--color-primary-rgb),0.3)] opacity-90 animate-pulse-slow';
-                    } else if ((block as any).is_preview_updated) {
-                        colorClasses = baseColorClasses + ' border-dashed border-2 border-primary/50 opacity-90 animate-pulse-slow';
-                    }
 
                     return (
                         <motion.div
@@ -200,7 +192,7 @@ export function DailyGrid({
                         >
                             <div className="flex flex-col h-full justify-between pointer-events-none">
                                 <div className="text-[10px] font-bold truncate opacity-80 pl-1">{block.title}</div>
-                                <div className="text-[9px] opacity-60 pl-1 pb-1 font-mono">{formatTimeString(block.start_time)}</div>
+                                <div className="text-[9px] opacity-60 pl-1 pb-1 font-mono">{block.start_time.slice(0, 5)}</div>
                             </div>
 
                             {/* Status Indicator */}
