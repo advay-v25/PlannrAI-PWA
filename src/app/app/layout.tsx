@@ -30,6 +30,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         })();
     }, [profile, supabase, setProfile]);
 
+    const [isCoachOpen, setIsCoachOpen] = useState(false);
+
     const isPreview = process.env.NEXT_PUBLIC_IS_PREVIEW_BUILD === 'true';
 
     const navItems = [
@@ -37,7 +39,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { href: '/app/goals', icon: Target, label: 'Goals' },
         { href: '/app/tasks', icon: ListTodo, label: 'Tasks' },
         { href: '/app/calendar', icon: Calendar, label: 'Calendar' },
-        { href: '/app/coach', icon: Sparkles, label: 'Coach Hub' },
         { href: isPreview ? '/app/weekly-review' : '#', icon: Activity, label: 'Review', disabled: !isPreview, badge: !isPreview ? 'SOON' : undefined },
     ];
 
@@ -81,6 +82,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         );
                     })}
 
+                    {/* AI Coach Button in Sidebar */}
+                    <button
+                        onClick={() => setIsCoachOpen(!isCoachOpen)}
+                        className={cn(
+                            "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all group",
+                            isCoachOpen
+                                ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/20"
+                                : "text-[var(--text-secondary)] hover:bg-[var(--glass-bg-hover)] hover:text-[var(--text-primary)]"
+                        )}
+                    >
+                        <Sparkles className={cn("w-5 h-5", isCoachOpen ? "text-[var(--color-primary)]" : "text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]")} />
+                        <span className="font-semibold text-sm flex-1 text-left">Coach Hub</span>
+                    </button>
                 </nav>
 
                 <div className="p-4 border-t border-[var(--glass-border)] flex flex-col gap-3">
@@ -151,7 +165,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </Link>
           );
         })}
-        {/* Mobile Settings Link (since 'Me' was removed from navItems) */}
+        {/* Mobile Coach Button */}
+        <button
+          onClick={() => setIsCoachOpen(!isCoachOpen)}
+          className={cn(
+            "flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all",
+            isCoachOpen ? "text-[var(--color-primary)] bg-[var(--color-primary)]/10" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+          )}
+        >
+          <Sparkles className="w-5 h-5" />
+        </button>
+        {/* Mobile Settings Link */}
         <Link
           href="/app/settings"
           className={cn(
@@ -163,6 +187,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </Link>
       </nav>
     </main>
+
+    {/* AI Coach Drawer - Always mounted, slides in */}
+    <aside className={cn(
+        "fixed inset-y-0 right-0 w-[400px] glass-panel border-l border-[var(--glass-border)] shadow-2xl z-40 transform transition-transform duration-300 ease-in-out",
+        isCoachOpen ? "translate-x-0" : "translate-x-full"
+    )}>
+        <CoachChat onClose={() => setIsCoachOpen(false)} />
+    </aside>
   </div>
         </div>
     );

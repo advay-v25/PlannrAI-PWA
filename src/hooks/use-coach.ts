@@ -119,10 +119,29 @@ export const useCoach = create<CoachState>()(
             throw new Error('Invalid response from AI Coach. Please try again.');
           }
 
+          // Helper to ensure we don't dump JSON into the chat if the AI broke the schema
+          const sanitizeSummary = (text: string) => {
+              if (!text) return text;
+              const trimmed = text.trim();
+              if (trimmed.startsWith('{') || trimmed.includes('"options":')) {
+                  try {
+                      const parsed = JSON.parse(trimmed);
+                      return parsed.summary || parsed.text || parsed.response || "I've prepared some options for you.";
+                  } catch (e) {
+                      if (trimmed.startsWith('{')) return "I've prepared some options for you.";
+                      const jsonStart = trimmed.indexOf('{');
+                      if (jsonStart > 0) return trimmed.substring(0, jsonStart).trim();
+                      return "I've prepared some options for you.";
+                  }
+              }
+              return text.replace(/```json\s*\{[\s\S]*\}\s*```/g, "I've prepared some options for you.")
+                         .replace(/```\s*\{[\s\S]*\}\s*```/g, "I've prepared some options for you.");
+          };
+
           const assistantMsg: CoachMessage = {
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: coachRes.summary || '',
+            content: sanitizeSummary(coachRes.summary || ''),
             mode: coachRes.mode,
             thinking: coachRes.thinking,
             contextUsed: coachRes.context_used,

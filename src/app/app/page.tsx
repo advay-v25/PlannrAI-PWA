@@ -254,11 +254,11 @@ export default function HomePage() {
             </div>
             <div className="flex items-center gap-4">
                 <div className="hidden md:block text-right">
-                    <div className="text-xs font-bold text-white/60 tracking-wider">
-                        {Math.round(effectiveData.metrics.completed_min / 60)}<span className="lowercase">h</span> {Math.round(effectiveData.metrics.completed_min % 60)}<span className="lowercase">m</span> <span className="uppercase ml-1">DONE</span>
+                    <div className="text-xs font-bold text-white/60">
+                        {Math.round(effectiveData.metrics.completed_min / 60)}<span className="lowercase">h</span> {Math.round(effectiveData.metrics.completed_min % 60)}<span className="lowercase">m</span> <span className="uppercase">DONE</span>
                     </div>
-                    <div className="text-[10px] text-white/30 tracking-widest mt-0.5">
-                        {Math.round(effectiveData.metrics.planned_min / 60)}<span className="lowercase">h</span> {Math.round(effectiveData.metrics.planned_min % 60)}<span className="lowercase">m</span> <span className="uppercase ml-1">PLANNED</span>
+                    <div className="text-[10px] text-white/30 tracking-widest">
+                        {Math.round(effectiveData.metrics.planned_min / 60)}<span className="lowercase">h</span> {Math.round(effectiveData.metrics.planned_min % 60)}<span className="lowercase">m</span> <span className="uppercase">PLANNED</span>
                     </div>
                 </div>
                 <Link href="/app/settings">

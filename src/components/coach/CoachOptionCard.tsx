@@ -149,32 +149,43 @@ export function CoachOptionCard({
                     </span>
                 </div>
 
-                {/* Proposed Changes — Human-readable timeslot view */}
+                {/* Proposed Changes — Grouped Summary */}
                 {hasOps && (
-                    <div className="space-y-1.5 py-1">
+                    <div className="space-y-2 py-1">
                         <span className="text-[9px] font-bold uppercase tracking-widest text-foreground/30">Proposed Changes</span>
-                        <div className="space-y-1">
-                            {displayOps.slice(0, 5).map((op: any, idx: number) => {
-                                const { icon, label } = formatOpLabel(op);
-                                const iconColor = icon === '+' || icon === '☑'
-                                    ? 'text-emerald-400'
-                                    : icon === '✕'
-                                        ? 'text-red-400'
-                                        : icon === '↔' || icon === '✎'
-                                            ? 'text-yellow-400'
-                                            : 'text-primary/60';
-                                return (
-                                    <div key={idx} className="flex items-start space-x-2 text-[11px] text-foreground/70">
-                                        <span className={`${iconColor} font-bold shrink-0 w-3`}>{icon}</span>
-                                        <span className="line-clamp-2">{label}</span>
-                                    </div>
-                                );
-                            })}
-                            {displayOps.length > 5 && (
-                                <div className="text-[9px] text-foreground/40 pl-5">
-                                    + {displayOps.length - 5} more operations
+                        <div className="flex flex-col gap-1.5">
+                            {option.preview && (option.preview.blocks_added > 0 || option.preview.blocks_modified > 0 || option.preview.blocks_removed > 0) ? (
+                                <div className="flex flex-wrap gap-2 text-[10px] font-medium">
+                                    {option.preview.blocks_added > 0 && <span className="text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-sm">+{option.preview.blocks_added} Added</span>}
+                                    {option.preview.blocks_modified > 0 && <span className="text-yellow-400 bg-yellow-500/10 px-2 py-0.5 rounded-sm">~{option.preview.blocks_modified} Modified</span>}
+                                    {option.preview.blocks_removed > 0 && <span className="text-red-400 bg-red-500/10 px-2 py-0.5 rounded-sm">-{option.preview.blocks_removed} Removed</span>}
                                 </div>
-                            )}
+                            ) : null}
+                            
+                            {/* Detail list (limit to 3 to keep it clean, or 4) */}
+                            <div className="space-y-1 mt-1">
+                                {displayOps.slice(0, 4).map((op: any, idx: number) => {
+                                    const { icon, label } = formatOpLabel(op);
+                                    const iconColor = icon === '+' || icon === '☑'
+                                        ? 'text-emerald-400'
+                                        : icon === '✕'
+                                            ? 'text-red-400'
+                                            : icon === '↔' || icon === '✎'
+                                                ? 'text-yellow-400'
+                                                : 'text-primary/60';
+                                    return (
+                                        <div key={idx} className="flex items-start space-x-2 text-[11px] text-foreground/70">
+                                            <span className={`${iconColor} font-bold shrink-0 w-3`}>{icon}</span>
+                                            <span className="line-clamp-1">{label}</span>
+                                        </div>
+                                    );
+                                })}
+                                {displayOps.length > 4 && (
+                                    <div className="text-[9px] font-medium text-foreground/40 pl-5">
+                                        + {displayOps.length - 4} more operations
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 )}

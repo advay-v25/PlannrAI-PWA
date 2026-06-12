@@ -60,12 +60,6 @@ export async function POST(request: NextRequest) {
         }
 
 
-        if (!user) {
-            return NextResponse.json(
-                { success: false, error: 'Unauthorized' },
-                { status: 401 }
-            );
-        }
 
         const body: ApplyRequest = await request.json();
         const { conversation_id, option_id, patch } = body;

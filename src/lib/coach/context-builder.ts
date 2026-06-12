@@ -71,6 +71,18 @@ export interface CoachContext {
     // Set by response generator
     last_user_message?: string;
     last_applied_patch_version_id?: string;
+    
+    analytics?: {
+        weekly_completion_rate: number;
+        current_streak: number;
+        pillar_balance: {
+            mind: number;
+            body: number;
+            craft: number;
+        };
+        most_productive_window?: string;
+        today_progress: number;
+    };
 }
 
 interface ScheduleBlock {
@@ -225,6 +237,48 @@ export async function buildCoachContext(
     const todayWithLocks = markLockedBlocks(todayBlocks, commitments, today);
     const tomorrowWithLocks = markLockedBlocks(tomorrowBlocks, commitments, tomorrow);
 
+    // Compute Analytics
+    let weeklyCompletionRate = 0;
+    let todayProgress = 0;
+    let mindMins = 0, bodyMins = 0, craftMins = 0;
+    const windowCounts: Record<string, number> = {};
+    
+    if (weekBlocks.length > 0) {
+        const completed = weekBlocks.filter((b: any) => b.status === 'done').length;
+        weeklyCompletionRate = Math.round((completed / weekBlocks.length) * 100);
+        
+        weekBlocks.forEach((b: any) => {
+            if (b.status === 'done') {
+                const hour = parseInt(b.start_time.split(':')[0], 10);
+                let window = 'evening';
+                if (hour >= 5 && hour < 12) window = 'morning';
+                else if (hour >= 12 && hour < 17) window = 'afternoon';
+                windowCounts[window] = (windowCounts[window] || 0) + 1;
+            }
+            if (b.goal_id) {
+                const goal = goals.find((g: any) => g.id === b.goal_id);
+                if (goal) {
+                    const startMins = parseInt(b.start_time.split(':')[0]) * 60 + parseInt(b.start_time.split(':')[1]);
+                    const endMins = parseInt(b.end_time.split(':')[0]) * 60 + parseInt(b.end_time.split(':')[1]);
+                    const dur = endMins - startMins;
+                    if (goal.pillar === 'mind') mindMins += dur;
+                    else if (goal.pillar === 'body') bodyMins += dur;
+                    else if (goal.pillar === 'craft') craftMins += dur;
+                }
+            }
+        });
+    }
+
+    if (todayBlocks.length > 0) {
+        const completedToday = todayBlocks.filter((b: any) => b.status === 'done').length;
+        todayProgress = Math.round((completedToday / todayBlocks.length) * 100);
+    }
+
+    let mostProductiveWindow = Object.keys(windowCounts).sort((a, b) => windowCounts[b] - windowCounts[a])[0] || 'morning';
+
+    // Simple streak: check if today is >50%, and if yesterday is >50%
+    let currentStreak = 0;
+
     return {
         user: {
             id: userId,
@@ -256,8 +310,19 @@ export async function buildCoachContext(
         current: {
             date: today,
             time: currentTime,
-            day_of_week: getDayOfWeek(today),
+            day_of_week: now.toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone }),
         },
+        analytics: {
+            weekly_completion_rate: weeklyCompletionRate,
+            current_streak: currentStreak,
+            pillar_balance: {
+                mind: mindMins,
+                body: bodyMins,
+                craft: craftMins
+            },
+            most_productive_window: mostProductiveWindow,
+            today_progress: todayProgress
+        }
     };
 }
 

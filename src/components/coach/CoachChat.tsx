@@ -14,10 +14,10 @@ import { usePremiumCalendar } from '@/components/calendar/premium-calendar-style
 
 interface CoachChatProps {
     onCalendarUpdate?: () => void;
-    onPreviewOption?: (option: CoachOption | null) => void;
+    onClose?: () => void;
 }
 
-export function CoachChat({ onCalendarUpdate, onPreviewOption }: CoachChatProps) {
+export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
     const { showToast } = useToast();
     const {
         messages,
@@ -48,6 +48,8 @@ export function CoachChat({ onCalendarUpdate, onPreviewOption }: CoachChatProps)
     }, [messages]);
 
     const [input, setInput] = useState('');
+    const [pendingOption, setPendingOption] = useState<CoachOption | null>(null);
+    const [showPreview, setShowPreview] = useState(false);
     const [isApplyingChanges, setIsApplyingChanges] = useState(false);
 
     // Thinking state stages
@@ -93,15 +95,12 @@ export function CoachChat({ onCalendarUpdate, onPreviewOption }: CoachChatProps)
 
     // Handle option selection
     const handleOptionSelect = (option: CoachOption) => {
-        // Always trigger preview in the right pane for changes
-        if (option.patch && (option.patch.ops?.length > 0 || option.patch.operations?.length > 0)) {
-            if (onPreviewOption) {
-                onPreviewOption(option);
-            } else {
-                handleApply(option);
-            }
+        // If tradeoff requires confirmation, show modal
+        if (option.tradeoff || option.patch.requires_confirmation) {
+            setPendingOption(option);
+            setShowPreview(true);
         } else {
-            // Apply directly if no visual changes needed
+            // Apply directly
             handleApply(option);
         }
     };
@@ -111,7 +110,9 @@ export function CoachChat({ onCalendarUpdate, onPreviewOption }: CoachChatProps)
         const parentMessage = messages.find(m => m.options?.some(o => o.id === option.id));
         if (!parentMessage) return;
 
-        if (onPreviewOption) onPreviewOption(null);
+        // Immediately close the modal and show the progress indicator
+        setShowPreview(false);
+        setPendingOption(null);
         setIsApplyingChanges(true);
 
         try {
@@ -204,6 +205,18 @@ export function CoachChat({ onCalendarUpdate, onPreviewOption }: CoachChatProps)
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                         </svg>
                     </button>
+                    {/* Close Button */}
+                    {onClose && (
+                        <button
+                            onClick={onClose}
+                            className="p-1.5 rounded-lg hover:bg-white/5 transition-colors text-foreground/40 hover:text-foreground/70 ml-1"
+                            title="Close coach"
+                        >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -372,8 +385,25 @@ export function CoachChat({ onCalendarUpdate, onPreviewOption }: CoachChatProps)
                 </div>
             )}
 
+            {/* Quick Action Chips */}
+            {!isLoading && (
+                <div className="z-10 px-6 py-3 border-t border-white/5 bg-bg-secondary/50 backdrop-blur-md overflow-x-auto">
+                    <div className="flex gap-2 min-w-max">
+                        {['Plan my day', 'What should I do next?', 'Replan my week', 'Show my progress'].map((chip) => (
+                            <button
+                                key={chip}
+                                onClick={() => handleQuickChip(chip)}
+                                className="px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-foreground/70 transition-colors whitespace-nowrap"
+                            >
+                                {chip}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Input - Neural Control Bar */}
-            <form onSubmit={handleSubmit} className="z-10 p-6 border-t border-white/5 bg-bg-secondary/80 backdrop-blur-xl relative">
+            <form onSubmit={handleSubmit} className="z-10 p-6 border-t border-white/5 bg-bg-secondary/80 backdrop-blur-xl">
                 <div className="flex items-center space-x-3">
                     <input
                         type="text"
@@ -381,23 +411,34 @@ export function CoachChat({ onCalendarUpdate, onPreviewOption }: CoachChatProps)
                         onChange={(e) => setInput(e.target.value)}
                         placeholder={messages.length > 0 ? "Ask a follow-up..." : "Define strategy..."}
                         disabled={isLoading}
-                        className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all placeholder:text-foreground/20 text-foreground disabled:opacity-50"
+                        className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all placeholder:text-foreground/20 text-foreground"
                     />
                     <button
                         type="submit"
                         disabled={isLoading || !input.trim()}
                         className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center shadow-glow hover:shadow-glow-intense active:scale-95 transition-all text-white disabled:opacity-30 disabled:grayscale"
                     >
-                        {isLoading ? (
-                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        ) : (
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                            </svg>
-                        )}
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                        </svg>
                     </button>
                 </div>
             </form>
+
+            {/* Confirmation Modal Overlay */}
+            {showPreview && pendingOption && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-md">
+                   <ConfirmationModal
+                        option={pendingOption}
+                        onConfirm={() => handleApply(pendingOption)}
+                        onCancel={() => {
+                            setShowPreview(false);
+                            setPendingOption(null);
+                        }}
+                        isLoading={isLoading}
+                    />
+                </div>
+            )}
         </div>
     );
 }

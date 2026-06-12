@@ -614,9 +614,19 @@ async function generateAIScheduleResponse(
     const scheduleContext = buildScheduleContextForAI(coachCtx, calCtx, missedBlockDuration);
 
 const userName = coachCtx.user.first_name || 'there';
+const analyticsText = coachCtx.analytics ? `
+📈 PERFORMANCE ANALYTICS:
+- Weekly Completion Rate: ${coachCtx.analytics.weekly_completion_rate}%
+- Current Streak: ${coachCtx.analytics.current_streak} days
+- Today's Progress: ${coachCtx.analytics.today_progress}%
+- Most Productive Window: ${coachCtx.analytics.most_productive_window}
+- Pillar Balance: Mind (${Math.round(coachCtx.analytics.pillar_balance.mind / 60)}h), Body (${Math.round(coachCtx.analytics.pillar_balance.body / 60)}h), Craft (${Math.round(coachCtx.analytics.pillar_balance.craft / 60)}h)
+` : '';
+
 const systemPrompt = `You are Donna, PlannrAI's Flow State and Performance Coach. You operate with 'Tough Love'. You are direct, no-nonsense, highly empathetic but fiercely protective of the user's potential. You do not coddle. If they are slacking, you call it out respectfully. If they are overwhelmed, you aggressively cut the fat from their schedule. Your priority is their long-term growth and immediate flow state. You manage their focus as their most precious resource.
 
 The user's name is ${userName}. Address them by name occasionally (not every message) to create a personal coaching relationship.
+${analyticsText}
 
 🧠 CONVERSATION CONTINUITY:
 - Read the RECENT CONVERSATION carefully. If the user is following up on a previous message (e.g. "no, do the other one", "what about tomorrow instead?"), connect your response to what was previously discussed.
@@ -1571,9 +1581,19 @@ async function generateAIInformResponse(
     const scheduleContext = buildScheduleContextForAI(coachCtx, calCtx);
 
     const userName = coachCtx.user.first_name || 'there';
+    const analyticsText = coachCtx.analytics ? `
+📈 PERFORMANCE ANALYTICS:
+- Weekly Completion Rate: ${coachCtx.analytics.weekly_completion_rate}%
+- Current Streak: ${coachCtx.analytics.current_streak} days
+- Today's Progress: ${coachCtx.analytics.today_progress}%
+- Most Productive Window: ${coachCtx.analytics.most_productive_window}
+- Pillar Balance: Mind (${Math.round(coachCtx.analytics.pillar_balance.mind / 60)}h), Body (${Math.round(coachCtx.analytics.pillar_balance.body / 60)}h), Craft (${Math.round(coachCtx.analytics.pillar_balance.craft / 60)}h)
+` : '';
+
     const systemPrompt = `You are Donna, PlannrAI's Flow State and Performance Coach. You operate with 'Tough Love'. You are direct, no-nonsense, highly empathetic but fiercely protective of the user's potential. You do not coddle. If they are behind on goals, you call it out. If they're crushing it, you celebrate briefly and push for more.
 
 The user's name is ${userName}. Address them by name when celebrating wins or calling out gaps.
+${analyticsText}
 
 The user is asking about their schedule, goals, or progress. Give them a data-driven answer using REAL numbers from their schedule. Be specific — mention block titles, completion percentages, and concrete insights. Adapt your tone to the time of day (morning = energizing, evening = reflective).
 
@@ -1637,7 +1657,21 @@ async function generateAIGeneralResponse(
     coachCtx: CoachContext,
     classification: IntentClassification
 ): Promise<CoachResponse> {
-    const systemPrompt = `You are PlannrAI Coach, an elite scheduling assistant and productivity coach.
+    const userName = coachCtx.user.first_name || 'there';
+    const analyticsText = coachCtx.analytics ? `
+📈 PERFORMANCE ANALYTICS:
+- Weekly Completion Rate: ${coachCtx.analytics.weekly_completion_rate}%
+- Current Streak: ${coachCtx.analytics.current_streak} days
+- Today's Progress: ${coachCtx.analytics.today_progress}%
+- Most Productive Window: ${coachCtx.analytics.most_productive_window}
+- Pillar Balance: Mind (${Math.round(coachCtx.analytics.pillar_balance.mind / 60)}h), Body (${Math.round(coachCtx.analytics.pillar_balance.body / 60)}h), Craft (${Math.round(coachCtx.analytics.pillar_balance.craft / 60)}h)
+` : '';
+
+    const systemPrompt = `You are Donna, PlannrAI's Flow State and Performance Coach. You operate with 'Tough Love'. You are direct, no-nonsense, highly empathetic but fiercely protective of the user's potential. You do not coddle.
+
+The user's name is ${userName}.
+${analyticsText}
+
 The user is chatting with you generally. Respond naturally, concisely, and with a confident, supportive tone.
 If they ask something completely unrelated to productivity, scheduling, or goals, politely remind them of your purpose.
 
@@ -1823,14 +1857,6 @@ export async function generateCoachResponse(
         return generateUndoResponse(context);
     }
 
-
-    if (classification.requires_clarification && intent === CoachIntent.CLARIFICATION_NEEDED) {
-        return generateClarificationResponse(context, classification);
-    }
-
-    if (intent === CoachIntent.UNDO_LAST) {
-        return generateUndoResponse(context);
-    }
 
     if (intent === CoachIntent.GENERAL_CHAT || intent === CoachIntent.OUT_OF_SCOPE) {
         // Upgrade context to mock CoachContext just for the prompt
