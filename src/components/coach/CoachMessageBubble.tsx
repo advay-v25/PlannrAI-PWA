@@ -100,6 +100,42 @@ function renderInline(text: string): React.ReactNode[] {
     return parts;
 }
 
+function sanitizeContent(text: string): string {
+    if (!text) return text;
+    
+    // Check if text looks like a JSON blob
+    const trimmed = text.trim();
+    if (trimmed.startsWith('{') || trimmed.includes('"options":') || trimmed.includes('"summary":')) {
+        try {
+            // Try parsing if it's purely JSON
+            const parsed = JSON.parse(trimmed);
+            if (parsed.summary) return parsed.summary;
+            if (parsed.text) return parsed.text;
+            if (parsed.response) return parsed.response;
+            return "I've prepared some options for you — check below.";
+        } catch (e) {
+            // Unparseable JSON or JSON mixed with text
+            // If it starts with { and fails to parse, it's likely truncated JSON
+            if (trimmed.startsWith('{')) {
+                return "I've prepared some options for you — check below.";
+            }
+            
+            // Try to extract text before the JSON block if it's mixed
+            const jsonStart = trimmed.indexOf('{');
+            if (jsonStart > 0) {
+                const prefix = trimmed.substring(0, jsonStart).trim();
+                if (prefix) return prefix;
+            }
+            return "I've prepared some options for you — check below.";
+        }
+    }
+    
+    // Strip code blocks that contain json
+    let cleaned = trimmed.replace(/```json\s*\{[\s\S]*\}\s*```/g, "I've prepared some options for you — check below.");
+    cleaned = cleaned.replace(/```\s*\{[\s\S]*\}\s*```/g, "I've prepared some options for you — check below.");
+    return cleaned;
+}
+
 export function CoachMessageBubble({ message }: CoachMessageBubbleProps) {
     const isUser = message.role === 'user';
     const [showThinking, setShowThinking] = useState(false);
@@ -123,7 +159,7 @@ export function CoachMessageBubble({ message }: CoachMessageBubbleProps) {
                         </span>
                     )}
                     <div className="text-sm leading-relaxed">
-                        {isUser ? message.content : renderMarkdown(message.content)}
+                        {isUser ? message.content : renderMarkdown(sanitizeContent(message.content))}
                     </div>
 
                     {/* Thinking Steps — Collapsed by default */}

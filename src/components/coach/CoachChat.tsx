@@ -14,9 +14,10 @@ import { usePremiumCalendar } from '@/components/calendar/premium-calendar-style
 
 interface CoachChatProps {
     onCalendarUpdate?: () => void;
+    onClose?: () => void;
 }
 
-export function CoachChat({ onCalendarUpdate }: CoachChatProps) {
+export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
     const { showToast } = useToast();
     const {
         messages,
@@ -204,6 +205,18 @@ export function CoachChat({ onCalendarUpdate }: CoachChatProps) {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                         </svg>
                     </button>
+                    {/* Close Button */}
+                    {onClose && (
+                        <button
+                            onClick={onClose}
+                            className="p-1.5 rounded-lg hover:bg-white/5 transition-colors text-foreground/40 hover:text-foreground/70 ml-1"
+                            title="Close coach"
+                        >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -369,6 +382,23 @@ export function CoachChat({ onCalendarUpdate }: CoachChatProps) {
                     >
                         Revert Last Protocol ↩
                     </button>
+                </div>
+            )}
+
+            {/* Quick Action Chips */}
+            {!isLoading && (
+                <div className="z-10 px-6 py-3 border-t border-white/5 bg-bg-secondary/50 backdrop-blur-md overflow-x-auto">
+                    <div className="flex gap-2 min-w-max">
+                        {['Plan my day', 'What should I do next?', 'Replan my week', 'Show my progress'].map((chip) => (
+                            <button
+                                key={chip}
+                                onClick={() => handleQuickChip(chip)}
+                                className="px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-foreground/70 transition-colors whitespace-nowrap"
+                            >
+                                {chip}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             )}
 

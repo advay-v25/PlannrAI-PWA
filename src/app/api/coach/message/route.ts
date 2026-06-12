@@ -144,8 +144,8 @@ export async function POST(request: NextRequest) {
             user_id: user.id,
             role: 'assistant',
             content: response.summary,
-            intent: response.mode === 'clarify' ? 'clarification_needed' : undefined,
-            mode: response.mode === 'inform' ? 'acknowledge' : response.mode,
+            intent: intentClassification.intent,
+            mode: response.mode,
             options: response.options || null,
             created_at: new Date().toISOString(),
         });

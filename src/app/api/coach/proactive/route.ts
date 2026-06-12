@@ -1,40 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { secureApiRoute, apiSuccess } from '@/lib/security/api-protection';
 
-export async function GET(request: NextRequest) {
-    try {
-            // Rate Limit Check
-            const { requireRateLimit } = await import('@/lib/rate-limit');
-            const rateLimitCheck = await requireRateLimit(`proactive:${userId}`, 10, 300);
-            if (typeof rateLimitCheck !== 'boolean') return rateLimitCheck;
-
-        const cookieStore = await cookies();
-        const supabase = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            {
-                cookies: {
-                    get(name: string) {
-                        return cookieStore.get(name)?.value;
-                    },
-                },
-            }
-        );
-
-        const { data: { user } } = await supabase.auth.getUser();
-
-        if (!user) {
-            return NextResponse.json(
-                { success: false, error: 'Unauthorized' },
-                { status: 401 }
-            );
-        }
-
-        // Check proactive trigger: look at today's schedule for anomalies
-        const today = new Date().toISOString().split('T')[0];
-        const now = new Date();
-        const currentHour = now.getHours();
+export const GET = secureApiRoute(
+    async (request, { supabase, userId }) => {
+        try {
+            // Check proactive trigger: look at today's schedule for anomalies
+            const today = new Date().toISOString().split('T')[0];
+            const now = new Date();
+            const currentHour = now.getHours();
 
         const { data: todayBlocks } = await supabase
             .from('schedule_blocks')
@@ -110,14 +82,12 @@ export async function GET(request: NextRequest) {
         }
 
         if (!suggestion) {
-            return NextResponse.json({
-                success: true,
+            return apiSuccess({
                 has_suggestion: false,
             });
         }
 
-        return NextResponse.json({
-            success: true,
+        return apiSuccess({
             has_suggestion: true,
             suggestion,
         });
@@ -125,9 +95,8 @@ export async function GET(request: NextRequest) {
     } catch (error) {
         console.error('[Coach Proactive] Error:', error);
         // Always return success with no suggestion on error — never 500 to the user
-        return NextResponse.json({
-            success: true,
+        return apiSuccess({
             has_suggestion: false,
         });
     }
-}
+}, { requireAuth: true, rateLimit: 'aiCoach' });
