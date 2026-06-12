@@ -105,7 +105,7 @@ function calculateVertical2(block: any, cellHeight: number) {
     const start = new Date(2000, 0, 1, startH, startM);
     const end = new Date(2000, 0, 1, endH, endM);
 
-    let startMinutes = startH * 60 + startM;
+    const startMinutes = startH * 60 + startM;
     let endMinutes = endH * 60 + endM;
     if (endMinutes < startMinutes) endMinutes += 24 * 60; // handle wrap around midnight
 

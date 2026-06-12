@@ -31,7 +31,7 @@ export const POST = secureApiRoute(
         // 2. Calculate REAL metrics
         let plannedMinutes = 0;
         let actualMinutes = 0;
-        let totalBlocks = blocks.length;
+        const totalBlocks = blocks.length;
         let completedBlocks = 0;
         let cancelledBlocks = 0;
         let missedBlocks = 0;

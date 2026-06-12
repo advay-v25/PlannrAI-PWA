@@ -163,8 +163,8 @@ function calculateCapacity(start: string, end: string) {
     // but here sleep_start (23:00) > sleep_end (07:00) usually
     // We want Wake -> Sleep duration
 
-    let [h1, m1] = start.split(':').map(Number); // Wake
-    let [h2, m2] = end.split(':').map(Number);   // Sleep
+    const [h1, m1] = start.split(':').map(Number); // Wake
+    const [h2, m2] = end.split(':').map(Number);   // Sleep
 
     let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
     if (diff < 0) diff += 24 * 60; // handle wrap around midnight

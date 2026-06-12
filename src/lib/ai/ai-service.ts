@@ -194,7 +194,7 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
             throw new Error(`Validation Error: ${JSON.stringify(result.error.format())}`);
         }
 
-        let { channel, input, context: aiContext, limits } = result.data;
+        const { channel, input, context: aiContext, limits } = result.data;
 
 
 

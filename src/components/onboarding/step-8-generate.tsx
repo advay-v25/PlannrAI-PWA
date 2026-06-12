@@ -193,7 +193,7 @@ export function Step8Generate() {
         });
 
         // 2. Morning Ritual (if Blueprint says so)
-        let cursor = addMins(wake, 15);
+        const cursor = addMins(wake, 15);
 
         // 3. Goals
         data.goals.forEach((g: any, i: number) => {

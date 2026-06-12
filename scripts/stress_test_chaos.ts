@@ -43,7 +43,7 @@ async function runStressTest() {
 
     console.log('\n[2] Testing Rate Limiting (The "Spam Click" Test)...');
     // Rapid fire 20 requests
-    let rateLimited = false;
+    const rateLimited = false;
     const spamPromises = [];
     for (let i = 0; i < 20; i++) {
         spamPromises.push(

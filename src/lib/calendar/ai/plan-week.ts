@@ -127,7 +127,7 @@ export async function generateWeekPlan(
         bioTemplates.push({ title: 'Breakfast', block_type: 'meal', start, end: safeAddMins(start, 30) });
     }
     if (mealsPerDay >= 2) {
-        let start = (mealWindows as any)?.lunch?.start || '12:30';
+        const start = (mealWindows as any)?.lunch?.start || '12:30';
         bioTemplates.push({ title: 'Lunch', block_type: 'meal', start, end: safeAddMins(start, 45) });
     }
     if (mealsPerDay >= 3) {
@@ -262,7 +262,7 @@ function generateVariant(
     // Light weekend = hard 4PM (960 mins) cutoff on Sat/Sun
     const LIGHT_WEEKEND_CUTOFF = 960; // 16:00
 
-    for (let [d, ex] of baseExclusions.entries()) {
+    for (const [d, ex] of baseExclusions.entries()) {
         exclusions.set(d, ex.map(e => ({ ...e })));
     }
 
@@ -506,7 +506,7 @@ function generateVariant(
                 const blocksToday = blocks.filter(b => b.date === dateStr && b.goal_id === goal.id);
                 const scheduledToday = blocksToday.reduce((sum, b) => sum + (timeToMinutes(b.end_time) - timeToMinutes(b.start_time)), 0);
                 
-                let remainingMinsForDay = Math.max(0, targetMinsPerDay - scheduledToday);
+                const remainingMinsForDay = Math.max(0, targetMinsPerDay - scheduledToday);
                 if (remainingMinsForDay <= 0) continue; // Reached daily cap
 
                 let remainingToPlace = Math.min(remainingMinsForDay, remainingWeeklyMins);
@@ -528,7 +528,7 @@ function generateVariant(
                     if (win.end - win.start < 30) continue;
 
                     const minsToPlace = Math.min(remainingToPlace, win.end - win.start);
-                    let start = win.start;
+                    const start = win.start;
                     
                     blocks.push({
                         date: dateStr,

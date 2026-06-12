@@ -106,14 +106,16 @@ export function useCalendar(initialDate: Date = new Date()) {
         await loadData();
     };
 
-    const addBlock = async (blockData: { start_time: string; end_time: string; context: string; date?: string }) => {
+    const addBlock = async (blockData: { title: string; start_time: string; end_time: string; context?: string; is_locked?: boolean; date?: string }) => {
         const date = blockData.date || format(selectedDate, 'yyyy-MM-dd');
         try {
             await apiClient.schedule.createBlock({
                 date,
+                title: blockData.title,
                 start_time: blockData.start_time,
                 end_time: blockData.end_time,
-                context: blockData.context
+                context: blockData.context,
+                is_locked: blockData.is_locked,
             });
             showToast("Block added", "success");
             await loadData();

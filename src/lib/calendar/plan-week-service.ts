@@ -66,7 +66,7 @@ export class PlanWeekService {
         this.applyExternalBlocksToGrid(grid, expandedAnchors);
 
         // C. Place Meals
-        let mealBlocks: Partial<ScheduleBlock>[] = [];
+        const mealBlocks: Partial<ScheduleBlock>[] = [];
         for (let i = 0; i < 7; i++) {
             const day = addDays(ctx.weekStart, i);
             // We need current day's existing + anchors to avoid overlaps

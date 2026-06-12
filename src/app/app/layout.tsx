@@ -129,7 +129,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </aside>
 
   {/* Content Area with AI Coach - Using CSS Grid for fluid animations */}
-  <div className="flex-1 grid grid-cols-[1fr] transition-[grid-template-columns] duration-300 ease-in-out">
+  <div className={cn(
+      "flex-1 grid transition-[grid-template-columns] duration-300 ease-in-out relative",
+      isCoachOpen ? "grid-cols-[1fr_400px]" : "grid-cols-[1fr_0px]"
+  )}>
     {/* Main Content */}
     <main className="relative flex flex-col overflow-hidden">
       {/* Top System Bar */}
@@ -189,11 +192,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     </main>
 
     {/* AI Coach Drawer - Always mounted, slides in */}
-    <aside className={cn(
-        "fixed inset-y-0 right-0 w-[400px] glass-panel border-l border-[var(--glass-border)] shadow-2xl z-40 transform transition-transform duration-300 ease-in-out",
-        isCoachOpen ? "translate-x-0" : "translate-x-full"
-    )}>
-        <CoachChat onClose={() => setIsCoachOpen(false)} />
+    <aside className="overflow-hidden border-l border-[var(--glass-border)] bg-[var(--color-bg-secondary)]/30 backdrop-blur-xl z-40 relative">
+        <div className="w-[400px] h-full">
+            <CoachChat onClose={() => setIsCoachOpen(false)} />
+        </div>
     </aside>
   </div>
         </div>

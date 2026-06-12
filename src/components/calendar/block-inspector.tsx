@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import {
     X, Check, SkipForward, Clock, Trash2, Edit3, Save, ListTodo,
-    Circle, CheckCircle2, Sparkles, Loader2, Pencil, Tag, AlertTriangle
+    Circle, CheckCircle2, Sparkles, Loader2, Pencil, Tag, AlertTriangle,
+    Lock, Unlock
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -380,6 +381,18 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                             <X className="w-4 h-4" /> Incomplete
                         </LiquidGlassButton>
                     </div>
+                )}
+
+                {/* Lock Action */}
+                {!isAnchor && (
+                    <LiquidGlassButton
+                        onClick={() => onAction('update', { is_locked: !block.is_locked })}
+                        variant="secondary"
+                        size="sm"
+                        className="w-full"
+                    >
+                        {block.is_locked ? <><Lock className="w-3.5 h-3.5" /> Locked (AI won't move)</> : <><Unlock className="w-3.5 h-3.5" /> Unlocked (AI can move)</>}
+                    </LiquidGlassButton>
                 )}
 
                 {/* Delete */}

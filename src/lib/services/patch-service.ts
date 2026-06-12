@@ -283,7 +283,7 @@ export class PatchService {
 
             if (operation === 'create' || operation === 'create_event') {
                 const event = op.event || op.payload || {};
-                let sTime = event.start_time || event.start || event.to_start;
+                const sTime = event.start_time || event.start || event.to_start;
                 let eTime = event.end_time || event.end || event.to_end;
                 const date = event.date || op.date;
 
@@ -311,7 +311,7 @@ export class PatchService {
                 const newBlock = {
                     id: newId,
                     user_id: userId,
-                    title: event.title || 'New Block',
+                    title: event.title || event.context || 'New Block',
                     start_time: sTime,
                     end_time: eTime,
                     date,
@@ -321,6 +321,8 @@ export class PatchService {
                     goal_id: event.goal_id || null,
                     checklist: Array.isArray(event.checklist) ? event.checklist : null,
                     habit_stack_id: event.habit_stack_id || null,
+                    is_locked: event.is_locked !== undefined ? event.is_locked : false,
+                    context: event.context || event.title || null,
                 };
 
                 simulatedBlocks.push(newBlock);
@@ -349,7 +351,7 @@ export class PatchService {
                     return { success: false, errors: [`Cannot modify immutable ${block.block_type} block "${block.title}"`], updates: [], creates: [], deletes: [], preExecState };
                 }
 
-                let sTime = fields.start_time || block.start_time;
+                const sTime = fields.start_time || block.start_time;
                 let eTime = fields.end_time || block.end_time;
                 const date = fields.date || block.date;
 
@@ -400,7 +402,7 @@ export class PatchService {
                     return { success: false, errors: [`Cannot move immutable ${block.block_type} block "${block.title}"`], updates: [], creates: [], deletes: [], preExecState };
                 }
 
-                let sTime = start;
+                const sTime = start;
                 let eTime = end;
                 if (this.timeToMin(eTime) <= this.timeToMin(sTime)) {
                     eTime = '23:59:59';
@@ -529,7 +531,7 @@ export class PatchService {
         supabase: SupabaseClient,
         source: string = 'ai'
     ): Promise<PatchResult> {
-        let errors: string[] = [];
+        const errors: string[] = [];
         let changes = 0;
 
         const blockModOps = ['create', 'create_event', 'update', 'update_event', 'move', 'move_event', 'delete', 'delete_event'];
@@ -951,7 +953,7 @@ export class PatchService {
                     return (h || 0) * 60 + (m || 0);
                 };
 
-                let sTime = event.start_time || event.start || event.to_start;
+                const sTime = event.start_time || event.start || event.to_start;
                 let eTime = event.end_time || event.end || event.to_end;
                 if (eTime && sTime && timeToMin(eTime) <= timeToMin(sTime)) {
                     eTime = '23:59:59';
@@ -1039,7 +1041,7 @@ export class PatchService {
                     const [h, m] = (t || '0:0').split(':').map(Number);
                     return (h || 0) * 60 + (m || 0);
                 };
-                let sTime = fields.start_time || existing.start_time;
+                const sTime = fields.start_time || existing.start_time;
                 let eTime = fields.end_time || existing.end_time;
                 if (eTime && sTime && timeToMin(eTime) <= timeToMin(sTime)) {
                     eTime = '23:59:59';
@@ -1114,7 +1116,7 @@ export class PatchService {
                     const [h, m] = (t || '0:0').split(':').map(Number);
                     return (h || 0) * 60 + (m || 0);
                 };
-                let sTime = start;
+                const sTime = start;
                 let eTime = end;
                 if (eTime && sTime && timeToMin(eTime) <= timeToMin(sTime)) {
                     eTime = '23:59:59';

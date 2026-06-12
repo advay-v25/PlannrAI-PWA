@@ -77,9 +77,11 @@ export const GET = secureApiRoute(
 
                 // Filter commitments by dayOfWeek
                 const activeCommitments = (commitments || []).filter(c => 
-                    c.days_of_week && c.days_of_week.includes(dayOfWeek) && c.is_active !== false
+                    c.days_of_week && c.days_of_week.includes(dayOfWeek) && c.is_active !== false &&
+                    !scheduleBlocks?.some(sb => sb.commitment_id === c.id) // Avoid duplicates
                 ).map(c => ({
                     ...c,
+                    title: c.name || c.title || 'Commitment',
                     block_type: 'anchor',
                     date: isoDate
                 }));
@@ -208,8 +210,8 @@ export const GET = secureApiRoute(
 
             const insights: Record<HomeState, string> = {
                 'MORNING_ROUTINE': "Morning routine active. Your first block is coming up — get ready.",
-                'BETWEEN_BLOCKS': nextBlock ? `Break time. Next: "${nextBlock.title}" in ${timeUntilNextBlock}m.` : "Break time. You have free space.",
-                'IN_BLOCK': activeBlock ? `Focus mode: "${activeBlock.title}". ${timeRemainingInBlock}m remaining.` : "Focus mode active.",
+                'BETWEEN_BLOCKS': nextBlock ? `Break time. Next: "${nextBlock.title || 'the next block'}" in ${timeUntilNextBlock}m.` : "Break time. You have free space.",
+                'IN_BLOCK': activeBlock ? `Focus mode: "${activeBlock.title || activeBlock.context || 'Focused Block'}". ${timeRemainingInBlock}m remaining.` : "Focus mode active.",
                 'BEHIND_SCHEDULE': "Running behind. Want me to shift the rest of the day?",
                 'DAY_COMPLETE': "All done for today. Time to wind down.",
                 'NO_SCHEDULE': "No schedule for today. Plan your day or let AI generate one.",

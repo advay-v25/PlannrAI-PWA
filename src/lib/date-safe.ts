@@ -52,9 +52,9 @@ export function normalizeTime(timeString: string | null | undefined): string | n
     const parts = clean.split(':');
     if (parts.length !== 2) return null;
 
-    let [h, m] = parts;
-    let hour = parseInt(h, 10);
-    let minute = parseInt(m, 10);
+    const [h, m] = parts;
+    const hour = parseInt(h, 10);
+    const minute = parseInt(m, 10);
 
     if (isNaN(hour) || isNaN(minute)) return null;
     if (hour < 0 || hour > 23) return null;
