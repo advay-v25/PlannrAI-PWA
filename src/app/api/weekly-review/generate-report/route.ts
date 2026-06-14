@@ -2,11 +2,13 @@ import { createClient } from '@/lib/supabase/server';
 import { callAI } from '@/lib/ai/unified-client';
 import { startOfWeek, endOfWeek, format, subWeeks } from 'date-fns';
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
+import { isPreviewEnabled } from '@/lib/featureFlags';
 
 export const maxDuration = 60;
 
 export const POST = secureApiRoute(
     async (context, bodyData) => {
+        if (!isPreviewEnabled()) return apiError('Feature disabled in production', 403);
         const { userId, supabase } = context;
 
         let { weekStart, weekEnd } = (bodyData as any) || {};

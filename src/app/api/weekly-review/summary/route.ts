@@ -31,7 +31,7 @@ export const GET = secureApiRoute(
 
         const supabase = await createClient();
 
-        // Parallel Fetch: Blocks, Goals, Commitments, Brain Dumps, Daily Logs
+        // Parallel Fetch: Blocks, Goals, Commitments, Daily Logs
         const [blocksRes, goalsRes, logsRes] = await Promise.all([
             // 1. Schedule Blocks (The Truth)
             supabase.from('schedule_blocks')

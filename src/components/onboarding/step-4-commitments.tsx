@@ -27,7 +27,7 @@ export function Step4Commitments() {
         <div className="h-full flex flex-col items-center w-full max-w-2xl mx-auto">
             <div className="text-center space-y-2 mb-8">
                 <h2 className="text-3xl font-display font-light">Non-Negotiables</h2>
-                <p className="text-[var(--color-text-secondary)] font-light">
+                <p className="text-[var(--text-secondary)] font-light">
                     Add fixed anchors like work, school, or recurring calls.
                 </p>
             </div>

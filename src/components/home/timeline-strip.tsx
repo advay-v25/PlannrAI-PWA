@@ -46,21 +46,21 @@ export function TimelineStrip({ blocks, anchors = [], onStatusChange }: Timeline
     ).slice(0, 4);
 
     return (
-        <div className="w-full rounded-3xl border border-white/5 bg-black/40 backdrop-blur-xl p-5 shadow-2xl">
+        <div className="w-full rounded-3xl border border-[var(--glass-border)] bg-black/40 backdrop-blur-xl p-5 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-emerald-400" />
                     <h3 className="text-sm font-bold text-white tracking-wide">Up Next</h3>
                 </div>
-                <Link href="/app/calendar" className="text-xs font-medium text-white/50 hover:text-white flex items-center gap-1 transition-colors bg-white/5 px-2.5 py-1 rounded-full">
+                <Link href="/app/calendar" className="text-xs font-medium text-[var(--text-secondary)] hover:text-white flex items-center gap-1 transition-colors bg-[var(--glass-bg)] px-2.5 py-1 rounded-full">
                     Open Calendar <ArrowRight className="w-3 h-3" />
                 </Link>
             </div>
 
             <div className="relative space-y-3">
                 {upcomingBlocks.length === 0 ? (
-                    <div className="flex h-24 flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 text-center">
-                        <span className="text-xs text-white/40">Schedule is clear for the rest of the day.</span>
+                    <div className="flex h-24 flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--glass-border)] text-center">
+                        <span className="text-xs text-[var(--text-secondary)]">Schedule is clear for the rest of the day.</span>
                         <Link href="/app/calendar" className="text-[10px] mt-2 text-[var(--color-primary)]">Plan Tomorrow →</Link>
                     </div>
                 ) : (
@@ -86,11 +86,11 @@ export function TimelineStrip({ blocks, anchors = [], onStatusChange }: Timeline
                                 <div className="flex flex-col items-center gap-1 min-w-[48px]">
                                     <span className={cn(
                                         "text-xs font-bold font-mono",
-                                        isCurrent ? "text-[var(--color-primary)]" : "text-white/50"
+                                        isCurrent ? "text-[var(--color-primary)]" : "text-[var(--text-secondary)]"
                                     )}>
                                         {formatSafeTime(block.start_time)}
                                     </span>
-                                    <div className="flex-1 w-[2px] rounded-full bg-white/5 relative">
+                                    <div className="flex-1 w-[2px] rounded-full bg-[var(--glass-bg)] relative">
                                         {isCurrent && (
                                             <div className="absolute top-0 w-[2px] bg-[var(--color-primary)] rounded-full animate-pulse h-full" />
                                         )}
@@ -103,17 +103,17 @@ export function TimelineStrip({ blocks, anchors = [], onStatusChange }: Timeline
                                         <div className="flex flex-col">
                                             <span className={cn(
                                                 "text-sm font-semibold truncate",
-                                                isCurrent ? "text-white" : "text-white/80"
+                                                isCurrent ? "text-white" : "text-[var(--text-secondary)]"
                                             )}>
                                                 {block.title}
                                             </span>
-                                            <span className="text-[10px] text-white/40 font-mono mt-0.5">
+                                            <span className="text-[10px] text-[var(--text-secondary)] font-mono mt-0.5">
                                                 {block.end_time.slice(0, 5)} {block.pillar ? `• ${block.pillar.toUpperCase()}` : ''}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-1">
                                             {block.block_type === 'anchor' ? (
-                                                <Lock className="w-3.5 h-3.5 text-white/20 shrink-0" />
+                                                <Lock className="w-3.5 h-3.5 text-[var(--text-secondary)] shrink-0" />
                                             ) : onStatusChange ? (
                                                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <button

@@ -219,7 +219,7 @@ export class SchedulerAgent extends BaseAgent<SchedulerInput, SchedulerOutput> {
 
             // Phase 3: Body as Governor Constraint Check
             let finalDuration = duration;
-            let finalTitle = planner.entities?.new_task_text || "Busy";
+            const finalTitle = planner.entities?.new_task_text || "Busy";
             const warnings: string[] = [];
 
             if (context.userState) {

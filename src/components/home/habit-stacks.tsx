@@ -57,17 +57,17 @@ export function HabitStacks({ stacks, onUpdate }: any) {
             <div className="grid gap-3">
                 {stacks && stacks.length > 0 ? (
                     stacks.map((stack: any) => (
-                        <div key={stack.id} className="p-4 rounded-xl border border-white/10 bg-white/5 flex flex-col gap-2">
+                        <div key={stack.id} className="p-4 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] flex flex-col gap-2">
                             <div className="flex justify-between items-start">
                                 <h3 className="text-sm font-bold text-white">{stack.name}</h3>
-                                <span className="text-[10px] text-white/50 uppercase">{stack.preferred_window}</span>
+                                <span className="text-[10px] text-[var(--text-secondary)] uppercase">{stack.preferred_window}</span>
                             </div>
                             <div className="space-y-1">
                                 {(stack.steps || []).map((step: any, i: number) => (
-                                    <div key={i} className="flex items-center gap-2 text-xs text-white/70">
-                                        <div className="w-1 h-1 rounded-full bg-white/20" />
+                                    <div key={i} className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                                        <div className="w-1 h-1 rounded-full bg-[var(--glass-bg)]" />
                                         <span>{step.title}</span>
-                                        <span className="text-white/30 ml-auto">{step.minutes}m</span>
+                                        <span className="text-[var(--text-secondary)] ml-auto">{step.minutes}m</span>
                                     </div>
                                 ))}
                             </div>
@@ -78,9 +78,9 @@ export function HabitStacks({ stacks, onUpdate }: any) {
                         </div>
                     ))
                 ) : (
-                    <div className="p-6 rounded-xl border border-dashed border-white/10 text-center">
-                        <p className="text-sm text-white/50 mb-3">No routines configured.</p>
-                        <button onClick={handleAIAssist} className="px-4 py-2 bg-white/10 rounded-full text-xs font-bold hover:bg-white/20">
+                    <div className="p-6 rounded-xl border border-dashed border-[var(--glass-border)] text-center">
+                        <p className="text-sm text-[var(--text-secondary)] mb-3">No routines configured.</p>
+                        <button onClick={handleAIAssist} className="px-4 py-2 bg-[var(--glass-bg)] rounded-full text-xs font-bold hover:bg-[var(--glass-bg)]">
                             Build with AI
                         </button>
                     </div>

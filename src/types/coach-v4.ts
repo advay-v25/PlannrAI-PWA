@@ -43,6 +43,8 @@ export interface CoachOption {
         warning: string;
         severity: 'info' | 'caution' | 'warning';
     };
+    confidence_score?: 'high' | 'medium' | 'low';
+    scenario_analysis?: string;
     effort?: 'low' | 'medium' | 'high';
     time_impact_mins?: number;
     patch: CalendarPatch;

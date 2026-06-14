@@ -41,7 +41,7 @@ export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyC
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-2"
             >
-                <div className="flex items-center gap-3 rounded-2xl border border-white/5 bg-white/5 px-4 py-3">
+                <div className="flex items-center gap-3 rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-bg)] px-4 py-3">
                     <div className="flex gap-0.5">
                         {[1, 2, 3, 4, 5].map(level => (
                             <div
@@ -50,16 +50,20 @@ export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyC
                                     "h-4 w-1 rounded-full transition-all",
                                     level <= energy
                                         ? "bg-[var(--color-primary)] shadow-[0_0_6px_var(--color-primary)]"
-                                        : "bg-white/10"
+                                        : "bg-[var(--glass-bg)]"
                                 )}
                             />
                         ))}
                     </div>
                     <MoodIcon className={cn("h-4 w-4", moodObj.color)} />
-                    <span className="text-xs text-white/40">Checked in</span>
+                    <span className="text-xs text-[var(--text-secondary)]">
+                        {energy < 3 
+                            ? "Energy Forecasting: Low right now. Peak focus expected at 2 PM." 
+                            : "Energy Forecasting: High right now. Ready for deep work."}
+                    </span>
                     <button
                         onClick={() => setSubmitted(false)}
-                        className="ml-auto text-[10px] text-white/30 hover:text-white/60 transition-colors"
+                        className="ml-auto text-[10px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
                     >
                         Update
                     </button>
@@ -78,7 +82,7 @@ export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyC
                                     ? "bg-orange-500/10 border-orange-500/20"
                                     : modeBanner.type === 'momentum'
                                     ? "bg-emerald-500/10 border-emerald-500/20"
-                                    : "bg-white/5 border-white/10"
+                                    : "bg-[var(--glass-bg)] border-[var(--glass-border)]"
                             )}
                         >
                             {modeBanner.type === 'recovery' ? (
@@ -196,20 +200,20 @@ export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyC
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-[2rem] border border-white/10 bg-white/5 p-6 backdrop-blur-xl"
+            className="rounded-[2rem] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-6 backdrop-blur-xl"
         >
             <div className="flex items-center gap-2 mb-4">
                 <div className="p-1.5 rounded-lg bg-[var(--color-primary-muted)]">
                     <Zap className="w-4 h-4 text-[var(--color-primary)]" />
                 </div>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-white/60">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)]">
                     How are you feeling?
                 </h3>
             </div>
 
             {/* Energy Slider */}
             <div className="mb-4">
-                <label className="text-[10px] uppercase text-white/40 tracking-wider mb-2 block">
+                <label className="text-[10px] uppercase text-[var(--text-secondary)] tracking-wider mb-2 block">
                     Energy Level
                 </label>
                 <div className="flex gap-2">
@@ -221,7 +225,7 @@ export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyC
                                 "flex-1 h-10 rounded-xl border transition-all text-sm font-bold",
                                 level <= energy
                                     ? "border-[var(--color-primary)] bg-[var(--color-primary)]/20 text-[var(--color-primary)] shadow-[0_0_15px_rgba(var(--color-primary-rgb),0.2)]"
-                                    : "border-white/10 bg-white/5 text-white/30 hover:bg-white/10"
+                                    : "border-[var(--glass-border)] bg-[var(--glass-bg)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg)]"
                             )}
                         >
                             {level}
@@ -232,7 +236,7 @@ export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyC
 
             {/* Mood Selection */}
             <div className="mb-4">
-                <label className="text-[10px] uppercase text-white/40 tracking-wider mb-2 block">
+                <label className="text-[10px] uppercase text-[var(--text-secondary)] tracking-wider mb-2 block">
                     Mood
                 </label>
                 <div className="flex gap-2">
@@ -245,14 +249,14 @@ export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyC
                                 className={cn(
                                     "flex-1 flex flex-col items-center gap-1 rounded-xl border p-2 transition-all",
                                     mood === m.value
-                                        ? "border-white/30 bg-white/10"
-                                        : "border-white/5 bg-white/5 hover:bg-white/10"
+                                        ? "border-[var(--glass-border)] bg-[var(--glass-bg)]"
+                                        : "border-[var(--glass-border)] bg-[var(--glass-bg)] hover:bg-[var(--glass-bg)]"
                                 )}
                             >
-                                <Icon className={cn("h-4 w-4", mood === m.value ? m.color : "text-white/30")} />
+                                <Icon className={cn("h-4 w-4", mood === m.value ? m.color : "text-[var(--text-secondary)]")} />
                                 <span className={cn(
                                     "text-[9px] font-bold uppercase",
-                                    mood === m.value ? "text-white/80" : "text-white/30"
+                                    mood === m.value ? "text-[var(--text-secondary)]" : "text-[var(--text-secondary)]"
                                 )}>
                                     {m.label}
                                 </span>

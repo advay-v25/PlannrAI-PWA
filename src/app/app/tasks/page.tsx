@@ -1,68 +1,11 @@
 'use client';
 
-import { ActionCenter } from '@/components/todos/ActionCenter';
-import { useTodos } from '@/hooks/use-todos';
+import { MindspaceBoard } from '@/components/todos/MindspaceBoard';
 import { motion } from 'framer-motion';
-
-function AllTimeProgress() {
-    const { todos, isLoading } = useTodos();
-    
-    if (isLoading) return null;
-    if (todos.length === 0) {
-        return (
-            <motion.div 
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 }}
-                className="hidden lg:flex flex-col items-center justify-center p-4 h-full w-full opacity-50"
-            >
-                <div className="text-sm font-mono uppercase tracking-widest text-center text-white/50">Your canvas is empty</div>
-                <div className="text-xs text-white/30 mt-2 max-w-xs text-center">Add your first task on the right to start building momentum.</div>
-            </motion.div>
-        );
-    }
-    
-    const completed = todos.filter(t => t.is_completed).length;
-    const total = todos.length;
-    const pct = Math.round((completed / total) * 100);
-    
-    return (
-        <motion.div 
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.3 }}
-            className="hidden lg:flex flex-col items-center gap-3 w-12 shrink-0 pt-8"
-        >
-            {/* Vertical progress bar container */}
-            <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest writing-mode-vertical"
-                style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
-            >
-                Progress
-            </span>
-            
-            <div className="flex-1 w-1.5 bg-white/[0.04] rounded-full overflow-hidden relative min-h-[120px]">
-                <motion.div 
-                    initial={{ height: 0 }}
-                    animate={{ height: `${pct}%` }}
-                    transition={{ duration: 1, ease: 'easeOut', delay: 0.5 }}
-                    className="absolute bottom-0 left-0 right-0 rounded-full"
-                    style={{
-                        background: 'linear-gradient(to top, #F97316, #EF4444, #F97316)',
-                    }}
-                />
-            </div>
-            
-            <div className="flex flex-col items-center gap-0.5">
-                <span className="text-xs font-bold text-white/70">{pct}%</span>
-                <span className="text-[8px] text-white/25 font-medium">{completed}/{total}</span>
-            </div>
-        </motion.div>
-    );
-}
 
 export default function TasksPage() {
     return (
-        <div className="w-full min-h-full relative">
+        <div className="w-full h-full relative overflow-hidden flex flex-col">
             {/* SVG organic ribbon flows — folded fabric effect */}
             <div className="absolute inset-0 pointer-events-none z-[-1]">
               <div aria-hidden style={{ position: 'sticky', top: 0, height: '100dvh', width: '100%', overflow: 'hidden' }}>
@@ -161,36 +104,23 @@ export default function TasksPage() {
               </div>
             </div>
 
-            <div className="max-w-5xl mx-auto w-full h-full flex flex-col p-4 md:p-8 pb-32 md:pb-10">
-            <header className="mb-6 relative">
-              {/* Orange underline accent on title */}
-              <div style={{
-                position: 'absolute', bottom: '-10px', left: 0,
-                width: '80px', height: '1px',
-                background: 'linear-gradient(to right, hsla(22, 100%, 60%, 0.7), transparent)',
-              }} />
-              <h1 className="text-3xl font-bold tracking-tight text-white">Tasks</h1>
-              <p className="text-[var(--text-secondary)] mt-1">
-                  Keep Track of your Tasks and Deadlines Using a Customisable Board.
-              </p>
-            </header>
+            <div className="w-full h-full min-h-0 flex flex-col relative z-10">
+                <header className="pt-8 px-8 pb-6 relative shrink-0 z-10">
+                  <h1 className="text-[32px] sm:text-[40px] font-semibold tracking-tight text-white leading-tight">Mindspace</h1>
+                  <p className="text-sm font-medium text-white/40 tracking-tight mt-1">
+                      Your digital corkboard. Dump anything from your mind and organize it effortlessly.
+                  </p>
+                </header>
 
-            <div className="flex-1 flex gap-3 min-h-0">
-                {/* Left: All-time progress bar */}
-                <AllTimeProgress />
-
-                {/* Right: Main tasks area */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex-1 rounded-[2rem] border border-white/8 overflow-y-auto custom-scrollbar"
-                    style={{ backgroundColor: 'hsl(222,50%,4%)' }}
-                >
-                    <div className="min-h-full w-full p-4">
-                        <ActionCenter />
-                    </div>
-                </motion.div>
-            </div>
+                <div className="flex-1 min-h-0 px-8 pb-8 flex flex-col">
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex-1 rounded-[32px] border border-white/[0.06] bg-[#1c1c1e]/40 backdrop-blur-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col"
+                    >
+                        <MindspaceBoard />
+                    </motion.div>
+                </div>
             </div>
         </div>
     );

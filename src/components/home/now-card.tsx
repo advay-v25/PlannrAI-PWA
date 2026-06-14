@@ -22,13 +22,13 @@ export function NowCard({ block, onAction }: NowCardProps) {
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/5 p-8 text-center backdrop-blur-xl"
+                className="relative overflow-hidden rounded-[2rem] border border-[var(--glass-border)] bg-[var(--glass-bg)] p-8 text-center backdrop-blur-xl"
             >
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-purple-500/5" />
-                <h3 className="relative z-10 text-lg font-medium text-white/40">Intentionally light.</h3>
+                <h3 className="relative z-10 text-lg font-medium text-[var(--text-secondary)]">Intentionally light.</h3>
                 <button
                     onClick={() => sendMessage("I want to add something for now.")}
-                    className="relative z-10 mt-4 rounded-full bg-white/10 px-6 py-2 text-xs font-bold text-white transition-colors hover:bg-white/20"
+                    className="relative z-10 mt-4 rounded-full bg-[var(--glass-bg)] px-6 py-2 text-xs font-bold text-white transition-colors hover:bg-[var(--glass-bg)]"
                 >
                     + Add Quick Block
                 </button>
@@ -66,7 +66,7 @@ export function NowCard({ block, onAction }: NowCardProps) {
         <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="group relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-white/10 to-white/5 p-8 shadow-2xl backdrop-blur-2xl border border-white/10"
+            className="group relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-white/10 to-white/5 p-8 shadow-2xl backdrop-blur-2xl border border-[var(--glass-border)]"
         >
             {/* Ambient Glow */}
             <div className={cn(
@@ -78,13 +78,13 @@ export function NowCard({ block, onAction }: NowCardProps) {
             <div className="flex items-center justify-between">
                 <div className={cn(
                     "flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-widest backdrop-blur-md",
-                    isCurrent ? "bg-[var(--color-primary)] text-white" : "bg-white/10 text-white/60"
+                    isCurrent ? "bg-[var(--color-primary)] text-white" : "bg-[var(--glass-bg)] text-[var(--text-secondary)]"
                 )}>
                     {isCurrent && <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />}
                     {block.reason || 'UP NEXT'}
                 </div>
                 {isCurrent && (
-                    <div className="font-mono text-xs text-white/40">
+                    <div className="font-mono text-xs text-[var(--text-secondary)]">
                         {timeLeft}m remaining
                     </div>
                 )}
@@ -95,13 +95,13 @@ export function NowCard({ block, onAction }: NowCardProps) {
                 <h2 className="text-4xl font-light tracking-tight text-white mb-2">
                     {block.title}
                 </h2>
-                <div className="flex items-center gap-4 text-sm text-white/50">
+                <div className="flex items-center gap-4 text-sm text-[var(--text-secondary)]">
                     <span className="font-mono">
                         {block.start_time.slice(0, 5)} - {block.end_time.slice(0, 5)}
                     </span>
                     {block.goal?.title && (
                         <>
-                            <span className="h-1 w-1 rounded-full bg-white/20" />
+                            <span className="h-1 w-1 rounded-full bg-[var(--glass-bg)]" />
                             <span>{block.goal.title}</span>
                         </>
                     )}
@@ -112,32 +112,32 @@ export function NowCard({ block, onAction }: NowCardProps) {
             <div className="grid grid-cols-3 gap-3">
                 <button
                     onClick={() => handleAction('done')}
-                    className="group/btn relative flex flex-col items-center justify-center gap-2 rounded-2xl bg-white/5 py-4 transition-all hover:bg-[var(--color-primary)]/20 hover:scale-[1.02]"
+                    className="group/btn relative flex flex-col items-center justify-center gap-2 rounded-2xl bg-[var(--glass-bg)] py-4 transition-all hover:bg-[var(--color-primary)]/20 hover:scale-[1.02]"
                 >
-                    <div className="rounded-full bg-white/10 p-2 text-white transition-colors group-hover/btn:bg-emerald-500">
+                    <div className="rounded-full bg-[var(--glass-bg)] p-2 text-white transition-colors group-hover/btn:bg-emerald-500">
                         <CheckSquare className="h-5 w-5" />
                     </div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/60 group-hover/btn:text-white">Done</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] group-hover/btn:text-white">Done</span>
                 </button>
 
                 <button
                     onClick={() => handleAction('rework')}
-                    className="group/btn relative flex flex-col items-center justify-center gap-2 rounded-2xl bg-white/5 py-4 transition-all hover:bg-white/10 hover:scale-[1.02]"
+                    className="group/btn relative flex flex-col items-center justify-center gap-2 rounded-2xl bg-[var(--glass-bg)] py-4 transition-all hover:bg-[var(--glass-bg)] hover:scale-[1.02]"
                 >
-                    <div className="rounded-full bg-white/10 p-2 text-white transition-colors group-hover/btn:bg-blue-500">
+                    <div className="rounded-full bg-[var(--glass-bg)] p-2 text-white transition-colors group-hover/btn:bg-blue-500">
                         <RefreshCw className="h-5 w-5" />
                     </div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/60 group-hover/btn:text-white">Rework</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] group-hover/btn:text-white">Rework</span>
                 </button>
 
                 <button
                     onClick={() => handleAction('skip')}
-                    className="group/btn relative flex flex-col items-center justify-center gap-2 rounded-2xl bg-white/5 py-4 transition-all hover:bg-white/10 hover:scale-[1.02]"
+                    className="group/btn relative flex flex-col items-center justify-center gap-2 rounded-2xl bg-[var(--glass-bg)] py-4 transition-all hover:bg-[var(--glass-bg)] hover:scale-[1.02]"
                 >
-                    <div className="rounded-full bg-white/10 p-2 text-white transition-colors group-hover/btn:bg-amber-500">
+                    <div className="rounded-full bg-[var(--glass-bg)] p-2 text-white transition-colors group-hover/btn:bg-amber-500">
                         <SkipForward className="h-5 w-5" />
                     </div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/60 group-hover/btn:text-white">Skip</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] group-hover/btn:text-white">Skip</span>
                 </button>
             </div>
 

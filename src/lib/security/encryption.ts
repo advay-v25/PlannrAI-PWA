@@ -1,6 +1,6 @@
 /**
  * Encryption Utilities - AES-256-GCM encryption for sensitive data
- * Used for encrypting brain dumps and coach conversations at rest
+ * Used for encrypting coach conversations at rest
  */
 
 // Web Crypto API for encryption

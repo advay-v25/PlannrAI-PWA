@@ -3,19 +3,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { HomeLayout } from '@/components/home/home-layout';
-import { StateHero } from '@/components/home/state-hero';
-import { TimelineStrip } from '@/components/home/timeline-strip';
-import { StacksModule } from '@/components/home/stacks-module';
-import { BriefingModule } from '@/components/home/briefing-module';
-import { InsightsCard } from '@/components/home/insights-card';
-import { PrioritiesCard } from '@/components/home/priorities-card';
-import { EnergyCheckin } from '@/components/home/energy-checkin';
-import { AIProfileBadge } from '@/components/home/ai-profile-badge';
-import { HomeTodos } from '@/components/home/home-todos';
+import { CommandCenter } from '@/components/home/command-center';
+import { DashboardCards } from '@/components/home/dashboard-cards';
+import { LinearTimeline } from '@/components/home/linear-timeline';
+import { CollapsedInsights } from '@/components/home/collapsed-insights';
 import { ProgressBars } from '@/components/home/progress-bars';
 import { PillarBalance } from '@/components/home/pillar-balance';
-import { NotificationScheduler } from '@/components/home/notification-scheduler';
-import { NextMoveCard } from '@/components/next-move';
+import { EnergyCheckin } from '@/components/home/energy-checkin';
 import { useScheduleSync } from '@/hooks/use-schedule-sync';
 import { apiClient } from '@/lib/api-client';
 import { format } from 'date-fns';
@@ -24,9 +18,12 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { PageBackground } from '@/components/ui/PageBackground';
 import { motion } from 'framer-motion';
+import { useUserStore } from '@/stores';
+import { NotificationScheduler } from '@/components/home/notification-scheduler';
 
 export default function HomePage() {
     const router = useRouter();
+    const { profile } = useUserStore();
     const [data, setData] = useState<any>(null);
     const [stateData, setStateData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -51,11 +48,12 @@ export default function HomePage() {
 
     const fetchHomeData = async () => {
         try {
-            const today = new Date().toISOString().split('T')[0];
+            const { format } = await import('date-fns');
+            const today = format(new Date(), 'yyyy-MM-dd');
             const timestamp = Date.now();
             const [summaryData, stateData, proactiveData] = await Promise.all([
-                apiClient.get<any>(`/api/home/summary?date=${today}&t=${timestamp}`),
-                apiClient.get<any>(`/api/home/state?date=${today}&t=${timestamp}`),
+                apiClient.get<any>(`/api/home/summary?date=${today}&t=${timestamp}`).catch(e => { console.error('Summary error:', e); return null; }),
+                apiClient.get<any>(`/api/home/state?date=${today}&t=${timestamp}`).catch(e => { console.error('State error:', e); return null; }),
                 apiClient.coach.getProactiveSuggestion().catch(() => null)
             ]);
 
@@ -94,6 +92,12 @@ export default function HomePage() {
         if (storedFeedback) {
             setManualFeedback(storedFeedback);
         }
+
+        const handleFocus = () => {
+            fetchHomeData();
+        };
+        window.addEventListener('focus', handleFocus);
+        return () => window.removeEventListener('focus', handleFocus);
     }, []);
 
     // Auto-fire briefing if missing and data loaded
@@ -108,6 +112,16 @@ export default function HomePage() {
 
     const handleRefresh = () => {
         fetchHomeData();
+        // Cross-feature: Also refresh the global goals store so progress bars update instantly in Coach Hub
+        import('@/stores').then(({ useGoalsStore }) => {
+            import('@/lib/api-client').then(({ apiClient }) => {
+                apiClient.get('/api/goals').then((data: any) => {
+                    if (data?.goals) {
+                        useGoalsStore.getState().setGoals(data.goals);
+                    }
+                }).catch(console.error);
+            });
+        });
     };
 
     const handleGenerateBriefing = async () => {
@@ -439,159 +453,108 @@ export default function HomePage() {
             )}
 
             <HomeLayout
-            header={header}
-            progressBars={<ProgressBars daily={effectiveData.metrics} weekly={effectiveData.weekly_metrics} />}
-            pillarBalance={<PillarBalance blocks={effectiveData.schedule_blocks} />}
-            nowCard={
-                <StateHero
-                    state={effectiveState.state}
-                    currentTime={effectiveState.current_time}
-                    activeBlock={effectiveState.active_block}
-                    nextBlock={effectiveState.next_block}
-                    metrics={{
-                        timeRemainingInBlock: effectiveState.metrics?.time_remaining_in_block ?? null,
-                        timeUntilNextBlock: effectiveState.metrics?.time_until_next_block ?? null
-                    }}
-                    insight={effectiveState.proactive_insight}
-                    onAction={async (action) => {
-                        console.log('Action Triggered:', action);
-                        if (action === 'generate_schedule') {
-                            handleGenerateSchedule();
-                        } else if (action === 'optimize_day') {
-                            router.push('/app/calendar');
-                        } else if (action === 'reschedule_next') {
-                            router.push('/app/calendar');
-                        } else if (action === 'skip_next' || action === 'start_early') {
-                            if (!effectiveState.next_block?.id) return;
-                            const status = action === 'skip_next' ? 'cancelled' : 'in_progress';
+                header={header}
+                commandCenter={
+                    <CommandCenter
+                        userName={profile?.full_name || undefined}
+                        plannedMinutes={effectiveData.metrics?.planned_min || 0}
+                        unscheduledMinutes={effectiveData.metrics?.free_min || 1440}
+                        overdueCount={0}
+                        state={effectiveState.state}
+                        activeBlock={effectiveState.active_block}
+                        nextBlock={effectiveState.next_block}
+                        timeRemaining={effectiveState.metrics?.time_remaining_in_block ?? null}
+                        timeUntilNext={effectiveState.metrics?.time_until_next_block ?? null}
+                        isLoading={loading || briefingLoading}
+                        onAction={async (action, payload) => {
+                            if (action === 'generate_schedule') {
+                                handleGenerateSchedule();
+                            } else if (action === 'next_move') {
+                                router.push('/app/coach?mode=strategic');
+                            } else if (action === 'mark_done' || action === 'mark_incomplete') {
+                                const block = payload;
+                                if (!block?.id) return;
+                                const status = action === 'mark_done' ? 'done' : 'missed';
+                                
+                                // Optimistic UI Update
+                                setStateData((prev: any) => {
+                                    if (!prev) return prev;
+                                    return {
+                                        ...prev,
+                                        active_block: null,
+                                        state: 'BETWEEN_BLOCKS'
+                                    };
+                                });
+                                // Optimistically update metrics
+                                setData((prev: any) => {
+                                    if (!prev) return prev;
+                                    const bDuration = 30; // Just guess 30 for optimistic if we don't calculate exact
+                                    return {
+                                        ...prev,
+                                        metrics: {
+                                            ...prev.metrics,
+                                            completed_min: action === 'mark_done' 
+                                                ? (prev.metrics?.completed_min || 0) + bDuration 
+                                                : (prev.metrics?.completed_min || 0)
+                                        }
+                                    };
+                                });
+
+                                toast.loading('Updating...', { id: 'block-status' });
+                                try {
+                                    await apiClient.post('/api/calendar/block-status', {
+                                        block_id: block.id,
+                                        status
+                                    });
+                                    toast.success(action === 'mark_done' ? 'Done!' : 'Marked incomplete', { id: 'block-status' });
+                                    handleRefresh();
+                                } catch (e) {
+                                    toast.error('Failed to update block', { id: 'block-status' });
+                                    handleRefresh(); // Revert
+                                }
+                            } else {
+                                handleRefresh();
+                            }
+                        }}
+                    />
+                }
+                dashboardCards={
+                    <DashboardCards 
+                        goals={effectiveData.goals || []}
+                        insight={effectiveData.insight?.text || briefing || effectiveState.proactive_insight?.message}
+                        topTask={effectiveData.top_task}
+                    />
+                }
+                timeline={
+                    <LinearTimeline 
+                        blocks={effectiveData.schedule_blocks}
+                        onStatusChange={async (blockId: string, status: string) => {
                             toast.loading('Updating block...', { id: 'block-status' });
                             try {
-                                await apiClient.post('/api/calendar/block-status', {
-                                    block_id: effectiveState.next_block.id,
-                                    status
-                                });
-                                toast.success(action === 'skip_next' ? 'Block skipped.' : 'Started early!', { id: 'block-status' });
+                                await apiClient.post('/api/calendar/block-status', { block_id: blockId, status });
+                                toast.success('Block updated', { id: 'block-status' });
                                 handleRefresh();
                             } catch (e) {
                                 toast.error('Failed to update block', { id: 'block-status' });
                             }
-                        } else if (action === 'complete_early' || action === 'mark_incomplete') {
-                            if (!effectiveState.active_block?.id) return;
-                            const status = action === 'complete_early' ? 'done' : 'missed';
-                            toast.loading('Updating block...', { id: 'block-status' });
-                            try {
-                                await apiClient.post('/api/calendar/block-status', {
-                                    block_id: effectiveState.active_block.id,
-                                    status
-                                });
-                                toast.success(action === 'complete_early' ? 'Block completed early! Great job.' : 'Block marked incomplete.', { id: 'block-status' });
-                                handleRefresh();
-                            } catch (e) {
-                                toast.error('Failed to update block', { id: 'block-status' });
-                            }
-                        } else if (action === 'shift_schedule') {
-                            router.push('/app/coach?mode=strategic&prompt=Reality%20Drift%3A%20I%20missed%20my%20last%20block.%20Shift%20the%20rest%20of%20my%20schedule%20back%20by%2030%20minutes.');
-                        } else if (action === 'drop_block') {
-                            if (!effectiveState.active_block?.id) {
-                                router.push('/app/coach?mode=strategic&prompt=Reality%20Drift%3A%20Drop%20the%20missed%20block%20and%20continue%20the%20schedule.');
-                                return;
-                            }
-                            toast.loading('Dropping block...', { id: 'block-status' });
-                            try {
-                                await apiClient.post('/api/calendar/block-status', {
-                                    block_id: effectiveState.active_block.id,
-                                    status: 'missed'
-                                });
-                                toast.success('Block dropped. Schedule continues.', { id: 'block-status' });
-                                handleRefresh();
-                            } catch (e) {
-                                toast.error('Failed to update block', { id: 'block-status' });
-                            }
-                        } else {
-                            handleRefresh();
-                        }
-                    }}
-                />
-            }
-            timeline={
-                <TimelineStrip
-                    blocks={effectiveData.schedule_blocks}
-                    anchors={effectiveData.anchors}
-                    onStatusChange={async (blockId: string, status: string) => {
-                        toast.loading('Updating block...', { id: 'block-status' });
-                        try {
-                            await apiClient.post('/api/calendar/block-status', { block_id: blockId, status });
-                            toast.success('Block updated', { id: 'block-status' });
-                            handleRefresh();
-                        } catch (e) {
-                            toast.error('Failed to update block', { id: 'block-status' });
-                        }
-                    }}
-                />
-            }
-            energyCheckin={
-                <EnergyCheckin
-                    currentEnergy={effectiveData.user_state?.energy_level > 0 ? effectiveData.user_state.energy_level : undefined}
-                    currentMood={effectiveData.user_state?.emotional_state !== 'neutral' ? effectiveData.user_state.emotional_state : undefined}
-                    onCheckin={handleEnergyCheckin}
-                />
-            }
-            briefing={
-                <BriefingModule
-                    briefing={briefing}
-                    isLoading={briefingLoading}
-                    onGenerate={handleGenerateBriefing}
-                />
-            }
-            priorities={
-                priorities.length > 0 ? (
-                    <PrioritiesCard
-                        priorities={priorities}
-                        tone={briefingTone}
+                        }}
                     />
-                ) : undefined
-            }
-            todos={<HomeTodos />}
-            aiProfile={
-                effectiveData.ai_profile ? (
-                    <AIProfileBadge aiProfile={effectiveData.ai_profile} />
-                ) : undefined
-            }
-            insights={
-                <InsightsCard
-                    userState={effectiveData.user_state}
-                    insight={effectiveData.insight}
-                />
-            }
-            stacks={
-                isPreview ? (
-                    <StacksModule
-                        stacks={effectiveData.habit_stacks}
-                        onUpdate={handleRefresh}
-                    />
-                ) : (
-                    <div className="relative overflow-hidden rounded-3xl opacity-80 pointer-events-none">
-                        <div className="blur-[3px] grayscale">
-                            <StacksModule
-                                stacks={effectiveData.habit_stacks}
-                                onUpdate={handleRefresh}
-                            />
-                        </div>
-                        {/* Overlay to dim */}
-                        <div className="absolute inset-0 bg-black/60 z-10 flex items-center justify-center">
-                            {/* Construction Tape */}
-                            <div className="absolute -rotate-[12deg] w-[130%] h-14 bg-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.3)] border-y-2 border-yellow-500 flex items-center justify-center gap-4 overflow-hidden z-20 whitespace-nowrap">
-                                {/* Diagonal stripes pattern inside the tape */}
-                                <div className="absolute inset-0 opacity-20 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,#000_10px,#000_20px)]" />
-                                <span className="font-mono text-black font-black uppercase tracking-widest text-xs md:text-sm relative z-10 drop-shadow-sm whitespace-nowrap">Habit Stacks In Development</span>
-                                <span className="font-mono text-black font-black uppercase tracking-widest text-xs md:text-sm relative z-10 drop-shadow-sm whitespace-nowrap">•</span>
-                                <span className="font-mono text-black font-black uppercase tracking-widest text-xs md:text-sm relative z-10 drop-shadow-sm whitespace-nowrap">Pro Feature</span>
-                            </div>
-                        </div>
+                }
+                insights={
+                    <div className="flex flex-col gap-6">
+                        <PillarBalance blocks={effectiveData.schedule_blocks} />
+                        <CollapsedInsights 
+                            progressBars={<ProgressBars daily={effectiveData.metrics} weekly={effectiveData.weekly_metrics} />}
+                            energyCheckin={
+                                <EnergyCheckin
+                                    currentEnergy={effectiveData.user_state?.energy_level > 0 ? effectiveData.user_state.energy_level : undefined}
+                                    currentMood={effectiveData.user_state?.emotional_state !== 'neutral' ? effectiveData.user_state.emotional_state : undefined}
+                                    onCheckin={handleEnergyCheckin}
+                                />
+                            }
+                        />
                     </div>
-                )
-            }
-            nextMove={<NextMoveCard />}
+                }
             />
         </>
     );

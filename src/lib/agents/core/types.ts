@@ -26,6 +26,7 @@ export interface AgentContext {
     userState?: UserState; // Injected State
     currentSchedule?: any[]; // Snapshot of the day/week
     goals?: Goal[]; // Active goals
+    todos?: any[]; // Mindspace tasks
     recentMemories?: any[]; // Recent chat/system logs
     recentSignals?: any[]; // Recent behavioral signals (rejections/acceptances)
     behaviorPatterns?: any; // Phase 4: Learned Preferences

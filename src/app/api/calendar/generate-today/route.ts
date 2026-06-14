@@ -171,7 +171,7 @@ BLOCK TYPES (use exactly):
 - "routine" → Morning/Evening routines
 - "meal" → Breakfast, Lunch, Dinner, Snack
 - "buffer" → Transition, active recovery, breaks
-- "flex" → Admin, errands, brain dump items, misc
+- "flex" → Admin, errands, misc
 
 SCHEDULING INTENSITY TODAY: ${scheduleIntensity}
 
@@ -324,14 +324,14 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
                 // Get commitments for this date for buffer checking
                 const dayCommitments = commitments.filter((c: any) => (c.days_of_week || []).includes(dayOfWeek));
 
-                let processedDay: any[] = [];
+                const processedDay: any[] = [];
                 let lastEndTime = 0;
                 let bodyGoalCount = 0;
 
                 for (let i = 0; i < dayBlocks.length; i++) {
-                    let b = { ...dayBlocks[i] };
+                    const b = { ...dayBlocks[i] };
                     let bStart = timeToMinutes(b.start_time);
-                    let duration = timeToMinutes(b.end_time) - bStart;
+                    const duration = timeToMinutes(b.end_time) - bStart;
                     const isBodyGoal = b.pillar === 'body' || b.block_type === 'body' || (b.title && (b.title.toLowerCase().includes('workout') || b.title.toLowerCase().includes('gym') || b.title.toLowerCase().includes('exercise') || b.title.toLowerCase().includes('football')));
 
                     // Max two body goals per day rule

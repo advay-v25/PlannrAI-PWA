@@ -45,15 +45,15 @@ export function PrioritiesCard({ priorities, tone }: PrioritiesCardProps) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
             className={cn(
-                "rounded-[2rem] border border-white/10 bg-gradient-to-br p-6 backdrop-blur-xl",
+                "rounded-[2rem] border border-[var(--glass-border)] bg-gradient-to-br p-6 backdrop-blur-xl",
                 gradient
             )}
         >
             <div className="flex items-center gap-2 mb-4">
-                <div className="p-1.5 rounded-lg bg-white/10">
+                <div className="p-1.5 rounded-lg bg-[var(--glass-bg)]">
                     <Target className="w-4 h-4 text-[var(--color-primary)]" />
                 </div>
-                <h3 className="text-xs font-bold uppercase tracking-widest text-white/60">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)]">
                     Today's Focus
                 </h3>
             </div>
@@ -69,15 +69,15 @@ export function PrioritiesCard({ priorities, tone }: PrioritiesCardProps) {
                         className={cn(
                             "w-full flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all",
                             checked.has(i)
-                                ? "bg-white/5 opacity-50"
-                                : "bg-white/10 hover:bg-white/15"
+                                ? "bg-[var(--glass-bg)] opacity-50"
+                                : "bg-[var(--glass-bg)] hover:bg-[var(--glass-bg)]"
                         )}
                     >
                         <div className={cn(
                             "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all",
                             checked.has(i)
                                 ? "border-[var(--color-primary)] bg-[var(--color-primary)]"
-                                : "border-white/30"
+                                : "border-[var(--glass-border)]"
                         )}>
                             {checked.has(i) && (
                                 <CheckCircle2 className="h-3 w-3 text-white" />
@@ -85,7 +85,7 @@ export function PrioritiesCard({ priorities, tone }: PrioritiesCardProps) {
                         </div>
                         <span className={cn(
                             "text-sm font-medium transition-all",
-                            checked.has(i) ? "text-white/40 line-through" : "text-white/90"
+                            checked.has(i) ? "text-[var(--text-secondary)] line-through" : "text-[var(--text-secondary)]"
                         )}>
                             {priority}
                         </span>

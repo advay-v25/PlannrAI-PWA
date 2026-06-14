@@ -154,8 +154,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
             // Map V5 Response to Message
             let mode: CoachMode = 'choice';
-            let content = data.wisdom || data.explanation || ""; // Use wisdom if available
-            let refusal = undefined;
+            const content = data.wisdom || data.explanation || ""; // Use wisdom if available
+            const refusal = undefined;
 
             if (data.intent === 'none' && (!data.options || data.options.length === 0)) {
                 // Conversational or Refusal

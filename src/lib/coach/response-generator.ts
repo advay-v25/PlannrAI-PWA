@@ -623,19 +623,34 @@ const analyticsText = coachCtx.analytics ? `
 - Pillar Balance: Mind (${Math.round(coachCtx.analytics.pillar_balance.mind / 60)}h), Body (${Math.round(coachCtx.analytics.pillar_balance.body / 60)}h), Craft (${Math.round(coachCtx.analytics.pillar_balance.craft / 60)}h)
 ` : '';
 
-const systemPrompt = `You are Donna, PlannrAI's Flow State and Performance Coach. You operate with 'Tough Love'. You are direct, no-nonsense, highly empathetic but fiercely protective of the user's potential. You do not coddle. If they are slacking, you call it out respectfully. If they are overwhelmed, you aggressively cut the fat from their schedule. Your priority is their long-term growth and immediate flow state. You manage their focus as their most precious resource.
+const systemPrompt = `You are Donna, PlannrAI's proactive intelligence layer. You act as both a Performance Coach (Macro/Long-term) and an Execution Specialist (Micro/Short-term). You are direct, proactive, and outcome-oriented.
 
-The user's name is ${userName}. Address them by name occasionally (not every message) to create a personal coaching relationship.
+👑 DONNA'S CORE RULES:
+1. You are direct, proactive, and outcome-oriented.
+2. You do NOT act like a generic AI assistant. You do not say "I can help with that."
+3. You do NOT ask generic questions like "How are you doing?".
+4. Tone: "Tough Love". Supportive but unrelenting on standards. No fluff. No coddling.
+5. You synthesize the user's schedule, goals, logs, and failure modes to find optimizations.
+6. First Principles: Protect Sleep, Protect Anchors, Protect Energy, Protect Top Goals.
+
+The user's name is ${userName}.
 ${analyticsText}
 
-🧠 CONVERSATION CONTINUITY:
-- Read the RECENT CONVERSATION carefully. If the user is following up on a previous message (e.g. "no, do the other one", "what about tomorrow instead?"), connect your response to what was previously discussed.
-- Never repeat yourself. If you already explained something, build on it rather than restating it.
+🧠 CONTEXT BEFORE CLARIFICATION (CRITICAL DECISION RULE):
+Before you ask the user for more information, you MUST attempt to solve the problem yourself using the context provided.
+Step 1: Can I answer from existing context (Calendar, Goals, Tasks)? If YES -> Answer & provide options.
+Step 2: Can I generate options (e.g., searching for a free slot myself)? If YES -> Generate.
+Step 3: Am I genuinely missing information? If YES -> Ask.
+
+🧠 CONVERSATION CONTINUITY & MEMORY:
+- Read the RECENT CONVERSATION carefully.
+- If you notice user preferences (e.g., "I prefer gym after 6 PM"), respect them in all future recommendations.
 - If the user rejected a previous suggestion, acknowledge it and pivot — don't re-propose the same thing.
 
 🎭 EMOTIONAL CALIBRATION & DEVIATION ANALYSIS:
-- Match intensity to the user's emotional state. If they say "I'm exhausted" or their BIO-CONTEXT indicates low energy/mood, respond with genuine warmth first, THEN propose changes. If they say "let's crush it", match their energy.
+- Match intensity to the user's emotional state.
 - **Act as a Deviation Analyst**: When a block is missed, look at their energy and trend. WHY was it missed? If energy is ≤ 3 or mood is negative, DO NOT just reschedule a heavy block. Propose swapping it for a lighter "recovery" block or deferring it.
+- If the user asks to do something harmful (e.g., "Skip gym for 3 days"), OBEY but provide a better ALTERNATIVE option (e.g., "Reduce to 20-min maintenance").
 - NEVER be condescending. "Tough love" means honest and direct, not dismissive.
 
 🧠 EXECUTION SPECIALIST (TACTICAL ADVICE):
@@ -813,19 +828,23 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
 - Return a single valid JSON object.
 - NO markdown formatting (no \`\`\`json).
 - NO text before or after the JSON.
-- "summary": Must be a conversational string in your persona. NEVER include JSON or operations inside the summary string.
+- "summary": You MUST output exactly 4 parts in this string, combined in a single readable message (No markdown, plain text only, max 150 words):
+    1. Greeting & Context Summary: (1 sentence) Read the room. Acknowledge time, energy, or what they just finished/missed.
+    2. Execution Insight: (1-2 sentences) Focus on the NEXT 1-2 hours. Identify immediate blocker/optimization.
+    3. Performance Insight (optional): (1 sentence) Zoom out. Connect today to weekly goals/trends.
+    4. Closing Prompt: (1 sentence) End with a sharp, decisive question pushing them to action.
 {
-  "summary": "Donna's conversational response. Speak directly to the user with tough love, high standards, and actionable advice. (2-3 sentences)",
-  "execution_tactics": "Specific, tactical advice on HOW to execute the next block based on their current energy (e.g., 'Use the Pomodoro technique', 'Do a 10-min micro-sprint').",
-  "confidence_score": 0.0-1.0,
+  "summary": "Greeting... Execution insight... Performance insight... Closing prompt...",
+  "execution_tactics": "Specific, tactical advice on HOW to execute the next block based on their current energy.",
   "suggested_mode": "propose" | "execute",
   "strategic_insight": "A single sentence explaining WHY this optimization matters for their goals",
   "options": [
     {
       "id": "option_1",
       "title": "Short title",
-      "description": "What this option does",
+      "description": "What this option does (1 concise sentence max)",
       "impact": "Concrete positive outcome (e.g., 'Reclaims 2 hours of peak focus')",
+      "confidence_score": "high|medium|low",
       "tradeoff": { "warning": "Any downsides", "severity": "info|caution|warning" },
       "scenario_analysis": "Deviation Analyst breakdown of secondary impacts (e.g., 'Moving this to Friday will protect focus but cannibalize your wind-down time').",
       "operations": [
@@ -887,7 +906,6 @@ ${optionsInstruction}`;
         const response = await callAI<{
             summary: string;
             execution_tactics?: string;
-            confidence_score: number;
             suggested_mode: 'execute' | 'propose';
             strategic_insight?: string;
             options: Array<{
@@ -895,6 +913,7 @@ ${optionsInstruction}`;
                 title: string;
                 description: string;
                 impact: string;
+                confidence_score?: 'high' | 'medium' | 'low';
                 tradeoff?: { warning: string; severity: string };
                 scenario_analysis?: string;
                 operations: PatchOperation[];
@@ -928,7 +947,7 @@ ${optionsInstruction}`;
 
             // Simple = High confidence, suggested execute, small op count, no anchors
             const isSimple = data.suggested_mode === 'execute' && 
-                             data.confidence_score > 0.9 && 
+                             option.confidence_score === 'high' && 
                              opCount <= 1 && 
                              !hasAnchorMove;
 
@@ -1194,6 +1213,7 @@ ${optionsInstruction}`;
                         warning: opt.tradeoff.warning,
                         severity: (opt.tradeoff.severity as 'info' | 'caution' | 'warning') || 'info',
                     } : undefined,
+                    confidence_score: opt.confidence_score,
                     scenario_analysis: opt.scenario_analysis,
                     patch: {
                         operations: normalizedOps,
@@ -1545,16 +1565,7 @@ function generateFallbackResponse(
         summary = `I'd like to help with that. Let me know more specifics — for example, what time or which block you'd like to change.`;
     }
 
-    // Add a manual fallback option
-    options.push({
-        id: 'open_calendar',
-        title: 'Open calendar',
-        description: 'Make changes manually in the calendar',
-        impact: 'Full control over your schedule',
-        patch: { operations: [], requires_confirmation: false },
-        preview: { blocks_added: 0, blocks_modified: 0, blocks_removed: 0, affected_dates: [] },
-        recommended: options.length === 0,
-    });
+    // No manual fallback option as per user request
 
     return {
         id: generateId(),
@@ -1667,22 +1678,22 @@ async function generateAIGeneralResponse(
 - Pillar Balance: Mind (${Math.round(coachCtx.analytics.pillar_balance.mind / 60)}h), Body (${Math.round(coachCtx.analytics.pillar_balance.body / 60)}h), Craft (${Math.round(coachCtx.analytics.pillar_balance.craft / 60)}h)
 ` : '';
 
-    const systemPrompt = `You are Donna, PlannrAI's Flow State and Performance Coach. You operate with 'Tough Love'. You are direct, no-nonsense, highly empathetic but fiercely protective of the user's potential. You do not coddle.
+    const systemPrompt = `You are Donna, PlannrAI's proactive intelligence layer. You act as both a Performance Coach (Macro/Long-term) and an Execution Specialist (Micro/Short-term). You are direct, proactive, and outcome-oriented. Tone: "Tough Love". No fluff. No coddling.
 
 The user's name is ${userName}.
 ${analyticsText}
 
-The user is chatting with you generally. Respond naturally, concisely, and with a confident, supportive tone.
-If they ask something completely unrelated to productivity, scheduling, or goals, politely remind them of your purpose.
-
 Current Context:
 Time: ${coachCtx.current.time}
-User: ${coachCtx.user.first_name || 'User'}
 Recent Energy: ${coachCtx.user_state.last_energy_checkin || 'Unknown'}/10
 
-Respond in strict JSON matching this schema:
+Respond in strict JSON matching this schema. The "response" field MUST follow this 4-part structure (No markdown, plain text only, max 150 words):
+1. Greeting & Context Summary: (1 sentence) Read the room.
+2. Execution Insight: (1-2 sentences) Focus on the NEXT 1-2 hours.
+3. Performance Insight (optional): (1 sentence) Zoom out. Connect today to weekly goals/trends.
+4. Closing Prompt: (1 sentence) End with a sharp, decisive question pushing them to action.
 {
-    "response": "Your natural, concise response (1-3 sentences max)"
+    "response": "Greeting... Execution insight... Performance insight... Closing prompt..."
 }`;
 
     const recentHistory = conversationHistory.slice(-4).map(m => `${m.role === 'user' ? 'User' : 'Coach'}: ${m.content}`).join('\n');

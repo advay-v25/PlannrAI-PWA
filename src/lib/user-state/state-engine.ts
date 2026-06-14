@@ -20,7 +20,7 @@ export const BASELINE_STATE: UserState = {
 
 export class StateEngine {
     static calculateNextState(current: UserState, inputs: StateInputs): UserState {
-        let next = { ...current };
+        const next = { ...current };
         next.last_updated = inputs.currentDate;
 
         // 1. Explicit Overrides (The strongest signal)
@@ -55,7 +55,7 @@ export class StateEngine {
             emotionalMod += 1; // Momentum
         }
 
-        // 4. Sentiment Analysis (From Brain Dumps)
+        // 4. Sentiment Analysis
         if (inputs.sentiment === 'negative') {
             emotionalMod -= 1;
             energyMod -= 1;

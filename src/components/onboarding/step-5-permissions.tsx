@@ -13,7 +13,7 @@ export function Step5Permissions() {
         <div className="h-full flex flex-col justify-center space-y-12">
             <div className="text-center space-y-2">
                 <h2 className="text-3xl font-display font-light">Neural Link</h2>
-                <p className="text-[var(--color-text-secondary)] font-light">
+                <p className="text-[var(--text-secondary)] font-light">
                     Define the autonomy protocols for your AI companion.
                 </p>
             </div>
@@ -75,7 +75,7 @@ function PermissionCard({ icon, title, description, checked, onChange, delay }: 
                         <h3 className="font-medium text-white">{title}</h3>
                         <GlassToggle checked={checked} onChange={onChange} />
                     </div>
-                    <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
+                    <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
                         {description}
                     </p>
                 </div>

@@ -123,7 +123,7 @@ export function secureApiRoute(
                         const hours = Math.floor((retryAfter % (24 * 3600)) / 3600);
                         const mins = Math.floor((retryAfter % 3600) / 60);
                         
-                        let timeStr = [];
+                        const timeStr = [];
                         if (days > 0) timeStr.push(`${days}d`);
                         if (hours > 0) timeStr.push(`${hours}h`);
                         if (mins > 0 || timeStr.length === 0) timeStr.push(`${mins}m`);

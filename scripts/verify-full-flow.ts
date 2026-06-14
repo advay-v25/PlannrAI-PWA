@@ -21,7 +21,7 @@ async function run() {
         email, password
     });
 
-    let token = auth.session?.access_token;
+    const token = auth.session?.access_token;
 
     if (!token) {
         console.log('⚠️  No test user credentials found. Testing 401 behaviors.');

@@ -50,7 +50,7 @@ export const GET = secureApiRoute(
                 .eq('date', date)
                 .order('start_time'), []),
             safeQuery(() => supabase.from('commitments').select('*').eq('user_id', userId), []),
-            safeQuery(() => supabase.from('goals').select('id, title, pillar').eq('user_id', userId), []),
+            safeQuery(() => supabase.from('goals').select('*').eq('user_id', userId), []),
             safeQuery(() => supabase.from('habit_stacks').select('*').eq('user_id', userId).eq('enabled', true), []),
             safeQuery(() => supabase.from('schedule_blocks')
                 .select('*')
@@ -62,7 +62,14 @@ export const GET = secureApiRoute(
                 .eq('user_id', userId)
                 .gte('date', nextWeekStartStr)
                 .lte('date', nextWeekEndStr)
-                .limit(1), [])
+                .limit(1), []),
+            safeQuery(() => supabase.from('task_items')
+                .select('*')
+                .eq('user_id', userId)
+                .eq('status', 'pending')
+                .order('order_index', { ascending: true })
+                .limit(1)
+                .maybeSingle(), null)
         ]);
 
         const profile = results[0];
@@ -74,6 +81,7 @@ export const GET = secureApiRoute(
         const habitStacks = results[6];
         const weeklyBlocks = results[7];
         const nextWeekBlocks = results[8];
+        const topTask = results[9];
 
         if (!profile) return apiError('Profile not found', 404);
 
@@ -100,29 +108,25 @@ export const GET = secureApiRoute(
             if (b.status === 'done') completedMin += duration;
         });
 
-        let weeklyPlannedMin = 0;
-        let weeklyCompletedMin = 0;
-        
-        const validWeeklyBlocks = (weeklyBlocks as any[])?.filter((b: any) => validTypes.includes(b.block_type)) || [];
-        validWeeklyBlocks.forEach((b: any) => {
+        // Weekly metrics
+        let wPlanned = 0;
+        let wCompleted = 0;
+        (weeklyBlocks as any[])?.filter((b: any) => validTypes.includes(b.block_type)).forEach((b: any) => {
             const start = new Date(`${b.date}T${b.start_time}`);
             const end = new Date(`${b.date}T${b.end_time}`);
             let duration = (end.getTime() - start.getTime()) / 60000;
             if (duration < 0) duration += 1440;
-            
-            weeklyPlannedMin += duration;
-            if (b.status === 'done') weeklyCompletedMin += duration;
+
+            wPlanned += duration;
+            if (b.status === 'done') wCompleted += duration;
         });
 
-        const freeMin = 1440 - plannedMin; // Crude approx, refinement needed for "awake free time"
+        const freeMin = 1440 - plannedMin; // Crude approx
 
         // 2. Identification of "Next Up"
         const now = new Date();
         const currentTimeStr = now.toTimeString().slice(0, 5);
 
-        // Simple logic: Find first block that hasn't ended and is NOT 'done' (or is current)
-        // If date is not today, logic shifts (start of day)
-        // Assuming 'date' is today for this logic
         let nextUpBlock = null;
         let nextUpReason = "Scheduled";
 
@@ -149,7 +153,19 @@ export const GET = secureApiRoute(
             insight = { text: "Heavy load today. Pace yourself.", type: "info" };
         }
 
-        // 4. Construct Response
+        // 4. Goal Sorting (Time commitment + Energy/Importance)
+        // importance: high (3), medium (2), low (1)
+        const getImportanceValue = (imp: string) => imp === 'high' ? 3 : imp === 'medium' ? 2 : 1;
+        const sortedGoals = (goals || []).sort((a: any, b: any) => {
+            // Primary sort: Time commitment (minutes_per_day) descending
+            const timeA = a.minutes_per_day || 0;
+            const timeB = b.minutes_per_day || 0;
+            if (timeB !== timeA) return timeB - timeA;
+            // Secondary sort: Energy/Importance descending
+            return getImportanceValue(b.importance) - getImportanceValue(a.importance);
+        });
+
+        // 5. Construct Response
         return apiSuccess({
             date,
             timezone: profile.timezone,
@@ -166,15 +182,21 @@ export const GET = secureApiRoute(
             anchors: anchors || [],
             meals: (blocks || []).filter((b: any) => b.block_type === 'meal'),
             habit_stacks: habitStacks || [],
+            goals: sortedGoals,
+            top_task: topTask,
             next_up: nextUpBlock ? { ...nextUpBlock, reason: nextUpReason } : null,
             metrics: {
                 planned_min: Math.round(plannedMin),
                 completed_min: Math.round(completedMin),
+                planned_items: validBlocks.length,
+                completed_items: validBlocks.filter((b: any) => b.status === 'done').length,
                 free_min: Math.round(freeMin)
             },
             weekly_metrics: {
-                planned_min: Math.round(weeklyPlannedMin),
-                completed_min: Math.round(weeklyCompletedMin)
+                planned_min: Math.round(wPlanned),
+                completed_min: Math.round(wCompleted),
+                planned_items: ((weeklyBlocks || []) as any[]).filter((b: any) => validTypes.includes(b.block_type)).length,
+                completed_items: ((weeklyBlocks || []) as any[]).filter((b: any) => validTypes.includes(b.block_type) && b.status === 'done').length
             },
             nextWeekPlanned: nextWeekBlocks && nextWeekBlocks.length > 0,
             ai_profile: (profile as any)?.bio_data?.ai_profile || null,

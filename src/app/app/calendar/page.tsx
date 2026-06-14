@@ -218,6 +218,7 @@ function CalendarPageInner() {
     const [selectedBlock, setSelectedBlock] = useState<any>(null);
     const [showAddModal, setShowAddModal] = useState(false);
     const [addModalDefaults, setAddModalDefaults] = useState<{ date?: string; hour?: number }>({});
+    const [showMiniCalendar, setShowMiniCalendar] = useState(false);
     const [showPlanWeekModal, setShowPlanWeekModal] = useState(false);
     const [showOptimizerModal, setShowOptimizerModal] = useState(false);
 
@@ -376,11 +377,11 @@ function CalendarPageInner() {
         setShowAddModal(true);
     };
 
-    const handleAddBlock = async (data: { title: string; date: string; start_time: string; end_time: string; isAnchor?: boolean }) => {
+    const handleAddBlock = async (data: { title: string; date: string; start_time: string; end_time: string; isAnchor?: boolean; isLocked?: boolean }) => {
         if (data.isAnchor) {
             await createCommitment(data);
         } else {
-            await addBlock({ context: data.title, date: data.date, start_time: data.start_time, end_time: data.end_time });
+            await addBlock({ title: data.title, context: data.title, date: data.date, start_time: data.start_time, end_time: data.end_time, is_locked: data.isLocked });
         }
         setShowAddModal(false);
     };
@@ -428,7 +429,33 @@ function CalendarPageInner() {
                                 <ChevronRight className="w-4 h-4" />
                             </button>
                         </div>
-                        <span className="text-sm font-semibold text-white/80 tracking-tight">{dateTitle}</span>
+                        <div className="relative">
+                            <button 
+                                onClick={() => setShowMiniCalendar(!showMiniCalendar)} 
+                                className="text-sm font-semibold text-white/80 tracking-tight hover:text-white transition-colors cursor-pointer select-none"
+                            >
+                                {dateTitle}
+                            </button>
+                            <AnimatePresence>
+                                {showMiniCalendar && (
+                                    <>
+                                        <div className="fixed inset-0 z-40" onClick={() => setShowMiniCalendar(false)} />
+                                        <motion.div 
+                                            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                            transition={{ duration: 0.15, ease: "easeOut" }}
+                                            className="absolute top-full left-0 mt-2 z-50 origin-top-left"
+                                        >
+                                            <MiniCalendar 
+                                                selectedDate={selectedDate} 
+                                                onSelectDate={(d) => { setSelectedDate(d); setShowMiniCalendar(false); }} 
+                                            />
+                                        </motion.div>
+                                    </>
+                                )}
+                            </AnimatePresence>
+                        </div>
                     </div>
 
                     {/* Right: Compact Actions */}
@@ -671,7 +698,7 @@ function CalendarPageInner() {
 function AddBlockModal({ defaults, goals, onSubmit, onClose }: {
     defaults: { date?: string; hour?: number };
     goals: any[];
-    onSubmit: (data: { title: string; date: string; start_time: string; end_time: string; isAnchor: boolean }) => void;
+    onSubmit: (data: { title: string; date: string; start_time: string; end_time: string; isAnchor: boolean; isLocked: boolean }) => void;
     onClose: () => void;
 }) {
     const [title, setTitle] = useState('');
@@ -683,11 +710,12 @@ function AddBlockModal({ defaults, goals, onSubmit, onClose }: {
         defaults.hour ? `${(defaults.hour + 1).toString().padStart(2, '0')}:00` : '10:00'
     );
     const [isAnchor, setIsAnchor] = useState(false);
+    const [isLocked, setIsLocked] = useState(true);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!title.trim()) return;
-        onSubmit({ title: title.trim(), date, start_time: startTime, end_time: endTime, isAnchor });
+        onSubmit({ title: title.trim(), date, start_time: startTime, end_time: endTime, isAnchor, isLocked });
     };
 
     return (
@@ -708,13 +736,25 @@ function AddBlockModal({ defaults, goals, onSubmit, onClose }: {
             >
                 <div className="flex items-center justify-between">
                     <h2 className="text-white font-bold text-lg">Add to Schedule</h2>
-                    <div className="flex items-center gap-2 bg-white/[0.06] px-3 py-1.5 rounded-lg">
-                        <span className="text-xs font-bold text-white/50">Fixed?</span>
-                        <button type="button" onClick={() => setIsAnchor(!isAnchor)}
-                            className={cn("w-8 h-4 rounded-full transition-colors relative", isAnchor ? "bg-orange-500" : "bg-white/20")}>
-                            <div className={cn("w-3 h-3 bg-white rounded-full absolute top-0.5 transition-all",
-                                isAnchor ? "left-4" : "left-0.5")} />
-                        </button>
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 bg-white/[0.06] px-3 py-1.5 rounded-lg">
+                            <span className="text-xs font-bold text-white/50">Recur Weekly?</span>
+                            <button type="button" onClick={() => setIsAnchor(!isAnchor)}
+                                className={cn("w-8 h-4 rounded-full transition-colors relative", isAnchor ? "bg-orange-500" : "bg-white/20")}>
+                                <div className={cn("w-3 h-3 bg-white rounded-full absolute top-0.5 transition-all",
+                                    isAnchor ? "left-4" : "left-0.5")} />
+                            </button>
+                        </div>
+                        {!isAnchor && (
+                            <div className="flex items-center gap-2 bg-white/[0.06] px-3 py-1.5 rounded-lg">
+                                <span className="text-xs font-bold text-white/50">Locked?</span>
+                                <button type="button" onClick={() => setIsLocked(!isLocked)}
+                                    className={cn("w-8 h-4 rounded-full transition-colors relative", isLocked ? "bg-orange-500" : "bg-white/20")}>
+                                    <div className={cn("w-3 h-3 bg-white rounded-full absolute top-0.5 transition-all",
+                                        isLocked ? "left-4" : "left-0.5")} />
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
 

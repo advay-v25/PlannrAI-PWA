@@ -1,7 +1,8 @@
 import { secureApiRoute, apiSuccess } from '@/lib/security/api-protection';
 
 export const GET = secureApiRoute(
-    async (request, { supabase, userId }) => {
+    async (context) => {
+        const { supabase, userId } = context;
         try {
             // Check proactive trigger: look at today's schedule for anomalies
             const today = new Date().toISOString().split('T')[0];
@@ -11,7 +12,7 @@ export const GET = secureApiRoute(
         const { data: todayBlocks } = await supabase
             .from('schedule_blocks')
             .select('id, title, status, start_time, end_time, block_type')
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .eq('date', today);
 
         const blocks = todayBlocks || [];
@@ -24,7 +25,7 @@ export const GET = secureApiRoute(
         const completedBlocks = blocks.filter((b: any) => b.status === 'completed');
 
         // Check for needs_rescheduling flag in profile bio_data
-        const { data: profile } = await supabase.from('profiles').select('bio_data').eq('id', user.id).single();
+        const { data: profile } = await supabase.from('profiles').select('bio_data').eq('id', userId).single();
         const bioData = (profile?.bio_data as any) || {};
         const needsRescheduling = bioData.needs_rescheduling === true;
         const pendingGoal = bioData.pending_goal_update || 'your settings';

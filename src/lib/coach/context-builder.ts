@@ -274,10 +274,10 @@ export async function buildCoachContext(
         todayProgress = Math.round((completedToday / todayBlocks.length) * 100);
     }
 
-    let mostProductiveWindow = Object.keys(windowCounts).sort((a, b) => windowCounts[b] - windowCounts[a])[0] || 'morning';
+    const mostProductiveWindow = Object.keys(windowCounts).sort((a, b) => windowCounts[b] - windowCounts[a])[0] || 'morning';
 
     // Simple streak: check if today is >50%, and if yesterday is >50%
-    let currentStreak = 0;
+    const currentStreak = 0;
 
     return {
         user: {

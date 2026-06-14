@@ -58,20 +58,14 @@ export const GET = secureApiRoute(
         }
 
         try {
-            // Gather context: existing goals, brain dumps, habits
-            const [goalsResult, dumpsResult, habitsResult] = await Promise.all([
+            // Gather context: existing goals, habits
+            const [goalsResult, habitsResult] = await Promise.all([
                 supabase
                     .from('goals')
                     .select('title, category, importance, is_paused, created_at')
                     .eq('user_id', userId)
                     .order('created_at', { ascending: false })
                     .limit(10),
-                supabase
-                    .from('brain_dump_entries')
-                    .select('extracted_json')
-                    .eq('user_id', userId)
-                    .order('created_at', { ascending: false })
-                    .limit(5),
                 supabase
                     .from('habit_stacks')
                     .select('name, habits')
@@ -88,16 +82,7 @@ export const GET = secureApiRoute(
                 career: categories.filter(c => c === 'career').length,
             };
 
-            // Extract themes from brain dumps
-            const recentThemes = dumpsResult.data
-                ?.flatMap(d => {
-                    const signals = d.extracted_json?.signals || [];
-                    if (Array.isArray(signals)) {
-                        return signals.map((s: { content?: string, description?: string }) => s.content || s.description).filter(Boolean);
-                    }
-                    return [];
-                })
-                .slice(0, 5) || [];
+
 
             const prompt = `
 User Profile Analysis:
@@ -110,17 +95,13 @@ Category Balance:
 - Body goals: ${categoryBalance.body}
 - Career goals: ${categoryBalance.career}
 
-Recent Themes from Brain Dumps:
-${recentThemes.join(', ') || 'No recent themes detected'}
-
 Current Habits:
 ${habitsResult.data?.map(h => h.name).join(', ') || 'None set'}
 
 Based on this analysis, suggest 2-3 new goals that would:
 1. Balance their category distribution
-2. Address themes from their brain dumps
-3. Complement existing goals
-4. Be realistic and meaningful
+2. Complement existing goals
+3. Be realistic and meaningful
 
 Avoid suggesting duplicates of existing goals.
 `;

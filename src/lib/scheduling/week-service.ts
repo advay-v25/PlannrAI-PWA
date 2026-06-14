@@ -228,7 +228,7 @@ export function generateStaticWeekPlan(
     // 3. Schedule Goals
     sortedGoals.forEach(goal => {
         // A. Filter out days where Anchor satisfies this goal
-        let daysRequired = goal.importance === 'high' ? 6 : goal.importance === 'medium' ? 5 : 3; // Reduced Low to 3 for breathing room
+        const daysRequired = goal.importance === 'high' ? 6 : goal.importance === 'medium' ? 5 : 3; // Reduced Low to 3 for breathing room
 
         // Check if anchor title partially matches (naive dedupe)
         // Count how many days this goal is ALREADY covered by anchors
@@ -237,7 +237,7 @@ export function generateStaticWeekPlan(
             if (dayState[d].anchors.has(goal.title.toLowerCase())) coveredDays++;
         });
 
-        let remainingDays = Math.max(0, daysRequired - coveredDays);
+        const remainingDays = Math.max(0, daysRequired - coveredDays);
         if (remainingDays === 0) return; // Fully covered by anchors
 
         const duration = lowEnergy ? Math.round(goal.minutes_per_day * 0.7) : goal.minutes_per_day;

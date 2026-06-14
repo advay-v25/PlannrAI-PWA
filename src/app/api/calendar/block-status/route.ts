@@ -102,6 +102,29 @@ export const POST = secureApiRoute(
             return apiError('Failed to update block status', 500);
         }
 
+        // 5. Update associated goal's completed minutes if needed
+        if (block.goal_id && currentStatus !== status && (status === 'done' || currentStatus === 'done')) {
+            try {
+                // Calculate duration in minutes from the block's scheduled time
+                const [startH, startM] = (block.start_time || "00:00").split(':').map(Number);
+                const [endH, endM] = (block.end_time || "00:00").split(':').map(Number);
+                let duration = (endH * 60 + endM) - (startH * 60 + startM);
+                if (duration < 0) duration += 24 * 60;
+
+                // If moving TO done, add duration. If moving FROM done, subtract duration.
+                const multiplier = status === 'done' ? 1 : -1;
+                const change = duration * multiplier;
+
+                const { data: goal } = await supabase.from('goals').select('total_completed_minutes').eq('id', block.goal_id).single();
+                if (goal) {
+                    const newTotal = Math.max(0, (goal.total_completed_minutes || 0) + change);
+                    await supabase.from('goals').update({ total_completed_minutes: newTotal }).eq('id', block.goal_id);
+                }
+            } catch (err) {
+                console.error("[block-status] Failed to update goal metrics:", err);
+            }
+        }
+
         return apiSuccess({
             success: true,
             block: updated,

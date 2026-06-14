@@ -1,9 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
 import { buildCoachContext } from '@/lib/coach/context-builder';
 import { classifyIntent } from '@/lib/coach/intent-classifier';
 import { generateCoachResponse } from '@/lib/coach/response-generator';
+import { secureApiRoute, SecureApiContext } from '@/lib/security/api-protection';
 
 export const maxDuration = 60;
 
@@ -12,34 +11,13 @@ interface MessageRequest {
     conversation_id?: string;
 }
 
-export async function POST(request: NextRequest) {
-    const startTime = Date.now();
+export const POST = secureApiRoute(
+    async (context: SecureApiContext, body: any) => {
+        const startTime = Date.now();
 
-    try {
-        const cookieStore = await cookies();
-        const supabase = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            {
-                cookies: {
-                    get(name: string) {
-                        return cookieStore.get(name)?.value;
-                    },
-                },
-            }
-        );
-
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-        if (authError || !user) {
-            return NextResponse.json(
-                { success: false, error: 'Please sign in to use Coach' },
-                { status: 401 }
-            );
-        }
-
-        const body: MessageRequest = await request.json();
-        const { message, conversation_id } = body;
+        try {
+            const { user, supabase } = context;
+            const { message, conversation_id } = body as MessageRequest;
 
         if (!message || message.trim().length === 0) {
             return NextResponse.json(
@@ -144,7 +122,7 @@ export async function POST(request: NextRequest) {
             user_id: user.id,
             role: 'assistant',
             content: response.summary,
-            intent: intentClassification.intent,
+            intent: intentClassification.primary_intent,
             mode: response.mode,
             options: response.options || null,
             created_at: new Date().toISOString(),
@@ -190,4 +168,4 @@ export async function POST(request: NextRequest) {
             details: errorDetails
         }, { status: 500 });
     }
-}
+}, { requireAuth: true, rateLimit: 'aiCoach', auditAction: 'coach_message' });

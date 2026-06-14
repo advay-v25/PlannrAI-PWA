@@ -18,14 +18,14 @@ export const POST = secureApiRoute(
 
         const { data: existing } = await adminDb
             .from('user_states')
-            .select('id')
+            .select('user_id')
             .eq('user_id', userId)
             .order('updated_at', { ascending: false })
             .limit(1)
             .maybeSingle();
 
         let error;
-        if (existing?.id) {
+        if (existing?.user_id) {
             const { error: updateErr } = await adminDb
                 .from('user_states')
                 .update({
@@ -33,7 +33,7 @@ export const POST = secureApiRoute(
                     emotional_state,
                     updated_at: new Date().toISOString()
                 })
-                .eq('id', existing.id);
+                .eq('user_id', existing.user_id);
             error = updateErr;
         } else {
             const { error: insertErr } = await adminDb

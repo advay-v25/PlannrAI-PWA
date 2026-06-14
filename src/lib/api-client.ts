@@ -104,7 +104,7 @@ export const apiClient = {
                                 try { 
                                     errorData = await clone.json(); 
                                     if (errorData?.error && !errorData?.message) {
-                                        errorData.message = errorData.error;
+                                        errorData.message = typeof errorData.error === 'string' ? errorData.error : (errorData.error.message || 'Unknown error');
                                     }
                                 } catch { 
                                     errorData = { message: await response.text() }; 
@@ -224,22 +224,25 @@ export const apiClient = {
                 this.get<{ blocks: (ScheduleBlock & { goal?: Goal })[] }>(`/api/schedule?start=${start}&end=${end}`),
 
             // Mutations via apply-patch (Single Source of Truth)
-            createBlock: (data: { date: string; start_time: string; end_time: string; goal_id?: string | null; context?: string | null }) =>
-                this.post('/api/calendar/add-block', { block: data }), // Use add-block for conflict detection
+            createBlock: (data: { date: string; start_time: string; end_time: string; title: string; goal_id?: string | null; context?: string | null; is_locked?: boolean }) =>
+                this.post('/api/patch/apply', {
+                    source: 'manual',
+                    patch: { ops: [{ op: 'create_event', payload: { ...data, is_locked: data.is_locked ?? true } }] }
+                }),
 
             updateBlock: (id: string, updates: Record<string, any>) =>
-                this.post('/api/calendar/apply-schedule', {
-                    action: 'manual',
-                    patch: { update: [{ id, changes: updates }] }
+                this.post('/api/patch/apply', {
+                    source: 'manual',
+                    patch: { ops: [{ op: 'update_event', event_id: id, fields: { ...updates, is_locked: updates.is_locked ?? true } }] }
                 }),
 
             moveBlock: (id: string, newDate: string, newStart: string, newEnd: string, resolution_strategy?: string) =>
                 this.post('/api/calendar/move-block', { block_id: id, new_date: newDate, new_start_time: newStart, new_end_time: newEnd, resolution_strategy }),
 
             deleteBlock: (id: string) =>
-                this.post('/api/calendar/apply-schedule', {
-                    action: 'manual',
-                    patch: { remove: [id] }
+                this.post('/api/patch/apply', {
+                    source: 'manual',
+                    patch: { ops: [{ op: 'delete_event', event_id: id }] }
                 }),
 
             updateStatus: (id: string, status: BlockStatus) =>

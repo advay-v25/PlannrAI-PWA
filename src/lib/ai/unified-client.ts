@@ -41,7 +41,20 @@ interface ProviderConfig {
     supportsResponseFormat: boolean;
 }
 
-
+function getOpenRouterConfig(model: string): ProviderConfig {
+    return {
+        name: 'openrouter',
+        url: 'https://openrouter.ai/api/v1/chat/completions',
+        model,
+        getHeaders: () => ({
+            'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://plannrai.in',
+            'X-Title': 'PlannrAI'
+        }),
+        supportsResponseFormat: true,
+    };
+}
 function getNvidiaConfig(model: string): ProviderConfig {
     return {
         name: 'nvidia',
@@ -96,9 +109,10 @@ function getGeminiConfig(model: string): ProviderConfig {
 }
 
 // Smart = complex reasoning (coach, goals, weekly review) → Groq primary (70B)
-// Fast = simple extraction (brain dump, habits, briefings) → Groq primary (8B)
+// Fast = simple extraction (habits, briefings) → Groq primary (8B)
 function getProviderChain(options: AICallOptions): [ProviderConfig, ProviderConfig] {
     const tier = options.model || 'fast';
+    const useOpenRouter = !!process.env.OPENROUTER_API_KEY;
 
     if (options.useNvidia) {
         const nvidiaModel = tier === 'smart' ? 'meta/llama-3.1-70b-instruct' : 'meta/llama-3.1-8b-instruct';
@@ -111,12 +125,24 @@ function getProviderChain(options: AICallOptions): [ProviderConfig, ProviderConf
     switch (tier) {
         case 'smart':
         case 'creative':
+            if (useOpenRouter) {
+                return [
+                    getOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'),
+                    getGroqConfig('llama-3.3-70b-versatile'),
+                ];
+            }
             return [
                 getGroqConfig('llama-3.3-70b-versatile'),
                 getNvidiaConfig('meta/llama-3.1-70b-instruct'),
             ];
         case 'fast':
         default:
+            if (useOpenRouter) {
+                return [
+                    getOpenRouterConfig('openai/gpt-4o-mini'),
+                    getGroqConfig('llama-3.1-8b-instant'),
+                ];
+            }
             return [
                 getGroqConfig('llama-3.1-8b-instant'),
                 getGeminiConfig('gemini-3.5-flash'),

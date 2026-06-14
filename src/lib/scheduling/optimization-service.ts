@@ -96,7 +96,7 @@ export class OptimizationService {
         // - This effectively clusters them and removes gaps if we search from start of day.
 
         const fixed = items.filter(i => i.type === 'fixed');
-        let flexible = items.filter(i => i.type === 'flexible');
+        const flexible = items.filter(i => i.type === 'flexible');
 
         // Sort flexible by "Priority" or just original time?
         // Let's keep original time order to minimize disruption.

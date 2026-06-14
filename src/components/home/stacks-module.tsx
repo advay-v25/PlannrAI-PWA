@@ -65,12 +65,12 @@ export function StacksModule({ stacks, onUpdate }: StacksModuleProps) {
 
     if (!stacks || stacks.length === 0) {
         return (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center">
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-white/5">
-                    <Layers className="h-5 w-5 text-white/40" />
+            <div className="rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-bg)] p-6 text-center">
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--glass-bg)]">
+                    <Layers className="h-5 w-5 text-[var(--text-secondary)]" />
                 </div>
                 <h3 className="text-sm font-medium text-white">No active routines</h3>
-                <p className="text-xs text-white/40 mt-1">AI will build goal-aligned habit stacks for you</p>
+                <p className="text-xs text-[var(--text-secondary)] mt-1">AI will build goal-aligned habit stacks for you</p>
                 <button
                     onClick={handleOptimize}
                     disabled={generating}
@@ -92,11 +92,11 @@ export function StacksModule({ stacks, onUpdate }: StacksModuleProps) {
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between px-1">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-white/40">Stacks</h3>
+                <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)]">Stacks</h3>
                 <button
                     onClick={handleOptimize}
                     disabled={generating}
-                    className="flex items-center gap-1.5 rounded-full bg-white/5 px-3 py-1 text-[10px] font-bold text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+                    className="flex items-center gap-1.5 rounded-full bg-[var(--glass-bg)] px-3 py-1 text-[10px] font-bold text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-bg)] hover:text-white"
                 >
                     <Sparkles className="h-3 w-3" />
                     {generating ? 'Thinking...' : 'Create with AI'}
@@ -176,9 +176,9 @@ function StackCard({ stack, onComplete, onDelete }: {
             layout
             className={cn(
                 "relative overflow-hidden rounded-2xl border bg-gradient-to-br p-1 transition-all",
-                allStepsDone ? "border-[var(--color-success)]/30" : "border-white/5",
+                allStepsDone ? "border-[var(--color-success)]/30" : "border-[var(--glass-border)]",
                 gradient,
-                expanded ? "bg-white/10" : "bg-white/5"
+                expanded ? "bg-[var(--glass-bg)]" : "bg-[var(--glass-bg)]"
             )}
         >
             <div className="relative z-10 flex flex-col p-4">
@@ -193,7 +193,7 @@ function StackCard({ stack, onComplete, onDelete }: {
                                 </div>
                             )}
                         </div>
-                        <div className="mt-1 flex items-center gap-2 text-xs text-white/40">
+                        <div className="mt-1 flex items-center gap-2 text-xs text-[var(--text-secondary)]">
                             <Timer className="h-3 w-3" />
                             <span>{totalMinutes}m</span>
                             <span>•</span>
@@ -211,7 +211,7 @@ function StackCard({ stack, onComplete, onDelete }: {
                         {!sessionActive ? (
                             <button
                                 onClick={handleStartSession}
-                                className="rounded-full bg-white/10 p-2 text-white/60 transition-all hover:bg-[var(--color-primary)]/20 hover:text-[var(--color-primary)]"
+                                className="rounded-full bg-[var(--glass-bg)] p-2 text-[var(--text-secondary)] transition-all hover:bg-[var(--color-primary)]/20 hover:text-[var(--color-primary)]"
                                 title="Start Session"
                             >
                                 <Play className="h-4 w-4" />
@@ -219,7 +219,7 @@ function StackCard({ stack, onComplete, onDelete }: {
                         ) : (
                             <button
                                 onClick={() => setExpanded(!expanded)}
-                                className="rounded-full bg-white/10 p-2 text-white/60 transition-colors hover:bg-white/20 hover:text-white"
+                                className="rounded-full bg-[var(--glass-bg)] p-2 text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-bg)] hover:text-white"
                             >
                                 {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                             </button>
@@ -233,7 +233,7 @@ function StackCard({ stack, onComplete, onDelete }: {
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
                             exit={{ opacity: 0, height: 0 }}
-                            className="mt-3 space-y-2 border-t border-white/10 pt-3"
+                            className="mt-3 space-y-2 border-t border-[var(--glass-border)] pt-3"
                         >
                             {steps.map((step: any, i: number) => {
                                 const done = completedSteps.has(i);
@@ -249,15 +249,15 @@ function StackCard({ stack, onComplete, onDelete }: {
                                     >
                                         <div className={cn(
                                             "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all",
-                                            done ? "border-[var(--color-success)] bg-[var(--color-success)]" : "border-white/20"
+                                            done ? "border-[var(--color-success)] bg-[var(--color-success)]" : "border-[var(--glass-border)]"
                                         )}>
                                             {done && <Check className="h-3 w-3 text-white" />}
                                         </div>
                                         <span className={cn(
                                             "text-sm flex-1",
-                                            done ? "text-white/60 line-through" : "text-white/80"
+                                            done ? "text-[var(--text-secondary)] line-through" : "text-[var(--text-secondary)]"
                                         )}>{step.title}</span>
-                                        <span className="text-xs text-white/30">{step.minutes}m</span>
+                                        <span className="text-xs text-[var(--text-secondary)]">{step.minutes}m</span>
                                     </button>
                                 );
                             })}
@@ -275,8 +275,8 @@ function StackCard({ stack, onComplete, onDelete }: {
                                 ) : sessionActive ? (
                                     <button
                                         onClick={() => { setSessionActive(false); setCompletedSteps(new Set()); }}
-                                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 text-white/60 py-3 text-sm
-                                            hover:bg-white/10 transition-all"
+                                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--text-secondary)] py-3 text-sm
+                                            hover:bg-[var(--glass-bg)] transition-all"
                                     >
                                         Cancel Session
                                     </button>
@@ -291,7 +291,7 @@ function StackCard({ stack, onComplete, onDelete }: {
                                         </button>
                                         <button
                                             onClick={() => onDelete(stack.id)}
-                                            className="rounded-xl bg-white/5 border border-white/10 p-3 text-white/30 hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-all"
+                                            className="rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] p-3 text-[var(--text-secondary)] hover:text-red-400 hover:bg-red-500/10 hover:border-red-500/20 transition-all"
                                             title="Delete Stack"
                                         >
                                             <Trash2 className="h-4 w-4" />

@@ -128,8 +128,8 @@ export class OptimiseWeekService {
         // MVP: Stick to same day for now.
 
         const duration = this.toMins(block.end_time) - this.toMins(block.start_time);
-        let searchDate = block.date;
-        let searchStart = this.toMins(block.start_time);
+        const searchDate = block.date;
+        const searchStart = this.toMins(block.start_time);
 
         // Safety Break
         const maxTime = 23 * 60; // 11 PM
