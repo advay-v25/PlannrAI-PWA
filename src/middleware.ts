@@ -37,7 +37,15 @@ export async function middleware(request: NextRequest) {
 
         const { pathname } = request.nextUrl;
         
-        // Ignore static files and api routes for this main guard
+        // Feature flag guard for preview features
+        if (pathname.startsWith('/api/weekly-review') || pathname.startsWith('/api/habit-stack') || pathname.startsWith('/api/goals/plan') || pathname.startsWith('/api/goals/strategy') || pathname.startsWith('/api/goals/generate-strategy') || pathname.startsWith('/api/goals/auto-schedule')) {
+            const isPreviewEnabled = process.env.NEXT_PUBLIC_ENABLE_PREVIEW_FEATURES === 'true' || process.env.NODE_ENV !== 'production';
+            if (!isPreviewEnabled) {
+                return new NextResponse(JSON.stringify({ ok: false, error: 'Feature disabled in production' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+            }
+        }
+
+        // Ignore static files and other api routes for this main auth guard
         if (
             pathname.startsWith('/_next') ||
             pathname.startsWith('/api') ||

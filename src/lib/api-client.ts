@@ -226,14 +226,14 @@ export const apiClient = {
             // Mutations via apply-patch (Single Source of Truth)
             createBlock: (data: { date: string; start_time: string; end_time: string; title: string; goal_id?: string | null; context?: string | null; is_locked?: boolean }) =>
                 this.post('/api/patch/apply', {
-                    action: 'manual',
-                    patch: { add: [{ ...data, is_locked: data.is_locked ?? true }] }
+                    source: 'manual',
+                    patch: { ops: [{ op: 'create_event', payload: { ...data, is_locked: data.is_locked ?? true } }] }
                 }),
 
             updateBlock: (id: string, updates: Record<string, any>) =>
                 this.post('/api/patch/apply', {
-                    action: 'manual',
-                    patch: { update: [{ id, ...updates, is_locked: updates.is_locked ?? true }] }
+                    source: 'manual',
+                    patch: { ops: [{ op: 'update_event', event_id: id, fields: { ...updates, is_locked: updates.is_locked ?? true } }] }
                 }),
 
             moveBlock: (id: string, newDate: string, newStart: string, newEnd: string, resolution_strategy?: string) =>
@@ -241,8 +241,8 @@ export const apiClient = {
 
             deleteBlock: (id: string) =>
                 this.post('/api/patch/apply', {
-                    action: 'manual',
-                    patch: { delete: [id] }
+                    source: 'manual',
+                    patch: { ops: [{ op: 'delete_event', event_id: id }] }
                 }),
 
             updateStatus: (id: string, status: BlockStatus) =>

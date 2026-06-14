@@ -23,13 +23,7 @@ export const GET = secureApiRoute(
             .gte('date', weekStart)
             .lte('date', weekEnd);
 
-        // Get brain dumps for the week
-        const { data: dumps } = await supabase
-            .from('brain_dump_entries')
-            .select('extracted_json')
-            .eq('user_id', context.userId)
-            .gte('created_at', weekStart)
-            .lte('created_at', `${weekEnd}T23:59:59`);
+
 
         // Calculate metrics
         const plannedMinutes = blocks?.reduce((sum, b) => {
@@ -48,8 +42,8 @@ export const GET = secureApiRoute(
             }, 0) || 0;
 
         // Aggregate signals
-        const allSignals = dumps?.flatMap(d => d.extracted_json?.signals || d.extracted_json?.extracted_signals || []) || [];
-        const allConstraints = dumps?.flatMap(d => d.extracted_json?.constraints || d.extracted_json?.detected_constraints || []) || [];
+        const allSignals: any[] = [];
+        const allConstraints: any[] = [];
 
         // Fetch Profile, Goals & Facts
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', context.userId).single();

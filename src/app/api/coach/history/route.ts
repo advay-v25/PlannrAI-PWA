@@ -26,33 +26,55 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        const { data: conversation } = await supabase
-            .from('coach_conversations')
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('status', 'active')
-            .order('last_message_at', { ascending: false })
-            .limit(1)
-            .single();
+        const searchParams = request.nextUrl.searchParams;
+        const requestedId = searchParams.get('id');
 
-        if (!conversation) {
-            return NextResponse.json({
-                success: true,
-                conversation_id: null,
-                messages: [],
-            });
+        let conversationId = requestedId;
+
+        if (!conversationId) {
+            const { data: conversation } = await supabase
+                .from('coach_conversations')
+                .select('id')
+                .eq('user_id', user.id)
+                .eq('status', 'active')
+                .order('last_message_at', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (!conversation) {
+                return NextResponse.json({
+                    success: true,
+                    conversation_id: null,
+                    messages: [],
+                });
+            }
+            conversationId = conversation.id;
+        } else {
+            // Verify ownership if requestedId is provided
+            const { data: conversation } = await supabase
+                .from('coach_conversations')
+                .select('id')
+                .eq('id', conversationId)
+                .eq('user_id', user.id)
+                .single();
+            if (!conversation) {
+                 return NextResponse.json({
+                    success: false,
+                    error: 'Conversation not found',
+                }, { status: 404 });
+            }
         }
 
         const { data: messages } = await supabase
             .from('coach_messages')
             .select('id, role, content, mode, options, selected_option_id, patch_version_id, created_at')
-            .eq('conversation_id', conversation.id)
+            .eq('conversation_id', conversationId)
             .order('created_at', { ascending: true })
-            .limit(15);
+            .limit(50); // increased limit to load full history
 
         return NextResponse.json({
             success: true,
-            conversation_id: conversation.id,
+            conversation_id: conversationId,
             messages: messages || [],
         });
 

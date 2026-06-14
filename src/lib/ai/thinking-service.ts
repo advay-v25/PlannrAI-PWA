@@ -4,7 +4,7 @@ import { ContextService } from '@/lib/ai/context-service';
 
 export class ThinkingService {
     /**
-     * Triggered in the background after significant user actions (like a Brain Dump).
+     * Triggered in the background after significant user actions.
      */
     static async evaluateContextAndPropose(userId: string, eventDetails: string, sourceId?: string, sourceType: string = 'system') {
         try {

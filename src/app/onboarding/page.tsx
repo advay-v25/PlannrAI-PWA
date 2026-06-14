@@ -103,9 +103,9 @@ export default function OnboardingPage() {
 
                 {/* Minimalist Progress Header */}
                 <div className="w-full flex justify-center mb-12 px-2">
-                    <div className="flex items-center justify-between w-full max-w-md bg-white/[0.03] border border-white/[0.08] px-6 py-3.5 rounded-full backdrop-blur-xl shadow-2xl">
-                        <span className="text-[10px] font-bold font-mono uppercase tracking-widest text-white/40 w-16 text-left">
-                            <span className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]">S_{currentStep + 1}</span>/{STEPS.length}
+                    <div className="flex items-center justify-between w-full max-w-md bg-[var(--glass-bg)] border border-[var(--glass-border)] px-6 py-3.5 rounded-full backdrop-blur-xl shadow-2xl">
+                        <span className="text-[10px] font-bold font-mono uppercase tracking-widest text-[var(--text-tertiary)] w-16 text-left">
+                            <span className="text-[var(--text-primary)]">S_{currentStep + 1}</span>/{STEPS.length}
                         </span>
                         
                         <div className="flex gap-2">
@@ -114,24 +114,24 @@ export default function OnboardingPage() {
                                     key={i} 
                                     className={`h-1.5 rounded-full transition-all duration-700 ease-in-out ${
                                         i === currentStep 
-                                            ? 'w-8 bg-white shadow-[0_0_12px_rgba(255,255,255,0.9)]' 
+                                            ? 'w-8 bg-[var(--color-primary)] shadow-[0_0_12px_var(--color-primary-glow)]' 
                                             : i < currentStep 
-                                                ? 'w-4 bg-white/40' 
-                                                : 'w-2 bg-white/10'
+                                                ? 'w-4 bg-[var(--color-primary)]/40' 
+                                                : 'w-2 bg-[var(--text-muted)]/20'
                                     }`} 
                                 />
                             ))}
                         </div>
 
-                        <span className="text-[10px] font-bold font-mono uppercase tracking-widest text-white/40 w-16 text-right truncate">
+                        <span className="text-[10px] font-bold font-mono uppercase tracking-widest text-[var(--text-tertiary)] w-16 text-right truncate">
                             {currentStepDef.title}
                         </span>
                     </div>
                 </div>
 
-                <div className="absolute top-6 right-6 px-3 py-1.5 bg-white/5 border border-white/10 rounded-full flex items-center gap-2 backdrop-blur-md z-20">
+                <div className="absolute top-6 right-6 px-3 py-1.5 bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-full flex items-center gap-2 backdrop-blur-md z-20">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-[10px] font-mono font-bold tracking-widest uppercase text-white/60">Basic Plan</span>
+                    <span className="text-[10px] font-mono font-bold tracking-widest uppercase text-[var(--text-secondary)]">Basic Plan</span>
                 </div>
 
                 {/* Main Content Area */}

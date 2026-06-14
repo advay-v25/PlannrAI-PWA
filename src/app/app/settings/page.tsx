@@ -5,8 +5,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import {
     User, LogOut, Trash2, AlertTriangle, Loader2,
-    Clock, Brain, Shield, Save, ChevronRight, Calendar, Download, Bell, Sparkles
+    Clock, Brain, Shield, Save, ChevronRight, Calendar, Download, Bell, Sparkles, Moon, Sun, Monitor, Type
 } from 'lucide-react';
+import { useTheme } from 'next-themes';
 import { createClient } from '@/lib/supabase/client';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
@@ -119,6 +120,7 @@ export default function SettingsPage() {
                             onSignOut={handleSignOut}
                             isSigningOut={isSigningOut}
                         />
+                        <AccessibilitySection />
                         <DataPrivacySection />
                         <DangerZone />
                     </div>
@@ -248,6 +250,66 @@ function InfoRow({ label, value, icon }: { label: string; value: string; icon?: 
             <div className="flex items-center gap-1.5">
                 {icon}
                 <span className="text-sm text-[var(--text-secondary)] font-medium">{value}</span>
+            </div>
+        </div>
+    );
+}
+
+// ── Accessibility & Display Section ────────────────────────────────
+
+function AccessibilitySection() {
+    const { theme, setTheme } = useTheme();
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    if (!mounted) return null;
+
+    return (
+        <div className="space-y-5">
+            <div>
+                <h2 className="text-lg font-semibold text-[var(--text-primary)]">Accessibility & Display</h2>
+                <p className="text-sm text-[var(--text-tertiary)] mt-0.5">Customize your visual experience.</p>
+            </div>
+
+            <div className="rounded-2xl bg-[var(--glass-bg)] border border-[var(--glass-border)] divide-y divide-[var(--glass-border)]">
+                {/* Theme Toggle */}
+                <div className="flex flex-col px-5 py-4 gap-3">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-[var(--color-primary)]/10 flex items-center justify-center">
+                            {theme === 'dark' ? <Moon className="w-4 h-4 text-[var(--color-primary)]" /> : theme === 'light' ? <Sun className="w-4 h-4 text-[var(--color-primary)]" /> : <Monitor className="w-4 h-4 text-[var(--color-primary)]" />}
+                        </div>
+                        <div>
+                            <p className="text-sm font-medium text-[var(--text-primary)]">Appearance</p>
+                            <p className="text-xs text-[var(--text-tertiary)]">Select your preferred theme</p>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 mt-2">
+                        <button
+                            onClick={() => setTheme('light')}
+                            className={`flex flex-col items-center gap-2 py-3 rounded-xl border transition-all ${theme === 'light' ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5 text-[var(--color-primary)]' : 'border-[var(--glass-border)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-hover)]'}`}
+                        >
+                            <Sun className="w-5 h-5" />
+                            <span className="text-xs font-semibold">Light</span>
+                        </button>
+                        <button
+                            onClick={() => setTheme('dark')}
+                            className={`flex flex-col items-center gap-2 py-3 rounded-xl border transition-all ${theme === 'dark' ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5 text-[var(--color-primary)]' : 'border-[var(--glass-border)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-hover)]'}`}
+                        >
+                            <Moon className="w-5 h-5" />
+                            <span className="text-xs font-semibold">Dark</span>
+                        </button>
+                        <button
+                            onClick={() => setTheme('system')}
+                            className={`flex flex-col items-center gap-2 py-3 rounded-xl border transition-all ${theme === 'system' ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/5 text-[var(--color-primary)]' : 'border-[var(--glass-border)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-hover)]'}`}
+                        >
+                            <Monitor className="w-5 h-5" />
+                            <span className="text-xs font-semibold">System</span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     );

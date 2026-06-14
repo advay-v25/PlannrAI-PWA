@@ -51,7 +51,7 @@ export function Step1Framing() {
                 className="w-full max-w-sm space-y-6"
             >
                 <div>
-                    <label className="block text-xs font-mono text-[var(--color-text-tertiary)] uppercase tracking-widest mb-4">
+                    <label className="block text-xs font-mono text-[var(--text-tertiary)] uppercase tracking-widest mb-4">
                         Subject Identification
                     </label>
                     <div className="relative group">
@@ -79,7 +79,7 @@ export function Step1Framing() {
                     </motion.div>
                 </div>
 
-                <p className="text-sm text-[var(--color-text-muted)] font-light leading-relaxed">
+                <p className="text-sm text-[var(--text-muted)] font-light leading-relaxed">
                     I've been designed to optimize your reality. We'll start by calibrating your biological rhythms and ambitions.
                 </p>
             </motion.div>

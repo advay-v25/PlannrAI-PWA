@@ -29,20 +29,20 @@ export function AIProfileBadge({ aiProfile }: AIProfileBadgeProps) {
         <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-[var(--color-primary)]/10 to-purple-500/5 p-6 backdrop-blur-xl"
+            className="relative overflow-hidden rounded-[2rem] border border-[var(--glass-border)] bg-gradient-to-br from-[var(--color-primary)]/10 to-purple-500/5 p-6 backdrop-blur-xl"
         >
             {/* Ambient glow */}
             <div className="absolute -top-10 -right-10 h-40 w-40 rounded-full bg-[var(--color-primary)]/10 blur-[60px]" />
 
             <div className="relative z-10 flex items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-2xl">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--glass-bg)] text-2xl">
                     {chronoEmoji}
                 </div>
 
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                         <Fingerprint className="h-3 w-3 text-[var(--color-primary)]" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">
                             Your DNA
                         </span>
                     </div>
@@ -55,19 +55,19 @@ export function AIProfileBadge({ aiProfile }: AIProfileBadgeProps) {
 
                     <div className="mt-1 flex flex-wrap gap-2">
                         {chronotype && (
-                            <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-bold text-white/70">
+                            <span className="rounded-full bg-[var(--glass-bg)] px-2.5 py-0.5 text-[10px] font-bold text-[var(--text-secondary)]">
                                 {chronotype}
                             </span>
                         )}
                         {energy_pattern && (
-                            <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-bold text-white/70">
+                            <span className="rounded-full bg-[var(--glass-bg)] px-2.5 py-0.5 text-[10px] font-bold text-[var(--text-secondary)]">
                                 {energy_pattern}
                             </span>
                         )}
                     </div>
 
                     {donna_notes && donna_notes.length > 0 && (
-                        <p className="mt-2 text-xs text-white/50 leading-relaxed line-clamp-2 italic">
+                        <p className="mt-2 text-xs text-[var(--text-secondary)] leading-relaxed line-clamp-2 italic">
                             "{donna_notes[donna_notes.length - 1]}"
                         </p>
                     )}

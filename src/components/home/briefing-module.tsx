@@ -39,14 +39,14 @@ export function BriefingModule({ briefing, isLoading, onGenerate }: BriefingModu
                     <div className="p-1.5 rounded-lg bg-[var(--color-primary-muted)]">
                         <Sparkles className="w-4 h-4 text-[var(--color-primary)]" />
                     </div>
-                    <h3 className="text-sm font-semibold tracking-wide text-white/90">
+                    <h3 className="text-sm font-semibold tracking-wide text-[var(--text-secondary)]">
                         DAILY BRIEFING
                     </h3>
                 </div>
                 {!briefing && !isLoading && (
                     <button
                         onClick={onGenerate}
-                        className="btn-ghost text-xs px-3 py-1.5 rounded-full hover:bg-white/10 transition-colors"
+                        className="btn-ghost text-xs px-3 py-1.5 rounded-full hover:bg-[var(--glass-bg)] transition-colors"
                     >
                         Generate
                     </button>
@@ -54,7 +54,7 @@ export function BriefingModule({ briefing, isLoading, onGenerate }: BriefingModu
                 {briefing && !isLoading && (
                     <button
                         onClick={onGenerate}
-                        className="text-[10px] uppercase font-bold tracking-widest px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-colors flex items-center gap-1.5"
+                        className="text-[10px] uppercase font-bold tracking-widest px-3 py-1 rounded-full bg-[var(--glass-bg)] hover:bg-[var(--glass-bg)] text-[var(--text-secondary)] hover:text-white transition-colors flex items-center gap-1.5"
                     >
                         <RotateCcw className="w-3 h-3" />
                         Refresh
@@ -66,18 +66,18 @@ export function BriefingModule({ briefing, isLoading, onGenerate }: BriefingModu
             <div className="relative z-10">
                 {isLoading ? (
                     <div className="space-y-3 animate-pulse">
-                        <div className="h-4 bg-white/5 rounded w-3/4"></div>
-                        <div className="h-4 bg-white/5 rounded w-full"></div>
-                        <div className="h-4 bg-white/5 rounded w-5/6"></div>
+                        <div className="h-4 bg-[var(--glass-bg)] rounded w-3/4"></div>
+                        <div className="h-4 bg-[var(--glass-bg)] rounded w-full"></div>
+                        <div className="h-4 bg-[var(--glass-bg)] rounded w-5/6"></div>
                     </div>
                 ) : briefing ? (
-                    <p className="text-[15px] leading-relaxed text-white/80 font-medium">
+                    <p className="text-[15px] leading-relaxed text-[var(--text-secondary)] font-medium">
                         {displayedText}
                         <span className="inline-block w-1.5 h-4 ml-1 align-middle bg-[var(--color-primary)] animate-pulse" />
                     </p>
                 ) : (
                     <div className="flex flex-col items-center justify-center py-4 text-center">
-                        <p className="text-sm text-white/40 mb-3">
+                        <p className="text-sm text-[var(--text-secondary)] mb-3">
                             Ready to synthesize your day?
                         </p>
                         <button

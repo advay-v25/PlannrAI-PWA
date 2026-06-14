@@ -1,28 +1,21 @@
 // @ts-nocheck
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextResponse } from 'next/server';
 import { AgentOrchestrator } from '@/lib/agents/orchestrator';
 import { ContextBuilder } from '@/lib/agents/context-builder';
 import { CalendarPatch } from '@/lib/agents/core/types';
+import { secureApiRoute, SecureApiContext } from '@/lib/security/api-protection';
 
 export const maxDuration = 60; // Allow 60s for AI processing
 
-export async function POST(request: NextRequest) {
-    try {
-        // 1. Authenticate
-        const supabase = await createClient();
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
+export const POST = secureApiRoute(
+    async (apiContext: SecureApiContext, body: any) => {
+        try {
+            const { user, supabase } = apiContext;
+            const { message, source, date } = body;
 
-        if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const body = await request.json();
-        const { message, source, date } = body;
-
-        if (!message) {
-            return NextResponse.json({ error: 'Message is required' }, { status: 400 });
-        }
+            if (!message) {
+                return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+            }
 
         // 2. Build Context (Server-Side)
         const context = await ContextBuilder.build(user.id);
@@ -105,4 +98,4 @@ export async function POST(request: NextRequest) {
         console.error('Intent API Error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
-}
+}, { requireAuth: true, rateLimit: 'aiCoach', auditAction: 'agent_intent' });

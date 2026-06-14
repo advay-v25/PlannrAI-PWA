@@ -342,6 +342,11 @@ function generateVariant(
             const isWeekend = isoDay >= 6;
             let remainingMinsForDay = Math.min(targetMinsPerDay, remainingWeeklyMins);
 
+            // Prevent leaving tiny fragments on the last day. E.g. if 60 mins left and target is 45, split 30/30 instead of 45/15.
+            if (remainingWeeklyMins - remainingMinsForDay > 0 && remainingWeeklyMins - remainingMinsForDay < 30) {
+                remainingMinsForDay = Math.ceil((remainingWeeklyMins / 2) / 15) * 15;
+            }
+
             const dayWindDown = (isWeekend && weekendIntensity === 'light') ? LIGHT_WEEKEND_CUTOFF : 1440;
             const dayExclusions = exclusions.get(isoDay)!;
             const dateStr = format(addDays(parseISO(weekStart), isoDay - 1), 'yyyy-MM-dd');
@@ -542,6 +547,10 @@ function generateVariant(
                 if (remainingMinsForDay <= 0) continue; // Reached daily cap
 
                 let remainingToPlace = Math.min(remainingMinsForDay, remainingWeeklyMins);
+                if (remainingWeeklyMins - remainingToPlace > 0 && remainingWeeklyMins - remainingToPlace < 30) {
+                    remainingToPlace = Math.ceil((remainingWeeklyMins / 2) / 15) * 15;
+                }
+
                 
                 const dayExclusions = exclusions.get(isoDay)!;
                 dayExclusions.sort((a, b) => a.start - b.start);

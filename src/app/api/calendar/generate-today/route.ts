@@ -171,7 +171,7 @@ BLOCK TYPES (use exactly):
 - "routine" → Morning/Evening routines
 - "meal" → Breakfast, Lunch, Dinner, Snack
 - "buffer" → Transition, active recovery, breaks
-- "flex" → Admin, errands, brain dump items, misc
+- "flex" → Admin, errands, misc
 
 SCHEDULING INTENSITY TODAY: ${scheduleIntensity}
 

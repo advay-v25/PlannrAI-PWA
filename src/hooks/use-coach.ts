@@ -44,12 +44,14 @@ interface CoachState extends PersistentCoachData {
   applyOption: (messageId: string, optionId: string) => Promise<CoachOption | boolean>;
   undo: () => Promise<boolean>;
   clearError: () => void;
+  refreshContext: () => Promise<void>;
   loadProactiveInsight: () => Promise<void>;
-  loadHistory: () => Promise<void>;
+  loadHistory: (conversationId?: string) => Promise<void>;
   dismissProactive: () => Promise<void>;
   actOnProactive: () => void;
   clearConversation: () => void;
   retryLastAction: () => void;
+  getLatestMessageWithOptions: () => CoachMessage | undefined;
 }
 
 function extractCoachResponse(raw: any): { response: any; conversationId?: string } {
@@ -83,6 +85,57 @@ export const useCoach = create<CoachState>()(
       checkingProactive: false,
       lastSync: null,
       connectionStatus: 'connecting',
+
+      refreshContext: async () => {
+        set({ isLoading: true, error: null, connectionStatus: 'connecting' });
+        try {
+          const raw = await apiClient.post('/api/coach/message', {
+            message: "Analyze my current context and give me an immediate execution and performance insight.",
+            conversation_id: get().conversationId,
+            date: new Date().toISOString()
+          });
+
+          const { response: coachRes, conversationId } = extractCoachResponse(raw);
+
+          const sanitizeSummary = (text: string) => {
+              if (!text) return text;
+              const trimmed = text.trim();
+              if (trimmed.startsWith('{') || trimmed.includes('"options":')) {
+                  try {
+                      const parsed = JSON.parse(trimmed);
+                      return parsed.summary || parsed.text || parsed.response || "I've prepared some options for you.";
+                  } catch (e) {
+                      if (trimmed.startsWith('{')) return "I've prepared some options for you.";
+                      const jsonStart = trimmed.indexOf('{');
+                      if (jsonStart > 0) return trimmed.substring(0, jsonStart).trim();
+                      return "I've prepared some options for you.";
+                  }
+              }
+              return text.replace(/```json\s*\{[\s\S]*\}\s*```/g, "I've prepared some options for you.")
+                         .replace(/```\s*\{[\s\S]*\}\s*```/g, "I've prepared some options for you.");
+          };
+
+          const assistantMsg: CoachMessage = {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: sanitizeSummary(coachRes.summary || ''),
+            mode: coachRes.mode,
+            options: coachRes.options,
+            timestamp: Date.now()
+          };
+
+          set(state => ({
+            messages: [...state.messages, assistantMsg],
+            conversationId: conversationId || state.conversationId,
+            isLoading: false,
+            connectionStatus: 'connected',
+            lastSync: Date.now()
+          }));
+        } catch (error: any) {
+          console.error("Coach Refresh Error:", error);
+          set({ isLoading: false, connectionStatus: 'disconnected' });
+        }
+      },
 
       sendMessage: async (text: string) => {
         const userMsg: CoachMessage = {
@@ -188,6 +241,17 @@ export const useCoach = create<CoachState>()(
 
           return { success: false, error: errorMessage };
         }
+      },
+
+      getLatestMessageWithOptions: () => {
+        const { messages } = get();
+        // Traverse backwards to find the last message with options
+        for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].options && messages[i].options!.length > 0) {
+                return messages[i];
+            }
+        }
+        return undefined;
       },
 
       applyOption: async (messageId: string, optionId: string) => {
@@ -329,26 +393,11 @@ export const useCoach = create<CoachState>()(
         }
       },
 
-      loadHistory: async () => {
-        // Load from local storage first for immediate feedback
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          try {
-            const data = JSON.parse(saved);
-            set(state => ({
-              messages: data.state.messages.slice(-50), // Last 50 messages
-              conversationId: data.state.conversationId,
-              suggestedActions: data.state.suggestedActions,
-              lastSync: data.state.lastSync
-            }));
-          } catch (error) {
-            console.error('[Coach] Failed to load local history:', error);
-          }
-        }
-
+      loadHistory: async (conversationId?: string) => {
         // Fetch from server to sync state
         try {
-          const res = await apiClient.get('/api/coach/history') as any;
+          const url = conversationId ? `/api/coach/history?id=${conversationId}` : '/api/coach/history';
+          const res = await apiClient.get(url) as any;
           if (res?.success && res?.messages && res.messages.length > 0) {
             set(state => ({
               messages: res.messages.map((m: any) => ({

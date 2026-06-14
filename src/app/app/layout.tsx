@@ -5,13 +5,14 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Calendar, Brain, Activity, User, Sparkles, Menu, Target, ListTodo } from 'lucide-react';
-import { CoachChat } from '@/components/coach/CoachChat';
+import { LayoutDashboard, Calendar, Brain, Activity, User, Sparkles, Target, ChevronLeft, ChevronRight } from 'lucide-react';
 import { CommandMenu } from '@/components/ui/command-menu';
 import { cn } from '@/lib/utils';
 import { useUserStore } from '@/stores';
-import { RealTimeIndicator } from '@/components/ui/real-time-indicator';
 import { createClient } from '@/lib/supabase/client';
+import { QuickCaptureFAB } from '@/components/home/quick-capture-fab';
+import { ErrorBoundary } from '@/components/error-boundary';
+import { RealtimeSync } from '@/components/realtime-sync';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
@@ -30,32 +31,71 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         })();
     }, [profile, supabase, setProfile]);
 
-    const [isCoachOpen, setIsCoachOpen] = useState(false);
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-    const isPreview = process.env.NEXT_PUBLIC_IS_PREVIEW_BUILD === 'true';
+    const [isPreview, setIsPreview] = useState(false);
+    useEffect(() => {
+        import('@/lib/featureFlags').then(m => setIsPreview(m.isPreviewEnabled()));
+    }, []);
 
     const navItems = [
         { href: '/app', icon: LayoutDashboard, label: 'Home' },
-        { href: '/app/goals', icon: Target, label: 'Goals' },
-        { href: '/app/tasks', icon: ListTodo, label: 'Tasks' },
+        { href: '/app/tasks', icon: Brain, label: 'Mindspace' },
         { href: '/app/calendar', icon: Calendar, label: 'Calendar' },
+        { href: '/app/goals', icon: Target, label: 'Goals' },
         { href: isPreview ? '/app/weekly-review' : '#', icon: Activity, label: 'Review', disabled: !isPreview, badge: !isPreview ? 'SOON' : undefined },
+        { href: '/app/coach', icon: Sparkles, label: 'Coach Hub' },
     ];
 
     return (
-        <div className="flex h-dvh w-full overflow-hidden text-[var(--text-primary)]">
+        <ErrorBoundary>
+            <div className="flex h-dvh w-full overflow-hidden text-[var(--text-primary)]">
+                <RealtimeSync />
             <CommandMenu />
 
             {/* Desktop Sidebar */}
-            <aside className="hidden md:flex flex-col w-64 border-r border-[var(--glass-border)] bg-[var(--color-bg-secondary)]/30 backdrop-blur-xl z-30">
-                <div className="h-14 flex items-center justify-between px-6 border-b border-[var(--glass-border)]">
-                    <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-mind)] bg-clip-text text-transparent">
-                        PlannrAI
-                    </span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-scifi-blink" />
+            <motion.aside 
+                initial={false}
+                animate={{ 
+                    width: isSidebarCollapsed ? 80 : 224,
+                }}
+                className="hidden md:flex flex-col border-r border-[var(--glass-border)] bg-[var(--color-bg-secondary)]/30 backdrop-blur-xl z-30 relative overflow-visible"
+            >
+                {/* Collapse Toggle Button */}
+                <button
+                    onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                    className="absolute -right-3 top-16 z-50 w-6 h-6 rounded-full bg-[var(--glass-bg)] border border-[var(--glass-border)] flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--glass-border-hover)] transition-all shadow-[var(--shadow-sm)]"
+                >
+                    {isSidebarCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+                </button>
+
+                <div className="h-16 flex items-center justify-between px-6 border-b border-[var(--glass-border)] overflow-hidden">
+                    <AnimatePresence mode="popLayout">
+                        {!isSidebarCollapsed ? (
+                            <motion.div 
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -10 }}
+                                className="flex items-center gap-2 flex-shrink-0"
+                            >
+                                <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-[var(--text-primary)] to-[var(--text-secondary)] bg-clip-text text-transparent">
+                                    PlannrAI
+                                </span>
+                            </motion.div>
+                        ) : (
+                            <motion.div 
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="w-6 h-6 rounded-lg bg-gradient-to-br from-[var(--color-primary)] to-orange-500 flex items-center justify-center mx-auto shadow-[0_0_10px_var(--color-primary-glow)] flex-shrink-0"
+                            >
+                                <span className="text-white text-xs font-bold">P</span>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
 
-                <nav className="flex-1 p-4 space-y-2">
+                <nav className="flex-1 p-4 space-y-2 overflow-hidden mt-2">
                     {navItems.map((item) => {
                         const isActive = pathname === item.href;
                         return (
@@ -63,141 +103,124 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                 key={item.href}
                                 href={item.href}
                                 onClick={(e) => item.disabled && e.preventDefault()}
+                                title={isSidebarCollapsed ? item.label : undefined}
                                 className={cn(
-                                    "flex items-center gap-3 px-4 py-3 rounded-xl transition-all group",
+                                    "flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all group overflow-hidden whitespace-nowrap",
                                     isActive
                                         ? "bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--color-primary)] shadow-[var(--shadow-sm)]"
                                         : "text-[var(--text-secondary)] hover:bg-[var(--glass-bg-hover)] hover:text-[var(--text-primary)]",
-                                    item.disabled && "opacity-50 cursor-not-allowed hover:bg-transparent hover:text-[var(--text-secondary)]"
+                                    item.disabled && "opacity-50 cursor-not-allowed hover:bg-transparent hover:text-[var(--text-secondary)]",
+                                    isSidebarCollapsed && "justify-center px-0 py-3"
                                 )}
                             >
-                                <item.icon className={cn("w-5 h-5", isActive ? "text-[var(--color-primary)]" : "text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]")} />
-                                <span className="font-semibold text-sm flex-1">{item.label}</span>
-                                {item.badge && (
-                                    <span className="text-[9px] font-black uppercase tracking-wider bg-[var(--color-primary)]/10 text-[var(--color-primary)] px-2 py-0.5 rounded-full border border-[var(--color-primary)]/20">
-                                        {item.badge}
-                                    </span>
+                                <item.icon className={cn("w-5 h-5 flex-shrink-0", isActive ? "text-[var(--color-primary)]" : "text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]")} />
+                                {!isSidebarCollapsed && (
+                                    <>
+                                        <span className="font-medium text-base flex-1">{item.label}</span>
+                                        {item.badge && (
+                                            <span className="text-[9px] font-black uppercase tracking-wider bg-[var(--color-primary)]/10 text-[var(--color-primary)] px-2 py-0.5 rounded-full border border-[var(--color-primary)]/20">
+                                                {item.badge}
+                                            </span>
+                                        )}
+                                    </>
                                 )}
                             </Link>
                         );
                     })}
-
-                    {/* AI Coach Button in Sidebar */}
-                    <button
-                        onClick={() => setIsCoachOpen(!isCoachOpen)}
-                        className={cn(
-                            "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all group",
-                            isCoachOpen
-                                ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/20"
-                                : "text-[var(--text-secondary)] hover:bg-[var(--glass-bg-hover)] hover:text-[var(--text-primary)]"
-                        )}
-                    >
-                        <Sparkles className={cn("w-5 h-5", isCoachOpen ? "text-[var(--color-primary)]" : "text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]")} />
-                        <span className="font-semibold text-sm flex-1 text-left">Coach Hub</span>
-                    </button>
                 </nav>
 
-                <div className="p-4 border-t border-[var(--glass-border)] flex flex-col gap-3">
+                <div className="p-4 border-t border-[var(--glass-border)] flex flex-col gap-3 overflow-hidden">
                     {/* Pro Upgrade Button */}
                     <Link
                         href="/app/pro"
-                        className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gradient-to-r from-[var(--color-primary)]/10 to-orange-500/10 border border-[var(--color-primary)]/30 hover:border-[var(--color-primary)]/60 transition-all cursor-pointer group"
+                        title={isSidebarCollapsed ? "Upgrade to Pro" : undefined}
+                        className={cn(
+                            "flex items-center gap-3 px-4 py-3 rounded-xl bg-orange-500/10 border border-orange-500/20 hover:bg-orange-500/20 transition-all cursor-pointer group whitespace-nowrap shadow-[0_0_15px_rgba(249,115,22,0.1)]", 
+                            isSidebarCollapsed && "justify-center px-0"
+                        )}
                     >
-                        <div className="w-8 h-8 rounded-full bg-[var(--color-primary)]/20 flex items-center justify-center group-hover:scale-110 transition-transform shadow-[0_0_10px_rgba(250,204,21,0.2)]">
-                            <Sparkles className="w-4 h-4 text-[var(--color-primary)]" />
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center group-hover:scale-110 transition-transform shadow-[0_0_10px_rgba(249,115,22,0.5)] flex-shrink-0">
+                            <Sparkles className="w-4 h-4 text-white" />
                         </div>
-                        <div className="flex-1 min-w-0 flex flex-col justify-center">
-                            <p className="text-sm font-bold text-[var(--color-primary)] truncate flex items-center gap-2">
-                                Upgrade to Pro
-                            </p>
-                        </div>
+                        {!isSidebarCollapsed && (
+                            <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                <p className="text-sm font-bold text-orange-400 group-hover:text-orange-300 transition-colors truncate flex items-center gap-2">
+                                    Upgrade to Pro
+                                </p>
+                            </div>
+                        )}
                     </Link>
 
                     <Link
                         href="/app/settings"
-                        className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] hover:bg-[var(--glass-bg-hover)] transition-all cursor-pointer group"
+                        title={isSidebarCollapsed ? "Settings" : undefined}
+                        className={cn("flex items-center gap-3 px-4 py-3 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] hover:bg-[var(--glass-bg-hover)] transition-all cursor-pointer group whitespace-nowrap", isSidebarCollapsed && "justify-center px-0")}
                     >
-                        <div className="w-8 h-8 rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center border border-[var(--color-primary)]/20 group-hover:border-[var(--color-primary)] transition-colors">
+                        <div className="w-8 h-8 rounded-full bg-[var(--color-primary)]/10 flex items-center justify-center border border-[var(--color-primary)]/20 group-hover:border-[var(--color-primary)] transition-colors flex-shrink-0">
                             <User className="w-4 h-4 text-[var(--color-primary)]" />
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate group-hover:text-[var(--color-primary)] transition-colors">{displayName}</p>
-                            <p className="text-xs text-[var(--text-tertiary)] truncate">Settings</p>
-                        </div>
+                        {!isSidebarCollapsed && (
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate group-hover:text-[var(--color-primary)] transition-colors">{displayName}</p>
+                                <p className="text-xs text-[var(--text-tertiary)] truncate">Settings</p>
+                            </div>
+                        )}
                     </Link>
                 </div>
-            </aside>
+            </motion.aside>
 
-  {/* Content Area with AI Coach - Using CSS Grid for fluid animations */}
-  <div className={cn(
-      "flex-1 grid transition-[grid-template-columns] duration-300 ease-in-out relative",
-      isCoachOpen ? "grid-cols-[1fr_400px]" : "grid-cols-[1fr_0px]"
-  )}>
-    {/* Main Content */}
-    <main className="relative flex flex-col overflow-hidden">
-      {/* Top System Bar */}
-      <header className="h-14 flex items-center justify-between px-6 border-b border-[var(--glass-border)] bg-[var(--color-bg-secondary)]/50 backdrop-blur-md z-20 md:hidden">
-        {/* Mobile Header Content - simplified since Sidebar handles desktop */}
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-[var(--color-primary)] animate-pulse-slow" />
-          <span className="text-xs font-mono text-[var(--text-tertiary)] uppercase tracking-widest">Neural OS</span>
+            {/* Content Area */}
+            <div className="flex-1 relative">
+                {/* Main Content */}
+                <main className="relative flex flex-col h-full overflow-hidden">
+                    {/* Top System Bar */}
+                    <header className="h-14 flex items-center justify-between px-6 border-b border-[var(--glass-border)] bg-[var(--color-bg-secondary)]/50 backdrop-blur-md z-20 md:hidden">
+                        {/* Mobile Header Content */}
+                        <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-[var(--color-primary)] animate-pulse-slow" />
+                            <span className="text-xs font-mono text-[var(--text-tertiary)] uppercase tracking-widest">Neural OS</span>
+                        </div>
+                    </header>
+
+                    {/* Scrollable Page Content */}
+                    <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-[var(--glass-border)]">
+                        {children}
+                    </div>
+
+                    {/* Bottom Navigation Dock (Mobile Only) */}
+                    <nav className="md:hidden absolute bottom-6 left-4 right-4 h-16 glass-panel rounded-full flex items-center justify-around px-2 z-30">
+                        {navItems.map((item) => {
+                            const isActive = pathname === item.href;
+                            return (
+                                <Link
+                                    key={item.href}
+                                    href={item.href}
+                                    onClick={(e) => item.disabled && e.preventDefault()}
+                                    className={cn(
+                                        "flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all",
+                                        isActive ? "text-[var(--color-primary)] bg-[var(--color-primary)]/10" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]",
+                                        item.disabled && "opacity-50 cursor-not-allowed"
+                                    )}
+                                >
+                                    <item.icon className="w-5 h-5" />
+                                </Link>
+                            );
+                        })}
+                        {/* Mobile Settings Link */}
+                        <Link
+                            href="/app/settings"
+                            className={cn(
+                                "flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all",
+                                pathname === '/app/settings' ? "text-[var(--color-primary)] bg-[var(--color-primary)]/10" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                            )}
+                        >
+                            <User className="w-5 h-5" />
+                        </Link>
+                    </nav>
+                </main>
+            </div>
+            {pathname === '/app' && <QuickCaptureFAB />}
         </div>
-      </header>
-
-      {/* Scrollable Page Content */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-[var(--glass-border)]">
-        {children}
-      </div>
-
-      {/* Bottom Navigation Dock (Mobile Only) */}
-      <nav className="md:hidden absolute bottom-6 left-4 right-4 h-16 glass-panel rounded-full flex items-center justify-around px-2 z-30">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={(e) => item.disabled && e.preventDefault()}
-              className={cn(
-                "flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all",
-                isActive ? "text-[var(--color-primary)] bg-[var(--color-primary)]/10" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]",
-                item.disabled && "opacity-50 cursor-not-allowed"
-              )}
-            >
-              <item.icon className="w-5 h-5" />
-            </Link>
-          );
-        })}
-        {/* Mobile Coach Button */}
-        <button
-          onClick={() => setIsCoachOpen(!isCoachOpen)}
-          className={cn(
-            "flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all",
-            isCoachOpen ? "text-[var(--color-primary)] bg-[var(--color-primary)]/10" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
-          )}
-        >
-          <Sparkles className="w-5 h-5" />
-        </button>
-        {/* Mobile Settings Link */}
-        <Link
-          href="/app/settings"
-          className={cn(
-            "flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all",
-            pathname === '/app/settings' ? "text-[var(--color-primary)] bg-[var(--color-primary)]/10" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
-          )}
-        >
-          <User className="w-5 h-5" />
-        </Link>
-      </nav>
-    </main>
-
-    {/* AI Coach Drawer - Always mounted, slides in */}
-    <aside className="overflow-hidden border-l border-[var(--glass-border)] bg-[var(--color-bg-secondary)]/30 backdrop-blur-xl z-40 relative">
-        <div className="w-[400px] h-full">
-            <CoachChat onClose={() => setIsCoachOpen(false)} />
-        </div>
-    </aside>
-  </div>
-        </div>
+        </ErrorBoundary>
     );
 }

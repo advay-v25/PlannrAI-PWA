@@ -42,7 +42,7 @@ export function Step5FailureModes() {
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-3 text-center"
             >
-                <h2 className="text-3xl font-bold tracking-tight text-white font-mono uppercase">
+                <h2 className="text-3xl font-bold tracking-tight text-[var(--text-primary)] font-mono uppercase">
                     PROTECTIVE <span className="text-[var(--color-primary)]">LAYERS</span>
                 </h2>
                 <p className="text-[var(--color-text-secondary)] text-sm tracking-wide">
@@ -64,22 +64,22 @@ export function Step5FailureModes() {
                             onClick={() => toggleFailureMode(mode.id)}
                             className={`flex items-start gap-4 p-5 rounded-2xl border transition-all duration-300 text-left group backdrop-blur-md shadow-lg ${
                                 isSelected
-                                    ? 'bg-white/10 border-white/40 shadow-[0_0_30px_rgba(255,255,255,0.05)] scale-[1.02]'
-                                    : 'bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/[0.07] hover:scale-[1.01]'
+                                    ? 'bg-[var(--glass-bg)] border-[var(--glass-border)] shadow-[0_0_30px_rgba(255,255,255,0.05)] scale-[1.02]'
+                                    : 'bg-[var(--glass-bg)] border-[var(--glass-border)] hover:border-[var(--glass-border)] hover:bg-white/[0.07] hover:scale-[1.01]'
                             }`}
                         >
                             <div className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded-md border flex items-center justify-center transition-all duration-300 shadow-inner ${
                                 isSelected 
                                     ? 'bg-white border-white scale-110' 
-                                    : 'border-white/30 group-hover:border-[var(--color-primary)]'
+                                    : 'border-[var(--glass-border)] group-hover:border-[var(--color-primary)]'
                             }`}>
                                 {isSelected && <div className="w-2.5 h-2.5 bg-black rounded-sm shadow-sm" />}
                             </div>
                             <div>
-                                <div className={`font-semibold tracking-wide transition-colors duration-300 ${isSelected ? 'text-[var(--color-primary)]' : 'text-white'}`}>
+                                <div className={`font-semibold tracking-wide transition-colors duration-300 ${isSelected ? 'text-[var(--color-primary)]' : 'text-[var(--text-primary)]'}`}>
                                     {mode.label}
                                 </div>
-                                <div className="text-xs text-white/50 mt-1.5 font-medium leading-relaxed">
+                                <div className="text-xs text-[var(--text-primary)]/50 mt-1.5 font-medium leading-relaxed">
                                     {mode.description}
                                 </div>
                             </div>
@@ -87,9 +87,9 @@ export function Step5FailureModes() {
                     );
                 })}
 
-                <div className="mt-8 p-5 rounded-2xl bg-white/5 border border-white/10 flex gap-4 items-start backdrop-blur-md shadow-lg">
+                <div className="mt-8 p-5 rounded-2xl bg-[var(--glass-bg)] border border-[var(--glass-border)] flex gap-4 items-start backdrop-blur-md shadow-lg">
                     <Info className="w-5 h-5 text-[var(--color-primary)] mt-0.5 flex-shrink-0" />
-                    <p className="text-xs text-white/70 leading-relaxed font-mono tracking-wide uppercase">
+                    <p className="text-xs text-[var(--text-primary)]/70 leading-relaxed font-mono tracking-wide uppercase">
                         We use these points of failure to inject protective buffers and build adaptive flexibility directly into your generated week.
                     </p>
                 </div>

@@ -51,7 +51,7 @@ export const CoachOutputSchema = z.object({
 });
 
 
-// (BrainDumpOutputSchema removed — feature deprecated)
+
 
 
 // 3. Onboarding Plan
@@ -249,6 +249,7 @@ PERSONALITY & TONE (EXECUTIVE EQ/IQ):
 - High IQ (Analytical): You are a tetris grandmaster of scheduling. You spot constraints, calculate friction, and optimize time like a machine.
 - High EQ (Empathetic): You read between the lines. If energy is 2/5 and the schedule is packed, you don't push—you protect. You enforce recovery as fiercely as you enforce productivity.
 - Quantified: Always cite data. "That frees 45 min for recovery" not "that frees some time."
+- Omnipotent Editor: You have the direct ability to create, update, or delete Calendar Blocks, Mindspace Todos, and Goals through your patch operations. If the user asks you to add a task, do it directly. If they ask to edit a goal, do it directly. Use your learned behavior patterns.
 
 ${BASE_RULES}
 
@@ -257,8 +258,10 @@ Current Time: ${ctx.now}
 Schedule (today + upcoming): ${JSON.stringify(ctx.schedule || [])}
 Anchors (LOCKED — never move/delete): ${JSON.stringify(ctx.anchors || [])}
 Goals: ${JSON.stringify(ctx.goals || [])}
+Todos (Mindspace): ${JSON.stringify(ctx.todos || [])}
 User State: ${JSON.stringify(ctx.userState || {})}
 Capacity: ${JSON.stringify(ctx.capacity || {})}
+Behavior Patterns (Preferences): ${JSON.stringify(ctx.behaviorPatterns || {})}
 Recent Logs: ${JSON.stringify((ctx.recentLogs || []).slice(0, 2))}
 Chat History: ${JSON.stringify((ctx.chatHistory || []).slice(-6))}
 ${ctx.proposals?.length ? `Pending System Proposals: ${JSON.stringify(ctx.proposals)}` : ''}
@@ -697,7 +700,7 @@ OUTPUT FORMAT (Strict JSON, No Markdown):
     fallback: () => ({ has_proposal: false }),
     systemPrompt: (ctx) => `
       You are the "Proactive Intelligence Layer" of Donna, the user's executive AI Chief of Staff.
-      You run silently in the background after events (e.g., a Brain Dump, completing a Habit Stack).
+      You run silently in the background after events (e.g., completing a Habit Stack, updating a goal).
       Your job is to hunt for IQ/EQ mismatches and decide if you MUST proactively intervene.
       ${BASE_RULES}
       

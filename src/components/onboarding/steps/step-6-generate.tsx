@@ -98,15 +98,15 @@ export function Step6Generate() {
                         </div>
 
                         <div className="text-center space-y-5 w-full max-w-sm">
-                            <h3 className="text-xl font-bold text-white tracking-widest uppercase h-8 drop-shadow-md">{status}</h3>
-                            <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden shadow-inner">
+                            <h3 className="text-xl font-bold text-[var(--text-primary)] tracking-widest uppercase h-8 drop-shadow-md">{status}</h3>
+                            <div className="w-full h-1.5 bg-[var(--glass-bg)] rounded-full overflow-hidden shadow-inner">
                                 <motion.div
                                     initial={{ width: 0 }}
                                     animate={{ width: `${progress}%` }}
                                     className="h-full bg-[var(--color-primary)] shadow-[0_0_15px_rgba(var(--color-primary-rgb),0.8)]"
                                 />
                             </div>
-                            <p className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em]">{progress}% COMPILED</p>
+                            <p className="text-[10px] font-bold text-[var(--text-primary)]/40 uppercase tracking-[0.2em]">{progress}% COMPILED</p>
                         </div>
                     </motion.div>
                 ) : (
@@ -117,8 +117,8 @@ export function Step6Generate() {
                         className="space-y-8 w-full pb-10"
                     >
                         <div className="text-center space-y-3 mb-10">
-                            <h2 className="text-4xl font-bold text-white font-mono uppercase tracking-tight">YOUR <span className="text-[var(--color-primary)]">OPTIONS</span></h2>
-                            <p className="text-white/60 tracking-wider text-sm">Choose your preferred approach for your first week.</p>
+                            <h2 className="text-4xl font-bold text-[var(--text-primary)] font-mono uppercase tracking-tight">YOUR <span className="text-[var(--color-primary)]">OPTIONS</span></h2>
+                            <p className="text-[var(--text-primary)]/60 tracking-wider text-sm">Choose your preferred approach for your first week.</p>
                         </div>
 
                         <div className="space-y-5">
@@ -128,8 +128,8 @@ export function Step6Generate() {
                                     onClick={() => updateData({ selected_variant_id: opt.id })}
                                     className={`w-full p-6 text-left relative group transition-all duration-500 rounded-3xl backdrop-blur-md shadow-xl ${
                                         selectedOption === opt.id
-                                            ? 'bg-white/10 border border-white/40 shadow-[0_0_40px_rgba(255,255,255,0.1)] scale-[1.03]'
-                                            : 'bg-white/5 border border-white/10 hover:border-white/30 hover:bg-white/10 hover:scale-[1.01]'
+                                            ? 'bg-[var(--glass-bg)] border border-[var(--glass-border)] shadow-[0_0_40px_rgba(255,255,255,0.1)] scale-[1.03]'
+                                            : 'bg-[var(--glass-bg)] border border-[var(--glass-border)] hover:border-[var(--glass-border)] hover:bg-[var(--glass-bg)] hover:scale-[1.01]'
                                     }`}
                                 >
                                     {opt.recommended && (
@@ -140,10 +140,10 @@ export function Step6Generate() {
 
                                     <div className="flex justify-between items-start mb-6">
                                         <div>
-                                            <div className={`text-xl font-black font-mono tracking-tight transition-colors duration-300 ${selectedOption === opt.id ? 'text-[var(--color-primary)] drop-shadow-[0_0_8px_rgba(var(--color-primary-rgb),0.4)]' : 'text-white'}`}>
+                                            <div className={`text-xl font-black font-mono tracking-tight transition-colors duration-300 ${selectedOption === opt.id ? 'text-[var(--color-primary)] drop-shadow-[0_0_8px_rgba(var(--color-primary-rgb),0.4)]' : 'text-[var(--text-primary)]'}`}>
                                                 {opt.label}
                                             </div>
-                                            <p className="text-sm text-white/60 mt-2 leading-relaxed font-medium tracking-wide pr-8">{opt.summary}</p>
+                                            <p className="text-sm text-[var(--text-primary)]/60 mt-2 leading-relaxed font-medium tracking-wide pr-8">{opt.summary}</p>
                                         </div>
                                         {selectedOption === opt.id && (
                                             <div className="bg-white text-black p-1.5 rounded-full shadow-lg scale-110 ml-4 flex-shrink-0">
@@ -152,7 +152,7 @@ export function Step6Generate() {
                                         )}
                                     </div>
 
-                                    <div className="grid grid-cols-4 gap-3 p-4 rounded-2xl bg-black/40 border border-white/5 shadow-inner">
+                                    <div className="grid grid-cols-4 gap-3 p-4 rounded-2xl bg-[var(--glass-bg-active)] border border-[var(--glass-border)] shadow-inner">
                                         <Metric label="Blocks" value={opt.metrics.total_blocks} active={selectedOption === opt.id} />
                                         <Metric label="Buffer" value={`${opt.metrics.buffer_percentage}%`} active={selectedOption === opt.id} />
                                         <Metric label="Intensity" value={`${opt.metrics.intensity}/10`} active={selectedOption === opt.id} />
@@ -171,8 +171,8 @@ export function Step6Generate() {
 function Metric({ label, value, active }: { label: string; value: string | number; active?: boolean }) {
     return (
         <div className="flex flex-col items-center justify-center text-center">
-            <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-1">{label}</span>
-            <span className={`text-lg font-black font-mono tracking-tight transition-colors duration-300 ${active ? 'text-white drop-shadow-md' : 'text-white/70'}`}>{value}</span>
+            <span className="text-[9px] font-bold text-[var(--text-primary)]/40 uppercase tracking-widest mb-1">{label}</span>
+            <span className={`text-lg font-black font-mono tracking-tight transition-colors duration-300 ${active ? 'text-[var(--text-primary)] drop-shadow-md' : 'text-[var(--text-primary)]/70'}`}>{value}</span>
         </div>
     );
 }

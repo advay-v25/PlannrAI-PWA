@@ -36,7 +36,7 @@ export function Step6Complete() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.4 }}
-                    className="text-lg text-[var(--color-text-secondary)]"
+                    className="text-lg text-[var(--text-secondary)]"
                 >
                     All protocols have been successfully initialized. Your Neural Operating System is ready.
                 </motion.p>

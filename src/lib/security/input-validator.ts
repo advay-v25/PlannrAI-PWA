@@ -182,18 +182,6 @@ export function validateUUID(uuid: unknown): ValidationResult {
 }
 
 /**
- * Validate and sanitize brain dump content
- */
-export function validateBrainDump(content: unknown): ValidationResult {
-    return validateInput(content, {
-        maxLength: 10000,   // 10K chars max
-        minLength: 1,
-        allowNewlines: true,
-        allowHtml: false,
-    });
-}
-
-/**
  * Validate coach message
  */
 export function validateCoachMessage(message: unknown): ValidationResult {

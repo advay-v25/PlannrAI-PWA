@@ -30,7 +30,10 @@ interface GoalCardProps {
 export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor }: GoalCardProps) {
     const router = useRouter();
     const [isExpanded, setIsExpanded] = useState(false);
-    const isPreview = process.env.NEXT_PUBLIC_IS_PREVIEW_BUILD === 'true';
+    const [isPreview, setIsPreview] = useState(false);
+    useEffect(() => {
+        import('@/lib/featureFlags').then(m => setIsPreview(m.isPreviewEnabled()));
+    }, []);
 
     // Local buffering for inputs to prevent API spam on every keystroke/pixel drag
     const [localTitle, setLocalTitle] = useState(goal.title || '');
@@ -59,7 +62,7 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
 
     return (
         <GlassCard
-            className={`transition-all duration-300 ${isExpanded ? 'ring-1 ring-[var(--color-primary)] shadow-lg' : 'hover:bg-[var(--glass-bg-hover)]'}`}
+            className={`group transition-all duration-300 ${isExpanded ? 'ring-1 ring-[var(--color-primary)] shadow-lg' : 'hover:-translate-y-1 hover:shadow-xl hover:bg-[var(--glass-bg-hover)]'}`}
             padding="none"
         >
             {/* Header / Summary View */}
@@ -70,54 +73,62 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                 <div className="flex items-center gap-3">
                     {/* Status Indicator Bar */}
                     <div
-                        className={`w-1.5 h-10 rounded-full transition-colors`}
+                        className={`w-1 h-8 rounded-full transition-colors`}
                         style={{ backgroundColor: isPaused ? 'var(--text-disabled)' : pillarColor }}
                     />
 
                     <div>
                         <div className="flex items-center gap-2">
-                            <h3 className={`font-semibold text-base ${isPaused ? 'text-[var(--text-tertiary)] line-through decoration-2' : 'text-[var(--text-primary)]'}`}>
+                            <h3 className={`font-bold text-xl ${isPaused ? 'text-[var(--text-tertiary)] line-through decoration-2' : 'text-white'}`}>
                                 {goal.title}
                             </h3>
                             {goal.ai_strategy && Object.keys(goal.ai_strategy).length > 0 && (
-                                <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold tracking-wider bg-gradient-to-r from-[var(--color-primary)]/20 to-purple-500/20 text-[var(--color-primary)] rounded border border-[var(--color-primary)]/20">
+                                <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold tracking-wider bg-white/10 text-white rounded border border-white/20">
                                     AI Strategy
                                 </span>
                             )}
                         </div>
 
                         {!isExpanded && (
-                            <div className="mt-1 space-y-1.5">
+                            <div className="mt-2 space-y-3">
                                 <div className="flex items-center gap-3 text-xs text-[var(--text-tertiary)]">
-                                    <span className="font-mono text-[var(--color-primary)] font-bold">Lvl {goal.level || 1}</span>
-                                    <span className="w-1 h-1 rounded-full bg-[var(--text-tertiary)]/30" />
-                                    <span className="font-mono">{goal.weekly_target_minutes || 0}m/wk</span>
-                                    <span className="w-1 h-1 rounded-full bg-[var(--text-tertiary)]/30" />
-                                    <div className="flex items-center gap-1 text-orange-400">
-                                        <Zap className="w-3 h-3" />
-                                        <span className="font-mono font-bold">{goal.current_streak_days || 0}</span>
-                                    </div>
+                                    {goal.cycle_start_date && goal.cycle_end_date && (
+                                        <>
+                                            <span className="font-medium text-[var(--text-secondary)]">
+                                                {new Date(goal.cycle_start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} 
+                                                {' - '}
+                                                {new Date(goal.cycle_end_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                            </span>
+                                            <span className="w-1 h-1 rounded-full bg-white/20" />
+                                        </>
+                                    )}
+                                    <span className="font-mono text-[var(--text-secondary)]">{goal.weekly_target_minutes || 0}m/wk</span>
                                 </div>
                                 {/* Weekly Progress Bar */}
                                 {(goal.weekly_target_minutes || 0) > 0 && (() => {
                                     const achieved = goal.total_completed_minutes || 0;
                                     const target = goal.weekly_target_minutes || 1;
                                     const pct = Math.min(100, Math.round((achieved / target) * 100));
+                                    
                                     return (
-                                        <div className="flex items-center gap-2 mt-2">
-                                            <div className="flex-1 h-2 bg-[var(--glass-bg-hover)] border border-[var(--glass-border)] rounded-full overflow-hidden relative shadow-inner">
-                                                <motion.div
-                                                    initial={{ width: 0 }}
-                                                    animate={{ width: `${pct}%` }}
-                                                    transition={{ duration: 1, ease: "easeOut" }}
-                                                    className="absolute top-0 left-0 h-full rounded-full"
-                                                    style={{
-                                                        backgroundColor: pillarColor,
-                                                        boxShadow: `0 0 10px ${pillarColor}80, inset 0 0 4px ${pillarColor}`
-                                                    }}
-                                                />
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden relative shadow-inner">
+                                                {pct > 0 && (
+                                                    <motion.div
+                                                        initial={{ width: 0 }}
+                                                        animate={{ width: `${pct}%` }}
+                                                        transition={{ duration: 1, ease: "easeOut" }}
+                                                        className="absolute top-0 left-0 h-full rounded-full"
+                                                        style={{
+                                                            backgroundColor: pillarColor,
+                                                            boxShadow: `0 0 10px ${pillarColor}80`
+                                                        }}
+                                                    />
+                                                )}
                                             </div>
-                                            <span className="text-[10px] font-mono font-bold tracking-wider" style={{ color: pillarColor, textShadow: `0 0 10px ${pillarColor}40` }}>{pct}%</span>
+                                            <span className="text-[10px] font-mono font-bold tracking-wider text-[var(--text-secondary)] min-w-[28px] text-right">
+                                                {pct}%
+                                            </span>
                                         </div>
                                     );
                                 })()}
@@ -126,23 +137,24 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                         onClick={(e) => { 
                             e.stopPropagation(); 
                             if (isPreview) onOpenStrategy(goal); 
                         }}
-                        className={`p-2 rounded-full transition-all group ${goal.ai_strategy
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all text-xs font-semibold ${goal.ai_strategy
                             ? 'bg-[var(--color-primary)]/10 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/20'
-                            : 'hover:bg-[var(--glass-bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--color-primary)]'
+                            : 'bg-white/5 hover:bg-white/10 text-[var(--text-secondary)] hover:text-white'
                             } ${!isPreview && 'opacity-50 cursor-not-allowed hover:text-[var(--text-tertiary)] hover:bg-transparent'}`}
                         title={isPreview ? "AI Strategy" : "Pro Feature - Coming Soon"}
                     >
-                        <Sparkles className={`w-4 h-4 ${!goal.ai_strategy && isPreview && 'group-hover:scale-110 transition-transform'}`} />
+                        <Sparkles className="w-3.5 h-3.5" />
+                        ✨ Strategy
                     </button>
 
-                    <button className="p-2 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">
-                        {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                    <button className="text-xs font-semibold text-[var(--text-tertiary)] hover:text-white transition-colors">
+                        {isExpanded ? "Close" : "View →"}
                     </button>
                 </div>
             </div>
@@ -169,7 +181,7 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                                                 onUpdate(goal.id, { title: localTitle });
                                             }
                                         }}
-                                        className="font-medium bg-[var(--glass-bg)] border-transparent focus:border-[var(--color-primary)] focus:bg-[var(--glass-bg-hover)]"
+                                        className="font-medium bg-white/5 border border-white/10 focus:border-white/30 text-white h-10 transition-colors"
                                     />
                                 </div>
                                 <div className="space-y-1">
@@ -177,11 +189,11 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                                     <select
                                         value={goal.category || 'mind'}
                                         onChange={(e) => onUpdate(goal.id, { category: e.target.value as any })}
-                                        className="w-full h-10 px-3 rounded-xl bg-[var(--glass-bg)] border border-transparent focus:border-[var(--color-primary)] focus:bg-[var(--glass-bg-hover)] text-sm font-medium outline-none appearance-none cursor-pointer"
+                                        className="w-full h-10 px-3 rounded-xl bg-white/5 border border-white/10 focus:border-white/30 text-white text-sm font-medium outline-none appearance-none cursor-pointer transition-colors"
                                     >
-                                        <option value="mind">Mind</option>
-                                        <option value="body">Body</option>
-                                        <option value="craft">Craft</option>
+                                        <option value="mind" className="bg-[#121212]">Mind</option>
+                                        <option value="body" className="bg-[#121212]">Body</option>
+                                        <option value="craft" className="bg-[#121212]">Craft</option>
                                     </select>
                                 </div>
                             </div>
@@ -193,7 +205,7 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                                     <div className="space-y-2">
                                         <div className="flex justify-between">
                                             <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Days / Week</label>
-                                            <span className="text-xs font-mono font-bold text-[var(--color-primary)]">{localDaysPerWeek}d</span>
+                                            <span className="text-xs font-mono font-bold text-white">{localDaysPerWeek}d</span>
                                         </div>
                                         <input
                                             type="range" min={1} max={7} step={1}
@@ -201,13 +213,13 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                                             onChange={(e) => setLocalDaysPerWeek(Number(e.target.value))}
                                             onMouseUp={handleTargetUpdate}
                                             onTouchEnd={handleTargetUpdate}
-                                            className="w-full accent-[var(--color-primary)] h-1.5 bg-[var(--glass-border)] rounded-lg appearance-none cursor-pointer"
+                                            className="w-full accent-white h-1.5 bg-[var(--glass-border)] rounded-lg appearance-none cursor-pointer"
                                         />
                                     </div>
                                     <div className="space-y-2">
                                         <div className="flex justify-between">
                                             <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Daily Mins</label>
-                                            <span className="text-xs font-mono font-bold text-[var(--color-primary)]">{localMinsPerDay}m</span>
+                                            <span className="text-xs font-mono font-bold text-white">{localMinsPerDay}m</span>
                                         </div>
                                         <input
                                             type="range" min={5} max={180} step={5}
@@ -215,27 +227,30 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                                             onChange={(e) => setLocalMinsPerDay(Number(e.target.value))}
                                             onMouseUp={handleTargetUpdate}
                                             onTouchEnd={handleTargetUpdate}
-                                            className="w-full accent-[var(--color-primary)] h-1.5 bg-[var(--glass-border)] rounded-lg appearance-none cursor-pointer"
+                                            className="w-full accent-white h-1.5 bg-[var(--glass-border)] rounded-lg appearance-none cursor-pointer"
                                         />
                                     </div>
                                 </div>
 
-                                {/* Physics Display (Read-only) */}
-                                <div className="space-y-2">
-                                    <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Momentum</label>
-                                    <div className="flex items-center gap-4 bg-[var(--glass-bg)] h-10 px-3 rounded-xl border border-[var(--glass-border)]">
-                                        <div className="flex flex-col">
-                                            <span className="text-[9px] uppercase text-[var(--text-tertiary)]">Level</span>
-                                            <span className="text-sm font-bold font-mono text-white">{goal.level || 1}</span>
-                                        </div>
-                                        <div className="h-4 w-px bg-white/10" />
-                                        <div className="flex flex-col">
-                                            <span className="text-[9px] uppercase text-[var(--text-tertiary)]">Streak</span>
-                                            <div className="flex items-center gap-1">
-                                                <Zap className="w-3 h-3 text-orange-400" />
-                                                <span className="text-sm font-bold font-mono text-orange-400">{goal.current_streak_days || 0}</span>
-                                            </div>
-                                        </div>
+                                {/* Date Range */}
+                                <div className="space-y-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Start Date</label>
+                                        <input 
+                                            type="date"
+                                            value={goal.cycle_start_date ? goal.cycle_start_date.split('T')[0] : ''}
+                                            onChange={(e) => onUpdate(goal.id, { cycle_start_date: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                                            className="w-full h-9 px-3 rounded-xl bg-white/5 border border-white/10 focus:border-white/30 text-white text-sm outline-none transition-colors"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">End Date</label>
+                                        <input 
+                                            type="date"
+                                            value={goal.cycle_end_date ? goal.cycle_end_date.split('T')[0] : ''}
+                                            onChange={(e) => onUpdate(goal.id, { cycle_end_date: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                                            className="w-full h-9 px-3 rounded-xl bg-white/5 border border-white/10 focus:border-white/30 text-white text-sm outline-none transition-colors"
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -244,13 +259,13 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                             <div className="grid grid-cols-2 gap-6">
                                 <div className="space-y-2">
                                     <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Energy Demand</label>
-                                    <div className="flex bg-[var(--glass-bg)] p-1 rounded-lg border border-[var(--glass-border)]">
+                                    <div className="flex bg-white/5 p-1 rounded-lg border border-white/10">
                                         {(['light', 'medium', 'heavy'] as const).map(e => (
                                             <button
                                                 key={e}
                                                 onClick={() => onUpdate(goal.id, { energy_demand: e })}
                                                 className={`flex-1 text-[10px] font-medium py-1.5 rounded-md transition-all ${goal.energy_demand === e
-                                                    ? 'bg-[var(--glass-border)] text-[var(--text-primary)] shadow-sm'
+                                                    ? 'bg-white/20 text-white shadow-sm'
                                                     : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
                                                     }`}
                                             >
@@ -262,13 +277,13 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
 
                                 <div className="space-y-2">
                                     <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Priority</label>
-                                    <div className="flex bg-[var(--glass-bg)] p-1 rounded-lg border border-[var(--glass-border)]">
+                                    <div className="flex bg-white/5 p-1 rounded-lg border border-white/10">
                                         {(['low', 'medium', 'high'] as const).map(p => (
                                             <button
                                                 key={p}
                                                 onClick={() => onUpdate(goal.id, { importance: p })}
                                                 className={`flex-1 text-[10px] font-medium py-1.5 rounded-md transition-all ${goal.importance === p
-                                                    ? 'bg-[var(--glass-border)] text-[var(--text-primary)] shadow-sm'
+                                                    ? 'bg-white/20 text-white shadow-sm'
                                                     : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
                                                     }`}
                                             >

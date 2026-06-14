@@ -2,6 +2,8 @@
 
 import { useState, FormEvent, useRef, useEffect } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { apiClient } from '@/lib/api-client';
+import { formatDistanceToNow } from 'date-fns';
 
 import { useCoach, CoachMessage } from '@/hooks/use-coach';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
@@ -51,6 +53,42 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
     const [pendingOption, setPendingOption] = useState<CoachOption | null>(null);
     const [showPreview, setShowPreview] = useState(false);
     const [isApplyingChanges, setIsApplyingChanges] = useState(false);
+    
+    // History State
+    const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+    const [pastConversations, setPastConversations] = useState<any[]>([]);
+    const [isLoadingHistoryList, setIsLoadingHistoryList] = useState(false);
+
+    const handleOpenHistory = async () => {
+        setIsHistoryOpen(!isHistoryOpen);
+        if (!isHistoryOpen && pastConversations.length === 0) {
+            setIsLoadingHistoryList(true);
+            try {
+                const res = await apiClient.get('/api/coach/conversations') as any;
+                if (res?.success) {
+                    setPastConversations(res.conversations || []);
+                }
+            } catch (err) {
+                console.error("Failed to fetch conversations", err);
+            } finally {
+                setIsLoadingHistoryList(false);
+            }
+        }
+    };
+
+    const handleDeleteChat = async (e: React.MouseEvent, id: string) => {
+        e.stopPropagation(); // prevent loading the chat
+        try {
+            const res = await apiClient.delete(`/api/coach/conversations?id=${id}`) as any;
+            if (res?.success) {
+                setPastConversations(prev => prev.filter(c => c.id !== id));
+                showToast('Chat deleted', 'success');
+            }
+        } catch (err) {
+            console.error("Failed to delete conversation", err);
+            showToast('Failed to delete chat', 'error');
+        }
+    };
 
     // Thinking state stages
     const [loadingStage, setLoadingStage] = useState(0);
@@ -168,57 +206,101 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
     };
 
     return (
-        <div className="flex flex-col h-full glass relative overflow-hidden bg-bg-secondary/40">
-            {/* Mesh Background Overlay (Subtle) */}
-            <div className="absolute inset-0 z-0 opacity-20 pointer-events-none bg-mesh-gradient"></div>
-
+        <div className="flex flex-col h-full relative overflow-hidden bg-transparent">
             {/* Header / Mode Indicator */}
-            <div className="z-10 px-6 py-4 flex justify-between items-center border-b border-white/5 backdrop-blur-md">
+            <div className="z-10 px-6 py-4 flex justify-between items-center border-b border-white/5 bg-[#0a0a0b]/80 backdrop-blur-md">
                 <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-[var(--color-mind)] flex items-center justify-center shadow-glow">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-[0_0_15px_rgba(249,115,22,0.3)]">
                         <span className="text-white text-sm">⚡</span>
                     </div>
                     <div className="flex flex-col">
-                        <span className="text-sm font-bold text-foreground tracking-tight flex items-center gap-1.5">
+                        <span className="text-sm font-bold text-white tracking-tight flex items-center gap-1.5">
                             Donna
                             <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-scifi-blink" />
                         </span>
                         <span className="text-[10px] text-foreground/40 uppercase tracking-wider">
-                            AI Coach · Strategic Mode
+                            Strategic Mode
+                        </span>
+                        <span className="text-[9px] text-foreground/30 mt-0.5">
+                            Using: Calendar • Goals • Tasks
                         </span>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    {minimalMode && (
-                        <div className="flex items-center space-x-1.5 bg-primary/10 px-2 py-1 rounded-full border border-primary/20">
-                            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></div>
-                            <span className="text-[9px] font-bold text-primary uppercase">Minimal</span>
-                        </div>
-                    )}
+                <div className="flex items-center gap-2 relative">
+                    {/* History Button */}
+                    <button
+                        onClick={handleOpenHistory}
+                        className={`p-2 rounded-xl transition-colors ${isHistoryOpen ? 'bg-orange-500/20 text-orange-400' : 'text-foreground/40 hover:bg-white/[0.05] hover:text-white'}`}
+                        title="Chat History"
+                    >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </button>
+
                     {/* New Chat Button */}
                     <button
                         onClick={handleNewChat}
-                        className="p-1.5 rounded-lg hover:bg-white/5 transition-colors text-foreground/40 hover:text-foreground/70"
+                        className="p-2 rounded-xl hover:bg-white/[0.05] transition-colors text-foreground/40 hover:text-white"
                         title="New conversation"
                     >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                         </svg>
                     </button>
-                    {/* Close Button */}
-                    {onClose && (
-                        <button
-                            onClick={onClose}
-                            className="p-1.5 rounded-lg hover:bg-white/5 transition-colors text-foreground/40 hover:text-foreground/70 ml-1"
-                            title="Close coach"
-                        >
+                </div>
+            </div>
+
+            {/* History Overlay */}
+            {isHistoryOpen && (
+                <div className="absolute inset-x-0 top-[73px] bottom-0 z-50 bg-[#0a0a0b]/95 backdrop-blur-xl flex flex-col border-t border-white/5 animate-slide-up">
+                    <div className="flex justify-between items-center px-6 py-4 border-b border-white/5">
+                        <span className="text-sm font-bold text-white uppercase tracking-widest">Past Conversations</span>
+                        <button onClick={() => setIsHistoryOpen(false)} className="text-white/40 hover:text-white transition-colors">
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
-                    )}
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                        {isLoadingHistoryList ? (
+                            <div className="p-4 text-center text-sm text-white/40 animate-pulse">Loading history...</div>
+                        ) : pastConversations.length === 0 ? (
+                            <div className="p-4 text-center text-sm text-white/40">No past conversations found.</div>
+                        ) : (
+                            pastConversations.map(conv => (
+                                <div key={conv.id} className="relative group/item flex items-center">
+                                    <button
+                                        onClick={() => {
+                                            setIsHistoryOpen(false);
+                                            loadHistory(conv.id);
+                                        }}
+                                        className="w-full text-left px-4 py-3 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/10 transition-all flex flex-col gap-1"
+                                    >
+                                        <span className="text-sm font-medium text-white/90 group-hover/item:text-orange-400 transition-colors pr-8">
+                                            {conv.primary_topic || 'Strategy Session'}
+                                        </span>
+                                        <span className="text-xs text-white/40">
+                                            {conv.last_message_at ? formatDistanceToNow(new Date(conv.last_message_at), { addSuffix: true }) : 'Unknown date'}
+                                        </span>
+                                    </button>
+                                    
+                                    {/* Delete Button */}
+                                    <button 
+                                        onClick={(e) => handleDeleteChat(e, conv.id)}
+                                        className="absolute right-3 p-2 rounded-lg text-white/20 opacity-0 group-hover/item:opacity-100 hover:text-red-400 hover:bg-red-400/10 transition-all"
+                                        title="Delete chat"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            ))
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Error Banner */}
             {error && (
@@ -232,29 +314,27 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
             <div className="z-10 flex-1 overflow-y-auto p-4 space-y-6 scrollbar-hide">
                 {messages.length === 0 && !isLoading && (
                     <div className="text-center text-gray-500 mt-12 animate-fade-in">
-                        <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-primary to-mind/50 mx-auto mb-6 flex items-center justify-center shadow-glow">
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500/50 mx-auto mb-6 flex items-center justify-center shadow-[0_0_30px_rgba(249,115,22,0.2)]">
                              <span className="text-white text-2xl">⚡️</span>
                         </div>
-                        <p className="text-lg font-semibold text-foreground mb-2">How shall we architect today?</p>
-                        <p className="text-xs text-secondary max-w-[240px] mx-auto italic mb-6">
+                        <p className="text-lg font-semibold text-white mb-2">How shall we architect today?</p>
+                        <p className="text-xs text-white/40 max-w-[240px] mx-auto italic mb-6">
                             &quot;I&apos;m overwhelmed,&quot; or &quot;Protect my focus today.&quot;
                         </p>
                         
                         {/* Proactive Quick-Action Chips — Auto-send on click */}
                         <div className="flex flex-wrap justify-center gap-2 max-w-[300px] mx-auto">
                             {[
-                                { label: "I'm overwhelmed", emoji: "😵‍💫" },
-                                { label: "Protect my focus", emoji: "🛡️" },
-                                { label: "Reschedule my day", emoji: "🔄" },
-                                { label: "What should I do next?", emoji: "🤔" },
-                                { label: "I need a break", emoji: "☕" },
-                                { label: "Review my week", emoji: "📊" },
+                                { label: "Fix today's schedule", emoji: "🔄" },
+                                { label: "Reduce today's load", emoji: "😵‍💫" },
+                                { label: "Review this week", emoji: "📈" },
+                                { label: "Protect my goals", emoji: "🛡️" }
                             ].map(chip => (
                                 <button
                                     key={chip.label}
                                     onClick={() => handleQuickChip(chip.label)}
                                     disabled={isLoading}
-                                    className="px-3 py-1.5 bg-white/[0.04] border border-white/[0.08] rounded-full text-xs text-foreground/60 hover:text-foreground hover:bg-white/[0.08] hover:border-primary/30 transition-all disabled:opacity-50"
+                                    className="px-4 py-2 bg-white/[0.02] border border-white/5 rounded-full text-[13px] font-medium text-foreground/70 hover:text-orange-500 hover:bg-orange-500/10 hover:border-orange-500/30 shadow-sm transition-all disabled:opacity-50"
                                 >
                                     {chip.emoji} {chip.label}
                                 </button>
@@ -267,53 +347,44 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                     <div key={message.id || index} className="space-y-4">
                         <CoachMessageBubble message={message} />
 
-                        {/* Options UI */}
-                        {message.role === 'assistant' && message.options && message.options.length > 0 && (
+                        {/* Options UI - Removed from chronological chat flow. Options are now hoisted to the Recommended Actions section of the dashboard */}
+                        {message.role === 'assistant' && message.options && message.options.length > 0 && message.isApplying && (
                             <div className="mt-4 flex flex-col space-y-3 animate-slide-up">
-                                {!message.selected_option_id && !message.isApplying ? (
-                                    message.options.map(option => (
-                                        <CoachOptionCard
-                                            key={option.id}
-                                            option={option}
-                                            onSelect={() => handleOptionSelect(option)}
-                                            disabled={isLoading || !!message.isApplying}
-                                            minimalMode={minimalMode}
-                                        />
-                                    ))
-                                ) : message.isApplying ? (
-                                    <div className="mx-4 p-3 rounded-xl bg-yellow-500/5 border border-yellow-500/20 flex items-center space-x-3 animate-pulse">
-                                        <div className="w-6 h-6 rounded-full bg-yellow-500/20 flex items-center justify-center text-[10px] text-yellow-400">
-                                            <span className="animate-spin">⚡</span>
-                                        </div>
+                                <div className="mx-4 p-3 rounded-xl bg-yellow-500/5 border border-yellow-500/20 flex items-center space-x-3 animate-pulse">
+                                    <div className="w-6 h-6 rounded-full bg-yellow-500/20 flex items-center justify-center text-[10px] text-yellow-400">
+                                        <span className="animate-spin">⚡</span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-bold text-yellow-400 uppercase">Applying Changes...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {message.role === 'assistant' && message.selected_option_id && !message.isApplying && (
+                            <div className="mt-4 flex flex-col space-y-3 animate-slide-up">
+                                <div className="mx-4 p-3 rounded-xl bg-primary/5 border border-primary/20 flex items-center justify-between">
+                                    <div className="flex items-center space-x-3">
+                                        <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-[10px] text-white">✓</div>
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] font-bold text-yellow-400 uppercase">Applying Changes...</span>
+                                            <span className="text-[10px] font-bold text-primary uppercase">Applied Successfully</span>
+                                            <span className="text-sm text-foreground/80">
+                                                {message.options?.find(o => o.id === message.selected_option_id)?.title}
+                                            </span>
                                         </div>
                                     </div>
-                                ) : (
-                                    <div className="mx-4 p-3 rounded-xl bg-primary/5 border border-primary/20 flex items-center justify-between">
-                                        <div className="flex items-center space-x-3">
-                                            <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-[10px] text-white">✓</div>
-                                            <div className="flex flex-col">
-                                                <span className="text-[10px] font-bold text-primary uppercase">Applied Successfully</span>
-                                                <span className="text-sm text-foreground/80">
-                                                    {message.options.find(o => o.id === message.selected_option_id)?.title}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        {message.undoToken && (
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleUndo();
-                                                }}
-                                                disabled={isLoading}
-                                                className="px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-[10px] font-bold text-red-400 uppercase tracking-wider hover:bg-red-500/20 transition-all disabled:opacity-50 shrink-0"
-                                            >
-                                                ↩ Undo
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
+                                    {message.undoToken && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleUndo();
+                                            }}
+                                            disabled={isLoading}
+                                            className="px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-[10px] font-bold text-red-400 uppercase tracking-wider hover:bg-red-500/20 transition-all disabled:opacity-50 shrink-0"
+                                        >
+                                            ↩ Undo
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         )}
 
@@ -375,55 +446,59 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
 
             {/* Undo Action */}
             {canUndo && !isLoading && (
-                <div className="z-10 px-6 py-2 border-t border-white/5 bg-black/20 backdrop-blur-sm animate-fade-in">
+                <div className="z-10 px-8 py-3 border-t border-white/5 bg-black/20 backdrop-blur-sm animate-fade-in flex justify-center">
                     <button
                         onClick={handleUndo}
-                        className="text-[10px] font-bold text-primary hover:text-primary-hover uppercase tracking-widest flex items-center"
+                        className="text-[10px] font-bold text-primary hover:text-primary-hover uppercase tracking-widest flex items-center gap-2"
                     >
                         Revert Last Protocol ↩
                     </button>
                 </div>
             )}
 
-            {/* Quick Action Chips */}
-            {!isLoading && (
-                <div className="z-10 px-6 py-3 border-t border-white/5 bg-bg-secondary/50 backdrop-blur-md overflow-x-auto">
-                    <div className="flex gap-2 min-w-max">
-                        {['Plan my day', 'What should I do next?', 'Replan my week', 'Show my progress'].map((chip) => (
-                            <button
-                                key={chip}
-                                onClick={() => handleQuickChip(chip)}
-                                className="px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-foreground/70 transition-colors whitespace-nowrap"
-                            >
-                                {chip}
-                            </button>
-                        ))}
+            {/* Input & Quick Actions Container */}
+            <div className="z-10 flex flex-col border-t border-white/5 bg-[#0a0a0b]/80 backdrop-blur-3xl pb-2">
+                {/* Quick Action Chips */}
+                {!isLoading && (
+                    <div className="px-6 pt-4 pb-2 overflow-x-auto scrollbar-hide">
+                        <div className="flex gap-2 min-w-max">
+                            {['Plan my day', 'What should I do next?', 'Replan my week', 'Show my progress'].map((chip) => (
+                                <button
+                                    key={chip}
+                                    onClick={() => handleQuickChip(chip)}
+                                    className="px-4 py-2 rounded-full bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 text-[11px] font-bold text-foreground/50 hover:text-white transition-all whitespace-nowrap tracking-wide"
+                                >
+                                    {chip}
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {/* Input - Neural Control Bar */}
-            <form onSubmit={handleSubmit} className="z-10 p-6 border-t border-white/5 bg-bg-secondary/80 backdrop-blur-xl">
-                <div className="flex items-center space-x-3">
-                    <input
-                        type="text"
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        placeholder={messages.length > 0 ? "Ask a follow-up..." : "Define strategy..."}
-                        disabled={isLoading}
-                        className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 transition-all placeholder:text-foreground/20 text-foreground"
-                    />
-                    <button
-                        type="submit"
-                        disabled={isLoading || !input.trim()}
-                        className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center shadow-glow hover:shadow-glow-intense active:scale-95 transition-all text-white disabled:opacity-30 disabled:grayscale"
-                    >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                        </svg>
-                    </button>
-                </div>
-            </form>
+                {/* Input - Neural Control Bar */}
+                <form onSubmit={handleSubmit} className="px-6 py-3">
+                    <div className="flex items-center space-x-3 bg-black/40 border border-white/10 rounded-[1.5rem] p-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all focus-within:border-orange-500/50 focus-within:bg-[#0a0a0b] focus-within:shadow-[0_0_40px_rgba(249,115,22,0.15)] group relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 to-amber-500/5 opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
+                        <input
+                            type="text"
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            placeholder={messages.length > 0 ? "Message Donna..." : "What do you want to accomplish?"}
+                            disabled={isLoading}
+                            className="flex-1 bg-transparent px-4 py-3.5 text-[15px] focus:outline-none placeholder:text-foreground/30 text-white font-medium relative z-10"
+                        />
+                        <button
+                            type="submit"
+                            disabled={isLoading || !input.trim()}
+                            className="w-12 h-12 bg-white/[0.03] hover:bg-gradient-to-tr hover:from-orange-500 hover:to-amber-500 rounded-[1.1rem] flex items-center justify-center transition-all text-white/40 hover:text-white disabled:opacity-30 disabled:text-white/20 disabled:hover:bg-white/[0.03] relative z-10 shadow-sm"
+                        >
+                            <svg className="w-5 h-5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                            </svg>
+                        </button>
+                    </div>
+                </form>
+            </div>
 
             {/* Confirmation Modal Overlay */}
             {showPreview && pendingOption && (

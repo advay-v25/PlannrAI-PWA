@@ -33,8 +33,7 @@ export interface FeatureContext {
 }
 
 /**
- * Unified context builder for both Coach and Brain Dump.
- * Replaces buildCoachContext() and buildBrainDumpContext().
+ * Unified context builder for Coach.
  */
 export async function buildFeatureContext(
     userId: string,

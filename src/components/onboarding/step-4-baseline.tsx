@@ -12,7 +12,7 @@ export function Step4Baseline() {
         <div className="h-full flex flex-col justify-center space-y-12">
             <div className="text-center space-y-2">
                 <h2 className="text-3xl font-display font-light">System Calibration</h2>
-                <p className="text-[var(--color-text-secondary)] font-light">
+                <p className="text-[var(--text-secondary)] font-light">
                     Establish your current operating parameters.
                 </p>
             </div>
@@ -56,7 +56,7 @@ function CalibrationSlider({ icon, label, value, onChange, color, glow, descript
                     </div>
                     <span className="font-mono text-sm uppercase tracking-wider">{label}</span>
                 </div>
-                <span className="text-xs text-[var(--color-text-tertiary)] font-mono">
+                <span className="text-xs text-[var(--text-tertiary)] font-mono">
                     LEVEL {value}/5
                 </span>
             </div>
@@ -89,7 +89,7 @@ function CalibrationSlider({ icon, label, value, onChange, color, glow, descript
                 </div>
             </div>
 
-            <div className="flex justify-between text-[10px] text-[var(--color-text-tertiary)] uppercase font-mono px-1">
+            <div className="flex justify-between text-[10px] text-[var(--text-tertiary)] uppercase font-mono px-1">
                 <span>{descriptions[0]}</span>
                 <span className="text-white font-bold">{descriptions[value - 1]}</span>
                 <span>{descriptions[4]}</span>

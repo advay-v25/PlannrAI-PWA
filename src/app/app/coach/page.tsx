@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense } from 'react';
-import { CoachChat } from '@/components/coach/CoachChat';
+import { CoachDashboard } from '@/components/coach/CoachDashboard';
 import { useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
@@ -23,14 +23,17 @@ function CoachPageInner() {
     }, [context, messages.length, sendMessage]);
 
     return (
-        <div className="h-full flex flex-col">
-            <DynamicBackground variant="coach" />
-            <CoachChat
-                onCalendarUpdate={() => {
-                    router.refresh();
-                    window.dispatchEvent(new Event('calendar-refresh'));
-                }}
-            />
+        <div className="w-full h-full relative overflow-y-auto overflow-x-hidden flex flex-col">
+
+
+            <div className="relative z-10 w-full h-full flex flex-col">
+                <CoachDashboard
+                    onCalendarUpdate={() => {
+                        router.refresh();
+                        window.dispatchEvent(new Event('calendar-refresh'));
+                    }}
+                />
+            </div>
         </div>
     );
 }

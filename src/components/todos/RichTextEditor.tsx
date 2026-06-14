@@ -7,7 +7,7 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { Underline } from '@tiptap/extension-underline';
-import { Bold, Italic, Underline as UnderlineIcon, List, Table as TableIcon } from 'lucide-react';
+import { Bold, Italic, Underline as UnderlineIcon, List, Table as TableIcon, Trash2 } from 'lucide-react';
 
 interface RichTextEditorProps {
     content: string;
@@ -46,7 +46,7 @@ export function RichTextEditor({ content, onChange, placeholder = 'Take a note..
     return (
         <div className="flex flex-col w-full h-full border border-white/10 rounded-xl overflow-hidden bg-black/20">
             {/* Toolbar */}
-            <div className="flex items-center gap-1 p-2 bg-white/5 border-b border-white/10 overflow-x-auto">
+            <div className="flex flex-wrap items-center gap-1 p-2 bg-white/5 border-b border-white/10">
                 <button
                     type="button"
                     onClick={() => editor.chain().focus().toggleBold().run()}
@@ -81,9 +81,36 @@ export function RichTextEditor({ content, onChange, placeholder = 'Take a note..
                     type="button"
                     onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
                     className="p-1.5 rounded hover:bg-white/10 transition-colors text-white/60"
+                    title="Insert Table"
                 >
                     <TableIcon className="w-4 h-4" />
                 </button>
+                {editor.isActive('table') && (
+                    <>
+                        <div className="w-px h-4 bg-white/10 mx-1" />
+                        <button
+                            type="button"
+                            onClick={() => editor.chain().focus().deleteTable().run()}
+                            className="flex items-center gap-1 p-1.5 px-2 text-xs font-medium rounded hover:bg-red-500/20 text-red-400 transition-colors"
+                        >
+                            <Trash2 className="w-3 h-3" /> Del Table
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => editor.chain().focus().addRowAfter().run()}
+                            className="p-1.5 px-2 text-xs font-medium rounded hover:bg-white/10 text-white/60 transition-colors"
+                        >
+                            + Row
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => editor.chain().focus().addColumnAfter().run()}
+                            className="p-1.5 px-2 text-xs font-medium rounded hover:bg-white/10 text-white/60 transition-colors"
+                        >
+                            + Col
+                        </button>
+                    </>
+                )}
             </div>
             
             {/* Editor Content */}

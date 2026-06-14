@@ -218,6 +218,7 @@ function CalendarPageInner() {
     const [selectedBlock, setSelectedBlock] = useState<any>(null);
     const [showAddModal, setShowAddModal] = useState(false);
     const [addModalDefaults, setAddModalDefaults] = useState<{ date?: string; hour?: number }>({});
+    const [showMiniCalendar, setShowMiniCalendar] = useState(false);
     const [showPlanWeekModal, setShowPlanWeekModal] = useState(false);
     const [showOptimizerModal, setShowOptimizerModal] = useState(false);
 
@@ -428,7 +429,33 @@ function CalendarPageInner() {
                                 <ChevronRight className="w-4 h-4" />
                             </button>
                         </div>
-                        <span className="text-sm font-semibold text-white/80 tracking-tight">{dateTitle}</span>
+                        <div className="relative">
+                            <button 
+                                onClick={() => setShowMiniCalendar(!showMiniCalendar)} 
+                                className="text-sm font-semibold text-white/80 tracking-tight hover:text-white transition-colors cursor-pointer select-none"
+                            >
+                                {dateTitle}
+                            </button>
+                            <AnimatePresence>
+                                {showMiniCalendar && (
+                                    <>
+                                        <div className="fixed inset-0 z-40" onClick={() => setShowMiniCalendar(false)} />
+                                        <motion.div 
+                                            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                            transition={{ duration: 0.15, ease: "easeOut" }}
+                                            className="absolute top-full left-0 mt-2 z-50 origin-top-left"
+                                        >
+                                            <MiniCalendar 
+                                                selectedDate={selectedDate} 
+                                                onSelectDate={(d) => { setSelectedDate(d); setShowMiniCalendar(false); }} 
+                                            />
+                                        </motion.div>
+                                    </>
+                                )}
+                            </AnimatePresence>
+                        </div>
                     </div>
 
                     {/* Right: Compact Actions */}

@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
 import { Loader2, ArrowRight, ArrowLeft, Brain, Zap, Target, Star, AlertTriangle, MessageCircle, X, CheckCircle2, Circle, ArrowDownRight } from 'lucide-react';
+import { isPreviewEnabled } from '@/lib/featureFlags';
+import { ComingSoon } from '@/components/ui/ComingSoon';
 
 interface ProposedChange {
     goal_id: string;
@@ -45,6 +47,14 @@ export default function WeeklyReviewPage() {
     
     // Semi-auto state
     const [approvedChanges, setApprovedChanges] = useState<Set<string>>(new Set());
+
+    if (!isPreviewEnabled()) {
+        return (
+            <div className="w-full h-full p-4 overflow-y-auto">
+                <ComingSoon title="Weekly Review" subtitle="Coming soon in a future update." />
+            </div>
+        );
+    }
 
     useEffect(() => {
         if (!isLoading) return;

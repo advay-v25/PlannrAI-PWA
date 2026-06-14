@@ -13,7 +13,7 @@ export class WeeklyReviewAI {
         const supabase = await createClient();
 
         // 1. Gather Data (Re-using logic from route)
-        const [blocksRes, goalsRes, logsRes, reviewsRes, habitLogsRes, brainDumpsRes, coachThreadsRes] = await Promise.all([
+        const [blocksRes, goalsRes, logsRes, reviewsRes, habitLogsRes, coachThreadsRes] = await Promise.all([
             supabase.from('schedule_blocks')
                 .select('id, title, context, date, start_time, end_time, block_type, status, pillar, goal_id')
                 .eq('user_id', this.userId)
@@ -38,11 +38,6 @@ export class WeeklyReviewAI {
                 .eq('user_id', this.userId)
                 .gte('completed_at', `${weekStart}T00:00:00Z`)
                 .lte('completed_at', `${weekEnd}T23:59:59Z`),
-            supabase.from('brain_dumps')
-                .select('raw_text, created_at, signals')
-                .eq('user_id', this.userId)
-                .gte('created_at', `${weekStart}T00:00:00Z`)
-                .lte('created_at', `${weekEnd}T23:59:59Z`),
             supabase.from('coach_conversations')
                 .select('id, coach_messages(role, content, created_at)')
                 .eq('user_id', this.userId)
@@ -54,7 +49,6 @@ export class WeeklyReviewAI {
         const goals = goalsRes.data || [];
         const logs = logsRes.data || [];
         const habitLogs = habitLogsRes.data || [];
-        const brainDumps = brainDumpsRes.data || [];
         const coachThreads = coachThreadsRes.data || [];
 
         // 2. Process Metrics
@@ -87,7 +81,6 @@ export class WeeklyReviewAI {
                 pillarMinutes,
                 habitCompletionRate: habitLogs.length > 0 ? Math.round((habitLogs.filter(h => h.status === 'completed').length / habitLogs.length) * 100) : 0
             },
-            recentDumps: brainDumps.slice(-5).map(d => ({ text: d.raw_text, signals: d.signals })),
             coachContext: coachThreads.slice(-1).map(t => t.coach_messages.slice(-5)),
             activeGoals: goals.map(g => ({ title: g.title, pillar: g.pillar }))
         };

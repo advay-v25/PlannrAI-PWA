@@ -44,35 +44,8 @@ export class StateService {
         const completedBlocks = blocks?.filter(b => b.status === 'done').length || 0;
         const completionRate = totalBlocks > 0 ? (completedBlocks / totalBlocks) : 1.0;
 
-        // 3. Fetch Inputs: Latest Brain Dump (Sentiment)
-        const { data: latestDump } = await supabase
-            .from('brain_dump_entries')
-            .select('extracted_json, created_at')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
-
-        // Determine sentiment from signals (Naive check for "tired", "anxious")
-        // We assume extracted_signals contains tags or keywords
-        // For Phase 1, we look for explicit tags in JSON.
-        // TODO: Refine this logic with Phase 2 Extractor updates.
+        // 3. Determine sentiment (Defaulting to neutral, previously from Brain Dump)
         let sentiment: 'positive' | 'negative' | 'neutral' = 'neutral';
-        // Check for extracted signals in JSON
-        const signals = latestDump?.extracted_json?.signals || latestDump?.extracted_json?.extracted_signals || [];
-
-        if (signals.length > 0) {
-
-            // Check recent dump (within 24h)
-            if (latestDump && new Date(latestDump.created_at) > subDays(now, 1)) {
-                const textJson = JSON.stringify(signals).toLowerCase();
-                if (textJson.includes('tired') || textJson.includes('overwhelmed') || textJson.includes('anxious')) {
-                    sentiment = 'negative';
-                } else if (textJson.includes('excited') || textJson.includes('ready')) {
-                    sentiment = 'positive';
-                }
-            }
-        }
 
         // 4. Construct Inputs
         const inputs: StateInputs = {

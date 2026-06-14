@@ -13,14 +13,12 @@ export const GET = secureApiRoute(
             { data: profile },
             { data: goals },
             { data: scheduleBlocks },
-            { data: brainDumps },
             { data: coachInteractions },
             { data: weeklyReviews },
         ] = await Promise.all([
             supabase.from('profiles').select('*').eq('id', context.userId).single(),
             supabase.from('goals').select('*').eq('user_id', context.userId),
             supabase.from('schedule_blocks').select('*').eq('user_id', context.userId),
-            supabase.from('brain_dump_entries').select('id, raw_text, created_at').eq('user_id', context.userId),
             supabase.from('coach_conversations').select('*').eq('user_id', context.userId),
             supabase.from('coach_messages').select('*').eq('user_id', context.userId),
             supabase.from('memory_facts').select('*').eq('user_id', context.userId),
@@ -33,7 +31,6 @@ export const GET = secureApiRoute(
             profile: profile || {},
             goals: goals || [],
             schedule_blocks: scheduleBlocks || [],
-            brain_dumps: brainDumps || [],
             coach_interactions: coachInteractions || [],
             weekly_reviews: weeklyReviews || [],
         };
@@ -47,7 +44,6 @@ export const GET = secureApiRoute(
                 recordCounts: {
                     goals: goals?.length || 0,
                     scheduleBlocks: scheduleBlocks?.length || 0,
-                    brainDumps: brainDumps?.length || 0,
                     coachInteractions: coachInteractions?.length || 0,
                     weeklyReviews: weeklyReviews?.length || 0,
                 },

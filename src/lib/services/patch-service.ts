@@ -238,6 +238,40 @@ export class PatchService {
 
         // Initialize simulated list
         const simulatedBlocks = (dbBlocks || []).map(b => ({ ...b }));
+        
+        // Fetch commitments and inject as virtual blocks for overlap detection
+        const { data: commitments } = await supabase
+            .from('commitments')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('is_active', true);
+            
+        if (commitments) {
+            for (const cmt of commitments) {
+                for (const date of dates) {
+                    const dow = new Date(date + 'T12:00:00').getDay();
+                    if (cmt.days_of_week && cmt.days_of_week.includes(dow)) {
+                        const virtId = `virt-cmt-${cmt.id}-${date}`;
+                        const virtBlock = {
+                            id: virtId,
+                            user_id: userId,
+                            title: cmt.title,
+                            start_time: cmt.start_time,
+                            end_time: cmt.end_time,
+                            date: date,
+                            status: 'planned',
+                            block_type: 'anchor',
+                            is_fixed: true,
+                            is_locked: true,
+                            commitment_id: cmt.id
+                        };
+                        simulatedBlocks.push(virtBlock);
+                        preExecState[virtId] = { ...virtBlock };
+                    }
+                }
+            }
+        }
+
         const deletedIds = new Set<string>();
 
         // Helper to perform in-memory cascade

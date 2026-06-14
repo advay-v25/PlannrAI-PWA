@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { CoachMessage } from '@/hooks/use-coach';
-
+import { cn } from '@/lib/utils';
 
 interface CoachMessageBubbleProps {
     message: CoachMessage;
@@ -136,62 +136,78 @@ function sanitizeContent(text: string): string {
     return cleaned;
 }
 
+import { motion } from 'framer-motion';
+
 export function CoachMessageBubble({ message }: CoachMessageBubbleProps) {
     const isUser = message.role === 'user';
     const [showThinking, setShowThinking] = useState(false);
     const hasThinking = !isUser && message.thinking && message.thinking.length > 0;
 
     return (
-        <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} animate-fade-in`}>
+        <motion.div 
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+            className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
+        >
             <div
-                className={`max-w-[85%] px-5 py-4 rounded-3xl shadow-sm relative overflow-hidden group ${isUser
-                        ? 'bg-gradient-to-tr from-purple-600/90 to-orange-500/90 backdrop-blur-md border border-white/20 text-white ml-12 rounded-tr-sm shadow-[0_8px_32px_rgba(249,115,22,0.25)]'
-                        : 'bg-black/60 backdrop-blur-xl border border-white/10 border-l-2 border-l-purple-500 shadow-[0_8px_32px_rgba(168,85,247,0.15)] text-foreground mr-12 rounded-tl-sm'
+                className={`max-w-[85%] px-6 py-5 rounded-[2rem] shadow-sm relative group ${isUser
+                        ? 'bg-gradient-to-b from-[#2A1608] to-[#1A0D04] text-orange-50 ml-12 rounded-tr-md shadow-lg border border-orange-500/20 backdrop-blur-md'
+                        : 'bg-white/[0.04] backdrop-blur-3xl border border-white/[0.08] text-white mr-12 rounded-tl-md shadow-2xl'
                     }`}
             >
                 {/* Subtle inner reflection */}
-                <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent opacity-50 pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-to-b from-white/[0.08] to-transparent opacity-[0.8] rounded-[2rem] pointer-events-none" />
                 
                 <div className="flex flex-col space-y-1 relative z-10">
                     {!isUser && (
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-primary/80 mb-1">
-                            Donna · Strategic Lead
-                        </span>
+                        <div className="flex items-center gap-2 mb-2">
+                            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-[0_0_10px_rgba(249,115,22,0.4)]">
+                                <span className="text-white text-[10px]">⚡</span>
+                            </div>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-orange-400">
+                                Donna
+                            </span>
+                        </div>
                     )}
-                    <div className="text-sm leading-relaxed">
+                    <div className={cn("text-sm leading-relaxed", isUser ? "font-medium" : "text-white/90")}>
                         {isUser ? message.content : renderMarkdown(sanitizeContent(message.content))}
                     </div>
 
                     {/* Thinking Steps — Collapsed by default */}
                     {hasThinking && (
-                        <div className="mt-2 pt-2 border-t border-white/5">
+                        <div className="mt-3 pt-3 border-t border-white/5">
                             <button
                                 onClick={() => setShowThinking(!showThinking)}
-                                className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-foreground/30 hover:text-foreground/50 transition-colors"
+                                className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-foreground/30 hover:text-orange-500/80 transition-colors"
                             >
                                 <span className="text-[10px]">{showThinking ? '▾' : '▸'}</span>
                                 Donna&apos;s Reasoning ({message.thinking!.length} steps)
                             </button>
                             {showThinking && (
-                                <div className="mt-1.5 space-y-1 animate-fade-in">
+                                <motion.div 
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    className="mt-2 space-y-1 overflow-hidden"
+                                >
                                     {message.thinking!.map((step, i) => (
                                         <div key={i} className="flex items-start gap-1.5 text-[10px] text-foreground/40">
-                                            <span className="text-primary/40 font-mono mt-0.5">{i + 1}.</span>
+                                            <span className="text-orange-500/40 font-mono mt-0.5 font-bold">{i + 1}.</span>
                                             <span>{step}</span>
                                         </div>
                                     ))}
-                                </div>
+                                </motion.div>
                             )}
                         </div>
                     )}
 
                     {/* Context Used — Subtle badges */}
                     {!isUser && message.contextUsed && message.contextUsed.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1">
+                        <div className="mt-3 pt-3 border-t border-white/5 flex flex-wrap gap-1.5">
                             {message.contextUsed.map((ctx, i) => (
                                 <span
                                     key={i}
-                                    className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-white/5 text-foreground/25 border border-white/5"
+                                    className="text-[8px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-white/[0.03] text-foreground/30 border border-white/5"
                                 >
                                     {ctx}
                                 </span>
@@ -200,6 +216,6 @@ export function CoachMessageBubble({ message }: CoachMessageBubbleProps) {
                     )}
                 </div>
             </div>
-        </div>
+        </motion.div>
     );
 }

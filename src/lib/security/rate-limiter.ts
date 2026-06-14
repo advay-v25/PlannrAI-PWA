@@ -26,9 +26,9 @@ const LIMITS = {
     user: { windowMs: 60 * 1000, maxRequests: 500 },    // 500 req/min per authenticated user
 
     // AI endpoint limits (protect API keys)
-    aiPlanDay: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 2 }, // 2 req/day
-    aiCoach: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 10 },  // 10 req/day
-    aiPlanWeek: { windowMs: 7 * 24 * 60 * 60 * 1000, maxRequests: 3 }, // 3 req/week
+    aiPlanDay: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 200 }, // 200 req/day
+    aiCoach: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 500 },  // 500 req/day
+    aiPlanWeek: { windowMs: 7 * 24 * 60 * 60 * 1000, maxRequests: 10 }, // 10 req/week
     ai: { windowMs: 60 * 1000, maxRequests: 20 },       // 20 req/min for general AI
     // AI burst protection (prevent rapid-fire abuse)
     aiBurst: { windowMs: 10 * 1000, maxRequests: 5 },   // 5 req/10s for AI
@@ -37,9 +37,6 @@ const LIMITS = {
     aiWeeklyReview: { windowMs: 7 * 24 * 60 * 60 * 1000, maxRequests: 3 }, // 3 req/week
     aiHabits: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 5 }, // 5 req/day
     aiStrategy: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 5 }, // 5 req/day
-
-    // Brain dump (less strict)
-    brainDump: { windowMs: 60 * 1000, maxRequests: 10 },
     
     // Default user strict for generic supbase DB writes/reads
     userStrict: { windowMs: 60 * 1000, maxRequests: 100 },

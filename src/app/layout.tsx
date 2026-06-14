@@ -1,19 +1,16 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/toast";
 import { Toaster } from "sonner";
 import { ApiDiagnostics } from "@/components/debug/api-diagnostics";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { ThemeProvider } from "@/components/theme-provider";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -55,16 +52,23 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${inter.variable} font-sans antialiased tracking-tight`}
         suppressHydrationWarning
       >
-        <GlobalInputSanitizer />
-        <ToastProvider>
-          {children}
-          <ApiDiagnostics />
-          <Toaster position="top-center" />
-          <SpeedInsights />
-        </ToastProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <GlobalInputSanitizer />
+          <ToastProvider>
+            {children}
+            <ApiDiagnostics />
+            <Toaster position="top-center" />
+            <SpeedInsights />
+          </ToastProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

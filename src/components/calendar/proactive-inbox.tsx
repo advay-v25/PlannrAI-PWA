@@ -40,7 +40,6 @@ export function ProactiveInbox({ items, onAutoPlace, isOptimizing }: ProactiveIn
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 text-white/30">
                         <Sparkles className="w-8 h-8 mb-3 opacity-20" />
                         <p className="text-sm">Inbox is perfectly clean.</p>
-                        <p className="text-xs mt-1 opacity-50">Brain dump more tasks to see them intelligently appear here.</p>
                     </div>
                 ) : (
                     <AnimatePresence>

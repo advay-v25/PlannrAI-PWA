@@ -22,14 +22,6 @@ export interface CoachMessage {
     created_at: string;
 }
 
-export interface BrainDumpEntry {
-    id: string;
-    user_id: string;
-    raw_text: string;
-    extracted_json: any;
-    created_at: string;
-}
-
 export interface MemoryFact {
     id: string;
     user_id: string;
@@ -126,34 +118,7 @@ export class MemoryService {
         }
     }
 
-    // --- Brain Dump Context ---
 
-    /**
-     * Stores a raw Brain Dump.
-     */
-    static async createBrainDumpEntry(
-        userId: string,
-        rawText: string,
-        extractedJson: any = {}
-    ): Promise<BrainDumpEntry | null> {
-        const supabase = await createClient();
-        try {
-            const { data, error } = await supabase
-                .from('brain_dump_entries')
-                .insert({
-                    user_id: userId,
-                    raw_text: rawText,
-                    extracted_json: extractedJson
-                })
-                .select()
-                .single();
-            if (error) throw error;
-            return data;
-        } catch (e) {
-            console.error('[MemoryService] createBrainDumpEntry failed', e);
-            return null;
-        }
-    }
 
     // --- Long-Term Memory (Facts) ---
 

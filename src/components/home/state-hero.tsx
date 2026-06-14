@@ -87,9 +87,9 @@ export function StateHero({ state, currentTime, activeBlock, nextBlock, metrics,
                                             <div className="text-sm text-[var(--color-text-secondary)]">{formatTimeString(nextBlock.start_time)}</div>
                                         </div>
                                         <div className="flex gap-2">
-                                            <button onClick={() => onAction('start_early')} className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-md text-xs font-bold text-white transition-colors">Start</button>
-                                            <button onClick={() => onAction('skip_next')} className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-md text-xs font-bold text-white/50 transition-colors">Skip</button>
-                                            <button onClick={() => onAction('reschedule_next')} className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-md text-xs font-bold text-white/50 transition-colors">Reschedule</button>
+                                            <button onClick={() => onAction('start_early')} className="px-3 py-1.5 bg-[var(--glass-bg)] hover:bg-[var(--glass-bg)] rounded-md text-xs font-bold text-white transition-colors">Start</button>
+                                            <button onClick={() => onAction('skip_next')} className="px-3 py-1.5 bg-[var(--glass-bg)] hover:bg-[var(--glass-bg)] rounded-md text-xs font-bold text-[var(--text-secondary)] transition-colors">Skip</button>
+                                            <button onClick={() => onAction('reschedule_next')} className="px-3 py-1.5 bg-[var(--glass-bg)] hover:bg-[var(--glass-bg)] rounded-md text-xs font-bold text-[var(--text-secondary)] transition-colors">Reschedule</button>
                                         </div>
                                     </div>
                                 </GlassCard>
@@ -130,7 +130,7 @@ export function StateHero({ state, currentTime, activeBlock, nextBlock, metrics,
                             <GlassButton variant="primary" className="flex-1 text-sm bg-[var(--color-primary)] hover:bg-[var(--color-primary)]/80 text-black border-transparent" onClick={() => onAction('complete_early')}>
                                 <Check size={18} className="mr-2" /> Done
                             </GlassButton>
-                            <GlassButton variant="ghost" className="flex-1 text-sm border-white/10 hover:bg-white/5 hover:text-[var(--color-red)] text-white/70" onClick={() => onAction('mark_incomplete')}>
+                            <GlassButton variant="ghost" className="flex-1 text-sm border-[var(--glass-border)] hover:bg-[var(--glass-bg)] hover:text-[var(--color-red)] text-[var(--text-secondary)]" onClick={() => onAction('mark_incomplete')}>
                                 <X size={18} className="mr-2" /> Incomplete
                             </GlassButton>
                         </div>
@@ -152,21 +152,21 @@ export function StateHero({ state, currentTime, activeBlock, nextBlock, metrics,
                         <div className="flex gap-3 justify-center w-full max-w-sm">
                             <GlassButton
                                 variant="ghost"
-                                className="bg-white/5 border border-white/10 hover:bg-white/10 flex-1"
+                                className="bg-[var(--glass-bg)] border border-[var(--glass-border)] hover:bg-[var(--glass-bg)] flex-1"
                                 onClick={() => onAction('start_early')}
                             >
                                 <Play size={16} className="mr-2 text-[var(--color-green)]" /> Start
                             </GlassButton>
                             <GlassButton
                                 variant="ghost"
-                                className="bg-white/5 border border-white/10 hover:bg-white/10 flex-1"
+                                className="bg-[var(--glass-bg)] border border-[var(--glass-border)] hover:bg-[var(--glass-bg)] flex-1"
                                 onClick={() => onAction('skip_next')}
                             >
                                 Skip
                             </GlassButton>
                             <GlassButton
                                 variant="ghost"
-                                className="bg-white/5 border border-white/10 hover:bg-white/10 flex-1"
+                                className="bg-[var(--glass-bg)] border border-[var(--glass-border)] hover:bg-[var(--glass-bg)] flex-1"
                                 onClick={() => onAction('reschedule_next')}
                             >
                                 Reschedule
@@ -183,7 +183,7 @@ export function StateHero({ state, currentTime, activeBlock, nextBlock, metrics,
                             <ShieldAlert size={24} />
                             <h2 className="text-2xl font-bold font-mono">Reality Drift Detected</h2>
                         </div>
-                        <p className="text-white/80">
+                        <p className="text-[var(--text-secondary)]">
                             You missed the last block. Fact, not failure. How do we proceed?
                         </p>
                         <div className="grid grid-cols-1 w-full gap-3 mt-4">
@@ -205,14 +205,14 @@ export function StateHero({ state, currentTime, activeBlock, nextBlock, metrics,
                             <Zap size={24} />
                             <h2 className="text-2xl font-bold font-mono">Time Recaptured</h2>
                         </div>
-                        <p className="text-white/80">
+                        <p className="text-[var(--text-secondary)]">
                             You beat the estimate. Take a real break or pull forward the next block.
                         </p>
                         <div className="grid grid-cols-1 w-full gap-3 mt-4">
                             <GlassButton variant="primary" className="justify-start" onClick={() => onAction('start_early')}>
                                 Start Next Block Now
                             </GlassButton>
-                            <GlassButton variant="ghost" className="justify-start border-[var(--glass-border)] hover:border-white/20" onClick={() => onAction('rest')}>
+                            <GlassButton variant="ghost" className="justify-start border-[var(--glass-border)] hover:border-[var(--glass-border)]" onClick={() => onAction('rest')}>
                                 Bank the time. I am resting.
                             </GlassButton>
                         </div>
@@ -243,7 +243,7 @@ export function StateHero({ state, currentTime, activeBlock, nextBlock, metrics,
                                 <GlassButton variant="primary" className="flex-1 text-sm bg-[var(--color-primary)] hover:bg-[var(--color-primary)]/80 text-black border-transparent" onClick={() => onAction('complete_early')}>
                                     <Check size={18} className="mr-2" /> Done
                                 </GlassButton>
-                                <GlassButton variant="ghost" className="flex-1 text-sm border-white/10 hover:bg-white/5 hover:text-[var(--color-red)] text-white/70" onClick={() => onAction('mark_incomplete')}>
+                                <GlassButton variant="ghost" className="flex-1 text-sm border-[var(--glass-border)] hover:bg-[var(--glass-bg)] hover:text-[var(--color-red)] text-[var(--text-secondary)]" onClick={() => onAction('mark_incomplete')}>
                                     <X size={18} className="mr-2" /> Incomplete
                                 </GlassButton>
                             </div>
@@ -302,7 +302,7 @@ export function StateHero({ state, currentTime, activeBlock, nextBlock, metrics,
                                 <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-scifi-blink" />
                                 Incoming Transmission
                             </span>
-                            <p className="text-sm text-white/90 leading-relaxed font-mono">
+                            <p className="text-sm text-[var(--text-secondary)] leading-relaxed font-mono">
                                 {insight}
                             </p>
                         </div>

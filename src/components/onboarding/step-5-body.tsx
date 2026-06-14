@@ -39,7 +39,7 @@ export function Step5Body() {
         <div className="h-full flex flex-col items-center justify-center space-y-8 max-w-2xl mx-auto w-full">
             <div className="text-center space-y-2">
                 <h2 className="text-3xl font-display font-light">Movement Baseline</h2>
-                <p className="text-[var(--color-text-secondary)] font-light">
+                <p className="text-[var(--text-secondary)] font-light">
                     How do you usually like to move your body?
                 </p>
             </div>
@@ -75,7 +75,7 @@ export function Step5Body() {
                                 onClick={() => setTime(t.toLowerCase())}
                                 className={`flex-1 py-3 rounded-lg text-sm font-bold transition-all ${prefs.preferred_time === t.toLowerCase()
                                     ? 'bg-[var(--color-primary)] text-white'
-                                    : 'bg-black/20 text-[var(--color-text-secondary)] hover:bg-black/40'
+                                    : 'bg-black/20 text-[var(--text-secondary)] hover:bg-black/40'
                                     }`}
                             >
                                 {t}
@@ -99,7 +99,7 @@ export function Step5Body() {
                 </div>
             </div>
 
-            <p className="text-xs text-[var(--color-text-secondary)] italic opacity-60 text-center">
+            <p className="text-xs text-[var(--text-secondary)] italic opacity-60 text-center">
                 Optional. Protection protocol.
                 <br />
                 PlannrAI uses this to protect your energy, not to force workouts.

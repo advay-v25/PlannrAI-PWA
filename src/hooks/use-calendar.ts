@@ -363,7 +363,7 @@ export function useCalendar(initialDate: Date = new Date()) {
             };
 
             // Force clear existing schedule when applying a full plan
-            if (body.action === 'plan_week' || option.id === 'today_schedule') {
+            if (body.action === 'plan_week' || body.action === 'optimize_day') {
                 if (isSingleDay) {
                     body.clear_date = uniqueDates[0] || format(selectedDate, 'yyyy-MM-dd');
                 } else {
@@ -402,21 +402,35 @@ export function useCalendar(initialDate: Date = new Date()) {
         setConflictError(null);
     };
 
-    // Block status transition
-    const updateBlockStatus = async (
-        blockId: string,
-        status: 'planned' | 'in_progress' | 'done' | 'missed' | 'cancelled' | 'partial',
-        opts?: { actual_start_time?: string; actual_end_time?: string; notes?: string }
-    ) => {
-        try {
-            const response = await apiClient.schedule.updateBlockStatus({
-                block_id: blockId,
-                status,
-                ...opts,
-            });
-            await loadData();
-            showToast(`Block ${status === 'done' ? 'completed' : status}`, 'success');
-            return response;
+        // Block status transition
+        const updateBlockStatus = async (
+            blockId: string,
+            status: 'planned' | 'in_progress' | 'done' | 'missed' | 'cancelled' | 'partial',
+            opts?: { actual_start_time?: string; actual_end_time?: string; notes?: string }
+        ) => {
+            try {
+                const response = await apiClient.schedule.updateBlockStatus({
+                    block_id: blockId,
+                    status,
+                    ...opts,
+                });
+                await loadData();
+
+                // Cross-feature: Also refresh the global goals store so progress bars update instantly in Coach/Goals Hub
+                import('@/stores').then(({ useGoalsStore }) => {
+                    apiClient.get('/api/goals').then((data: any) => {
+                        if (data?.goals) {
+                            useGoalsStore.getState().setGoals(data.goals);
+                        }
+                    }).catch(console.error);
+                });
+
+                import('@/hooks/use-coach').then(({ useCoach }) => {
+                    useCoach.getState().refreshContext().catch(console.error);
+                });
+
+                showToast(`Block ${status === 'done' ? 'completed' : status}`, 'success');
+                return response;
         } catch (e: any) {
             showToast(e.message || 'Failed to update status', 'error');
         }

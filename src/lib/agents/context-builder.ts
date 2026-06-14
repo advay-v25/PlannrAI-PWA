@@ -45,6 +45,13 @@ export class ContextBuilder {
             .eq('user_id', userId)
             .eq('status', 'active');
 
+        // 3d. Fetch Active Todos (Mindspace)
+        const { data: todos } = await supabase
+            .from('todos')
+            .select('*')
+            .eq('user_id', userId)
+            .in('status', ['pending', 'in_progress']);
+
         const mergedSchedule = [...(events || [])];
         const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon...
 
@@ -102,6 +109,7 @@ export class ContextBuilder {
             userState,
             currentSchedule: mergedSchedule, // Return merged list
             goals: goals || [],
+            todos: todos || [],
             recentMemories,
             recentSignals,
             behaviorPatterns // Injected!

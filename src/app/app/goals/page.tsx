@@ -18,6 +18,7 @@ import { GoalCard } from '@/components/goals/goal-card';
 import { GoalStrategyWizard } from '@/components/goals/goal-strategy-wizard';
 import { AddGoalModal } from '@/components/goals/add-goal-modal';
 import type { Goal } from '@/types/database';
+import { isPreviewEnabled } from '@/lib/featureFlags';
 
 export default function GoalsPage() {
     const { goals, capacity, updateGoal, deleteGoal, fetchGoals } = useGoalsManager();
@@ -54,7 +55,7 @@ export default function GoalsPage() {
                   background: 'linear-gradient(to right, transparent, hsla(190,100%,70%,0.55) 40%, hsla(210,100%,65%,0.42) 65%, transparent)',
                 }} />
                 <svg
-                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.4, filter: 'blur(4px)' }}
                   viewBox="0 0 1440 900"
                   preserveAspectRatio="xMidYMid slice"
                   fill="none"
@@ -141,41 +142,45 @@ export default function GoalsPage() {
                 </svg>
               </div>
             </div>
-            <div className="max-w-5xl mx-auto p-4 md:p-8 pb-32 md:pb-10 space-y-8">
+            <div className="max-w-5xl mx-auto p-4 md:p-8 pb-32 md:pb-10 space-y-6">
             {/* 1. Header & Quick Actions */}
             <header className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">
+                    <h1 className="text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60 pb-2">
                         Goals
                     </h1>
                     <p className="text-sm text-[var(--text-tertiary)]">Design your ideal week.</p>
                 </div>
-                <GlassButton variant="primary" onClick={() => setIsAdding(true)}>
-                    <Plus className="w-4 h-4 mr-2" /> New Goal
-                </GlassButton>
+                <div className="flex items-center gap-3">
+                    {isPreviewEnabled() && (
+                        <GlassButton variant="primary" onClick={() => {}}>
+                            <Zap className="w-4 h-4 mr-2 text-orange-400" /> Generate Plan
+                        </GlassButton>
+                    )}
+                    <GlassButton variant="primary" onClick={() => setIsAdding(true)}>
+                        <Plus className="w-4 h-4 mr-2" /> New Goal
+                    </GlassButton>
+                </div>
             </header>
 
             {/* 2. Reality Capacity Gauge */}
-            <GlassCard padding="md" className="relative overflow-hidden group">
+            <GlassCard padding="sm" className="relative overflow-hidden group">
                 <div className="absolute inset-0 bg-gradient-to-r from-[var(--glass-bg)] to-[var(--glass-bg-subtle)] opacity-50" />
 
-                <div className="relative z-10 flex flex-col gap-2">
-                    <div className="flex justify-between items-end">
-                        <div className="flex flex-col">
-                            <span className="text-xs uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Daily Load</span>
+                <div className="relative z-10 flex flex-col gap-3">
+                    <div className="flex justify-between items-center">
+                        <span className="text-sm uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Daily Load</span>
+                        <div className="flex items-center gap-3">
                             <div className="flex items-baseline gap-1">
-                                <span className="text-4xl font-mono font-bold text-[var(--text-primary)]">
+                                <span className="text-xl font-mono font-bold text-[var(--text-primary)]">
                                     {capacity?.used_minutes || 0}
                                 </span>
-                                <span className="text-sm text-[var(--text-secondary)]">min</span>
+                                <span className="text-xs text-[var(--text-secondary)]">min</span>
                             </div>
-                        </div>
-
-                        <div className="text-right">
-                            <span className={`text-2xl font-bold ${isCritical ? 'text-red-400' : isOverload ? 'text-amber-400' : 'text-green-400'}`}>
+                            <span className="text-[var(--text-tertiary)]">•</span>
+                            <span className={`text-xl font-bold ${isCritical ? 'text-red-400' : isOverload ? 'text-amber-400' : 'text-green-400'}`}>
                                 {capacity?.load_percentage || 0}%
                             </span>
-                            <p className="text-[10px] uppercase text-[var(--text-tertiary)] tracking-wider">of Available Energy</p>
                         </div>
                     </div>
 
@@ -203,17 +208,16 @@ export default function GoalsPage() {
             </GlassCard>
 
             {/* 3. Pillars Grid */}
-            <div className="space-y-8">
+            <div className="space-y-6">
                 {PILLARS.map((pillar) => {
                     const pillarGoals = goals.filter(g => g.category === pillar.id && g.status !== 'archived');
                     if (pillarGoals.length === 0) return null;
 
                     return (
-                        <section key={pillar.id} className="space-y-4">
-                            <div className="flex items-center gap-2 px-1">
-                                <pillar.icon className="w-5 h-5" style={{ color: pillar.color }} />
-                                <h2 className="text-lg font-bold capitalize">{pillar.label}</h2>
-                                <div className="h-px flex-1 bg-gradient-to-r from-[var(--glass-border)] to-transparent" />
+                        <section key={pillar.id} className="space-y-6 pt-4">
+                            <div className="flex items-center gap-4 px-1">
+                                <h2 className="text-3xl font-bold capitalize text-white">{pillar.label}</h2>
+                                <div className="h-px flex-1 bg-white/20" />
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

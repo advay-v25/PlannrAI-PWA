@@ -1,25 +1,43 @@
 @import "tailwindcss";
 
-/* ========================================
-   PlannrAI - Neural OS Theme V2
-   Deep Space, Bioluminescent, Crystalline
-   ======================================== */
-
 :root {
-  /* ═══════════════════════════════════════ */
-  /* Background Layers - Abyssal Depth */
-  --color-bg-primary: #050508;
-  --color-bg-secondary: #0A0A0E;
-  --color-bg-tertiary: #121218;
+  /* ========================================
+     PlannrAI - Neural OS Theme V2
+     Deep Space, Bioluminescent, Crystalline
+     ======================================== */
 
-  /* Glass System - Luxury Quartz Glass */
-  --glass-bg: rgba(255, 255, 255, 0.03);
-  --glass-bg-hover: rgba(255, 255, 255, 0.06);
-  --glass-bg-active: rgba(255, 255, 255, 0.09);
-  --glass-bg-elevated: rgba(255, 255, 255, 0.04);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-border-subtle: rgba(255, 255, 255, 0.04);
-  --glass-border-hover: rgba(255, 255, 255, 0.2);
+  /* ═══════════════════════════════════════ */
+  /* Shared Base Tokens */
+  --color-primary: hsl(16, 100%, 60%);
+  --color-primary-hover: hsl(16, 100%, 65%);
+  --color-primary-soft: hsl(16, 100%, 45%);
+  --color-primary-muted: hsla(16, 100%, 60%, 0.1);
+  --color-primary-glow: hsla(16, 100%, 60%, 0.3);
+
+  /* Category Accents */
+  --color-mind: hsl(270, 80%, 60%);
+  --color-mind-glow: hsla(270, 80%, 60%, 0.2);
+  --color-body: hsl(140, 70%, 50%);
+  --color-body-glow: hsla(140, 70%, 50%, 0.2);
+  --color-craft: hsl(0, 80%, 60%);
+  --color-craft-glow: hsla(0, 80%, 60%, 0.2);
+  --color-anchor: hsl(16, 90%, 55%);
+  --color-anchor-glow: hsla(16, 90%, 55%, 0.2);
+  --color-routine: hsl(16, 85%, 45%);
+  --color-routine-glow: hsla(16, 85%, 45%, 0.2);
+
+  /* Light Theme Defaults (Overridden in .dark) */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f4f4f5;
+  --color-bg-tertiary: #e4e4e7;
+  
+  --glass-bg: rgba(0, 0, 0, 0.03);
+  --glass-bg-hover: rgba(0, 0, 0, 0.06);
+  --glass-bg-active: rgba(0, 0, 0, 0.09);
+  --glass-bg-elevated: rgba(0, 0, 0, 0.04);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --glass-border-subtle: rgba(0, 0, 0, 0.04);
+  --glass-border-hover: rgba(0, 0, 0, 0.2);
   --glass-blur: 24px;
   --glass-blur-intense: 40px;
 
@@ -31,39 +49,26 @@
   --shadow-glow: 0 0 40px rgba(255, 91, 34, 0.1);
   --shadow-glow-intense: 0 0 60px rgba(255, 91, 34, 0.2);
 
-  /* Primary - Vivid Lumix Orange */
-  --color-primary: hsl(16, 100%, 60%);
-  --color-primary-hover: hsl(16, 100%, 65%);
-  --color-primary-soft: hsl(16, 100%, 45%);
-  --color-primary-muted: hsla(16, 100%, 60%, 0.05);
-  --color-primary-glow: hsla(16, 100%, 60%, 0.3);
+  /* Text Hierarchy - High Legibility (Light Mode) */
+  --text-primary: #18181b;
+  --text-secondary: #52525b;
+  --text-tertiary: #71717a;
+  --text-muted: #a1a1aa;
+}
 
-  /* Category Accents - Luxury Vibrant Palettes */
-  --color-mind: hsl(270, 91%, 65%);
-  --color-mind-glow: hsla(270, 91%, 65%, 0.2);
-  --color-body: hsl(160, 84%, 39%);
-  --color-body-glow: hsla(160, 84%, 39%, 0.2);
-  --color-craft: hsl(349, 89%, 60%);
-  --color-craft-glow: hsla(349, 89%, 60%, 0.2);
-  --color-anchor: hsl(45, 93%, 47%);
-  --color-anchor-glow: hsla(45, 93%, 47%, 0.2);
-  --color-routine: hsl(280, 67%, 55%);
-  --color-routine-glow: hsla(280, 67%, 55%, 0.2);
+.dark {
+  --color-bg-primary: #050508;
+  --color-bg-secondary: #0A0A0E;
+  --color-bg-tertiary: #121218;
 
-  /* Atmospheric orb gradient — visible depth */
-  --mesh-gradient:
-    radial-gradient(ellipse 80vw 60vh at -10% -5%, hsla(275, 100%, 25%, 0.3) 0%, transparent 60%),
-    radial-gradient(ellipse 60vw 50vh at 110% 8%,  hsla(320, 100%, 50%, 0.2) 0%, transparent 60%),
-    radial-gradient(ellipse 70vw 45vh at 50% 108%, hsla(260, 100%, 40%, 0.2) 0%, transparent 60%),
-    radial-gradient(ellipse 40vw 35vh at 92% 52%,  hsla(35, 100%, 50%, 0.15) 0%, transparent 55%);
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-bg-hover: rgba(255, 255, 255, 0.06);
+  --glass-bg-active: rgba(255, 255, 255, 0.09);
+  --glass-bg-elevated: rgba(255, 255, 255, 0.04);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-subtle: rgba(255, 255, 255, 0.04);
+  --glass-border-hover: rgba(255, 255, 255, 0.2);
 
-  /* Status Colors */
-  --color-success: #10B981;
-  --color-warning: #F59E0B;
-  --color-error: #EF4444;
-  --color-muted: #6B7280;
-
-  /* Text Hierarchy - High Legibility */
   --text-primary: #FFFFFF;
   --text-secondary: #A1A1AA;
   --text-tertiary: #52525B;
@@ -156,7 +161,7 @@
    THEME CONFIG
    ═══════════════════════════════════════ */
 
-:root {
+:root, .dark {
   --color-background: var(--color-bg-primary);
   --color-foreground: var(--text-primary);
 }
@@ -803,23 +808,23 @@ body::after {
   height: 200%;
   background-image:
     radial-gradient(1px 1px at 10% 20%, rgba(249,115,22,0.5) 0%, transparent 100%),
-    radial-gradient(1px 1px at 25% 35%, rgba(168,85,247,0.3) 0%, transparent 100%),
+    radial-gradient(1px 1px at 25% 35%, rgba(249,115,22,0.3) 0%, transparent 100%),
     radial-gradient(1.5px 1.5px at 40% 60%, rgba(249,115,22,0.6) 0%, transparent 100%),
-    radial-gradient(1px 1px at 55% 15%, rgba(168,85,247,0.4) 0%, transparent 100%),
+    radial-gradient(1px 1px at 55% 15%, rgba(249,115,22,0.4) 0%, transparent 100%),
     radial-gradient(2px 2px at 70% 45%, rgba(249,115,22,0.35) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 85% 75%, rgba(168,85,247,0.5) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 85% 75%, rgba(249,115,22,0.5) 0%, transparent 100%),
     radial-gradient(1px 1px at 15% 80%, rgba(255,255,255,0.3) 0%, transparent 100%),
     radial-gradient(1px 1px at 50% 90%, rgba(249,115,22,0.4) 0%, transparent 100%),
-    radial-gradient(2px 2px at 30% 50%, rgba(168,85,247,0.25) 0%, transparent 100%),
+    radial-gradient(2px 2px at 30% 50%, rgba(249,115,22,0.25) 0%, transparent 100%),
     radial-gradient(1.5px 1.5px at 65% 30%, rgba(255,255,255,0.55) 0%, transparent 100%),
     radial-gradient(1px 1px at 80% 10%, rgba(249,115,22,0.3) 0%, transparent 100%),
-    radial-gradient(1px 1px at 45% 70%, rgba(168,85,247,0.4) 0%, transparent 100%),
+    radial-gradient(1px 1px at 45% 70%, rgba(249,115,22,0.4) 0%, transparent 100%),
     radial-gradient(1px 1px at 90% 55%, rgba(255,255,255,0.3) 0%, transparent 100%),
     radial-gradient(2px 2px at 5% 45%, rgba(249,115,22,0.45) 0%, transparent 100%),
-    radial-gradient(1px 1px at 60% 85%, rgba(168,85,247,0.35) 0%, transparent 100%),
+    radial-gradient(1px 1px at 60% 85%, rgba(249,115,22,0.35) 0%, transparent 100%),
     radial-gradient(1px 1px at 35% 5%, rgba(255,255,255,0.4) 0%, transparent 100%),
     radial-gradient(1.5px 1.5px at 75% 65%, rgba(249,115,22,0.3) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 20% 95%, rgba(168,85,247,0.5) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 20% 95%, rgba(249,115,22,0.5) 0%, transparent 100%),
     radial-gradient(1px 1px at 95% 40%, rgba(255,255,255,0.35) 0%, transparent 100%),
     radial-gradient(2px 2px at 8% 60%, rgba(249,115,22,0.3) 0%, transparent 100%);
   animation: galaxy-drift 120s linear infinite;
@@ -856,8 +861,8 @@ body::after {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(168, 85, 247, 0.08) 40%,
-    rgba(217, 4, 121, 0.06) 60%,
+    rgba(249, 115, 22, 0.08) 40%,
+    rgba(249, 115, 22, 0.06) 60%,
     transparent 100%
   );
   animation: shimmer-purple 2s ease-in-out infinite;
@@ -866,10 +871,10 @@ body::after {
 /* Pulsing glow for active elements */
 @keyframes pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 8px rgba(168, 85, 247, 0.15);
+    box-shadow: 0 0 8px rgba(249, 115, 22, 0.15);
   }
   50% {
-    box-shadow: 0 0 20px rgba(168, 85, 247, 0.3), 0 0 40px rgba(168, 85, 247, 0.1);
+    box-shadow: 0 0 20px rgba(249, 115, 22, 0.3), 0 0 40px rgba(249, 115, 22, 0.1);
   }
 }
 
@@ -926,11 +931,11 @@ body::after {
 }
 
 /* Calendar block hover glow per pillar */
-.block-glow-mind:hover { box-shadow: 0 0 20px rgba(168, 85, 247, 0.25), inset 0 1px 0 rgba(168, 85, 247, 0.15); }
-.block-glow-body:hover { box-shadow: 0 0 20px rgba(52, 211, 153, 0.25), inset 0 1px 0 rgba(52, 211, 153, 0.15); }
-.block-glow-craft:hover { box-shadow: 0 0 20px rgba(251, 191, 36, 0.25), inset 0 1px 0 rgba(251, 191, 36, 0.15); }
-.block-glow-anchor:hover { box-shadow: 0 0 20px rgba(234, 179, 8, 0.25), inset 0 1px 0 rgba(234, 179, 8, 0.15); }
-.block-glow-routine:hover { box-shadow: 0 0 20px rgba(167, 139, 250, 0.25), inset 0 1px 0 rgba(167, 139, 250, 0.15); }
+.block-glow-mind:hover { box-shadow: 0 0 20px rgba(249, 115, 22, 0.25), inset 0 1px 0 rgba(249, 115, 22, 0.15); }
+.block-glow-body:hover { box-shadow: 0 0 20px rgba(249, 115, 22, 0.25), inset 0 1px 0 rgba(249, 115, 22, 0.15); }
+.block-glow-craft:hover { box-shadow: 0 0 20px rgba(249, 115, 22, 0.25), inset 0 1px 0 rgba(249, 115, 22, 0.15); }
+.block-glow-anchor:hover { box-shadow: 0 0 20px rgba(249, 115, 22, 0.25), inset 0 1px 0 rgba(249, 115, 22, 0.15); }
+.block-glow-routine:hover { box-shadow: 0 0 20px rgba(249, 115, 22, 0.25), inset 0 1px 0 rgba(249, 115, 22, 0.15); }
 
 /* Current hour row highlight */
 @keyframes current-hour-pulse {

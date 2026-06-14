@@ -70,7 +70,7 @@ export function Step3Goals() {
         <div className="h-full flex flex-col">
             <div className="text-center space-y-2 mb-6">
                 <h2 className="text-3xl font-display font-light">Core Ambitions</h2>
-                <p className="text-[var(--color-text-secondary)] font-light text-sm">
+                <p className="text-[var(--text-secondary)] font-light text-sm">
                     Select directives to integrate into your neural schedule.
                 </p>
             </div>
@@ -85,7 +85,7 @@ export function Step3Goals() {
                             px-6 py-3 rounded-full flex items-center gap-2 transition-all border
                             ${activeCategory === cat.id
                                 ? `${cat.bg} ${cat.border} ${cat.color} shadow-[0_0_15px_rgba(0,0,0,0.3)] scale-105`
-                                : 'bg-transparent border-transparent text-[var(--color-text-secondary)] hover:bg-[var(--glass-bg)]'
+                                : 'bg-transparent border-transparent text-[var(--text-secondary)] hover:bg-[var(--glass-bg)]'
                             }
                         `}
                     >
@@ -135,7 +135,7 @@ export function Step3Goals() {
                         setEditingGoal({ title: '', category: activeCategory });
                         setModalData({ minutes: 30, importance: 'medium' });
                     }}
-                    className="p-4 rounded-xl border border-dashed border-[var(--glass-border)] flex flex-col items-center justify-center gap-2 text-[var(--color-text-secondary)] hover:text-white hover:border-[var(--color-primary)] transition-colors"
+                    className="p-4 rounded-xl border border-dashed border-[var(--glass-border)] flex flex-col items-center justify-center gap-2 text-[var(--text-secondary)] hover:text-white hover:border-[var(--color-primary)] transition-colors"
                 >
                     <Plus className="w-6 h-6" />
                     <span className="text-xs font-mono uppercase">Custom Protocol</span>
@@ -147,7 +147,7 @@ export function Step3Goals() {
                 <div className="mt-4 pt-4 border-t border-[var(--glass-border)] w-full">
                     <div className="flex flex-wrap gap-2 mb-4">
                         {data.goals.map((goal, i) => (
-                            <span key={i} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-[var(--glass-bg)] border border-[var(--glass-border)] text-xs text-[var(--color-text-secondary)]">
+                            <span key={i} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-[var(--glass-bg)] border border-[var(--glass-border)] text-xs text-[var(--text-secondary)]">
                                 {goal.title}
                                 <X className="w-3 h-3 cursor-pointer hover:text-red-400" onClick={() => removeGoal(i)} />
                             </span>
@@ -217,7 +217,7 @@ function RealityBar({ data }: { data: any }) {
 
     return (
         <div className="space-y-2">
-            <div className="flex justify-between text-[10px] uppercase font-mono text-[var(--color-text-secondary)]">
+            <div className="flex justify-between text-[10px] uppercase font-mono text-[var(--text-secondary)]">
                 <span>Daily Load</span>
                 <span>{Math.round(load * 100)}%</span>
             </div>

@@ -86,42 +86,42 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
-            <FeatureCard
-              icon={<Brain className="w-6 h-6" />}
-              title="Brain Dump"
-              description="Clear mental clutter with unstructured dumps. No prompts, no structure — just relief."
-              color="from-purple-500 to-indigo-500"
-            />
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-12">
             <FeatureCard
               icon={<Target className="w-6 h-6" />}
-              title="Goal Tracking"
-              description="Set time intentions for Mind, Body, and Future. Adjust anytime without guilt."
-              color="from-pink-500 to-rose-500"
+              title="Command Center"
+              description="A centralized inbox and mission control for your life. Quick capture tasks, track goals, and see your real-time progress."
+              color="from-[var(--color-primary)] to-[var(--color-primary-soft)]"
             />
             <FeatureCard
               icon={<Calendar className="w-6 h-6" />}
               title="Reality Calendar"
-              description="Track what actually happened, not just what you planned. Missed blocks fade quietly."
-              color="from-orange-400 to-amber-500"
+              description="A fluid, drag-and-drop schedule that tracks what actually happens. Features auto-scheduling and real-time conflict resolution."
+              color="from-[var(--color-mind)] to-[var(--color-mind-glow)]"
             />
             <FeatureCard
               icon={<Sparkles className="w-6 h-6" />}
-              title="AI Coach"
-              description="Get strategic advice with facts, interpretation, options, and always a permission check."
-              color="from-fuchsia-500 to-purple-500"
+              title="AI Coach (Donna)"
+              description="Your proactive Chief of Staff. Get strategic advice, context-aware suggestions, and conflict resolution without the guilt."
+              color="from-[var(--color-body)] to-[var(--color-body-glow)]"
             />
             <FeatureCard
               icon={<BarChart3 className="w-6 h-6" />}
-              title="Weekly Review"
-              description="See patterns and get one suggestion. Accept, edit, or ignore — all valid choices."
-              color="from-emerald-400 to-teal-500"
+              title="Insights & Review"
+              description="Outcome-based analytics and weekly reviews. See patterns, accept suggestions, and adapt your strategies effortlessly."
+              color="from-[var(--color-craft)] to-[var(--color-craft-glow)]"
             />
             <FeatureCard
               icon={<Heart className="w-6 h-6" />}
-              title="Low Energy Mode"
-              description="Signal when you're struggling. I'll reduce expectations and protect what matters."
-              color="from-red-400 to-pink-500"
+              title="Pillar Balance"
+              description="Monitor your Mind, Body, and Craft. Achieve harmony instead of just checking off endless productivity boxes."
+              color="from-[var(--color-anchor)] to-[var(--color-anchor-glow)]"
+            />
+            <FeatureCard
+              icon={<Shield className="w-6 h-6" />}
+              title="Adaptive Systems"
+              description="Built on behavioral psychology. Signal low energy to instantly reduce expectations and protect your momentum."
+              color="from-[var(--color-routine)] to-[var(--color-routine-glow)]"
             />
           </div>
         </div>

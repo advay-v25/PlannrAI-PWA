@@ -19,7 +19,7 @@ export function Step3Meals() {
         <div className="h-full flex flex-col items-center justify-center space-y-8 max-w-2xl mx-auto w-full">
             <div className="text-center space-y-2">
                 <h2 className="text-3xl font-display font-light">Fuel & Space</h2>
-                <p className="text-[var(--color-text-secondary)] font-light">
+                <p className="text-[var(--text-secondary)] font-light">
                     This helps PlannrAI space your day realistically.
                 </p>
             </div>
@@ -86,7 +86,7 @@ export function Step3Meals() {
                 )}
             </div>
 
-            <p className="text-xs text-[var(--color-text-secondary)] italic opacity-60 max-w-sm text-center">
+            <p className="text-xs text-[var(--text-secondary)] italic opacity-60 max-w-sm text-center">
                 *PlannrAI will attempt to place meals around 8am, 1pm, and 7pm, adjusting for your wake times.
             </p>
 

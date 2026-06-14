@@ -43,6 +43,9 @@ export function useGoalsManager() {
             }
             
             showToast('✅ Changes saved. Calendar updated.', 'success');
+            import('@/hooks/use-coach').then(({ useCoach }) => {
+                useCoach.getState().refreshContext().catch(console.error);
+            });
         } catch (error) {
             console.error('Failed to update goal:', error);
             showToast('Failed to save changes. Please try again.', 'error');
@@ -61,6 +64,9 @@ export function useGoalsManager() {
             showToast('🗑️ Goal deleted. Calendar updated.', 'info');
             fetchGoals(); // Refresh capacity
             window.dispatchEvent(new CustomEvent('calendar-refresh'));
+            import('@/hooks/use-coach').then(({ useCoach }) => {
+                useCoach.getState().refreshContext().catch(console.error);
+            });
         } catch (error) {
             console.error('Failed to delete goal:', error);
             showToast('Failed to delete goal on server.', 'error');
@@ -79,6 +85,9 @@ export function useGoalsManager() {
                 window.dispatchEvent(new CustomEvent('schedule-recompute', {
                     detail: { trigger: 'goal_created', goalId: response.goal.id, goalTitle: response.goal.title }
                 }));
+                import('@/hooks/use-coach').then(({ useCoach }) => {
+                    useCoach.getState().refreshContext().catch(console.error);
+                });
                 return response.goal;
             }
         } catch (error) {

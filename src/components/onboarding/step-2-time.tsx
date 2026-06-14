@@ -22,7 +22,7 @@ export function Step2Time() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.2 }}
-                    className="text-[var(--color-text-secondary)] font-light"
+                    className="text-[var(--text-secondary)] font-light"
                 >
                     Define your active cycle for optimal energy management.
                 </motion.p>
@@ -58,7 +58,7 @@ export function Step2Time() {
                     <span className="text-2xl">🌬️</span>
                     <div>
                         <p className="font-bold text-sm">Wind-down Protocol</p>
-                        <p className="text-xs text-[var(--color-text-secondary)]">Disconnect before sleep</p>
+                        <p className="text-xs text-[var(--text-secondary)]">Disconnect before sleep</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-4 flex-1 justify-end">
@@ -91,11 +91,11 @@ function TimeCard({ icon, label, sublabel, value, onChange, delay, gradient }: a
                 <div className="p-3 rounded-xl bg-black/40 backdrop-blur-md">
                     {icon}
                 </div>
-                <Clock className="w-4 h-4 text-[var(--color-text-tertiary)] opacity-50" />
+                <Clock className="w-4 h-4 text-[var(--text-tertiary)] opacity-50" />
             </div>
 
             <div className="space-y-1">
-                <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-text-secondary)]">
+                <p className="text-xs font-mono uppercase tracking-widest text-[var(--text-secondary)]">
                     {label} <span className="opacity-50">{sublabel}</span>
                 </p>
                 <div className="relative">

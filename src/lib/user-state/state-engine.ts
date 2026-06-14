@@ -55,7 +55,7 @@ export class StateEngine {
             emotionalMod += 1; // Momentum
         }
 
-        // 4. Sentiment Analysis (From Brain Dumps)
+        // 4. Sentiment Analysis
         if (inputs.sentiment === 'negative') {
             emotionalMod -= 1;
             energyMod -= 1;

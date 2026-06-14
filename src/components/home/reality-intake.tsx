@@ -53,7 +53,7 @@ export function RealityIntake({ onUpdate }: RealityIntakeProps) {
             {/* The Input Bar */}
             <motion.div
                 layoutId="reality-bar"
-                className="relative overflow-hidden rounded-full border border-white/10 bg-white/10 backdrop-blur-xl transition-all focus-within:bg-white/15 focus-within:border-white/20 focus-within:shadow-[0_0_30px_rgba(255,255,255,0.1)]"
+                className="relative overflow-hidden rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-xl transition-all focus-within:bg-[var(--glass-bg)] focus-within:border-[var(--glass-border)] focus-within:shadow-[0_0_30px_rgba(255,255,255,0.1)]"
             >
                 <form
                     onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}
@@ -65,7 +65,7 @@ export function RealityIntake({ onUpdate }: RealityIntakeProps) {
                         onChange={(e) => setInput(e.target.value)}
                         placeholder="Type a change, a thought, or a task..."
                         disabled={loading}
-                        className="h-14 w-full bg-transparent px-6 text-base text-white placeholder:text-white/30 focus:outline-none disabled:opacity-50"
+                        className="h-14 w-full bg-transparent px-6 text-base text-white placeholder:text-[var(--text-secondary)] focus:outline-none disabled:opacity-50"
                     />
 
                     <AnimatePresence>
@@ -108,7 +108,7 @@ function Chip({ icon, label, onClick }: any) {
     return (
         <button
             onClick={onClick}
-            className="flex items-center gap-1.5 rounded-full border border-white/5 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+            className="flex items-center gap-1.5 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-bg)] hover:text-white"
         >
             {icon}
             <span>{label}</span>

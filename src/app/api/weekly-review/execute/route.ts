@@ -1,11 +1,13 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { createClient } from '@/lib/supabase/server';
 import { PatchService } from '@/lib/services/patch-service';
+import { isPreviewEnabled } from '@/lib/featureFlags';
 
 export const maxDuration = 45;
 
 export const POST = secureApiRoute(
     async (context, body) => {
+        if (!isPreviewEnabled()) return apiError('Feature disabled in production', 403);
         const { mode, changes = [] } = body as any;
         const { userId, supabase } = context;
 
