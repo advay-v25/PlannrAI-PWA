@@ -763,7 +763,7 @@ C) NO HALLUCINATIONS & DURATION MATCHING (CRITICAL):
 --- THE 3 OPTIONS ---
 1. Reschedule Today: Move the block to an empty slot during the same day of the same exact time duration as the missed block. If that is not possible, then a reduced duration empty slot on the same day, with a minimum time of 30 minutes.
 2. Reschedule Later in the Week: Move the block to an empty slot during the week (tomorrow or later) of the same exact time duration as the missed block. If that is not possible, then a reduced duration empty slot anytime in the week, with a minimum time of 30 minutes.
-3. Replace Lower Priority Block: Replace a block that is accomplishing a different goal, in the SAME pillar (mind, body, craft), that has a LOWER priority than the missed block. The missed block simply replaces the scheduled block of lower priority. Target a block of the same duration first, or less duration if needed. Never replace a block of higher priority, an anchor, sleep, meals, buffer times, or a block for the exact same goal.
+3. Replace Lower Priority Block: Replace a block that is accomplishing a different goal, in the SAME pillar (mind, body, craft), that has a LOWER priority than the missed block. The missed block simply replaces the scheduled block of lower priority. Target a block of the same duration first, or less duration if needed (minimum 30 minutes). Never replace a block of higher priority, an anchor, sleep, meals, buffer times, or a block for the exact same goal.
 
 ⚖️ PRIORITY-BASED DISPLACEMENT (GENERAL BEHAVIOUR):
 When the user wants to move a block to a time slot that is already occupied (NOT following the missed block waterfall):
@@ -858,8 +858,9 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
     const recentHistory = conversationHistory.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n');
 
     const isMissedBlock = classification.primary_intent === CoachIntent.RESCHEDULE_DAY || 
-                          /missed|miss|didn't|did not|avoided|avoid|option|options|reschedule/i.test(userMessage) || 
-                          /missed|miss|didn't|did not|avoided|avoid|option|options|reschedule/i.test(recentHistory);
+                          classification.primary_intent === CoachIntent.MOVE_BLOCK ||
+                          /missed|miss|didn't|did not|avoided|avoid|option|options|reschedule|move|shift|change|can't make|cant make|delay|postpone|skip|delayed|postponed|skipped/i.test(userMessage) || 
+                          /missed|miss|didn't|did not|avoided|avoid|option|options|reschedule|move|shift|change|delay|postpone|skip/i.test(recentHistory);
 
     const isRejection = /none|neither|don't like|dont like|manual|myself|reject|no|stop/i.test(userMessage);
 
@@ -872,7 +873,7 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
              optionsInstruction = `Generate EXACTLY 3 actionable options in this exact order:
 Option 1: Reschedule Today (same or reduced duration, min 30m).
 Option 2: Reschedule This Week (same or reduced duration, min 30m).
-Option 3: Replace Lower Priority Block (same pillar, different goal).
+Option 3: Replace Lower Priority Block (same pillar, different goal, min 30m).
 
 CRITICAL FORMATTING REQUIREMENTS:
 1. For the 'description' field:
@@ -926,12 +927,12 @@ ${optionsInstruction}`;
         }>({
             prompt: userPrompt,
             systemPrompt,
-            model: 'smart',
+            model: isMissedBlock ? 'fast' : 'smart',
             temperature: 0.5,
             maxTokens: 2500,
             requireJSON: true,
-            timeout: 55000,
-            useNvidia: true,
+            timeout: isMissedBlock ? 25000 : 55000,
+            useNvidia: isMissedBlock ? false : true,
         });
 
         if (response.success && response.data && response.data.options?.length) {
@@ -960,8 +961,8 @@ ${optionsInstruction}`;
                 const hasDelete = normalizedOps.some(o => o.type === 'delete_block');
                 const isReplan = normalizedOps.some(o => o.type === 'replan_week' || o.type === 'replan_day');
 
-                // 1. For Option 4 (Replan Week): Keep only the replan operation to keep today's schedule entirely untouched
-                if (isMissedBlock && isReplan) {
+                // Legacy replan op handler: if the AI ever outputs a replan_week/replan_day op, isolate it so it doesn't cascade with other ops
+                if (isReplan) {
                     const replanOp = normalizedOps.find(o => o.type === 'replan_week' || o.type === 'replan_day');
                     if (replanOp) {
                         normalizedOps = [replanOp];
@@ -1846,12 +1847,12 @@ export async function generateCoachResponse(
     // 3. Use pre-built calendar context if provided, otherwise build fresh (ONLY IF HEAVY INTENT)
     let calCtx: CalendarContext | null = prebuiltCalCtx || null;
     const isReschedulingIntent = 
-        /missed|miss|didn't|did not|reschedule|rescheduling/i.test(userMessage) ||
+        /missed|miss|didn't|did not|reschedule|rescheduling|move|shift|change|can't make|cant make|delay|postpone|skip|delayed|postponed|skipped/i.test(userMessage) ||
         classification.primary_intent === CoachIntent.MOVE_BLOCK ||
         classification.primary_intent === CoachIntent.RESCHEDULE_DAY ||
         classification.primary_intent === CoachIntent.RESCHEDULE_WEEK;
 
-    if (!calCtx && supabase && intent !== CoachIntent.GENERAL_CHAT && intent !== CoachIntent.OUT_OF_SCOPE && !isReschedulingIntent) {
+    if (!calCtx && supabase && intent !== CoachIntent.GENERAL_CHAT && intent !== CoachIntent.OUT_OF_SCOPE) {
         try {
             calCtx = await buildCalendarContext(context.user_id || context.user?.id, supabase);
         } catch (e) {

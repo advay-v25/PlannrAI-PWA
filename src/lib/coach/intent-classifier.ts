@@ -400,6 +400,16 @@ function quickIntentMatch(message: string): IntentClassification | null {
         };
     }
 
+    // Reschedule / Missed Block
+    if (/(miss|missed|didn't|did not|reschedule|postpone|delay|shift|move|change.*time)/i.test(lower)) {
+        return {
+            primary_intent: CoachIntent.MOVE_BLOCK,
+            confidence: 0.95,
+            entities: {},
+            requires_clarification: false,
+        };
+    }
+
     return null;
 }
 
