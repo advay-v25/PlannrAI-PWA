@@ -23,9 +23,7 @@ function CoachPageInner() {
     }, [context, messages.length, sendMessage]);
 
     return (
-        <div className="w-full h-full relative overflow-y-auto overflow-x-hidden flex flex-col">
-
-
+        <div className="w-full h-full relative overflow-hidden flex flex-col">
             <div className="relative z-10 w-full h-full flex flex-col">
                 <CoachDashboard
                     onCalendarUpdate={() => {
