@@ -443,13 +443,14 @@ export async function classifyIntent(
     });
 
     if (!response.success || !response.data) {
-        // Fallback: treat as clarification needed
+        // Fallback: treat as connection error / clarification needed
+        console.warn('[CoachAI] Intent classification failed:', response.error);
         return {
             primary_intent: CoachIntent.CLARIFICATION_NEEDED,
             confidence: 0,
             entities: {},
             requires_clarification: true,
-            clarification_question: "I didn't quite understand that. Could you rephrase?",
+            clarification_question: "I'm having trouble connecting to my intelligence layer right now. Let's try that again in a moment.",
         };
     }
 

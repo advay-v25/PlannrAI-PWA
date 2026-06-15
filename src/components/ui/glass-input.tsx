@@ -29,7 +29,7 @@ export const GlassInput = forwardRef<HTMLInputElement, GlassInputProps>(
                             'w-full px-4 py-3 rounded-xl',
                             'bg-[var(--glass-bg)] backdrop-blur-xl',
                             'border border-[var(--glass-border)]',
-                            'text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]',
+                            'text-[var(--color-text-primary)] placeholder:text-white/20',
                             'transition-all duration-200',
                             'focus:outline-none focus:border-[var(--color-primary)]',
                             error && 'border-red-500/50',

@@ -636,6 +636,14 @@ const systemPrompt = `You are Donna, PlannrAI's proactive intelligence layer. Yo
 The user's name is ${userName}.
 ${analyticsText}
 
+🧠 SITUATIONAL & CONVERSATIONAL MASTERY (10,000+ SITUATIONS):
+You must flawlessly interpret any of the 10,000+ potential life situations the user throws at you. You are more than a scheduler; you are a life optimization engine.
+1. Social/Life Events: "I'm going out with friends tonight", "Date night", "Family emergency". -> Respond with empathy. Automatically propose a patch to clear their evening schedule or push tasks to tomorrow!
+2. Energy/Burnout: "I'm dead tired", "I can't focus", "My brain is fried". -> Instantly pivot to recovery mode. Validate their feeling, and suggest a patch to wipe non-essential blocks.
+3. Motivation/Discipline: "I don't want to work out", "I'm procrastinating". -> Deploy "Tough Love". Remind them of their streaks or goals, but offer a micro-step patch (e.g., "Just do 5 minutes").
+4. Logistics/Chaos: "My car broke down", "Flight delayed". -> Acknowledge the chaos, tell them you've got their back, and provide options to reorganize the day.
+5. General Chat / Off-Topic: If they are just venting or chatting, provide a sharp, insightful response. You DO NOT have to provide schedule \`options\` if no schedule changes are needed. It is perfectly valid to return an empty \`options\` array for a purely conversational response.
+
 🧠 CONTEXT BEFORE CLARIFICATION (CRITICAL DECISION RULE):
 Before you ask the user for more information, you MUST attempt to solve the problem yourself using the context provided.
 Step 1: Can I answer from existing context (Calendar, Goals, Tasks)? If YES -> Answer & provide options.
@@ -927,12 +935,12 @@ ${optionsInstruction}`;
         }>({
             prompt: userPrompt,
             systemPrompt,
-            model: isMissedBlock ? 'fast' : 'smart',
+            model: 'smart',
             temperature: 0.5,
             maxTokens: 2500,
             requireJSON: true,
-            timeout: isMissedBlock ? 25000 : 55000,
-            useNvidia: isMissedBlock ? false : true,
+            timeout: 55000,
+            useNvidia: true,
         });
 
         if (response.success && response.data && response.data.options?.length) {
@@ -1679,7 +1687,7 @@ async function generateAIGeneralResponse(
 - Pillar Balance: Mind (${Math.round(coachCtx.analytics.pillar_balance.mind / 60)}h), Body (${Math.round(coachCtx.analytics.pillar_balance.body / 60)}h), Craft (${Math.round(coachCtx.analytics.pillar_balance.craft / 60)}h)
 ` : '';
 
-    const systemPrompt = `You are Donna, PlannrAI's proactive intelligence layer. You act as both a Performance Coach (Macro/Long-term) and an Execution Specialist (Micro/Short-term). You are direct, proactive, and outcome-oriented. Tone: "Tough Love". No fluff. No coddling.
+    const systemPrompt = `You are Donna, PlannrAI's proactive intelligence layer. You act as both a Performance Coach and an Execution Specialist. You are direct, proactive, and outcome-oriented. Tone: "Tough Love". No fluff. No coddling.
 
 The user's name is ${userName}.
 ${analyticsText}
@@ -1688,13 +1696,20 @@ Current Context:
 Time: ${coachCtx.current.time}
 Recent Energy: ${coachCtx.user_state.last_energy_checkin || 'Unknown'}/10
 
-Respond in strict JSON matching this schema. The "response" field MUST follow this 4-part structure (No markdown, plain text only, max 150 words):
-1. Greeting & Context Summary: (1 sentence) Read the room.
-2. Execution Insight: (1-2 sentences) Focus on the NEXT 1-2 hours.
-3. Performance Insight (optional): (1 sentence) Zoom out. Connect today to weekly goals/trends.
-4. Closing Prompt: (1 sentence) End with a sharp, decisive question pushing them to action.
+SITUATIONAL & CONVERSATIONAL MASTERY (10,000+ SITUATIONS):
+You must flawlessly interpret any of the 10,000+ potential life situations the user throws at you. Whether they are:
+1. Social/Life Events: "I'm going out with friends tonight", "Date night", "Family emergency". -> Respond with empathy but protect their core goals. Offer to clear their schedule or push tasks to tomorrow.
+2. Energy/Burnout: "I'm dead tired", "I can't focus", "My brain is fried". -> Instantly pivot to recovery mode. Validate their feeling, and suggest clearing non-essential blocks.
+3. Motivation/Discipline: "I don't want to work out", "I'm procrastinating". -> Deploy "Tough Love". Remind them of their streaks or goals, but offer a micro-step (e.g., "Just do 5 minutes").
+4. Logistics/Chaos: "My car broke down", "Flight delayed". -> Acknowledge the chaos, tell them you've got their back, and ask if they need the day wiped clean.
+5. Wins/Celebration: "I just got promoted!", "I finished the marathon!". -> Celebrate with them intensely. Acknowledge their hard work.
+
+Respond in strict JSON matching this schema. The "response" field MUST follow this structure (No markdown, plain text only):
+1. Empathic/Situational Read: Acknowledge their exact life situation naturally.
+2. Execution/Action Insight: What should they do right now regarding their schedule or goals?
+3. Closing Prompt: End with a sharp, decisive question pushing them to action or asking if they need schedule adjustments.
 {
-    "response": "Greeting... Execution insight... Performance insight... Closing prompt..."
+    "response": "Situational read... Action insight... Closing prompt..."
 }`;
 
     const recentHistory = conversationHistory.slice(-4).map(m => `${m.role === 'user' ? 'User' : 'Coach'}: ${m.content}`).join('\n');
@@ -1870,18 +1885,8 @@ export async function generateCoachResponse(
     }
 
 
-    if (intent === CoachIntent.GENERAL_CHAT || intent === CoachIntent.OUT_OF_SCOPE) {
-        // Upgrade context to mock CoachContext just for the prompt
-        const mockContext: any = {
-            current: { time: context.current_time || context.current?.time },
-            user: { first_name: context.first_name || context.user?.first_name },
-            user_state: { 
-                last_energy_checkin: context.recent_energy || context.user_state?.last_energy_checkin,
-                is_minimal_mode: false 
-            }
-        };
-        return generateAIGeneralResponse(userMessage, conversationHistory, mockContext, classification);
-    }
+    // All intents including GENERAL_CHAT and OUT_OF_SCOPE now flow through generateAIScheduleResponse
+    // This allows Donna to provide scheduling options even for conversational prompts.
 
     if (INFORMATION_INTENTS.has(intent)) {
         return generateAIInformResponse(userMessage, conversationHistory, context, classification, calCtx);

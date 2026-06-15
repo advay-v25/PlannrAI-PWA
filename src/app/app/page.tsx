@@ -69,7 +69,8 @@ export default function HomePage() {
             }
 
             // Check if Weekly Review should be prompted
-            if (summaryData?.weekly_review_enabled !== false) {
+            const { isPreviewEnabled } = await import('@/lib/featureFlags');
+            if (isPreviewEnabled() && summaryData?.weekly_review_enabled !== false) {
                 const dayOfWeek = new Date().getDay(); // 0 = Sunday
                 if (dayOfWeek === 0) {
                     const dismissedAt = localStorage.getItem('weekly_review_dismissed');
