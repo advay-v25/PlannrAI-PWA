@@ -55,13 +55,13 @@ function getOpenRouterConfig(model: string): ProviderConfig {
         supportsResponseFormat: true,
     };
 }
-function getNvidiaConfig(model: string): ProviderConfig {
+function getNvidiaConfig(model: string, keyOverride?: string): ProviderConfig {
     return {
         name: 'nvidia',
         url: 'https://integrate.api.nvidia.com/v1/chat/completions',
         model,
         getHeaders: () => ({
-            'Authorization': `Bearer ${process.env.CALENDAR_NVIDIA_API_KEY || process.env.NVIDIA_API_KEY}`,
+            'Authorization': `Bearer ${keyOverride || process.env.CALENDAR_NVIDIA_API_KEY || process.env.NVIDIA_API_KEY}`,
             'Content-Type': 'application/json',
         }),
         supportsResponseFormat: true,
@@ -108,45 +108,34 @@ function getGeminiConfig(model: string): ProviderConfig {
     };
 }
 
-// Smart = complex reasoning (coach, goals, weekly review) → Groq primary (70B)
-// Fast = simple extraction (habits, briefings) → Groq primary (8B)
-function getProviderChain(options: AICallOptions): [ProviderConfig, ProviderConfig] {
+// Smart = complex reasoning (coach, goals, weekly review)
+// Fast  = quick extraction / reschedule options
+function getProviderChain(options: AICallOptions): ProviderConfig[] {
     const tier = options.model || 'fast';
     const useOpenRouter = !!process.env.OPENROUTER_API_KEY;
-
-    if (options.useNvidia) {
-        const nvidiaModel = tier === 'smart' ? 'meta/llama-3.1-70b-instruct' : 'meta/llama-3.1-8b-instruct';
-        return [
-            getNvidiaConfig(nvidiaModel),
-            getGeminiConfig('gemini-3.5-flash') // fallback
-        ];
-    }
+    const useGemini    = !!process.env.GEMINI_API_KEY;
+    const useTertiary  = !!process.env.NVIDIA_API_KEY_TERTIARY;
 
     switch (tier) {
         case 'smart':
-        case 'creative':
-            if (useOpenRouter) {
-                return [
-                    getOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'),
-                    getGroqConfig('llama-3.3-70b-versatile'),
-                ];
-            }
-            return [
-                getGroqConfig('llama-3.3-70b-versatile'),
-                getNvidiaConfig('meta/llama-3.1-70b-instruct'),
-            ];
+        case 'creative': {
+            const chain: ProviderConfig[] = [];
+            if (useOpenRouter) chain.push(getOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'));
+            chain.push(getGroqConfig('llama-3.3-70b-versatile'));
+            chain.push(getNvidiaConfig('meta/llama-3.1-70b-instruct', process.env.CALENDAR_NVIDIA_API_KEY));
+            if (useTertiary) chain.push(getNvidiaConfig('meta/llama-3.1-70b-instruct', process.env.NVIDIA_API_KEY_TERTIARY));
+            if (useGemini) chain.push(getGeminiConfig('gemini-2.0-flash'));
+            return chain;
+        }
         case 'fast':
-        default:
-            if (useOpenRouter) {
-                return [
-                    getOpenRouterConfig('openai/gpt-4o-mini'),
-                    getGroqConfig('llama-3.1-8b-instant'),
-                ];
-            }
-            return [
-                getGroqConfig('llama-3.1-8b-instant'),
-                getGeminiConfig('gemini-3.5-flash'),
-            ];
+        default: {
+            const chain: ProviderConfig[] = [];
+            if (useOpenRouter) chain.push(getOpenRouterConfig('openai/gpt-4o-mini'));
+            chain.push(getGroqConfig('llama-3.1-8b-instant'));
+            if (useGemini) chain.push(getGeminiConfig('gemini-2.0-flash'));
+            if (useTertiary) chain.push(getNvidiaConfig('meta/llama-3.1-8b-instruct', process.env.NVIDIA_API_KEY_TERTIARY));
+            return chain;
+        }
     }
 }
 
@@ -400,59 +389,44 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
 
     const getRemainingTime = () => Math.max(5000, MAX_TOTAL_TIME - (Date.now() - totalStartTime));
 
-    // Coach/Calendar dedicated engine: Use Nvidia since user provided a dedicated Nvidia key
+    // Coach/Calendar dedicated engine: OpenRouter → NVIDIA (primary key) → NVIDIA (tertiary) → Gemini → Groq
     if (options.useNvidia) {
         const nvidiaModel = tier === 'fast' ? 'meta/llama-3.1-8b-instruct' : 'meta/llama-3.1-70b-instruct';
-        console.log(`\x1b[36m[AI ✨]\x1b[0m Using Nvidia API (${nvidiaModel}) for Generation...`);
-        const calendarProvider = getNvidiaConfig(nvidiaModel);
-        
-        const nvidiaTimeout = Math.min(getRemainingTime(), 55000); 
-        
-        const result = await callProvider<T>(calendarProvider, { ...options, timeout: nvidiaTimeout });
+        const useOpenRouter = !!process.env.OPENROUTER_API_KEY;
+        const useGemini    = !!process.env.GEMINI_API_KEY;
+        const useTertiary  = !!process.env.NVIDIA_API_KEY_TERTIARY;
+
+        const nvidiaChain: ProviderConfig[] = [];
+        if (useOpenRouter) nvidiaChain.push(getOpenRouterConfig(
+            tier === 'fast' ? 'openai/gpt-4o-mini' : 'meta-llama/llama-3.3-70b-instruct'
+        ));
+        nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.CALENDAR_NVIDIA_API_KEY));
+        if (useTertiary) nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.NVIDIA_API_KEY_TERTIARY));
+        nvidiaChain.push(getGroqConfig(tier === 'fast' ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile'));
+        if (useGemini) nvidiaChain.push(getGeminiConfig('gemini-2.0-flash'));
+
+        for (const provider of nvidiaChain) {
+            const remaining = getRemainingTime();
+            if (remaining < 5000) break;
+            console.log(`\x1b[36m[AI ✨]\x1b[0m Coach engine trying ${provider.name}/${provider.model}...`);
+            const result = await callProvider<T>(provider, { ...options, timeout: Math.min(remaining, 55000) });
+            if (result.success) return result;
+        }
+
+        return { success: false, error: 'All coach providers failed', provider: 'groq', model: 'none', latency_ms: Date.now() - totalStartTime };
+    }
+
+    const chain = getProviderChain(options);
+    let lastResult: AIResponse<T> | null = null;
+
+    for (const provider of chain) {
+        const remaining = getRemainingTime();
+        if (remaining < 5000) break;
+        console.log(`\x1b[33m[AI →]\x1b[0m Trying ${provider.name}/${provider.model}...`);
+        const result = await callProvider<T>(provider, { ...options, timeout: remaining });
+        lastResult = result;
         if (result.success) return result;
-        
-        // 2nd layer of redundancy: Ultimate Gemini Backup
-        const ultimateRemaining = getRemainingTime();
-        if (ultimateRemaining > 5000) {
-            console.log('\x1b[36m[AI ULTIMATE]\x1b[0m Nvidia failed. Falling back to Gemini 3.5 Flash...');
-            const geminiProvider = getGeminiConfig('gemini-3.5-flash');
-            return callProvider<T>(geminiProvider, { ...options, timeout: ultimateRemaining });
-        }
-        
-        return result;
     }
 
-    const [primary, fallback] = getProviderChain(options);
-
-    // Try primary
-    const primaryResult = await callProvider<T>(primary, { ...options, timeout: getRemainingTime() });
-    if (primaryResult.success) {
-        return primaryResult;
-    }
-
-    // Fallback
-    const remainingAfterPrimary = getRemainingTime();
-    if (remainingAfterPrimary > 10000) {
-        console.log(`\x1b[33m[AI →]\x1b[0m Falling back to ${fallback.name}...`);
-        const fallbackResult = await callProvider<T>(fallback, { ...options, timeout: remainingAfterPrimary });
-        if (fallbackResult.success) {
-            return fallbackResult;
-        }
-
-        // Emergency Fallback: Gemini 3.5 Flash (Huge context & highly reliable)
-        const remainingAfterFallback = getRemainingTime();
-        if (remainingAfterFallback > 5000) {
-            console.log(`\x1b[35m[AI ALERT]\x1b[0m Both providers failed. Trying emergency fallback (Gemini 3.5 Flash)...`);
-            const emergencyProvider = getGeminiConfig('gemini-3.5-flash');
-            const emergencyResult = await callProvider<T>(emergencyProvider, { ...options, timeout: remainingAfterFallback });
-            if (emergencyResult.success) {
-                return emergencyResult;
-            }
-            return emergencyResult;
-        }
-        return fallbackResult;
-    }
-
-    // All failed or no time left
-    return primaryResult;
+    return lastResult ?? { success: false, error: 'All providers failed', provider: 'groq', model: 'none', latency_ms: Date.now() - totalStartTime };
 }
