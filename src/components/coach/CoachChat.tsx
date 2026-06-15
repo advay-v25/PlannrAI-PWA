@@ -440,7 +440,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
             {isApplyingChanges && (
                 <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 z-50 bg-[var(--color-primary)] text-white px-6 py-3 rounded-full shadow-[0_0_20px_rgba(var(--color-primary-rgb),0.5)] flex items-center gap-3 animate-fade-in">
                     <div className="w-2.5 h-2.5 bg-white rounded-full animate-pulse shadow-[0_0_10px_rgba(255,255,255,0.8)]" />
-                    <span className="font-bold tracking-wide text-sm uppercase">Applying protocol...</span>
+                    <span className="font-bold tracking-wide text-sm uppercase">Changes in Progress</span>
                 </div>
             )}
 
