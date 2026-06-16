@@ -1530,6 +1530,7 @@ export type Database = {
           wake_time: string
           weekend_intensity: string
           wind_down_min: number
+          morning_routine_min: number
           workout_min_per_day: number | null
           workout_preference: string | null
         }
@@ -1561,6 +1562,7 @@ export type Database = {
           wake_time?: string
           weekend_intensity?: string
           wind_down_min?: number
+          morning_routine_min?: number
           workout_min_per_day?: number | null
           workout_preference?: string | null
         }
@@ -1592,6 +1594,7 @@ export type Database = {
           wake_time?: string
           weekend_intensity?: string
           wind_down_min?: number
+          morning_routine_min?: number
           workout_min_per_day?: number | null
           workout_preference?: string | null
         }
@@ -1647,6 +1650,7 @@ export type Database = {
           weekend_intensity: string | null
           wind_down_mins: number | null
           wind_down_minutes: number | null
+          morning_routine_mins: number | null
           work_style: string | null
         }
         Insert: {
@@ -1683,6 +1687,7 @@ export type Database = {
           weekend_intensity?: string | null
           wind_down_mins?: number | null
           wind_down_minutes?: number | null
+          morning_routine_mins?: number | null
           work_style?: string | null
         }
         Update: {
@@ -1719,6 +1724,7 @@ export type Database = {
           weekend_intensity?: string | null
           wind_down_mins?: number | null
           wind_down_minutes?: number | null
+          morning_routine_mins?: number | null
           work_style?: string | null
         }
         Relationships: []

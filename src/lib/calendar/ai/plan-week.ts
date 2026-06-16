@@ -97,7 +97,10 @@ export async function generateWeekPlan(
     if (timeToMinutes(sleepStart) < timeToMinutes(sleepEnd)) {
         // Sleep happens entirely within the same calendar day (e.g., 01:00 to 08:00 or 00:00 to 08:00)
         bioTemplates.push({ title: 'Sleep', block_type: 'sleep', start: sleepStart, end: sleepEnd });
-        if (timeToMinutes(windDown) < timeToMinutes(sleepStart)) {
+        if (sleepStart === '00:00') {
+            // Sleep starts at midnight — wind down occupies the tail end of the active calendar day
+            bioTemplates.push({ title: 'Wind Down', block_type: 'wind_down', start: windDown, end: '23:59' });
+        } else if (timeToMinutes(windDown) < timeToMinutes(sleepStart)) {
             bioTemplates.push({ title: 'Wind Down', block_type: 'wind_down', start: windDown, end: sleepStart });
         }
     } else {
@@ -175,6 +178,21 @@ export async function generateWeekPlan(
                 end: timeToMinutes(bio.end) + (bio.block_type === 'meal' ? 15 : 0), // 15m after meals
                 title: bio.title,
                 type: bio.block_type
+            });
+        }
+    }
+
+    // Morning routine: invisible scheduling constraint — no calendar block, just blocks the time after wake
+    const morningRoutineMins = (context.user as any).morning_routine_mins || 0;
+    if (morningRoutineMins > 0) {
+        const wakeTimeMins = timeToMinutes(context.user.sleep_end || '07:00');
+        const morningRoutineEnd = wakeTimeMins + morningRoutineMins;
+        for (let d = 1; d <= 7; d++) {
+            commitmentsByDay.get(d)!.push({
+                start: wakeTimeMins,
+                end: morningRoutineEnd,
+                title: 'Morning Routine',
+                type: 'morning_routine'
             });
         }
     }
@@ -347,7 +365,9 @@ function generateVariant(
                 remainingMinsForDay = Math.ceil((remainingWeeklyMins / 2) / 15) * 15;
             }
 
-            const dayWindDown = (isWeekend && weekendIntensity === 'light') ? LIGHT_WEEKEND_CUTOFF : 1440;
+            const dayWindDown = (isWeekend && weekendIntensity === 'light')
+                ? Math.min(LIGHT_WEEKEND_CUTOFF, windDownMins)
+                : windDownMins;
             const dayExclusions = exclusions.get(isoDay)!;
             const dateStr = format(addDays(parseISO(weekStart), isoDay - 1), 'yyyy-MM-dd');
 

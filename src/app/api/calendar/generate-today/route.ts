@@ -29,11 +29,20 @@ export const POST = secureApiRoute(
             const wakeTime = ctx.user.sleep_end || '07:00';
             const sleepTime = ctx.user.sleep_start || '23:00';
             const windDownMins = ctx.user.wind_down_mins || 30;
+            const morningRoutineBufferMins = (ctx.user as any).morning_routine_mins || 0;
+            // effectiveWakeTime is when scheduling can actually begin (after morning routine)
+            const effectiveWakeTime = morningRoutineBufferMins > 0
+                ? (() => {
+                    const [h, m] = wakeTime.split(':').map(Number);
+                    const total = (h * 60 + m + morningRoutineBufferMins) % 1440;
+                    return `${Math.floor(total / 60).toString().padStart(2, '0')}:${(total % 60).toString().padStart(2, '0')}`;
+                  })()
+                : wakeTime;
             const chronotype = ctx.user.chronotype || 'bear';
 
             // Calculate wind-down time
             const sleepMins = parseInt(sleepTime.split(':')[0]) * 60 + parseInt(sleepTime.split(':')[1] || '0');
-            const windDownStart = sleepMins - windDownMins;
+            const windDownStart = ((sleepMins - windDownMins) + 1440) % 1440;
             const windDownTime = `${Math.floor(windDownStart / 60).toString().padStart(2, '0')}:${(windDownStart % 60).toString().padStart(2, '0')}`;
 
             // Check for existing blocks today
@@ -235,7 +244,7 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
 
 ━━━ RULES ━━━
 1. Use 24-hour HH:MM format for all times
-2. Cover the FULL day from ${wakeTime} to ${windDownTime}
+2. Cover the FULL day from ${effectiveWakeTime} to ${windDownTime}
 3. For goal blocks, use the EXACT goal ID and title from the list above
 4. Morning Routine checklist should include habit stacks
 5. Follow the ENERGY ARC phases — deep work in Peak, light work in Trough
@@ -270,7 +279,7 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
             } else {
                 // Fallback: generate flow-state-aware deterministic schedule
                 console.warn('[GenerateToday] AI failed, using fallback:', response.error);
-                const fb = generateFlowStateFallback(ctx, targetDate, wakeTime, windDownTime, phases);
+                const fb = generateFlowStateFallback(ctx, targetDate, effectiveWakeTime, windDownTime, phases);
                 blocks = fb.blocks;
                 summary = fb.summary;
                 philosophy = fb.philosophy;

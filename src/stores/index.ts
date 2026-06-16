@@ -42,6 +42,7 @@ export interface OnboardingData {
     sleep_start: string;
     sleep_end: string;
     wind_down_mins: number;
+    morning_routine_mins: number;
     meals_per_day: number;
     two_meals_selection: 'breakfast_lunch' | 'lunch_dinner' | 'breakfast_dinner';
     custom_meal_times: {
@@ -133,6 +134,7 @@ const defaultOnboardingData: OnboardingData = {
     sleep_start: '23:00',
     sleep_end: '07:00',
     wind_down_mins: 30,
+    morning_routine_mins: 0,
     meals_per_day: 3,
     two_meals_selection: 'lunch_dinner',
     custom_meal_times: {

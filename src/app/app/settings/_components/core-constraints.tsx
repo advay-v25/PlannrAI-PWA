@@ -60,6 +60,24 @@ export default function CoreConstraints({ preferences, onChange }: Props) {
                         </Select>
                     </div>
                     <div className="space-y-2">
+                        <Label>Morning Routine Buffer (Minutes)</Label>
+                        <Select
+                            value={String(preferences.morning_routine_min ?? 0)}
+                            onValueChange={(v: string) => onChange({ morning_routine_min: parseInt(v) })}
+                        >
+                            <SelectTrigger className="bg-transparent">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="0">None</SelectItem>
+                                <SelectItem value="15">15 min</SelectItem>
+                                <SelectItem value="30">30 min</SelectItem>
+                                <SelectItem value="45">45 min</SelectItem>
+                                <SelectItem value="60">60 min</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
                         <Label>Breakfast Start Time</Label>
                         <Input
                             type="time"

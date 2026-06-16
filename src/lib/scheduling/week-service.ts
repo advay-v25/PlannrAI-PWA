@@ -150,6 +150,7 @@ export function generateStaticWeekPlan(
     const sleepTime = profile?.sleep_start || '23:00';
     const lowEnergy = profile?.low_energy_mode || false;
     const windDownMins = profile?.wind_down_mins || 30;
+    const morningRoutineMins = (profile as any)?.morning_routine_mins || 0;
     const mealWindows = profile?.meal_windows || { breakfast: '08:00', lunch: '12:30', dinner: '19:00' };
     const bufferGapMins = profile?.buffer_config?.gap_mins || 15;
 
@@ -192,6 +193,15 @@ export function generateStaticWeekPlan(
         const min = m % 60;
         return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
     };
+
+    // Block morning routine time at the start of every day (invisible constraint)
+    if (morningRoutineMins > 0) {
+        const wakeMinsNum = toMins(wakeTime);
+        const mrEnd = wakeMinsNum + morningRoutineMins;
+        periodMap.forEach(d => {
+            dayState[d].occupied.push({ start: wakeMinsNum, end: mrEnd });
+        });
+    }
 
     // 1. Place Anchors
     commitments.forEach(anchor => {
@@ -392,16 +402,20 @@ export function generateStaticWeekPlan(
     // 6. Wind-down Block (before sleep)
     periodMap.forEach(day => {
         const sleepMins = toMins(sleepTime);
-        const wdStart = sleepMins - windDownMins;
-        if (wdStart > 0 && isFree(dayState[day].occupied, wdStart, sleepMins)) {
+        const rawWdStart = sleepMins - windDownMins;
+        // Handle midnight sleep (sleepTime = '00:00' → sleepMins = 0): wind down wraps to end of previous day
+        const wdStart = rawWdStart >= 0 ? rawWdStart : rawWdStart + 1440;
+        const wdEnd = sleepMins === 0 ? 1439 : sleepMins;
+        const wdEndStr = sleepMins === 0 ? '23:59' : sleepTime;
+        if (wdStart > 0 && wdStart < wdEnd && isFree(dayState[day].occupied, wdStart, wdEnd)) {
             schedule[day].push({
                 time: toTime(wdStart),
-                end_time: sleepTime,
+                end_time: wdEndStr,
                 title: 'Wind Down',
                 goal_id: 'WIND_DOWN',
                 type: 'wind_down'
             });
-            dayState[day].occupied.push({ start: wdStart, end: sleepMins });
+            dayState[day].occupied.push({ start: wdStart, end: wdEnd });
         }
     });
 
