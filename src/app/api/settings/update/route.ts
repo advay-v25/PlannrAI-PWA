@@ -111,13 +111,17 @@ export const POST = secureApiRoute(
         delete (patch as any).user_id;
         delete (patch as any).updated_at;
 
+        // Extract morning_routine_min — column may not exist in DB yet (pending migration).
+        // Save it in a separate query so a missing column never fails the main update.
+        const { morning_routine_min, ...mainPatch } = patch as any;
+
         // Check if any schedule-affecting fields are being changed
         const affectsSchedule = Object.keys(patch).some(key => SCHEDULE_AFFECTING_FIELDS.includes(key));
 
-        // 3. Update Preferences
+        // 3. Update Preferences (without morning_routine_min to stay resilient)
         const { data: updated, error } = await supabase
             .from('profile_preferences')
-            .update(patch)
+            .update(mainPatch)
             .eq('user_id', userId)
             .select()
             .single();
@@ -125,6 +129,17 @@ export const POST = secureApiRoute(
         if (error) {
             console.error("Settings update failed", error);
             return apiError('Failed to update settings', 500);
+        }
+
+        // 3b. Save morning_routine_min separately — silently skip if column not yet migrated
+        if (morning_routine_min !== undefined) {
+            const { error: mrError } = await supabase
+                .from('profile_preferences')
+                .update({ morning_routine_min })
+                .eq('user_id', userId);
+            if (mrError) {
+                console.warn('[Settings] morning_routine_min not saved (run migration):', mrError.message);
+            }
         }
 
         // 4. If schedule-affecting fields changed, flag for rescheduling and sync sleep blocks
