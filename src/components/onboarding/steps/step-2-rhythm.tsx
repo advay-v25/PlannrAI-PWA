@@ -63,12 +63,32 @@ export function Step2Rhythm() {
                                     key={mins}
                                     onClick={() => updateData({ wind_down_mins: mins })}
                                     className={`py-3.5 rounded-2xl text-xs font-bold font-mono transition-all duration-300 flex-1 border ${
-                                        data.wind_down_mins === mins 
-                                            ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)] scale-[1.03] border-transparent' 
+                                        data.wind_down_mins === mins
+                                            ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)] scale-[1.03] border-transparent'
                                             : 'bg-[var(--glass-bg-active)] text-[var(--text-primary)]/50 border-[var(--glass-border)] hover:bg-[var(--glass-bg)] hover:text-[var(--text-primary)] hover:scale-[1.02]'
                                     }`}
                                 >
                                     {mins} MIN
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="space-y-3 pt-2">
+                        <label className="text-[10px] font-bold tracking-widest text-[var(--text-primary)]/50 uppercase ml-1">Morning routine buffer (after wake up)</label>
+                        <p className="text-[10px] text-[var(--text-primary)]/40 ml-1 -mt-1">Shower, breakfast, getting ready — no blocks scheduled during this window</p>
+                        <div className="flex gap-2.5">
+                            {[0, 15, 30, 45, 60].map((mins) => (
+                                <button
+                                    key={mins}
+                                    onClick={() => updateData({ morning_routine_mins: mins })}
+                                    className={`py-3.5 rounded-2xl text-xs font-bold font-mono transition-all duration-300 flex-1 border ${
+                                        data.morning_routine_mins === mins
+                                            ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)] scale-[1.03] border-transparent'
+                                            : 'bg-[var(--glass-bg-active)] text-[var(--text-primary)]/50 border-[var(--glass-border)] hover:bg-[var(--glass-bg)] hover:text-[var(--text-primary)] hover:scale-[1.02]'
+                                    }`}
+                                >
+                                    {mins === 0 ? 'NONE' : `${mins} MIN`}
                                 </button>
                             ))}
                         </div>

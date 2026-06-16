@@ -19,6 +19,7 @@ export interface ProfilePreferences {
     sleep_start: string;
     wake_time: string;
     wind_down_min: number;
+    morning_routine_min: number;
     meals_per_day: 2 | 3;
     meal_windows: {
         breakfast?: MealWindow;
@@ -69,6 +70,7 @@ export const DEFAULT_PREFERENCES: Omit<ProfilePreferences, 'user_id' | 'updated_
     sleep_start: '23:00',
     wake_time: '07:00',
     wind_down_min: 30,
+    morning_routine_min: 0,
     meals_per_day: 3,
     meal_windows: {
         breakfast: { start: "07:00", end: "10:00" },

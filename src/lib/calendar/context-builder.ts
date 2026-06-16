@@ -16,6 +16,7 @@ export interface CalendarContext {
         sleep_start: string;
         sleep_end: string;
         wind_down_mins: number;
+        morning_routine_mins: number;
         energy_level: number;
         stress_level: number;
         meals_per_day: number;
@@ -169,7 +170,7 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
 
         // 1b. Profile Preferences (onboarding may write here)
         db.from('profile_preferences')
-            .select('wake_time, sleep_start, meal_windows, meals_per_day, buffer_min, preferred_windows, workout_preference, workout_min_per_day, wind_down_min, is_workout_protected, weekend_intensity')
+            .select('wake_time, sleep_start, meal_windows, meals_per_day, buffer_min, preferred_windows, workout_preference, workout_min_per_day, wind_down_min, morning_routine_min, is_workout_protected, weekend_intensity')
             .eq('user_id', userId)
             .maybeSingle(),
 
@@ -257,7 +258,8 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
         // profile_preferences overrides when they exist
         sleep_start: prefs.sleep_start || profileRaw.sleep_start || '23:00',
         sleep_end: prefs.wake_time || profileRaw.sleep_end || '07:00',
-        wind_down_mins: profileRaw.wind_down_mins || profileRaw.wind_down_minutes || 30,
+        wind_down_mins: prefs.wind_down_min || profileRaw.wind_down_mins || profileRaw.wind_down_minutes || 30,
+        morning_routine_mins: prefs.morning_routine_min || (profileRaw as any).morning_routine_mins || 0,
         meals_per_day: profileRaw.meals_per_day || prefs.meals_per_day || 3,
         meal_windows: profileRaw.meal_windows || prefs.meal_windows || null,
         // Extract from bio_data

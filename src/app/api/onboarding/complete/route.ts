@@ -5,7 +5,7 @@ export const POST = secureApiRoute(
     async (context, body) => {
         const {
             full_name, timezone,
-            sleep_start, sleep_end, wind_down_mins,
+            sleep_start, sleep_end, wind_down_mins, morning_routine_mins,
             meals_per_day, meal_timing, default_buffer_duration,
             two_meals_selection, custom_meal_times,
             commitments, goals, failure_modes,
@@ -53,6 +53,7 @@ export const POST = secureApiRoute(
                 sleep_start,
                 sleep_end,
                 wind_down_mins,
+                morning_routine_mins: morning_routine_mins || 0,
                 meals_per_day,
                 // failure_modes and other rhythm metadata stored in bio_data
                 bio_data: {
@@ -104,6 +105,7 @@ export const POST = secureApiRoute(
                 sleep_start,
                 wake_time: sleep_end,
                 wind_down_min: wind_down_mins,
+                morning_routine_min: morning_routine_mins || 0,
                 meals_per_day,
                 meal_windows,
                 buffer_min: safeBufferMin,

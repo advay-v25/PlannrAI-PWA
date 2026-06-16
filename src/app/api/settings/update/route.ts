@@ -23,6 +23,7 @@ const PreferencesUpdateSchema = z.object({
     sleep_start: TimeStringSchema.optional(),
     wake_time: TimeStringSchema.optional(),
     wind_down_min: z.number().min(0).max(180).optional(),
+    morning_routine_min: z.number().min(0).max(120).optional(),
     meals_per_day: z.union([z.literal(2), z.literal(3)]).optional(),
     meal_windows: z.object({
         breakfast: MealWindowSchema.optional(),
