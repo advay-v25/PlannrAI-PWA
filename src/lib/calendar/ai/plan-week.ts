@@ -383,8 +383,13 @@ function generateVariant(
                 if ((goal.days_per_week || 5) * (goal.minutes_per_day || 60) <= 120) continue;
             }
 
-            // Find all other body blocks already scheduled today to prevent back-to-back workouts
+            // Find all other body blocks already scheduled today to prevent multiple body blocks per day
             const otherBodyBlocks = blocks.filter(b => b.date === dateStr && b.pillar === 'body' && b.goal_id !== goal.id);
+
+            // GLOBAL HARD CONSTRAINT: Max 1 body block per day globally across all goals
+            if (goal.pillar === 'body' && otherBodyBlocks.length > 0) {
+                continue;
+            }
 
             dayExclusions.sort((a, b) => a.start - b.start);
             let windows: Array<{ start: number; end: number }> = [];
@@ -417,40 +422,7 @@ function generateVariant(
                 }
             }
 
-            // Body stacking constraint 2: Prevent DIFFERENT body goals from being back-to-back
-            if (goal.pillar === 'body' && otherBodyBlocks.length > 0) {
-                const updatedWindows: typeof windows = [];
-                for (const w of windows) {
-                    let validStart = w.start;
-                    let validEnd = w.end;
-                    let isCut = false;
-                    
-                    for (const ob of otherBodyBlocks) {
-                        const obStart = timeToMinutes(ob.start_time);
-                        const obEnd = timeToMinutes(ob.end_time);
-                        // Require 120 min gap between different body goals
-                        const blockZoneStart = obStart - 120;
-                        const blockZoneEnd = obEnd + 120;
-
-                        if (validStart >= blockZoneStart && validEnd <= blockZoneEnd) {
-                            isCut = true; // completely inside the exclusion zone
-                            break;
-                        } else if (validStart < blockZoneStart && validEnd > blockZoneEnd) {
-                            // split window
-                            updatedWindows.push({ start: validStart, end: blockZoneStart });
-                            validStart = blockZoneEnd;
-                        } else if (validStart >= blockZoneStart && validStart < blockZoneEnd) {
-                            validStart = blockZoneEnd;
-                        } else if (validEnd > blockZoneStart && validEnd <= blockZoneEnd) {
-                            validEnd = blockZoneStart;
-                        }
-                    }
-                    if (!isCut && validEnd > validStart) {
-                        updatedWindows.push({ start: validStart, end: validEnd });
-                    }
-                }
-                windows = updatedWindows;
-            }
+            // (Body stacking constraint 2 removed: We now strictly enforce 1 body block per day globally above)
             
             windows = windows.filter(w => w.end > w.start);
 
