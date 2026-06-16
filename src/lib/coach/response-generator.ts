@@ -938,12 +938,13 @@ ${optionsInstruction}`;
         }>({
             prompt: userPrompt,
             systemPrompt,
-            model: isMissedBlock ? 'fast' : 'smart',
+            model: 'smart',
             temperature: 0.5,
             maxTokens: 2500,
             requireJSON: true,
-            timeout: isMissedBlock ? 25000 : 55000,
-            useNvidia: isMissedBlock ? false : true,
+            timeout: 55000,
+            useNvidia: true,
+            skipOpenRouter: isMissedBlock, // MOVE_BLOCK: skip OpenRouter, go straight to NVIDIA 70B — no latency wasted on OpenRouter before the 70B model
         });
 
         if (response.success && response.data && response.data.options?.length) {
@@ -1574,18 +1575,34 @@ function generateFallbackResponse(
             summary = "You're done for today! No more scheduled blocks.";
         }
     } else if (intent === CoachIntent.MOVE_BLOCK) {
-        const allBlocks = [...(coachCtx.schedule?.today || []), ...(coachCtx.schedule?.this_week || [])];
-        const missedOrRecentBlocks = allBlocks.filter((b: any) =>
-            b.status === 'missed' || b.status === 'planned'
-        ).slice(0, 3);
+        // First: check if the server already identified the exact block
+        const preResolved = (coachCtx as any).pre_resolved_block;
+        const targetBlock = preResolved || findMissedBlock(userMessage, classification, coachCtx);
 
-        if (missedOrRecentBlocks.length > 0) {
-            const blockList = missedOrRecentBlocks.map((b: any) =>
-                `"${(b as any).title || b.context}" at ${b.start_time}`
-            ).join(', ');
-            summary = `I can see blocks in your schedule: ${blockList}. Which one would you like to reschedule, and what time should it move to?`;
+        if (targetBlock) {
+            // We found the specific block the user mentioned — acknowledge it and ask them to retry
+            const blockName = (targetBlock as any).title || targetBlock.context || 'this block';
+            const blockTime = (targetBlock.start_time || '').substring(0, 5);
+            summary = `I found your "${blockName}" block (originally at ${blockTime}). The rescheduling engine is momentarily busy — please resend your message and I'll generate your 3 options right away.`;
         } else {
-            summary = `Tell me the block name and time you'd like to move — I'll find the best slot for it.`;
+            // Block not found — show a de-duplicated list (today only, not today+this_week which causes duplicates)
+            const todayBlocks = coachCtx.schedule?.today || [];
+            const weekOnlyBlocks = (coachCtx.schedule?.this_week || []).filter(
+                (b: any) => b.date && b.date !== coachCtx.current.date
+            );
+            const allUnique = [...todayBlocks, ...weekOnlyBlocks];
+            const relevant = allUnique
+                .filter((b: any) => b.status === 'missed' || b.status === 'planned')
+                .slice(0, 3);
+
+            if (relevant.length > 0) {
+                const blockList = relevant
+                    .map((b: any) => `"${(b as any).title || b.context}" at ${(b.start_time || '').substring(0, 5)}`)
+                    .join(', ');
+                summary = `Which block would you like to reschedule? I can see: ${blockList}. Mention the block name or time and I'll find the best slot.`;
+            } else {
+                summary = `Tell me the block name and time you'd like to reschedule — I'll find the best available slot for it.`;
+            }
         }
     } else {
         summary = `Let me know what you'd like to adjust — mention a block name or time and I'll take it from there.`;

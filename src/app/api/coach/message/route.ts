@@ -9,6 +9,7 @@ export const maxDuration = 60;
 interface MessageRequest {
     message: string;
     conversation_id?: string;
+    clientTimezone?: string; // Browser timezone (e.g. "Asia/Kolkata") — used as fallback if profile.timezone is null
 }
 
 export const POST = secureApiRoute(
@@ -17,7 +18,7 @@ export const POST = secureApiRoute(
 
         try {
             const { user, supabase } = context;
-            const { message, conversation_id } = body as MessageRequest;
+            const { message, conversation_id, clientTimezone } = body as MessageRequest;
 
         if (!message || message.trim().length === 0) {
             return NextResponse.json(
@@ -77,7 +78,7 @@ export const POST = secureApiRoute(
 
         // OPTIMIZATION: Only build light context for intent classification
         const profileRes = await supabase.from('profiles').select('id, first_name, timezone').eq('id', user.id).single();
-        const timezone = profileRes.data?.timezone || 'UTC';
+        const timezone = profileRes.data?.timezone || clientTimezone || 'UTC';
         const now = new Date();
         const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
         const timeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false });

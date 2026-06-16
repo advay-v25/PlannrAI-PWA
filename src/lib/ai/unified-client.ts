@@ -17,6 +17,7 @@ export interface AICallOptions {
     requireJSON?: boolean;
     timeout?: number;
     useNvidia?: boolean; // Use dedicated CALENDAR_NVIDIA_API_KEY for Coach & Calendar
+    skipOpenRouter?: boolean; // When true, skip OpenRouter and go straight to NVIDIA 70B (for MOVE_BLOCK — avoids OpenRouter latency eating into the budget)
     userId?: string; // Optional user ID for logging/auditing
 }
 
@@ -397,7 +398,7 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
         const useTertiary  = !!process.env.NVIDIA_API_KEY_TERTIARY;
 
         const nvidiaChain: ProviderConfig[] = [];
-        if (useOpenRouter) nvidiaChain.push(getOpenRouterConfig(
+        if (useOpenRouter && !options.skipOpenRouter) nvidiaChain.push(getOpenRouterConfig(
             tier === 'fast' ? 'openai/gpt-4o-mini' : 'meta-llama/llama-3.3-70b-instruct'
         ));
         nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.CALENDAR_NVIDIA_API_KEY));

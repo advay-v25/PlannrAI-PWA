@@ -92,7 +92,8 @@ export const useCoach = create<CoachState>()(
           const raw = await apiClient.post('/api/coach/message', {
             message: "Analyze my current context and give me an immediate execution and performance insight.",
             conversation_id: get().conversationId,
-            date: new Date().toISOString()
+            date: new Date().toISOString(),
+            clientTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           });
 
           const { response: coachRes, conversationId } = extractCoachResponse(raw);
@@ -162,7 +163,8 @@ export const useCoach = create<CoachState>()(
           const raw = await apiClient.post('/api/coach/message', {
             message: text,
             conversation_id: get().conversationId,
-            date: new Date().toISOString()
+            date: new Date().toISOString(),
+            clientTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           });
 
           const { response: coachRes, conversationId } = extractCoachResponse(raw);
