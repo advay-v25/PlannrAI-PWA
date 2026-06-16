@@ -124,7 +124,12 @@ function hasBodyBlockOnDay(allBlocks: Block[], goals: Goal[], date: string): boo
 export const POST = secureApiRoute(
     async (context: SecureApiContext, body: any) => {
         const { user, supabase } = context;
-        const { action } = body as { action: string };
+        const { action, clientDate, clientTime, clientTimezone } = body as {
+            action: string;
+            clientDate?: string;     // "YYYY-MM-DD" in user's local timezone — sent by browser
+            clientTime?: string;     // "HH:MM" 24h in user's local timezone — sent by browser
+            clientTimezone?: string; // IANA timezone string e.g. "Asia/Kolkata"
+        };
 
         if (!action || !['reduce_today_load', 'fix_today_schedule'].includes(action)) {
             return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
@@ -137,17 +142,20 @@ export const POST = secureApiRoute(
             .eq('id', user.id)
             .single();
 
-        const timezone = profile?.timezone || 'UTC';
         const wakeTime = profile?.sleep_end || '07:00';
         const sleepTime = profile?.sleep_start || '23:00';
         const windDownMins = profile?.wind_down_mins || 30;
         const morningRoutineMins = profile?.morning_routine_mins || 0;
 
         const now = new Date();
-        const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
-        const timeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false });
-        const today = dateFormatter.format(now);
-        const currentTime = timeFormatter.format(now);
+
+        // Prefer client-supplied values — the browser knows the user's local time exactly.
+        // Fall back to server-side calculation only if the client didn't send them.
+        const resolvedTimezone = clientTimezone || profile?.timezone || 'UTC';
+        const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: resolvedTimezone, year: 'numeric', month: '2-digit', day: '2-digit' });
+        const timeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: resolvedTimezone, hour: '2-digit', minute: '2-digit', hour12: false });
+        const today = clientDate || dateFormatter.format(now);
+        const currentTime = clientTime || timeFormatter.format(now);
 
         // Build remaining days this week (today through Sunday)
         const remainingDates: string[] = [];

@@ -250,7 +250,18 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
         };
 
         try {
-            const raw = await apiClient.post('/api/coach/quick-action', { action }) as any;
+            // Capture current time in the browser — this is always in the user's local timezone
+        const _now = new Date();
+        const _clientDate = _now.toLocaleDateString('en-CA'); // "YYYY-MM-DD" in local time
+        const _clientTime = _now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }); // "HH:MM" in local 24h
+        const _clientTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+        const raw = await apiClient.post('/api/coach/quick-action', {
+            action,
+            clientDate: _clientDate,
+            clientTime: _clientTime,
+            clientTimezone: _clientTimezone,
+        }) as any;
 
             if (!raw.success) {
                 showToast(raw.error || 'Something went wrong', 'error');
