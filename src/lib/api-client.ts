@@ -29,9 +29,19 @@ const getBaseUrl = () => {
 };
 
 async function fetchWithTimeout(resource: RequestInfo, options: RequestInit & { timeout?: number } = {}) {
-    const { timeout = DEFAULT_TIMEOUT } = options;
+    const { timeout = DEFAULT_TIMEOUT, signal } = options;
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
+
+    if (signal) {
+        // If it's already aborted, abort the controller immediately
+        if (signal.aborted) {
+            controller.abort();
+        } else {
+            signal.addEventListener('abort', () => controller.abort(), { once: true });
+        }
+    }
+
     try {
         const response = await fetch(resource, {
             ...options,

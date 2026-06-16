@@ -21,7 +21,8 @@ export type PatchOpType =
     | 'update_todo'
     | 'delete_todo'
     | 'replan_week'
-    | 'replan_day';
+    | 'replan_day'
+    | 'update_memory';
 
 export interface PatchOp {
     op: PatchOpType;
@@ -39,7 +40,10 @@ export interface PatchOp {
     start_time?: string;
     end_time?: string;
     days_of_week?: number[];
-    date?: string;
+    // update_memory fields
+    key?: string;
+    value?: any;
+    kind?: string;
 }
 
 export interface Patch {
@@ -1235,6 +1239,30 @@ export class PatchService {
                     .update(fields)
                     .eq('user_id', userId);
                 if (error) throw new Error(`Update settings failed: ${error.message}`);
+                break;
+            }
+
+            case 'update_memory': {
+                const payload = op.payload || {};
+                const key = op.key || payload.key;
+                const value = op.value !== undefined ? op.value : payload.value;
+                const kind = op.kind || payload.kind || 'preference';
+                
+                if (!key) throw new Error('Update memory requires a key');
+
+                // Upsert logic for memory fact
+                const { error } = await supabase
+                    .from('memory_facts')
+                    .upsert({
+                        user_id: userId,
+                        key,
+                        value,
+                        kind,
+                        confidence: 1.0,
+                        updated_at: new Date().toISOString()
+                    }, { onConflict: 'user_id, key' });
+                    
+                if (error) throw new Error(`Update memory failed: ${error.message}`);
                 break;
             }
 

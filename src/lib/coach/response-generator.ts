@@ -72,7 +72,8 @@ export type PatchOperation =
     | { type: 'create_todo'; data: NewTodoData }
     | { type: 'update_todo'; todo_id: string; changes: Partial<TodoData> }
     | { type: 'delete_todo'; todo_id: string }
-    | { type: 'update_settings'; data: any };
+    | { type: 'update_settings'; data: any }
+    | { type: 'update_memory'; key: string; value: any; kind?: string };
 
 interface NewGoalData {
     title: string;
@@ -806,9 +807,13 @@ When the user wants to move a block to a time slot that is already occupied (NOT
 - If the user needs to add an ad-hoc event like "grocery shopping" or "going out with friends", infer a reasonable duration (e.g., 60-120 mins). You must safely place a \`create_block\` in a free slot OR if they specify a time that overlaps flexible blocks, let Auto-Cascade shift them.
 - NEVER let ad-hoc events or extensions overlap with immutable blocks (anchors/sleep/meals). If an extension hits an anchor, you must warn them in the \`tradeoff\` field.
 
-⚙️ MINDSPACE, GOALS, CALENDAR & SETTINGS MODIFICATIONS (update_settings, create_todo, update_goal):
-- You have the power to make changes, edits, additions, and deletions from mindspace (Todos), calendar, goals, and settings.
+⚙️ MINDSPACE, GOALS, CALENDAR, SETTINGS & MEMORY MODIFICATIONS (update_settings, create_todo, update_goal, update_memory):
+- You have the power to make changes, edits, additions, and deletions from mindspace (Todos), calendar, goals, settings, and YOUR LONG-TERM MEMORY.
 - INTERACTIVE DATA GATHERING: If the user asks to create a Goal or Mindspace Task but does NOT provide the required details (e.g., Pillar, minutes per day, or urgency), you MUST return \`suggested_mode: 'propose'\` and ask them the missing questions in the \`summary\` field. DO NOT generate operations with hallucinated defaults. Ask them to clarify first!
+- LONG-TERM MEMORY (update_memory): If the user tells you a preference, constraint, or fact about themselves (e.g. "I hate working out in the morning", "My commute is always 30 mins", "I prefer deep work before lunch"), you MUST actively learn this by generating an \`update_memory\` operation.
+  1. Set \`key\` to a concise identifier (e.g., "workout_preference", "commute_duration").
+  2. Set \`value\` to the data (string, number, or object).
+  3. Set \`kind\` to "preference", "constraint", or "fact".
 - If the user requests a permanent change to their bio-rhythms or routine (e.g., "Set my dinner time to 8 PM forever", "Change my wake time to 6 AM", "I want to sleep at midnight"):
 1. You MUST generate an \`update_settings\` operation.
 2. The data payload should include only the fields they want to change. Available fields: \`sleep_start\` (HH:mm), \`wake_time\` (HH:mm), \`wind_down_min\` (number), \`meal_windows\` (e.g., {"breakfast": {"start": "07:00", "end": "08:00"}, "lunch": {"start": "13:00", "end": "14:00"}, "dinner": {"start": "20:00", "end": "21:00"}}).
@@ -836,6 +841,8 @@ PATCH OPERATION TYPES:
 - create_todo: { type: "create_todo", data: { title, due_date?, priority? } }
 - update_todo: { type: "update_todo", todo_id: "existing-id", changes: { is_completed?, title?, due_date?, priority? } }
 - delete_todo: { type: "delete_todo", todo_id: "existing-id" }
+- update_settings: { type: "update_settings", data: { ... } }
+- update_memory: { type: "update_memory", key: string, value: any, kind?: string }
 
 --- FINAL VALIDATION CHECKLIST (CHECK EVERY OPTION BEFORE OUTPUTTING) ---
 For EACH option you generate, mentally verify ALL of the following BEFORE including it in your output:
@@ -871,7 +878,7 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
       "tradeoff": { "warning": "Any downsides", "severity": "info|caution|warning" },
       "scenario_analysis": "Deviation Analyst breakdown of secondary impacts (e.g., 'Moving this to Friday will protect focus but cannibalize your wind-down time').",
       "operations": [
-        { "type": "create_block|move_block|update_block|delete_block|replan_week|replan_day|create_todo|update_todo|delete_todo|create_goal|update_goal|delete_goal|update_settings", ... }
+        { "type": "create_block|move_block|update_block|delete_block|replan_week|replan_day|create_todo|update_todo|delete_todo|create_goal|update_goal|delete_goal|update_settings|update_memory", ... }
       ],
       "recommended": true
     }
@@ -1401,6 +1408,13 @@ function normalizeOperation(op: any): PatchOperation {
                 type: 'update_settings',
                 data: op.data || {},
             };
+        case 'update_memory':
+            return {
+                type: 'update_memory',
+                key: op.key,
+                value: op.value,
+                kind: op.kind
+            };
         default:
             console.warn('[CoachAI] Unknown operation type:', type);
             return op;
@@ -1499,6 +1513,14 @@ function convertToCalendarPatchOp(op: PatchOperation): any {
                 op: 'update_settings',
                 payload: op.data,
                 title: 'Update Settings',
+            };
+        case 'update_memory':
+            return {
+                op: 'update_memory',
+                key: op.key,
+                value: op.value,
+                kind: op.kind,
+                title: 'Update Memory'
             };
         default:
             return op;

@@ -276,8 +276,8 @@ export async function buildCoachContext(
 
     const mostProductiveWindow = Object.keys(windowCounts).sort((a, b) => windowCounts[b] - windowCounts[a])[0] || 'morning';
 
-    // Simple streak: check if today is >50%, and if yesterday is >50%
-    const currentStreak = 0;
+    // Calculate total momentum (streak) by summing active goal streaks
+    const currentStreak = goals.reduce((acc: number, g: any) => acc + (g.current_streak_days || 0), 0);
 
     return {
         user: {
