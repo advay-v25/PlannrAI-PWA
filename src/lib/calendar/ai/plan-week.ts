@@ -388,7 +388,9 @@ function generateVariant(
 
             dayExclusions.sort((a, b) => a.start - b.start);
             let windows: Array<{ start: number; end: number }> = [];
-            let cursor = 0;
+            // Start cursor at wakeMins — belt-and-suspenders guard so blocks never land
+            // before wake time even if the sleep bio-block exclusion is misconfigured.
+            let cursor = wakeMins;
 
             for (const ex of dayExclusions) {
                 let exEnd = ex.end;
@@ -625,12 +627,13 @@ function generateVariant(
                 const dayExclusions = exclusions.get(isoDay)!;
                 dayExclusions.sort((a, b) => a.start - b.start);
                 let windows: Array<{ start: number; end: number }> = [];
-                let cursor = 0;
+                // Same wake-time guard as Pass 1
+                let cursor = wakeMins;
                 for (const ex of dayExclusions) {
                     if (cursor < ex.start) windows.push({ start: cursor, end: ex.start });
                     cursor = Math.max(cursor, ex.end);
                 }
-                if (cursor < 1440) windows.push({ start: cursor, end: 1440 });
+                if (cursor < windDownMins) windows.push({ start: cursor, end: windDownMins });
 
                 windows = windows.filter(w => w.end > w.start);
 
