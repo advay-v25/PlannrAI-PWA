@@ -178,7 +178,7 @@ CRITICAL RULES:
 - This rule overrides all other scheduling logic. Over-scheduling goals is the #1 bug to avoid.
 - When you see gaps in the schedule, fill them with buffers, routines, or flex blocks — NOT with more goal blocks if goals are already at their daily limit.
 - If a non-body goal (mind/craft) has a high weekly commitment (>120 mins), you MAY schedule multiple blocks for it on the same day to reach its limit.
-- You MUST NEVER schedule multiple body blocks (pillar: body) for the same goal on the same day. Body blocks are strictly 1 block per day to prevent physical over-taxing.
+- You MUST NEVER schedule multiple body blocks (pillar: body) on the same day, regardless of the goal. Body blocks are strictly 1 block per day max globally to prevent physical over-taxing.
 
 BIO-CONTEXT:
 - ${chronotypeRules}

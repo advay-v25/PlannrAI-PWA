@@ -669,6 +669,12 @@ export class WeekOrchestrator {
         let best: { slot: TimeSlot; score: number } | null = null;
         for (const slot of candidates) {
             const dc = dayCtxs.find((d) => d.date === slot.date)!;
+            
+            // GLOBAL HARD CONSTRAINT: Only ONE body block per day.
+            if (session.pillar === 'body' && dc.placed.some(b => b.pillar === 'body')) {
+                continue;
+            }
+
             const score = this.scoreSlot(session, slot, dc);
             if (!best || score > best.score) best = { slot, score };
         }

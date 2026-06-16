@@ -66,7 +66,7 @@ function getNvidiaConfig(model: string, keyOverride?: string): ProviderConfig {
             'Authorization': `Bearer ${keyOverride || process.env.CALENDAR_NVIDIA_API_KEY || process.env.NVIDIA_API_KEY}`,
             'Content-Type': 'application/json',
         }),
-        supportsResponseFormat: true,
+        supportsResponseFormat: false,
     };
 }
 
@@ -397,15 +397,25 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
 
     // Coach/Calendar dedicated engine: NVIDIA (primary) → NVIDIA (tertiary) → Groq → Gemini
     if (options.useNvidia) {
-        const nvidiaModel = tier === 'fast' ? 'meta/llama-3.1-8b-instruct' : 'meta/llama-3.1-70b-instruct';
+        const nvidiaModel = tier === 'fast' ? 'meta/llama-3.1-8b-instruct' : 'meta/llama-3.3-70b-instruct';
+        const useOpenRouter = !!process.env.OPENROUTER_API_KEY;
         const useGemini    = !!process.env.GEMINI_API_KEY;
         const useTertiary  = !!process.env.NVIDIA_API_KEY_TERTIARY;
 
         const nvidiaChain: ProviderConfig[] = [];
-        // Removed OpenRouter to prevent 504 timeouts due to hanging
-        nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.CALENDAR_NVIDIA_API_KEY));
+        if (useOpenRouter && !options.skipOpenRouter) nvidiaChain.push(getOpenRouterConfig(
+            tier === 'fast' ? 'openai/gpt-4o-mini' : 'meta-llama/llama-3.3-70b-instruct'
+        ));
+
+        // Prioritize Groq's high-speed inference when OpenRouter is skipped to prevent 55s NVIDIA timeouts on complex JSON
+        if (options.skipOpenRouter) {
+            nvidiaChain.push(getGroqConfig(tier === 'fast' ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile'));
+            nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.CALENDAR_NVIDIA_API_KEY));
+        } else {
+            nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.CALENDAR_NVIDIA_API_KEY));
+            nvidiaChain.push(getGroqConfig(tier === 'fast' ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile'));
+        }
         if (useTertiary) nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.NVIDIA_API_KEY_TERTIARY));
-        nvidiaChain.push(getGroqConfig(tier === 'fast' ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile'));
         if (useGemini) nvidiaChain.push(getGeminiConfig('gemini-2.0-flash'));
 
         for (const provider of nvidiaChain) {
