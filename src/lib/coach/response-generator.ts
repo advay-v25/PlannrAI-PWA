@@ -778,19 +778,19 @@ C) NO HALLUCINATIONS & DURATION MATCHING (CRITICAL):
 - The chosen target free slot MUST have a duration greater than or equal to the block's duration. You CANNOT place a 45-minute block into a 30-minute free slot. Doing so will overlap with the subsequent block, which is a fatal error!
 
 --- THE 3 OPTIONS ---
-1. Reschedule Today: Move the block to an empty slot during the same day of the same exact time duration as the missed block. If that is not possible, then a reduced duration empty slot on the same day, with a minimum time of 30 minutes.
-2. Reschedule Later in the Week: Move the block to an empty slot during the week (tomorrow or later) of the same exact time duration as the missed block. If that is not possible, then a reduced duration empty slot anytime in the week, with a minimum time of 30 minutes.
+1. Reschedule Today: Move the block to an EMPTY slot during the same day. YOU ARE STRICTLY FORBIDDEN FROM DELETING OR DISPLACING ANY EXISTING BLOCKS FOR THIS OPTION. It MUST fit purely in a Verified Free Slot.
+2. Reschedule Later in the Week: Move the block to an EMPTY slot during the week (tomorrow or later). YOU ARE STRICTLY FORBIDDEN FROM DELETING OR DISPLACING ANY EXISTING BLOCKS FOR THIS OPTION. It MUST fit purely in a Verified Free Slot.
 3. Replace Lower Priority Block: Replace a block that is accomplishing a different goal, in the SAME pillar (mind, body, craft), that has a LOWER priority than the missed block. The missed block simply replaces the scheduled block of lower priority. Target a block of the same duration first, or less duration if needed (minimum 30 minutes). Never replace a block of higher priority, an anchor, sleep, meals, buffer times, or a block for the exact same goal.
 
-⚖️ PRIORITY-BASED DISPLACEMENT (GENERAL BEHAVIOUR):
-When the user wants to move a block to a time slot that is already occupied (NOT following the missed block waterfall):
+⚖️ PRIORITY-BASED DISPLACEMENT (GENERAL BEHAVIOUR - FOR OPTION 3 ONLY):
+When executing Option 3 or when the user explicitly asks to replace a block:
 - Compare the priority/importance of the target block vs the occupying block.
 - If the target is HIGHER priority: generate delete_block OR move_block for the occupying block FIRST, THEN move_block for the high-priority block.
 - Immutable blocks (sleep, meal, wind_down, anchor) can NEVER be displaced regardless of priority.
 - Meal times can NEVER be moved, shortened, or overlapped.
 
 🚨 CONFLICT RESOLUTION — ALWAYS GENERATE A COMPLETE PATCH:
-- If a slot is occupied by a displaceable block, generate BOTH the removal AND the placement — never generate just one.
+- For Option 3 ONLY: If a slot is occupied by a displaceable block, generate BOTH the removal AND the placement — never generate just one.
 - Operation order matters: displacement ops FIRST, then the placement op.
 - Before every move_block or create_block, check THIS WEEK'S FULL SCHEDULE for conflicts with ALL existing blocks, especially immutables.
 - TASKS VS BLOCKS: Use create_todo for tasks without a specific time; create_block only for calendar time blocks.
@@ -918,8 +918,9 @@ CRITICAL FORMATTING REQUIREMENTS:
    - Option 3 MUST state the exact name, day, and time of the lower priority block being replaced.
 2. For the 'impact' field:
    - MUST be formatted as a string containing 2-3 concise bullet points (using • symbol) explaining exactly what changes will occur. (e.g. "• Moves block to 14:00\\n• Replaces lower priority Gym block")
-3. For Option 3 operations:
-   - You MUST output exactly two patch operations for Option 3: first a 'delete_block' operation to remove the lower priority block, and then a 'move_block' operation to move the missed block into that exact time slot.
+3. For the patch operations:
+   - Option 1 and Option 2 MUST ONLY contain a single 'move_block' operation. They are FORBIDDEN from containing 'delete_block' or 'create_block'.
+   - Option 3 MUST output exactly two patch operations: first a 'delete_block' operation to remove the lower priority block, and then a 'move_block' operation to move the missed block into that exact time slot.
 
 However, if there are absolutely NO verified free slots remaining for the rest of the week, skip Options 1-2 and rely on Option 3. Return valid JSON only.`;
         }

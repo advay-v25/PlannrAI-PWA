@@ -594,7 +594,8 @@ function generateVariant(
                 }
 
                 // Body goals: skip this day in the cram pass if a block was already placed today
-                if (goal.pillar === 'body' && blocksToday.length > 0) continue;
+                const otherBodyBlocks = blocks.filter(b => b.date === dateStr && b.pillar === 'body' && b.goal_id !== goal.id);
+                if (goal.pillar === 'body' && (blocksToday.length > 0 || otherBodyBlocks.length > 0)) continue;
 
                 const dayExclusions = exclusions.get(isoDay)!;
                 dayExclusions.sort((a, b) => a.start - b.start);
