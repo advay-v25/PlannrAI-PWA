@@ -294,7 +294,7 @@ function buildScheduleContextForAI(
     const tomorrowDate = addDays(now.date, 1);
 
     // Free slots for today: only show future slots (don't offer times already past)
-    const todayFreeSlots = findAvailableSlots(todayBlocks, now.date, 30, wakeTime, sleepTime, 8, now.time);
+    const todayFreeSlots = findAvailableSlots(todayBlocks, now.date, 30, wakeTime, sleepTime, 8, now.time, true);
     const tomorrowFreeSlots = findAvailableSlots(tomorrowBlocks, tomorrowDate, missedBlockDuration, wakeTime, sleepTime, 8, undefined, true);
 
     const todayText = todayBlocks.length > 0
@@ -776,6 +776,7 @@ C) NO HALLUCINATIONS & DURATION MATCHING (CRITICAL):
 - You must accurately read the FREE SLOTS. Free slots indicate empty space. Do not place blocks outside of these free slots. Any proposed move/creation MUST fit ENTIRELY within a single verified free slot.
 - STRICT DURATION CHECK: Determine the duration of the missed block first.
 - The chosen target free slot MUST have a duration greater than or equal to the block's duration. You CANNOT place a 45-minute block into a 30-minute free slot. Doing so will overlap with the subsequent block, which is a fatal error!
+D) GLOBAL BODY LIMIT: NEVER place a "body" pillar block on a day that already has a "body" pillar block. A day can have a MAXIMUM of 1 body block. If the block you are moving is a body block, you MUST find a completely empty day for it.
 
 --- THE 3 OPTIONS ---
 1. Reschedule Today: Move the block to an EMPTY slot during the same day. YOU ARE STRICTLY FORBIDDEN FROM DELETING OR DISPLACING ANY EXISTING BLOCKS FOR THIS OPTION. It MUST fit purely in a Verified Free Slot.
@@ -852,6 +853,7 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
 5. Is the target time in the past (before the current time today)? If YES -> DISCARD this option.
 6. Does the block FIT entirely within the free slot shown? Free slots show the FULL gap (e.g., "10:00–12:00 (2h free)"). If the block's end_time exceeds the slot's end, it will overlap the subsequent block. -> DISCARD this option if it exceeds the free slot.
 7. NEVER shorten any existing block to make room. The ONLY block that can be shortened is the missed block itself in Option 1.
+8. If moving a "body" block, does the target day ALREADY have a "body" block? If YES -> DISCARD this option. Limit is 1 body block per day globally.
 
 🚨 OUTPUT FORMAT (STRICT JSON ONLY):
 - Return a single valid JSON object.
