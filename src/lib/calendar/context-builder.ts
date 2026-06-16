@@ -411,6 +411,7 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
             sleep_start: profile.sleep_start || '23:00',
             sleep_end: profile.sleep_end || '07:00',
             wind_down_mins: profile.wind_down_mins || 30,
+            morning_routine_mins: (profile as any).morning_routine_mins || 0,
             energy_level: profile.energy_level || 5,
             stress_level: profile.stress_level || 3,
             meals_per_day: profile.meals_per_day || 3,

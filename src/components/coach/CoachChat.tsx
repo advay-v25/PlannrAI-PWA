@@ -163,9 +163,6 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
 
     const [input, setInput] = useState('');
     const [pendingOption, setPendingOption] = useState<CoachOption | null>(null);
@@ -176,6 +173,11 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
 
     // Synthetic messages from quick-action endpoint (no server conversation needed)
     const [syntheticMessages, setSyntheticMessages] = useState<CoachMessage[]>([]);
+
+    // Auto-scroll when either message source updates
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages, syntheticMessages]);
 
     // Combined ordered display list
     const allMessages = [...messages, ...syntheticMessages].sort(
@@ -277,7 +279,9 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                     undoable: true,
                     scope: 'week' as const,
                     reason: labelMap[action],
-                    requires_confirmation: true,
+                    // false: the inline "Review & Execute" panel IS the confirmation step —
+                    // no second modal needed
+                    requires_confirmation: false,
                 } as any,
                 recommended: true,
             };

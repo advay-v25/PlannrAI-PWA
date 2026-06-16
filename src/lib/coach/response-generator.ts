@@ -479,6 +479,13 @@ function findMissedBlockDuration(
     classification: IntentClassification,
     coachCtx: CoachContext
 ): number {
+    // 0. Use pre-resolved block duration directly if available
+    const preResolved = (coachCtx as any).pre_resolved_block;
+    if (preResolved?.start_time && preResolved?.end_time) {
+        const dur = timeToMinutes(preResolved.end_time) - timeToMinutes(preResolved.start_time);
+        if (dur > 0) return dur;
+    }
+
     const todayBlocks = coachCtx.schedule.today || [];
     const weekBlocks = coachCtx.schedule.this_week || [];
     const allBlocks = [...todayBlocks, ...weekBlocks];
@@ -550,6 +557,10 @@ function findMissedBlock(
     classification: IntentClassification,
     coachCtx: CoachContext
 ): any {
+    // 0. Use server-side pre-resolved block if available — highest confidence match
+    const preResolved = (coachCtx as any).pre_resolved_block;
+    if (preResolved) return preResolved;
+
     const todayBlocks = coachCtx.schedule.today || [];
     const weekBlocks = coachCtx.schedule.this_week || [];
     const allBlocks = [...todayBlocks, ...weekBlocks];
@@ -1844,6 +1855,10 @@ export async function generateCoachResponse(
 
     const intent = classification.primary_intent;
 
+    // Capture pre_resolved_block from the light context BEFORE upgrading — the upgrade
+    // replaces the entire context object so this field would otherwise be lost.
+    const preResolvedBlock = (lightOrFullContext as any).pre_resolved_block || null;
+
     // 2. Upgrade to full CoachContext if this is a Heavy intent
     let context = lightOrFullContext;
     if (intent !== CoachIntent.GENERAL_CHAT && intent !== CoachIntent.OUT_OF_SCOPE) {
@@ -1858,13 +1873,14 @@ export async function generateCoachResponse(
         }
     }
 
+    // Re-attach pre_resolved_block onto the (possibly upgraded) context so findMissedBlock
+    // can use the server-side lookup result from the message route's pre-flight query.
+    if (preResolvedBlock) {
+        (context as any).pre_resolved_block = preResolvedBlock;
+    }
+
     // 3. Use pre-built calendar context if provided, otherwise build fresh (ONLY IF HEAVY INTENT)
     let calCtx: CalendarContext | null = prebuiltCalCtx || null;
-    const isReschedulingIntent = 
-        /missed|miss|didn't|did not|reschedule|rescheduling|move|shift|change|can't make|cant make|delay|postpone|skip|delayed|postponed|skipped/i.test(userMessage) ||
-        classification.primary_intent === CoachIntent.MOVE_BLOCK ||
-        classification.primary_intent === CoachIntent.RESCHEDULE_DAY ||
-        classification.primary_intent === CoachIntent.RESCHEDULE_WEEK;
 
     // Skip buildCalendarContext for rescheduling/scheduling intents — it takes 5-15s and
     // the CoachContext (already fetched above) has all schedule data needed.
