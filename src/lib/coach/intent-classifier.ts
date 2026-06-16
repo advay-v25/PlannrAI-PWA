@@ -18,6 +18,7 @@ export enum CoachIntent {
     BORED = 'bored',                         // "I have nothing to do"
 
     // ===== GOAL INTENTS =====
+    CREATE_GOAL = 'create_goal',             // "I want to start reading"
     ADJUST_GOAL = 'adjust_goal',             // "Reduce my reading goal"
     PAUSE_GOAL = 'pause_goal',               // "Pause gym for this week"
     GOAL_PROGRESS = 'goal_progress',         // "How am I doing on my goals?"
@@ -159,10 +160,18 @@ export const INTENT_EXAMPLES = {
         "I have too much free time",
     ],
 
+    [CoachIntent.CREATE_GOAL]: [
+        "Create a goal to learn Spanish",
+        "I want to start going to the gym",
+        "Add a reading goal",
+        "Set up a new goal for meditation",
+        "I need a goal for coding practice",
+    ],
+
     [CoachIntent.ADJUST_GOAL]: [
         "Reduce my reading goal",
-        "I need less gym time",
-        "Can we make the craft goal bigger?",
+        "Increase my gym sessions",
+        "Make my coding goal 2 hours",
         "Change my weekly target",
         "I want to do more Mind work",
     ],

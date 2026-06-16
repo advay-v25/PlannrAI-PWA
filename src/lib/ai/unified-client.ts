@@ -11,6 +11,7 @@ export type AIModel = 'smart' | 'fast' | 'creative';
 export interface AICallOptions {
     prompt: string;
     systemPrompt?: string;
+    messages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>;
     model?: AIModel;
     temperature?: number;
     maxTokens?: number;
@@ -264,6 +265,9 @@ async function callProvider<T>(
     const messages = [];
     if (options.systemPrompt) {
         messages.push({ role: 'system', content: options.systemPrompt });
+    }
+    if (options.messages && options.messages.length > 0) {
+        messages.push(...options.messages);
     }
     messages.push({ role: 'user', content: options.prompt });
 

@@ -74,7 +74,8 @@ export const POST = secureApiRoute(
             .order('created_at', { ascending: false })
             .limit(15);
 
-        const conversationHistory = (history || []).reverse();
+        const fullHistory = (history || []).reverse();
+        const conversationHistory = fullHistory.slice(0, -1);
 
         // OPTIMIZATION: Only build light context for intent classification
         const profileRes = await supabase.from('profiles').select('id, first_name, timezone').eq('id', user.id).single();

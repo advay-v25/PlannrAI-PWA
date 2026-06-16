@@ -1005,6 +1005,7 @@ export class PatchService {
                     goal_id: event.goal_id || null,
                     checklist: Array.isArray(event.checklist) ? event.checklist : null,
                     habit_stack_id: event.habit_stack_id || null,
+                    is_locked: event.is_locked ?? true,
                 };
 
                 // Generate ID if provided (for reliable undo)
