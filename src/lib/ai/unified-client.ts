@@ -11,6 +11,7 @@ export type AIModel = 'smart' | 'fast' | 'creative';
 export interface AICallOptions {
     prompt: string;
     systemPrompt?: string;
+    messages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>;
     model?: AIModel;
     temperature?: number;
     maxTokens?: number;
@@ -265,6 +266,9 @@ async function callProvider<T>(
     if (options.systemPrompt) {
         messages.push({ role: 'system', content: options.systemPrompt });
     }
+    if (options.messages && options.messages.length > 0) {
+        messages.push(...options.messages);
+    }
     messages.push({ role: 'user', content: options.prompt });
 
     const body: any = {
@@ -387,12 +391,14 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
     const tier = options.model ?? 'fast';
     const totalStartTime = Date.now();
     const MAX_TOTAL_TIME = options.timeout ?? 55000;
+    const MAX_PROVIDER_TIME = 15000; // Strict 15s limit per provider to prevent Vercel 504 timeouts
 
     const getRemainingTime = () => Math.max(5000, MAX_TOTAL_TIME - (Date.now() - totalStartTime));
 
-    // Coach/Calendar dedicated engine: OpenRouter → NVIDIA (primary key) → NVIDIA (tertiary) → Gemini → Groq
+    // Coach/Calendar dedicated engine: NVIDIA (primary) → NVIDIA (tertiary) → Groq → Gemini
     if (options.useNvidia) {
-        const nvidiaModel = tier === 'fast' ? 'meta/llama-3.1-8b-instruct' : 'meta/llama-3.3-70b-instruct';        const useOpenRouter = !!process.env.OPENROUTER_API_KEY;
+        const nvidiaModel = tier === 'fast' ? 'meta/llama-3.1-8b-instruct' : 'meta/llama-3.3-70b-instruct';
+        const useOpenRouter = !!process.env.OPENROUTER_API_KEY;
         const useGemini    = !!process.env.GEMINI_API_KEY;
         const useTertiary  = !!process.env.NVIDIA_API_KEY_TERTIARY;
 
@@ -409,7 +415,6 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
             nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.CALENDAR_NVIDIA_API_KEY));
             nvidiaChain.push(getGroqConfig(tier === 'fast' ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile'));
         }
-
         if (useTertiary) nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.NVIDIA_API_KEY_TERTIARY));
         if (useGemini) nvidiaChain.push(getGeminiConfig('gemini-2.0-flash'));
 
@@ -417,7 +422,8 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
             const remaining = getRemainingTime();
             if (remaining < 5000) break;
             console.log(`\x1b[36m[AI ✨]\x1b[0m Coach engine trying ${provider.name}/${provider.model}...`);
-            const result = await callProvider<T>(provider, { ...options, timeout: Math.min(remaining, 55000) });
+            const providerTimeout = Math.min(MAX_PROVIDER_TIME, remaining);
+            const result = await callProvider<T>(provider, { ...options, timeout: providerTimeout });
             if (result.success) return result;
         }
 
@@ -431,7 +437,8 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
         const remaining = getRemainingTime();
         if (remaining < 5000) break;
         console.log(`\x1b[33m[AI →]\x1b[0m Trying ${provider.name}/${provider.model}...`);
-        const result = await callProvider<T>(provider, { ...options, timeout: remaining });
+        const providerTimeout = Math.min(MAX_PROVIDER_TIME, remaining);
+        const result = await callProvider<T>(provider, { ...options, timeout: providerTimeout });
         lastResult = result;
         if (result.success) return result;
     }

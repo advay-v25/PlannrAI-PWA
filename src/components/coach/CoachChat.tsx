@@ -156,6 +156,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
         clearError,
         loadHistory,
         clearConversation,
+        stopGenerating,
     } = useCoach();
 
     // Always open to a fresh blank chat when the user lands on Coach Hub.
@@ -712,15 +713,26 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                 disabled={showLoadingIndicator}
                                 className="flex-1 bg-transparent px-4 py-3.5 text-[15px] focus:outline-none placeholder:text-white/25 text-white font-medium relative z-10"
                             />
-                            <button
-                                type="submit"
-                                disabled={showLoadingIndicator || !input.trim()}
-                                className="w-12 h-12 bg-white/[0.03] hover:bg-gradient-to-tr hover:from-orange-500 hover:to-amber-500 rounded-[1.1rem] flex items-center justify-center transition-all text-white/40 hover:text-white disabled:opacity-30 disabled:hover:bg-white/[0.03] relative z-10"
-                            >
-                                <svg className="w-5 h-5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                                </svg>
-                            </button>
+                            {isLoading ? (
+                                <button
+                                    type="button"
+                                    onClick={stopGenerating}
+                                    className="w-12 h-12 bg-red-500/10 hover:bg-red-500/20 rounded-[1.1rem] flex items-center justify-center transition-all text-red-400 border border-red-500/20 relative z-10 group"
+                                    title="Stop Generating & Edit"
+                                >
+                                    <div className="w-3.5 h-3.5 bg-red-400 group-hover:bg-red-300 rounded-[3px]" />
+                                </button>
+                            ) : (
+                                <button
+                                    type="submit"
+                                    disabled={isQuickActionLoading || !input.trim()}
+                                    className="w-12 h-12 bg-white/[0.03] hover:bg-gradient-to-tr hover:from-orange-500 hover:to-amber-500 rounded-[1.1rem] flex items-center justify-center transition-all text-white/40 hover:text-white disabled:opacity-30 disabled:hover:bg-white/[0.03] relative z-10"
+                                >
+                                    <svg className="w-5 h-5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                    </svg>
+                                </button>
+                            )}
                         </div>
                     </form>
                 </div>

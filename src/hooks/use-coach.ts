@@ -39,8 +39,10 @@ interface CoachState extends PersistentCoachData {
   proactiveSuggestion: ProactiveSuggestion | null;
   checkingProactive: boolean;
   connectionStatus: 'connected' | 'disconnected' | 'connecting';
+  abortController: AbortController | null;
   
   sendMessage: (text: string) => Promise<{ success: boolean; error?: string }>;
+  stopGenerating: () => void;
   applyOption: (messageId: string, optionId: string) => Promise<CoachOption | boolean>;
   undo: () => Promise<boolean>;
   clearError: () => void;
@@ -85,6 +87,20 @@ export const useCoach = create<CoachState>()(
       checkingProactive: false,
       lastSync: null,
       connectionStatus: 'connecting',
+      abortController: null,
+
+      stopGenerating: () => {
+        const { abortController, messages } = get();
+        if (abortController) {
+          abortController.abort();
+          set({
+            isLoading: false,
+            abortController: null,
+            // Remove the last user message so they can edit it
+            messages: messages.filter(m => m.id !== messages[messages.length - 1].id)
+          });
+        }
+      },
 
       refreshContext: async () => {
         set({ isLoading: true, error: null, connectionStatus: 'connecting' });
@@ -146,11 +162,13 @@ export const useCoach = create<CoachState>()(
           timestamp: Date.now()
         };
         
+        const abortController = new AbortController();
         set(state => ({
           messages: [...state.messages, userMsg],
           isLoading: true,
           error: null,
-          connectionStatus: 'connecting'
+          connectionStatus: 'connecting',
+          abortController
         }));
 
         try {
@@ -165,7 +183,7 @@ export const useCoach = create<CoachState>()(
             conversation_id: get().conversationId,
             date: new Date().toISOString(),
             clientTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          });
+          }, { signal: abortController.signal });
 
           const { response: coachRes, conversationId } = extractCoachResponse(raw);
 
@@ -216,7 +234,8 @@ export const useCoach = create<CoachState>()(
             suggestedActions: coachRes.suggested_actions || state.suggestedActions,
             canUndo: !!coachRes.undo_token,
             lastUndoToken: coachRes.undo_token || state.lastUndoToken,
-            lastSync: Date.now()
+            lastSync: Date.now(),
+            abortController: null
           }));
 
           // Auto-execute if mode is 'execute'
@@ -233,12 +252,18 @@ export const useCoach = create<CoachState>()(
           console.error("Coach Error:", error);
           const errorMessage = error.message || "Connection issue. Please try again.";
           
+          if (error.name === 'AbortError') {
+            console.log('[Coach] Generation stopped by user');
+            return { success: false, error: 'Stopped by user' };
+          }
+
           set(state => ({
             messages: state.messages.filter(m => m.id !== userMsg.id),
             isLoading: false,
             error: errorMessage,
             connectionStatus: 'disconnected',
-            lastSync: Date.now()
+            lastSync: Date.now(),
+            abortController: null
           }));
 
           return { success: false, error: errorMessage };
