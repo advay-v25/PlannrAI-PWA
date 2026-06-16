@@ -479,6 +479,13 @@ function findMissedBlockDuration(
     classification: IntentClassification,
     coachCtx: CoachContext
 ): number {
+    // 0. Use pre-resolved block duration directly if available
+    const preResolved = (coachCtx as any).pre_resolved_block;
+    if (preResolved?.start_time && preResolved?.end_time) {
+        const dur = timeToMinutes(preResolved.end_time) - timeToMinutes(preResolved.start_time);
+        if (dur > 0) return dur;
+    }
+
     const todayBlocks = coachCtx.schedule.today || [];
     const weekBlocks = coachCtx.schedule.this_week || [];
     const allBlocks = [...todayBlocks, ...weekBlocks];
@@ -550,6 +557,10 @@ function findMissedBlock(
     classification: IntentClassification,
     coachCtx: CoachContext
 ): any {
+    // 0. Use server-side pre-resolved block if available — highest confidence match
+    const preResolved = (coachCtx as any).pre_resolved_block;
+    if (preResolved) return preResolved;
+
     const todayBlocks = coachCtx.schedule.today || [];
     const weekBlocks = coachCtx.schedule.this_week || [];
     const allBlocks = [...todayBlocks, ...weekBlocks];
@@ -1562,8 +1573,22 @@ function generateFallbackResponse(
         } else {
             summary = "You're done for today! No more scheduled blocks.";
         }
+    } else if (intent === CoachIntent.MOVE_BLOCK) {
+        const allBlocks = [...(coachCtx.schedule?.today || []), ...(coachCtx.schedule?.this_week || [])];
+        const missedOrRecentBlocks = allBlocks.filter((b: any) =>
+            b.status === 'missed' || b.status === 'planned'
+        ).slice(0, 3);
+
+        if (missedOrRecentBlocks.length > 0) {
+            const blockList = missedOrRecentBlocks.map((b: any) =>
+                `"${(b as any).title || b.context}" at ${b.start_time}`
+            ).join(', ');
+            summary = `I can see blocks in your schedule: ${blockList}. Which one would you like to reschedule, and what time should it move to?`;
+        } else {
+            summary = `Tell me the block name and time you'd like to move — I'll find the best slot for it.`;
+        }
     } else {
-        summary = `I'd like to help with that. Let me know more specifics — for example, what time or which block you'd like to change.`;
+        summary = `Let me know what you'd like to adjust — mention a block name or time and I'll take it from there.`;
     }
 
     // No manual fallback option as per user request
@@ -1830,6 +1855,10 @@ export async function generateCoachResponse(
 
     const intent = classification.primary_intent;
 
+    // Capture pre_resolved_block from the light context BEFORE upgrading — the upgrade
+    // replaces the entire context object so this field would otherwise be lost.
+    const preResolvedBlock = (lightOrFullContext as any).pre_resolved_block || null;
+
     // 2. Upgrade to full CoachContext if this is a Heavy intent
     let context = lightOrFullContext;
     if (intent !== CoachIntent.GENERAL_CHAT && intent !== CoachIntent.OUT_OF_SCOPE) {
@@ -1844,15 +1873,24 @@ export async function generateCoachResponse(
         }
     }
 
+    // Re-attach pre_resolved_block onto the (possibly upgraded) context so findMissedBlock
+    // can use the server-side lookup result from the message route's pre-flight query.
+    if (preResolvedBlock) {
+        (context as any).pre_resolved_block = preResolvedBlock;
+    }
+
     // 3. Use pre-built calendar context if provided, otherwise build fresh (ONLY IF HEAVY INTENT)
     let calCtx: CalendarContext | null = prebuiltCalCtx || null;
-    const isReschedulingIntent = 
-        /missed|miss|didn't|did not|reschedule|rescheduling|move|shift|change|can't make|cant make|delay|postpone|skip|delayed|postponed|skipped/i.test(userMessage) ||
-        classification.primary_intent === CoachIntent.MOVE_BLOCK ||
-        classification.primary_intent === CoachIntent.RESCHEDULE_DAY ||
-        classification.primary_intent === CoachIntent.RESCHEDULE_WEEK;
 
-    if (!calCtx && supabase && intent !== CoachIntent.GENERAL_CHAT && intent !== CoachIntent.OUT_OF_SCOPE) {
+    // Skip buildCalendarContext for rescheduling/scheduling intents — it takes 5-15s and
+    // the CoachContext (already fetched above) has all schedule data needed.
+    // buildCalendarContext is only needed for energy/flow bio-context (chronotype, etc.)
+    // which is non-essential for block moves. This prevents Vercel 504 timeouts.
+    const needsBioContext = intent === CoachIntent.DEEP_WORK_OPTIMIZE ||
+                            intent === CoachIntent.ENERGY_OFFSET ||
+                            intent === CoachIntent.PROGRESS_CHECK ||
+                            intent === CoachIntent.EXPLAIN_SCHEDULE;
+    if (!calCtx && supabase && needsBioContext) {
         try {
             calCtx = await buildCalendarContext(context.user_id || context.user?.id, supabase);
         } catch (e) {

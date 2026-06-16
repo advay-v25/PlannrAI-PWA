@@ -108,10 +108,89 @@ export const POST = secureApiRoute(
             lightContext
         );
 
+        // ── Pre-flight block lookup for MOVE_BLOCK intents ───────────────────
+        // When the user says "I missed my [BlockName] at [time] today/on [day]",
+        // find the block server-side so the AI gets the exact ID and doesn't hallucinate.
+        let preResolvedBlock: any = null;
+        if (intentClassification.primary_intent === 'move_block') {
+            const msgLower = message.toLowerCase();
+            const searchDates: string[] = [];
+            for (let i = -1; i <= 7; i++) {
+                const dt = new Date(today + 'T12:00:00');
+                dt.setDate(dt.getDate() + i);
+                searchDates.push(dt.toISOString().split('T')[0]);
+            }
+
+            let targetDate = today;
+            if (/yesterday/i.test(message)) {
+                const yd = new Date(now.getTime() - 86400000);
+                targetDate = dateFormatter.format(yd);
+            } else if (/tomorrow/i.test(message)) {
+                const tm = new Date(now.getTime() + 86400000);
+                targetDate = dateFormatter.format(tm);
+            } else {
+                const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                for (let di = 0; di < days.length; di++) {
+                    if (new RegExp(`\\b${days[di]}\\b`, 'i').test(message)) {
+                        const match = searchDates.find(d => new Date(d + 'T12:00:00').getDay() === di);
+                        if (match) targetDate = match;
+                        break;
+                    }
+                }
+            }
+
+            const nearbyDates = searchDates.filter(d =>
+                Math.abs(new Date(d).getTime() - new Date(targetDate).getTime()) <= 3 * 86400000
+            );
+
+            const { data: candidates } = await supabase
+                .from('schedule_blocks')
+                .select('id, title, context, date, start_time, end_time, status, block_type, goal_id')
+                .eq('user_id', user.id)
+                .in('date', nearbyDates);
+
+            if (candidates && candidates.length > 0) {
+                const scored = candidates.map((b: any) => {
+                    let score = 0;
+                    const bTitle = (b.title || b.context || '').toLowerCase();
+                    const bWords = bTitle.split(/\s+/);
+                    for (const word of bWords) {
+                        if (word.length > 3 && msgLower.includes(word)) score += 2;
+                    }
+                    const timeMatches = message.match(/\b(\d{1,2}):(\d{2})\b/g) || [];
+                    for (const t of timeMatches) {
+                        if (b.start_time?.startsWith(t.padStart(5, '0'))) score += 5;
+                    }
+                    const ampmMatches = message.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/gi) || [];
+                    for (const t of ampmMatches) {
+                        const parts = t.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
+                        if (parts) {
+                            let h = parseInt(parts[1]);
+                            const m = parseInt(parts[2] || '0');
+                            if (parts[3].toLowerCase() === 'pm' && h < 12) h += 12;
+                            if (parts[3].toLowerCase() === 'am' && h === 12) h = 0;
+                            const t24 = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+                            if (b.start_time?.startsWith(t24)) score += 5;
+                        }
+                    }
+                    if (b.status === 'missed') score += 3;
+                    if (b.date === today) score += 1;
+                    return { block: b, score };
+                });
+                scored.sort((a: any, b: any) => b.score - a.score);
+                if (scored[0].score > 0) preResolvedBlock = scored[0].block;
+            }
+        }
+
+        const enhancedLightContext = {
+            ...lightContext,
+            pre_resolved_block: preResolvedBlock,
+        };
+
         const response = await generateCoachResponse(
             message,
             conversationHistory,
-            lightContext as any, // We pass lightContext, and generateCoachResponse will upgrade it if needed
+            enhancedLightContext as any,
             supabase,
             null,
             intentClassification
