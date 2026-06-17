@@ -26,6 +26,7 @@ export interface CalendarContext {
         chronotype: string;
         weekend_intensity: string;
         default_buffer_duration?: number;
+        failure_modes?: string[];
     };
 
 
@@ -277,7 +278,9 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
         meal_windows: profileRaw.meal_windows || prefs.meal_windows || null,
         // Extract from bio_data
         meal_timing: (profileRaw.bio_data as any)?.meal_timing || 'normal',
-        default_buffer_duration: (profileRaw.bio_data as any)?.default_buffer_duration || 10,
+        failure_modes: (profileRaw.bio_data as any)?.failure_modes || [],
+        default_buffer_duration: prefs.buffer_min || (profileRaw.bio_data as any)?.default_buffer_duration || 10,
+        weekend_intensity: prefs.weekend_intensity || profileRaw.weekend_intensity || 'light',
     };
 
     const goals = (goalsRes.data || []).map((g: any) => ({

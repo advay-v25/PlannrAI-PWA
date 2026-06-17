@@ -5,7 +5,12 @@ export interface CoachContext {
         sleep_start: string;
         sleep_end: string;
         wind_down_mins: number;
+        morning_routine_mins: number;
         timezone: string;
+        meals_per_day: number;
+        buffer_min: number;
+        weekend_intensity: string;
+        failure_modes: string[];
     };
 
     goals: Array<{
@@ -135,7 +140,8 @@ export async function buildCoachContext(
         dailyLogsRes,
         preferencesRes,
         missedBlocksRes,
-        todosRes
+        todosRes,
+        profilePrefsRes
     ] = await Promise.all([
         supabase.from('goals')
             .select('id, title, pillar, weekly_target_minutes, current_streak_days, priority, status, energy_demand, minutes_per_day, days_per_week, ai_strategy')
@@ -202,7 +208,12 @@ export async function buildCoachContext(
             .eq('user_id', userId)
             .eq('is_completed', false)
             .order('order_index', { ascending: true })
-            .limit(5)
+            .limit(5),
+            
+        supabase.from('profile_preferences')
+            .select('morning_routine_min, meals_per_day, buffer_min, weekend_intensity')
+            .eq('user_id', userId)
+            .maybeSingle()
     ]);
 
 
@@ -231,6 +242,7 @@ export async function buildCoachContext(
     }));
     const missedCount = missedBlocksRes.count || 0;
     const todos = todosRes.data || [];
+    const profilePrefs = profilePrefsRes?.data || {};
 
     const isMinimalMode = determineMinimalMode(lastEnergy?.energy_level, missedCount);
 
@@ -286,7 +298,12 @@ export async function buildCoachContext(
             sleep_start: profile.sleep_start || '23:00',
             sleep_end: profile.sleep_end || '07:00',
             wind_down_mins: profile.wind_down_mins || 60,
+            morning_routine_mins: profilePrefs.morning_routine_min || profile.morning_routine_mins || 0,
             timezone: profile.timezone || 'UTC',
+            meals_per_day: profilePrefs.meals_per_day || profile.meals_per_day || 3,
+            buffer_min: profilePrefs.buffer_min || 10,
+            weekend_intensity: profilePrefs.weekend_intensity || profile.weekend_intensity || 'light',
+            failure_modes: (profile.bio_data as any)?.failure_modes || [],
         },
         goals,
         todos,

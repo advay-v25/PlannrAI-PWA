@@ -184,15 +184,14 @@ export const POST = secureApiRoute(
             }
         }
 
-        const enhancedLightContext = {
-            ...lightContext,
-            pre_resolved_block: preResolvedBlock,
-        };
+        // Actually build the FULL coach context for the response generation
+        const fullCoachContext = await buildCoachContext(user.id, supabase);
+        (fullCoachContext as any).pre_resolved_block = preResolvedBlock;
 
         const response = await generateCoachResponse(
             message,
             conversationHistory,
-            enhancedLightContext as any,
+            fullCoachContext,
             supabase,
             null,
             intentClassification

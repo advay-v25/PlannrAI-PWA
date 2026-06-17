@@ -59,8 +59,18 @@ export const POST = secureApiRoute(
             console.log(`[PlanWeek] Protocol: ${effectiveMode} (energy=${currentEnergy}, mood=${currentMood})`);
 
             // 4. Generate AI variants with protocol-aware buffer config
+            let dynamicBuffer = scheduleMode.bufferBetweenBlocks;
+            const defaultBuffer = calendarCtx.user.default_buffer_duration || 15;
+            if (scheduleMode.strategy === 'balanced') {
+                dynamicBuffer = defaultBuffer;
+            } else if (scheduleMode.strategy === 'recovery') {
+                dynamicBuffer = Math.max(30, defaultBuffer * 2);
+            } else if (scheduleMode.strategy === 'momentum') {
+                dynamicBuffer = 5;
+            }
+
             const variants = await generateWeekPlan(calendarCtx, weekStart, effectiveMode, allowWeekend, {
-                bufferMinutes: scheduleMode.bufferBetweenBlocks,
+                bufferMinutes: dynamicBuffer,
                 maxGoalBlocksPerDay: scheduleMode.maxGoalBlocksPerDay,
                 maxDeepWorkMins: scheduleMode.maxDeepWorkMins,
             });

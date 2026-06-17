@@ -716,7 +716,10 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                             {isLoading ? (
                                 <button
                                     type="button"
-                                    onClick={stopGenerating}
+                                    onClick={() => {
+                                        const returnedContent = stopGenerating();
+                                        if (returnedContent) setInput(returnedContent);
+                                    }}
                                     className="w-12 h-12 bg-red-500/10 hover:bg-red-500/20 rounded-[1.1rem] flex items-center justify-center transition-all text-red-400 border border-red-500/20 relative z-10 group"
                                     title="Stop Generating & Edit"
                                 >
