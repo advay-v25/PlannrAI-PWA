@@ -992,8 +992,8 @@ ${optionsInstruction}`;
             requireJSON: !isMissedBlock, // If missed block, we expect CoT text before JSON
             timeout: isMissedBlock ? 55000 : 30000,
             useNvidia: true,
-            strictNvidia: isMissedBlock, // Enforce strict Nvidia for CoT
-            skipOpenRouter: isMissedBlock,
+            strictNvidia: false, // Set to false to allow Groq's high-speed Llama 3.3 70B to prevent 504 timeouts
+            skipOpenRouter: true, // Bypass OpenRouter and Gemini to strictly use fast Llama 70B engines
         });
 
         // Since requireJSON is false for CoT, we need to extract the JSON from the raw text
