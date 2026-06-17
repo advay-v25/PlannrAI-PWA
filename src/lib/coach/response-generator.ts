@@ -912,31 +912,38 @@ CRITICAL FORMATTING REQUIREMENTS:
              optionsInstruction = `CRITICAL: You must execute a Chain-of-Thought process BEFORE generating the JSON response.
 You must output your reasoning in text first, going through these exact steps:
 1. \`read_prompt\`: Analyze the user's prompt to identify the exact block and time being rescheduled or missed.
-2. \`read_priority\`: Determine the priority level of the block being missed or rescheduled.
-3. \`read_calendar\`: Scan the provided calendar context to find ALL space in the CURRENT WEEK where this block could potentially fit.
-4. \`find_time\`: Look for \`empty_time\` within a 3-hour radius around the requested time or the block's original time.
-5. \`find_empty_time\`: If there is a chunk of empty time, identify the exact start and end times.
-6. \`find_block\`: If there is NO empty time, identify blocks of a LOWER priority level that can be replaced.
+2. \`read_priority\`: Determine the priority level of the block the user is asking to reschedule.
+3. \`read_calendar\`: Scan the provided calendar context. You must explicitly execute the following sub-processes:
+   - \`read_time\`: Read current time.
+   - \`read_anchor\`: Identify all anchor blocks.
+   - \`read_block\`: Read all existing pre-scheduled blocks.
+   - \`read_goals\`: Read the user's goals.
+   - \`read_completion\`: Identify which blocks are completed or missed.
+   This gives you complete, up-to-date knowledge about the user's calendar blocks, meal times, buffers, sleep times, morning/wind-down times, and completion statuses.
+4. \`find_time\`: Go option by option to find empty space.
+   - For Option 1 (Today): Run \`find_empty_time\` to find gaps today > 30 mins after the prompt's time. If the entire block can't fit, look for a smaller time (minimum 30 mins). It MUST NOT cut into anchors, buffer blocks, sleep blocks, meal blocks, or pre-existing blocks.
+   - For Option 2 (This Week): Run \`find_empty_time\` to find gaps this week > 30 mins. If the entire block can't fit, look for a smaller time (min 30 mins). MUST NOT cut into anchors, buffer blocks, sleep, meals, or pre-existing blocks.
+   - For Option 3: Run \`find_block\` to find blocks with priority LOWER than the missed block. Accurately read the blocks to see which can be replaced.
 
-Once you have completed this thought process, you MUST output a JSON block wrapped in \`\`\`json ... \`\`\` containing EXACTLY 3 actionable options:
+Once you have completed this thought process, you MUST output a JSON block wrapped in \`\`\`json ... \`\`\` containing EXACTLY 3 actionable options.
 
 Option 1: Reschedule Today (same or reduced duration).
-If empty time exists today in \`find_time\`, place it there. If the available gap is shorter than the block's original duration, you MUST output TWO operations: first a \`compress_block\` operation (changing the time duration to fit), then a \`move_block\` operation to move it into that slot. Do NOT delete and re-create it.
-IF THERE IS NO FREE TIME TODAY: Option 1 MUST simply say 'No free time today' in the title and description, and you MUST output an empty operations array: \`[]\`. NEVER replace a block for Option 1.
+If empty time exists today, place it there. You MUST output TWO operations: if the available gap is shorter, first use \`compress_block\` (changing time duration), then use \`move_block\` to literally pick up the block and move it. Do NOT leave traces behind.
+IF THERE IS NO FREE TIME TODAY: Option 1 MUST simply say 'No free time today' in title/description, and output an empty operations array: \`[]\`. NEVER replace a block for Option 1.
 
 Option 2: Reschedule This Week (same or reduced duration).
-If empty time exists later this week in \`find_time\`, pick ONE EXACT specific day and time, and place it there. Be specific (e.g. Thursday at 14:00), do NOT be broad. Use \`compress_block\` + \`move_block\` if the new slot is shorter.
-IF THERE IS NO FREE TIME THIS WEEK: Option 2 MUST simply say 'No free time this week' in the title and description, and you MUST output an empty operations array: \`[]\`. NEVER replace a block for Option 2.
+If empty time exists later this week, pick ONE EXACT specific day and time. Output TWO operations: if shorter, first use \`compress_block\`, then use \`move_block\`.
+IF THERE IS NO FREE TIME THIS WEEK: Option 2 MUST simply say 'No free time this week' in title/description, and output an empty operations array: \`[]\`. NEVER replace a block for Option 2.
 
 Option 3: Replace Lower Priority Block.
-Replace a block of a lower priority level identified in \`find_block\`. Pay extremely close attention to the EXACT DAY AND DATE the lower priority block is currently on. Do not hallucinate the day of the week. You MUST output TWO operations: first a \`delete_block\` on the old lower-priority block, then a \`move_block\` on the missed block to place it into the newly opened slot on that exact day.
+Replace a lower priority block. Pay extremely close attention to the EXACT DAY AND DATE the lower priority block is currently on. Do not hallucinate the day of the week. You MUST output TWO operations: first a \`delete_block\` on the old lower-priority block (removing it with no trace), then a \`move_block\` on the missed block to place it into the newly opened space.
 
 CRITICAL FORMATTING REQUIREMENTS:
 1. For the 'description' field:
    - Options 1 & 2 MUST state the specific day and time the block will be moved to (e.g., 'Move to Thursday 14:00 - 15:30').
    - Option 3 MUST state the exact name, day, and time of the lower priority block being replaced.
 2. For the 'impact' field:
-   - MUST be formatted as a string containing 2-3 concise bullet points (using • symbol) explaining exactly what changes will occur. (e.g. "• Moves block to 14:00\\n• Replaces lower priority Gym block")
+   - Format as a string containing 2-3 concise bullet points (using • symbol).
 3. Patch Operations format:
    - \`compress_block\`: { "type": "compress_block", "block_id": "...", "new_start": "...", "new_end": "..." }
    - \`move_block\`: { "type": "move_block", "block_id": "...", "new_date": "...", "new_start": "...", "new_end": "..." }
