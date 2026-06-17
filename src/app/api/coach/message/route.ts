@@ -209,11 +209,25 @@ export const POST = secureApiRoute(
             created_at: new Date().toISOString(),
         });
 
+        let topicUpdate: any = {};
+        if (conversationHistory.length === 0) { // Only set on first message
+            if (intentClassification.primary_intent === 'replan_today') {
+                topicUpdate.primary_topic = "Fix Today's Schedule";
+            } else if (intentClassification.primary_intent === 'reduce_load') {
+                topicUpdate.primary_topic = "Reduce Today's Load";
+            } else if (preResolvedBlock?.title) {
+                topicUpdate.primary_topic = `Reschedule: ${preResolvedBlock.title}`;
+            } else if (intentClassification.primary_intent === 'reschedule_block' || intentClassification.primary_intent === 'missed_block') {
+                topicUpdate.primary_topic = "Reschedule Block";
+            }
+        }
+
         await supabase
             .from('coach_conversations')
             .update({
                 last_message_at: new Date().toISOString(),
                 total_messages: conversationHistory.length + 2,
+                ...topicUpdate
             })
             .eq('id', conversationId);
 

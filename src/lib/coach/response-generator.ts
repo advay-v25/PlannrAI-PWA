@@ -922,12 +922,14 @@ Once you have completed this thought process, you MUST output a JSON block wrapp
 
 Option 1: Reschedule Today (same or reduced duration).
 If empty time exists today in \`find_time\`, place it there. If the available gap is shorter than the block's original duration, you MUST output TWO operations: first a \`compress_block\` operation (changing the time duration to fit), then a \`move_block\` operation to move it into that slot. Do NOT delete and re-create it.
+IF THERE IS NO FREE TIME TODAY: Option 1 MUST simply say 'No free time today' in the title and description, and you MUST output an empty operations array: \`[]\`. NEVER replace a block for Option 1.
 
 Option 2: Reschedule This Week (same or reduced duration).
-If empty time exists later this week in \`find_time\`, place it there. Use \`compress_block\` + \`move_block\` if the new slot is shorter.
+If empty time exists later this week in \`find_time\`, pick ONE EXACT specific day and time, and place it there. Be specific (e.g. Thursday at 14:00), do NOT be broad. Use \`compress_block\` + \`move_block\` if the new slot is shorter.
+IF THERE IS NO FREE TIME THIS WEEK: Option 2 MUST simply say 'No free time this week' in the title and description, and you MUST output an empty operations array: \`[]\`. NEVER replace a block for Option 2.
 
 Option 3: Replace Lower Priority Block.
-Replace a block of a lower priority level identified in \`find_block\`. You MUST output TWO operations: first a \`delete_block\` on the old lower-priority block, then a \`move_block\` on the missed block to place it into the newly opened slot.
+Replace a block of a lower priority level identified in \`find_block\`. Pay extremely close attention to the EXACT DAY AND DATE the lower priority block is currently on. Do not hallucinate the day of the week. You MUST output TWO operations: first a \`delete_block\` on the old lower-priority block, then a \`move_block\` on the missed block to place it into the newly opened slot on that exact day.
 
 CRITICAL FORMATTING REQUIREMENTS:
 1. For the 'description' field:
