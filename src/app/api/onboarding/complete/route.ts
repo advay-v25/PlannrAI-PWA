@@ -215,15 +215,19 @@ export const POST = secureApiRoute(
                     reason: 'Onboarding initial schedule generation',
                 };
 
+                // Use 'coach' source to bypass standard user constraints during initial setup
                 const patchResult = await PatchService.applyPatch(effectiveUserId, calendarPatch as any, supabase as any, 'coach');
                 if (!patchResult.success) {
                     console.error('Initial schedule patch failed:', patchResult.errors);
+                    throw new Error(`Schedule generation failed: ${patchResult.errors.join(', ')}`);
                 }
                 blocksCreated = bestVariant.blocks.length;
+            } else {
+                throw new Error('Failed to generate any schedule variants. Please check your constraints.');
             }
-        } catch (genError) {
+        } catch (genError: any) {
             console.error('Initial schedule generation failed:', genError);
-            // Non-blocking: user is still "onboarded" even if generation fails
+            throw new Error(`AI Calendar Planning Error: ${genError.message}`);
         }
 
         return apiSuccess({

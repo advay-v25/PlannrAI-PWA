@@ -729,6 +729,7 @@ STRATEGIC DIRECTIVES:
 - However, for basic problems, provide basic solutions. Do NOT disrupt immutable blocks for simple scheduling requests. Use your practical judgement: is the disruption worth the trade-off? If you disrupt them, you MUST explicitly state the trade-off.
 - If the user asks to skip sleep or meals without a valid emergency, REFUSE and explain why it's harmful.
 - A replanned or rescheduled block should generally avoid these slots unless absolutely necessary.
+- EXTREMELY IMPORTANT: If you want to REPLACE or OVERRIDE an immutable block with a new task at the same time, you MUST include a \`delete_block\` operation for the old immutable block in your patch. If you simply \`create_block\` on top of it without deleting it, the system will block the overlap and throw an error.
 
 🔄 OVERLAPPING BLOCKS & CASCADING MOVES (CRITICAL RULE):
 - You MUST NEVER schedule two blocks at the same time. Overlaps are strictly forbidden.
@@ -749,13 +750,14 @@ When the user gives an unstructured request like "I need to go grocery shopping 
    -> FIRST: Generate a \`create_block\` operation for the new ad-hoc block at the exact time, BUT you MUST add \`"is_locked": true\` to its data payload. This locks it in place.
    -> THEN: Generate a \`replan_day\` operation.
    The engine will automatically clear the overlapping blocks and perfectly cascade/reorganize them around your new locked block!
+   WARNING: Auto-Cascade CANNOT move immutable blocks. If the new ad-hoc block overlaps with an immutable block (anchor, sleep, meal) that the user wants to replace, you MUST also add a \`delete_block\` operation for that immutable block.
 4. REPLANNING TO FIT NEW TASKS: If the user asks to add a task/block but the target day is completely full (no free slots), you must ALWAYS generate TWO operations:
    -> FIRST: \`create_todo\` (for a task without a specific time) or \`create_block\` (for a specific time block) with \`"is_locked": true\`.
    -> THEN: \`replan_week\` or \`replan_day\` to reorganize the schedule around the newly added task.
    NEVER generate \`replan_week\` by itself when adding a task; the optimizer needs the new task in the database first!
 5. TRADEOFF COMMUNICATION: When using Auto-Cascade, explicitly fill out the \`tradeoff\` field to warn the user (e.g. "Warning: This will cascade your existing morning blocks to later in the day. Severity: info").
 6. SURGICAL AD-HOC PLACEMENT: If the user wants to add an ad-hoc block (like grocery shopping) but the calendar is completely full, your Option 3 should execute a surgical displacement: delete the lowest priority blocks today to make room, and automatically move them to later in the week using a subsequent \`create_block\` operation.
-7. NEVER overlap with immutable blocks (sleep, meals, anchors). If they conflict, refuse the insertion and offer alternative times.
+7. NEVER overlap with immutable blocks (sleep, meals, anchors) unless you are explicitly deleting them. If they conflict and the user doesn't want to replace them, refuse the insertion and offer alternative times.
 
 🔄 UNIVERSAL 3-OPTION PROTOCOL (CRITICAL RULE):
 When the user asks to reschedule, move, add, or change any block, goal, or task, you MUST ALWAYS provide exactly 3 actionable tactical options.
@@ -1006,7 +1008,8 @@ ${optionsInstruction}`;
         // Since requireJSON is false for CoT, we need to extract the JSON from the raw text
         let parsedData = response.data as any;
         if (isMissedBlock && typeof response.data === 'string') {
-            const jsonMatch = response.data.match(/```json\s*([\s\S]*?)\s*```/) || response.data.match(/\{[\s\S]*\}/);
+            const rawStr = response.data as any as string;
+            const jsonMatch = rawStr.match(/```json\s*([\s\S]*?)\s*```/) || rawStr.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 try {
                     parsedData = JSON.parse(jsonMatch[1] || jsonMatch[0]);
@@ -1035,16 +1038,16 @@ ${optionsInstruction}`;
 
             const aiMode = isSimple ? 'execute' : 'propose';
 
-            const options: CoachOption[] = data.options.map((opt, i) => {
+            const options: CoachOption[] = data.options.map((opt: any, i: number) => {
                 let normalizedOps = (opt.operations || []).map(normalizeOperation);
 
                 // Anti-Hallucination Auto-Correction: Ensure rescheduled blocks have their own mathematically verified independent slot
-                const hasDelete = normalizedOps.some(o => o.type === 'delete_block');
-                const isReplan = normalizedOps.some(o => o.type === 'replan_week' || o.type === 'replan_day');
+                const hasDelete = normalizedOps.some((o: any) => o.type === 'delete_block');
+                const isReplan = normalizedOps.some((o: any) => o.type === 'replan_week' || o.type === 'replan_day');
 
                 // Legacy replan op handler: if the AI ever outputs a replan_week/replan_day op, isolate it so it doesn't cascade with other ops
                 if (isReplan) {
-                    const replanOp = normalizedOps.find(o => o.type === 'replan_week' || o.type === 'replan_day');
+                    const replanOp = normalizedOps.find((o: any) => o.type === 'replan_week' || o.type === 'replan_day');
                     if (replanOp) {
                         normalizedOps = [replanOp];
                     }
@@ -1052,7 +1055,7 @@ ${optionsInstruction}`;
 
                 // 2. For Options 1 & 2: Keep only the single move/create operation (no random secondary displacements)
                 if (!hasDelete && !isReplan && isMissedBlock) {
-                    const moveOrCreateOp = normalizedOps.find(o => o.type === 'move_block' || o.type === 'create_block');
+                    const moveOrCreateOp = normalizedOps.find((o: any) => o.type === 'move_block' || o.type === 'create_block');
                     if (moveOrCreateOp) {
                         const missedBlock = findMissedBlock(userMessage, classification, coachCtx);
                         if (missedBlock) {
@@ -1077,7 +1080,7 @@ ${optionsInstruction}`;
 
                 // 3. For Option 3: Replace Lower Priority Block same-goal protection
                 if (hasDelete && isMissedBlock) {
-                    const deleteOpIndex = normalizedOps.findIndex(o => o.type === 'delete_block');
+                    const deleteOpIndex = normalizedOps.findIndex((o: any) => o.type === 'delete_block');
                     if (deleteOpIndex !== -1) {
                         const deleteOp = normalizedOps[deleteOpIndex] as any;
                         const missedBlock = findMissedBlock(userMessage, classification, coachCtx);
@@ -1149,7 +1152,7 @@ ${optionsInstruction}`;
                                     deleteOp.block_id = replacementCandidate.id;
                                     deleteOp.title = (replacementCandidate as any).title;
                                     
-                                    const moveOrCreateOp = normalizedOps.find(o => o.type === 'move_block' || o.type === 'create_block');
+                                    const moveOrCreateOp = normalizedOps.find((o: any) => o.type === 'move_block' || o.type === 'create_block');
                                     if (moveOrCreateOp) {
                                         if (moveOrCreateOp.type === 'create_block') {
                                             const op = moveOrCreateOp as any;
@@ -1181,7 +1184,7 @@ ${optionsInstruction}`;
                 
                 // If it doesn't displace an existing block and isn't a full replan, it MUST fit in a free slot
                 if (!hasDelete && !isReplan && isMissedBlock) {
-                    const moveOp = normalizedOps.find(o => o.type === 'move_block' || o.type === 'create_block');
+                    const moveOp = normalizedOps.find((o: any) => o.type === 'move_block' || o.type === 'create_block');
                     if (moveOp && (moveOp.type === 'move_block' || moveOp.type === 'create_block')) {
                         let targetDate = moveOp.type === 'move_block' ? moveOp.new_date : (moveOp as any).data?.date;
                         if (!targetDate) targetDate = coachCtx.current.date;
@@ -1276,11 +1279,11 @@ ${optionsInstruction}`;
                 // Convert to CalendarPatchOp format for the UI card
                 const calendarOps = normalizedOps.map(convertToCalendarPatchOp);
                 // Compute preview counts from actual operations (don't trust AI)
-                const blocksAdded = normalizedOps.filter(o => o.type === 'create_block' || o.type === 'create_todo' || o.type === 'create_goal').length;
-                const blocksModified = normalizedOps.filter(o => o.type === 'move_block' || o.type === 'update_block' || o.type === 'update_todo' || o.type === 'update_goal').length;
-                const blocksRemoved = normalizedOps.filter(o => o.type === 'delete_block' || o.type === 'delete_todo' || o.type === 'delete_goal').length;
+                const blocksAdded = normalizedOps.filter((o: any) => o.type === 'create_block' || o.type === 'create_todo' || o.type === 'create_goal').length;
+                const blocksModified = normalizedOps.filter((o: any) => o.type === 'move_block' || o.type === 'update_block' || o.type === 'update_todo' || o.type === 'update_goal').length;
+                const blocksRemoved = normalizedOps.filter((o: any) => o.type === 'delete_block' || o.type === 'delete_todo' || o.type === 'delete_goal').length;
                 const dates = new Set<string>();
-                normalizedOps.forEach(o => {
+                normalizedOps.forEach((o: any) => {
                     if (o.type === 'create_block' && o.data?.date) dates.add(o.data.date);
                     else if (o.type === 'move_block' && o.new_date) dates.add(o.new_date);
                     else dates.add(coachCtx.current.date);

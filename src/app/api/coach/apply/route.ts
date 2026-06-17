@@ -448,34 +448,45 @@ async function validateCoachOps(patch: any, userId: string, supabase: any): Prom
     // Collect all move/create target slots
     const targetSlots: Array<{ op: string; date: string; start: string; end: string; title: string; blockId?: string }> = [];
 
-    // For move ops without a date, we need to look up the block's current date
-    const moveBlockIds: string[] = [];
+    // For move/update ops without full date/time context, look up current state
+    const checkBlockIds: string[] = [];
     for (const op of patch.ops) {
-        if ((op.op === 'move_event' || op.op === 'move') && op.event_id && !op.date) {
-            moveBlockIds.push(op.event_id);
+        if (op.event_id && ['move_event', 'move', 'update_event', 'update'].includes(op.op)) {
+            checkBlockIds.push(op.event_id);
         }
     }
 
-    // Fetch current dates for blocks being moved without a new_date
-    let blockDateMap: Record<string, string> = {};
-    if (moveBlockIds.length > 0) {
+    // Fetch current state for blocks being moved or updated
+    let blockDataMap: Record<string, any> = {};
+    if (checkBlockIds.length > 0) {
         const { data: blocks } = await supabase
             .from('schedule_blocks')
-            .select('id, date')
+            .select('id, date, start_time, end_time')
             .eq('user_id', userId)
-            .in('id', moveBlockIds);
+            .in('id', checkBlockIds);
         if (blocks) {
-            blockDateMap = blocks.reduce((acc: Record<string, string>, b: any) => ({ ...acc, [b.id]: b.date }), {});
+            blockDataMap = blocks.reduce((acc: Record<string, any>, b: any) => ({ ...acc, [b.id]: b }), {});
         }
     }
 
     for (const op of patch.ops) {
         if (op.op === 'move_event' || op.op === 'move') {
-            const date = op.date || op.new_date || (op.event_id && blockDateMap[op.event_id]);
-            const start = op.to_start || op.new_start;
-            const end = op.to_end || op.new_end;
+            const date = op.date || op.new_date || (op.event_id && blockDataMap[op.event_id]?.date);
+            const start = op.to_start || op.new_start || (op.event_id && blockDataMap[op.event_id]?.start_time);
+            const end = op.to_end || op.new_end || (op.event_id && blockDataMap[op.event_id]?.end_time);
             if (date && start && end) {
                 targetSlots.push({ op: 'move', date, start, end, title: op.title || '', blockId: op.event_id });
+            }
+        }
+        if (op.op === 'update_event' || op.op === 'update') {
+            const blockData = op.event_id ? blockDataMap[op.event_id] : null;
+            if (blockData) {
+                const date = op.fields?.date || blockData.date;
+                const start = op.fields?.start_time || blockData.start_time;
+                const end = op.fields?.end_time || blockData.end_time;
+                if (date && start && end) {
+                    targetSlots.push({ op: 'update', date, start, end, title: op.title || '', blockId: op.event_id });
+                }
             }
         }
         if (op.op === 'create_event' || op.op === 'create') {
@@ -515,13 +526,19 @@ async function validateCoachOps(patch: any, userId: string, supabase: any): Prom
             .filter(Boolean)
     );
 
-    // Simulate post-patch state for moved blocks
+    // Simulate post-patch state for moved/updated blocks
     for (const b of existingBlocks) {
         const moveOp = patch.ops.find((o: any) => (o.op === 'move_event' || o.op === 'move') && o.event_id === b.id);
         if (moveOp) {
             if (moveOp.date || moveOp.new_date) b.date = moveOp.date || moveOp.new_date;
             if (moveOp.to_start || moveOp.new_start) b.start_time = moveOp.to_start || moveOp.new_start;
             if (moveOp.to_end || moveOp.new_end) b.end_time = moveOp.to_end || moveOp.new_end;
+        }
+        const updateOp = patch.ops.find((o: any) => (o.op === 'update_event' || o.op === 'update') && o.event_id === b.id);
+        if (updateOp && updateOp.fields) {
+            if (updateOp.fields.date) b.date = updateOp.fields.date;
+            if (updateOp.fields.start_time) b.start_time = updateOp.fields.start_time;
+            if (updateOp.fields.end_time) b.end_time = updateOp.fields.end_time;
         }
     }
 

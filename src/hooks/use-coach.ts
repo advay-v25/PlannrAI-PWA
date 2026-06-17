@@ -42,7 +42,7 @@ interface CoachState extends PersistentCoachData {
   abortController: AbortController | null;
   
   sendMessage: (text: string) => Promise<{ success: boolean; error?: string }>;
-  stopGenerating: () => void;
+  stopGenerating: () => string;
   applyOption: (messageId: string, optionId: string) => Promise<CoachOption | boolean>;
   undo: () => Promise<boolean>;
   clearError: () => void;
@@ -93,13 +93,16 @@ export const useCoach = create<CoachState>()(
         const { abortController, messages } = get();
         if (abortController) {
           abortController.abort();
+          const lastMsg = messages[messages.length - 1];
           set({
             isLoading: false,
             abortController: null,
             // Remove the last user message so they can edit it
-            messages: messages.filter(m => m.id !== messages[messages.length - 1].id)
+            messages: messages.filter(m => m.id !== lastMsg?.id)
           });
+          return lastMsg?.content || '';
         }
+        return '';
       },
 
       refreshContext: async () => {
