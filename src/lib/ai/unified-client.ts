@@ -19,6 +19,7 @@ export interface AICallOptions {
     timeout?: number;
     useNvidia?: boolean; // Use dedicated CALENDAR_NVIDIA_API_KEY for Coach & Calendar
     skipOpenRouter?: boolean; // When true, skip OpenRouter and go straight to NVIDIA 70B (for MOVE_BLOCK — avoids OpenRouter latency eating into the budget)
+    strictNvidia?: boolean; // When true, ONLY uses NVIDIA endpoints, skipping OpenRouter, Gemini, and Groq entirely.
     userId?: string; // Optional user ID for logging/auditing
 }
 
@@ -403,26 +404,33 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
         const useTertiary  = !!process.env.NVIDIA_API_KEY_TERTIARY;
 
         const nvidiaChain: ProviderConfig[] = [];
-        if (useOpenRouter && !options.skipOpenRouter) nvidiaChain.push(getOpenRouterConfig(
-            tier === 'fast' ? 'openai/gpt-4o-mini' : 'meta-llama/llama-3.3-70b-instruct'
-        ));
-
-        // Prioritize Groq's high-speed inference when OpenRouter is skipped to prevent 55s NVIDIA timeouts on complex JSON
-        if (options.skipOpenRouter) {
-            nvidiaChain.push(getGroqConfig(tier === 'fast' ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile'));
+        
+        if (options.strictNvidia) {
             nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.CALENDAR_NVIDIA_API_KEY));
+            if (useTertiary) nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.NVIDIA_API_KEY_TERTIARY));
         } else {
-            nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.CALENDAR_NVIDIA_API_KEY));
-            nvidiaChain.push(getGroqConfig(tier === 'fast' ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile'));
+            if (useOpenRouter && !options.skipOpenRouter) nvidiaChain.push(getOpenRouterConfig(
+                tier === 'fast' ? 'openai/gpt-4o-mini' : 'meta-llama/llama-3.3-70b-instruct'
+            ));
+
+            // Prioritize Groq's high-speed inference when OpenRouter is skipped to prevent 55s NVIDIA timeouts on complex JSON
+            if (options.skipOpenRouter) {
+                nvidiaChain.push(getGroqConfig(tier === 'fast' ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile'));
+                nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.CALENDAR_NVIDIA_API_KEY));
+            } else {
+                nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.CALENDAR_NVIDIA_API_KEY));
+                nvidiaChain.push(getGroqConfig(tier === 'fast' ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile'));
+            }
+            if (useTertiary) nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.NVIDIA_API_KEY_TERTIARY));
+            if (useGemini) nvidiaChain.push(getGeminiConfig('gemini-2.0-flash'));
         }
-        if (useTertiary) nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.NVIDIA_API_KEY_TERTIARY));
-        if (useGemini) nvidiaChain.push(getGeminiConfig('gemini-2.0-flash'));
 
         for (const provider of nvidiaChain) {
             const remaining = getRemainingTime();
             if (remaining < 5000) break;
             console.log(`\x1b[36m[AI ✨]\x1b[0m Coach engine trying ${provider.name}/${provider.model}...`);
-            const providerTimeout = Math.min(MAX_PROVIDER_TIME, remaining);
+            // If strictNvidia, allow the provider to use the full remaining time (for long CoT generations).
+            const providerTimeout = options.strictNvidia ? remaining : Math.min(MAX_PROVIDER_TIME, remaining);
             const result = await callProvider<T>(provider, { ...options, timeout: providerTimeout });
             if (result.success) return result;
         }

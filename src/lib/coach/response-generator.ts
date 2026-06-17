@@ -909,22 +909,38 @@ CRITICAL FORMATTING REQUIREMENTS:
         if (isRejection && !/missed|miss|reschedule|another|new/i.test(userMessage)) {
              optionsInstruction = "The user rejected the previous AI options. Provide EXACTLY ONE option: 'Manual Movement', which instructs them to manually move the block in the calendar UI themselves. Do NOT generate any patch operations (empty operations array []). Return valid JSON only.";
         } else {
-             optionsInstruction = `Generate EXACTLY 3 actionable options in this exact order:
-Option 1: Reschedule Today (same or reduced duration, min 30m).
-Option 2: Reschedule This Week (same or reduced duration, min 30m).
-Option 3: Replace Lower Priority Block (same pillar, different goal, min 30m).
+             optionsInstruction = `CRITICAL: You must execute a Chain-of-Thought process BEFORE generating the JSON response.
+You must output your reasoning in text first, going through these exact steps:
+1. \`read_prompt\`: Analyze the user's prompt to identify the exact block and time being rescheduled or missed.
+2. \`read_priority\`: Determine the priority level of the block being missed or rescheduled.
+3. \`read_calendar\`: Scan the provided calendar context to find ALL space in the CURRENT WEEK where this block could potentially fit.
+4. \`find_time\`: Look for \`empty_time\` within a 3-hour radius around the requested time or the block's original time.
+5. \`find_empty_time\`: If there is a chunk of empty time, identify the exact start and end times.
+6. \`find_block\`: If there is NO empty time, identify blocks of a LOWER priority level that can be replaced.
+
+Once you have completed this thought process, you MUST output a JSON block wrapped in \`\`\`json ... \`\`\` containing EXACTLY 3 actionable options:
+
+Option 1: Reschedule Today (same or reduced duration).
+If empty time exists today in \`find_time\`, place it there. If the available gap is shorter than the block's original duration, you MUST output TWO operations: first a \`compress_block\` operation (changing the time duration to fit), then a \`move_block\` operation to move it into that slot. Do NOT delete and re-create it.
+
+Option 2: Reschedule This Week (same or reduced duration).
+If empty time exists later this week in \`find_time\`, place it there. Use \`compress_block\` + \`move_block\` if the new slot is shorter.
+
+Option 3: Replace Lower Priority Block.
+Replace a block of a lower priority level identified in \`find_block\`. You MUST output TWO operations: first a \`delete_block\` on the old lower-priority block, then a \`move_block\` on the missed block to place it into the newly opened slot.
 
 CRITICAL FORMATTING REQUIREMENTS:
 1. For the 'description' field:
-   - Options 1 & 2 MUST state the specific time the block will be moved to (e.g., 'Move to 14:00 - 15:30').
+   - Options 1 & 2 MUST state the specific day and time the block will be moved to (e.g., 'Move to Thursday 14:00 - 15:30').
    - Option 3 MUST state the exact name, day, and time of the lower priority block being replaced.
 2. For the 'impact' field:
    - MUST be formatted as a string containing 2-3 concise bullet points (using • symbol) explaining exactly what changes will occur. (e.g. "• Moves block to 14:00\\n• Replaces lower priority Gym block")
-3. For the patch operations:
-   - Option 1 and Option 2 MUST ONLY contain a single 'move_block' operation. They are FORBIDDEN from containing 'delete_block' or 'create_block'.
-   - Option 3 MUST output exactly two patch operations: first a 'delete_block' operation to remove the lower priority block, and then a 'move_block' operation to move the missed block into that exact time slot.
+3. Patch Operations format:
+   - \`compress_block\`: { "type": "compress_block", "block_id": "...", "new_start": "...", "new_end": "..." }
+   - \`move_block\`: { "type": "move_block", "block_id": "...", "new_date": "...", "new_start": "...", "new_end": "..." }
+   - \`delete_block\`: { "type": "delete_block", "block_id": "..." }
 
-However, if there are absolutely NO verified free slots remaining for the rest of the week, skip Options 1-2 and rely on Option 3. Return valid JSON only.`;
+Return valid JSON only at the end.`;
         }
     }
 
@@ -968,24 +984,38 @@ ${optionsInstruction}`;
             prompt: userPrompt,
             systemPrompt,
             messages: conversationHistory as any,
-            model: isMissedBlock ? 'fast' : 'smart',
+            model: isMissedBlock ? 'smart' : 'smart', // MUST use 70B for CoT logic
             temperature: 0.5,
-            maxTokens: 2500,
-            requireJSON: true,
-            timeout: 55000,
+            maxTokens: 3000,
+            requireJSON: !isMissedBlock, // If missed block, we expect CoT text before JSON
+            timeout: isMissedBlock ? 55000 : 30000,
             useNvidia: true,
-            skipOpenRouter: isMissedBlock, // MOVE_BLOCK: skip OpenRouter, go straight to NVIDIA 70B — no latency wasted on OpenRouter before the 70B model
+            strictNvidia: isMissedBlock, // Enforce strict Nvidia for CoT
+            skipOpenRouter: isMissedBlock,
         });
 
-        if (response.success && response.data && response.data.options?.length) {
-            const data = response.data;
+        // Since requireJSON is false for CoT, we need to extract the JSON from the raw text
+        let parsedData = response.data as any;
+        if (isMissedBlock && typeof response.data === 'string') {
+            const jsonMatch = response.data.match(/```json\s*([\s\S]*?)\s*```/) || response.data.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                try {
+                    parsedData = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+                } catch (e) {
+                    console.error('[CoachAI] Failed to parse CoT JSON:', e);
+                }
+            }
+        }
+
+        if (response.success && parsedData && parsedData.options?.length) {
+            const data = parsedData;
 
             // Determine the final mode: if AI is confident and recommends 'execute', we double-check complexity
             const option = data.options[0];
             const opCount = option.operations?.length || 0;
-            const hasAnchorMove = option.operations?.some(op => 
+            const hasAnchorMove = option.operations?.some((op: any) => 
                 (op.type === 'move_block' || op.type === 'update_block') && 
-                (op as any).block_type === 'anchor'
+                op.block_type === 'anchor'
             );
 
             // Simple = High confidence, suggested execute, small op count, no anchors
@@ -1344,6 +1374,15 @@ function normalizeOperation(op: any): PatchOperation {
                 type: 'update_block',
                 block_id: op.block_id || op.event_id || op.id,
                 changes: op.changes || op.fields || {},
+            };
+        case 'compress_block':
+            return {
+                type: 'update_block',
+                block_id: op.block_id || op.event_id || op.id,
+                changes: {
+                    start_time: op.new_start || op.start_time,
+                    end_time: op.new_end || op.end_time
+                }
             };
         case 'delete_block':
         case 'delete':
