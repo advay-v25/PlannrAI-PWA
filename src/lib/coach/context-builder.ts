@@ -16,11 +16,15 @@ export interface CoachContext {
     goals: Array<{
         id: string;
         title: string;
-        pillar: 'mind' | 'body' | 'craft';
+        pillar: 'mind' | 'body' | 'craft' | null;
+        category: 'mind' | 'body' | 'craft' | null;   // primary pillar field in DB
         weekly_target_minutes: number;
         current_streak_days: number;
-        priority: number;
+        priority: number | string | null;              // legacy/alternate priority column
+        importance: 'low' | 'medium' | 'high' | null; // primary importance field in DB
         is_active: boolean;
+        minutes_per_day?: number;
+        days_per_week?: number;
     }>;
 
     commitments: Array<{
@@ -144,7 +148,7 @@ export async function buildCoachContext(
         profilePrefsRes
     ] = await Promise.all([
         supabase.from('goals')
-            .select('id, title, pillar, weekly_target_minutes, current_streak_days, priority, status, energy_demand, minutes_per_day, days_per_week, ai_strategy')
+            .select('id, title, pillar, category, weekly_target_minutes, current_streak_days, priority, importance, status, energy_demand, minutes_per_day, days_per_week, ai_strategy')
             .eq('user_id', userId)
             .eq('status', 'active'),
 

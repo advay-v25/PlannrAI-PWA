@@ -38,7 +38,7 @@ function getBlockColors(block: any) {
     if (block.block_type === 'meal') return PILLAR_COLORS.meal;
     if (block.block_type === 'sleep') return PILLAR_COLORS.sleep;
     if (block.block_type === 'break' || block.block_type === 'buffer') return PILLAR_COLORS.break;
-    const pillar = (block.pillar || block.goal?.pillar || '').toLowerCase();
+    const pillar = (block.goal?.pillar || block.pillar || '').toLowerCase();
     return PILLAR_COLORS[pillar] || PILLAR_COLORS.default;
 }
 

@@ -167,16 +167,21 @@ function addDays(date: string, days: number): string {
 }
 
 function getBlockPillarAndPriority(block: any, coachCtx: CoachContext) {
-    const goal = coachCtx.goals.find(g => g.id === block.goal_id);
-    const pillar = goal?.pillar || block.pillar || 'craft'; // default to craft
-    
-    // priority could be a string 'low'|'medium'|'high' or a number
-    const rawPriority = goal?.priority !== undefined ? goal.priority : (block.priority !== undefined ? block.priority : 'medium');
-    let priorityVal = 2; // medium by default
-    if (rawPriority === 'high' || rawPriority === 3) priorityVal = 3;
-    if (rawPriority === 'low' || rawPriority === 1) priorityVal = 1;
-    
-    return { pillar, priority: rawPriority, priorityVal, goalId: block.goal_id };
+    const goal = coachCtx.goals.find((g: any) => g.id === block.goal_id);
+    // Goals are stored with `category` (primary) and optionally `pillar` (legacy/alternate).
+    // Fall back to block-level pillar if neither is set on the goal.
+    const pillar = (goal?.category || goal?.pillar || block.pillar || 'craft').toLowerCase();
+
+    // Goals are stored with `importance` ('low'|'medium'|'high').
+    // `priority` is a separate column that may hold a string or number variant.
+    // Use importance first, then priority, so we always read the correct DB field.
+    const rawImportance: string | number | null =
+        goal?.importance ?? goal?.priority ?? null;
+    let priorityVal = 2; // medium by default when importance is unknown
+    if (rawImportance === 'high' || rawImportance === 3) priorityVal = 3;
+    else if (rawImportance === 'low' || rawImportance === 1) priorityVal = 1;
+
+    return { pillar, priority: rawImportance, priorityVal, goalId: block.goal_id, importanceKnown: rawImportance != null };
 }
 
 // ============ REAL SLOT FINDER ============
@@ -663,7 +668,9 @@ function findSlotOnDay(
     return null;
 }
 
-// find_block: the best LOWER-priority, same-pillar, different-goal, non-immutable block to replace.
+// find_block: the best LOWER-importance, same-pillar, different-goal, non-immutable block to replace.
+// Two-pass: pass 1 requires strictly lower importance; pass 2 (fallback) allows any same-pillar
+// different-goal block when importance is not set or all goals share the same level.
 function findReplaceableBlock(missedBlock: any, duration: number, coachCtx: CoachContext): any | null {
     const missedInfo = getBlockPillarAndPriority(missedBlock, coachCtx);
     const missedGoalId = missedBlock.goal_id;
@@ -672,38 +679,58 @@ function findReplaceableBlock(missedBlock: any, duration: number, coachCtx: Coac
     const now = coachCtx.current;
 
     const seen = new Set<string>();
-    const candidates = [...(coachCtx.schedule.this_week || []), ...(coachCtx.schedule.today || [])].filter((b: any) => {
+
+    // Base filter: immutable types, past/started blocks, same goal/title
+    const baseCandidates = [...(coachCtx.schedule.this_week || []), ...(coachCtx.schedule.today || [])].filter((b: any) => {
         if (!b.id || seen.has(b.id)) return false;
         seen.add(b.id);
         if (b.id === missedBlock.id) return false;
         const type = (b.block_type || '').toLowerCase();
-        if (['sleep', 'meal', 'wind_down', 'anchor', 'buffer', 'routine'].includes(type)) return false; // immutable
+        if (['sleep', 'meal', 'wind_down', 'anchor', 'buffer', 'routine'].includes(type)) return false;
         if (b.status !== 'planned') return false;
-        if (b.date < now.date) return false;                                  // never the past
-        if (b.date === now.date && b.start_time <= now.time) return false;    // not already started today
+        if (b.date < now.date) return false;
+        if (b.date === now.date && b.start_time <= now.time) return false;
         const bInfo = getBlockPillarAndPriority(b, coachCtx);
-        if (bInfo.pillar !== missedInfo.pillar) return false;                 // same pillar only
-        if (b.goal_id && b.goal_id === missedGoalId) return false;            // never same goal
+        if (bInfo.pillar !== missedInfo.pillar) return false;                  // same pillar only
+        if (b.goal_id && b.goal_id === missedGoalId) return false;             // never same goal
         if ((b.title || '').toLowerCase() === missedTitle) return false;
         if ((b.context || '').toLowerCase() === missedContext) return false;
-        if (bInfo.priorityVal >= missedInfo.priorityVal) return false;        // STRICTLY lower priority
         return true;
     });
 
-    candidates.sort((a: any, b: any) => {
+    const sortCandidates = (list: any[]) => list.sort((a: any, b: any) => {
         const aI = getBlockPillarAndPriority(a, coachCtx);
         const bI = getBlockPillarAndPriority(b, coachCtx);
-        if (aI.priorityVal !== bI.priorityVal) return aI.priorityVal - bI.priorityVal; // lowest priority first
+        if (aI.priorityVal !== bI.priorityVal) return aI.priorityVal - bI.priorityVal; // lowest importance first
         const aDur = timeToMinutes(a.end_time) - timeToMinutes(a.start_time);
         const bDur = timeToMinutes(b.end_time) - timeToMinutes(b.start_time);
         const aDiff = Math.abs(aDur - duration);
         const bDiff = Math.abs(bDur - duration);
-        if (aDiff !== bDiff) return aDiff - bDiff;                            // closest duration match
+        if (aDiff !== bDiff) return aDiff - bDiff;                             // closest duration match
         if (a.date !== b.date) return a.date.localeCompare(b.date);
         return a.start_time.localeCompare(b.start_time);
     });
 
-    return candidates.length > 0 ? candidates[0] : null;
+    // Pass 1: strictly lower importance (requires both goals to have known importance)
+    if (missedInfo.importanceKnown) {
+        const strictCandidates = baseCandidates.filter((b: any) => {
+            const bInfo = getBlockPillarAndPriority(b, coachCtx);
+            return bInfo.importanceKnown && bInfo.priorityVal < missedInfo.priorityVal;
+        });
+        if (strictCandidates.length > 0) {
+            return sortCandidates(strictCandidates)[0];
+        }
+    }
+
+    // Pass 2: importance is not set / all blocks share the same level → any same-pillar
+    // different-goal block is eligible (sorted by lowest importance then closest duration)
+    const fallback = baseCandidates.filter((b: any) => {
+        const bInfo = getBlockPillarAndPriority(b, coachCtx);
+        // Exclude blocks whose importance is KNOWN to be >= missed (strict protection)
+        if (missedInfo.importanceKnown && bInfo.importanceKnown && bInfo.priorityVal >= missedInfo.priorityVal) return false;
+        return true;
+    });
+    return fallback.length > 0 ? sortCandidates(fallback)[0] : null;
 }
 
 function computeRescheduleOptions(missedBlock: any, duration: number, coachCtx: CoachContext) {
