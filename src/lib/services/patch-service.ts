@@ -20,6 +20,9 @@ export type PatchOpType =
     | 'create_todo'
     | 'update_todo'
     | 'delete_todo'
+    | 'create_habit_stack'
+    | 'update_habit_stack'
+    | 'delete_habit_stack'
     | 'replan_week'
     | 'replan_day'
     | 'update_memory';
@@ -30,11 +33,13 @@ export interface PatchOp {
     goal_id?: string;
     anchor_id?: string;
     todo_id?: string;
+    stack_id?: string;
     event?: any;
     payload?: any;
     fields?: Record<string, any>;
     to_start?: string;
     to_end?: string;
+    date?: string;
     // create_anchor fields
     title?: string;
     start_time?: string;
@@ -1342,6 +1347,50 @@ export class PatchService {
                     .eq('id', op.todo_id)
                     .eq('user_id', userId);
                 if (error) throw new Error(`Delete todo failed: ${error.message}`);
+                break;
+            }
+
+            case 'create_habit_stack': {
+                const payload = op.payload || {};
+                const insertData: any = {
+                    user_id: userId,
+                    name: payload.name || 'New Stack',
+                    preferred_window: payload.preferred_window || 'morning',
+                    steps: Array.isArray(payload.steps) ? payload.steps : [],
+                    is_active: true,
+                    enabled: true,
+                };
+                const { data, error } = await supabase
+                    .from('habit_stacks')
+                    .insert(insertData)
+                    .select('id')
+                    .single();
+                if (error) throw new Error(`Create habit stack failed: ${error.message}`);
+                // Not returning ID anywhere, but standard convention
+                break;
+            }
+
+            case 'update_habit_stack': {
+                const id = op.stack_id;
+                const fields = op.fields || op.payload;
+                if (!id) throw new Error('Update habit stack requires stack_id');
+                const { error } = await supabase
+                    .from('habit_stacks')
+                    .update(fields)
+                    .eq('id', id)
+                    .eq('user_id', userId);
+                if (error) throw new Error(`Update habit stack failed: ${error.message}`);
+                break;
+            }
+
+            case 'delete_habit_stack': {
+                if (!op.stack_id) throw new Error('Delete habit stack requires stack_id');
+                const { error } = await supabase
+                    .from('habit_stacks')
+                    .delete()
+                    .eq('id', op.stack_id)
+                    .eq('user_id', userId);
+                if (error) throw new Error(`Delete habit stack failed: ${error.message}`);
                 break;
             }
 

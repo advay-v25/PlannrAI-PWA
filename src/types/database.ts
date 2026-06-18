@@ -1155,7 +1155,7 @@ export type Database = {
       habit_stacks: {
         Row: {
           action_duration_mins: number | null
-          action_habit: string
+          action_habit: string | null
           created_at: string | null
           current_streak: number | null
           duration_min: number | null
@@ -1169,14 +1169,16 @@ export type Database = {
           max_grace_days: number | null
           preferred_window: string | null
           total_completions: number | null
-          trigger_habit: string
+          trigger_habit: string | null
+          name: string | null
+          steps: Json | null
           trigger_time: string | null
           updated_at: string | null
           user_id: string
         }
         Insert: {
           action_duration_mins?: number | null
-          action_habit: string
+          action_habit?: string | null
           created_at?: string | null
           current_streak?: number | null
           duration_min?: number | null
@@ -1190,14 +1192,16 @@ export type Database = {
           max_grace_days?: number | null
           preferred_window?: string | null
           total_completions?: number | null
-          trigger_habit: string
+          trigger_habit?: string | null
+          name?: string | null
+          steps?: Json | null
           trigger_time?: string | null
           updated_at?: string | null
           user_id: string
         }
         Update: {
           action_duration_mins?: number | null
-          action_habit?: string
+          action_habit?: string | null
           created_at?: string | null
           current_streak?: number | null
           duration_min?: number | null
@@ -1211,7 +1215,9 @@ export type Database = {
           max_grace_days?: number | null
           preferred_window?: string | null
           total_completions?: number | null
-          trigger_habit?: string
+          trigger_habit?: string | null
+          name?: string | null
+          steps?: Json | null
           trigger_time?: string | null
           updated_at?: string | null
           user_id?: string

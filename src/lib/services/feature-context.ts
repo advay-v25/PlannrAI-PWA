@@ -4,7 +4,7 @@ import { startOfDay, addDays, subDays, format } from 'date-fns';
 
 export interface FeatureContextOptions {
     includeChatHistory?: boolean;
-    includeRecentDumps?: boolean;
+
     includeHabitStacks?: boolean;
     includeWeekSchedule?: boolean;
     weekDays?: number; // default 3
@@ -19,7 +19,7 @@ export interface FeatureContext {
     userState: any;
     preferences: any;
     chatHistory?: { role: string; content: string }[];
-    recentDumps?: string[];
+
     habitStacks?: any[];
     capacity: {
         wake_time: string;
@@ -42,7 +42,7 @@ export async function buildFeatureContext(
 ): Promise<FeatureContext> {
     const {
         includeChatHistory = false,
-        includeRecentDumps = false,
+
         includeHabitStacks = false,
         weekDays = 3,
     } = options;
@@ -105,15 +105,6 @@ export async function buildFeatureContext(
             .maybeSingle() as any;
     }
 
-    // 6. Recent Dumps (optional)
-    let recentDumpsPromise = Promise.resolve({ data: [] });
-    if (includeRecentDumps) {
-        recentDumpsPromise = supabase.from('brain_dumps')
-            .select('raw_text, created_at')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(3) as any;
-    }
 
     // 7. Habit Stacks (optional)
     let habitStacksPromise = Promise.resolve({ data: [] });
@@ -125,9 +116,8 @@ export async function buildFeatureContext(
     }
 
     // Execute optional queries
-    const [chatRes, dumpRes, habitRes] = await Promise.all([
+    const [chatRes, habitRes] = await Promise.all([
         chatHistoryPromise,
-        recentDumpsPromise,
         habitStacksPromise
     ]);
 
@@ -150,12 +140,7 @@ export async function buildFeatureContext(
             .map((m: any) => ({ role: m.role, content: m.content }));
     }
 
-    // Recent dumps processing
-    let recentDumps: string[] = [];
-    if (includeRecentDumps) {
-        const dumpData = dumpRes?.data || [];
-        recentDumps = dumpData.map((d: any) => d.raw_text || d.content || '');
-    }
+
 
     // Habit Stacks processing
     let habitStacks: any[] = [];
@@ -201,7 +186,7 @@ export async function buildFeatureContext(
         userState,
         preferences: prefsData,
         chatHistory: includeChatHistory ? chatHistory : undefined,
-        recentDumps: includeRecentDumps ? recentDumps : undefined,
+
         habitStacks: includeHabitStacks ? habitStacks : undefined,
         capacity: {
             wake_time: wakeTime,

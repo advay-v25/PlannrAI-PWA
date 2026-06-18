@@ -337,6 +337,22 @@ function normalizePatchForService(patch: any): any {
                         op: 'delete_todo' as const,
                         todo_id: operation.todo_id,
                     };
+                case 'create_habit_stack':
+                    return {
+                        op: 'create_habit_stack' as const,
+                        payload: operation.data || {},
+                    };
+                case 'update_habit_stack':
+                    return {
+                        op: 'update_habit_stack' as const,
+                        stack_id: operation.stack_id,
+                        fields: operation.changes || operation.fields || {},
+                    };
+                case 'delete_habit_stack':
+                    return {
+                        op: 'delete_habit_stack' as const,
+                        stack_id: operation.stack_id,
+                    };
                 case 'update_settings':
                     return {
                         op: 'update_settings' as const,

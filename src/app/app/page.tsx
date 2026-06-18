@@ -523,6 +523,7 @@ export default function HomePage() {
                         goals={effectiveData.goals || []}
                         insight={effectiveData.insight?.text || briefing || effectiveState.proactive_insight?.message}
                         topTask={effectiveData.top_task}
+                        isPreview={isPreview}
                     />
                 }
                 timeline={

@@ -72,8 +72,24 @@ export type PatchOperation =
     | { type: 'create_todo'; data: NewTodoData }
     | { type: 'update_todo'; todo_id: string; changes: Partial<TodoData> }
     | { type: 'delete_todo'; todo_id: string }
+    | { type: 'create_habit_stack'; data: NewHabitStackData }
+    | { type: 'update_habit_stack'; stack_id: string; changes: Partial<HabitStackData> }
+    | { type: 'delete_habit_stack'; stack_id: string }
     | { type: 'update_settings'; data: any }
     | { type: 'update_memory'; key: string; value: any; kind?: string };
+
+interface NewHabitStackData {
+    name: string;
+    preferred_window: string;
+    steps: Array<{ title: string; minutes: number }>;
+}
+
+interface HabitStackData {
+    name: string;
+    preferred_window: string;
+    steps: Array<{ title: string; minutes: number }>;
+    is_active: boolean;
+}
 
 interface NewGoalData {
     title: string;
@@ -620,9 +636,6 @@ function findMissedBlock(
             msgLower.includes((b.context || '').toLowerCase())
         );
         if (messageMatch) return messageMatch;
-
-        // Fallback to the first missed block
-        return missedBlocks[0];
     }
 
     // 3. Try to scan user message for block names that exist in our schedule
@@ -1018,9 +1031,7 @@ async function generateAIScheduleResponse(
     // ── DETERMINISTIC SINGLE-BLOCK RESCHEDULE INTERCEPT ───────────────
     // Only for "move/reschedule THIS block" style prompts. Does NOT touch
     // replan_day / replan_week / reduce_load (minimal_os) — those fall through.
-    const isBlockRescheduleIntent =
-        classification.primary_intent === CoachIntent.MOVE_BLOCK ||
-        classification.primary_intent === CoachIntent.BUSY_AT_TIME;
+    const isBlockRescheduleIntent = classification.primary_intent === CoachIntent.MOVE_BLOCK;
     const isRejectionMsg = /none|neither|don't like|dont like|manual|myself|reject|stop/i.test(userMessage);
     if (isBlockRescheduleIntent && !isRejectionMsg) {
         const targetBlock = findMissedBlock(userMessage, classification, coachCtx);
@@ -1113,11 +1124,14 @@ STRATEGIC DIRECTIVES:
      * Single block CREATION of a 'flex' block.
      * Single to-do task creation (\`create_todo\`).
      * Status updates for existing blocks.
+     * Settings updates (\`update_settings\`).
+     * Memory updates (\`update_memory\`).
    - SELECT "suggested_mode": "propose" ALWAYS for:
      * ANY change involving 'anchor' blocks.
      * Multi-block rescheduling (> 1 block moved/created).
      * Any change spanning multiple days.
      * Large-scale optimizations or deletions.
+     * Goal modifications (\`create_goal\`, \`update_goal\`, \`delete_goal\`).
 
 🎯 GOAL TIME ENFORCEMENT (CRITICAL):
 - Each goal has a minutes_per_day and days_per_week constraint shown in ACTIVE GOALS.
@@ -1136,6 +1150,21 @@ STRATEGIC DIRECTIVES:
   6. If you cannot find the block ID in the schedule, say so — do NOT invent an ID.
 - create_block is ONLY for adding a brand-new block that doesn't already exist.
 - If you use create_block when move_block was needed, you will duplicate the block and leave the original in place — this is WRONG.
+
+🛠️ AGENTIC MODIFICATIONS & SETTINGS (NEW CAPABILITIES):
+- You have the power to modify the user's core configuration if they ask.
+- \`update_settings\`: Use this to alter global settings. Valid fields in data payload:
+  - \`sleep_start\`, \`sleep_end\` (HH:MM string)
+  - \`meal_time_1\`, \`meal_time_2\`, \`meal_time_3\` (HH:MM string)
+  - \`theme\` ('light', 'dark', 'system')
+  - Example: User says "Change my lunch to 1pm". You output: \`{ "type": "update_settings", "data": { "meal_time_2": "13:00" } }\`.
+- \`update_goal\`: Use this to alter an existing goal. Valid fields in changes:
+  - \`title\` (string), \`pillar\` ('mind'|'body'|'craft'), \`minutes_per_day\` (number), \`days_per_week\` (number), \`priority\` (1|2|3).
+  - Example: User says "Reduce my gym goal to 3 days". Output: \`{ "type": "update_goal", "goal_id": "...", "changes": { "days_per_week": 3 } }\`.
+- \`create_goal\`: Use to create a brand new goal. Fields: \`title\`, \`pillar\`, \`minutes_per_day\`, \`days_per_week\`, \`priority\`.
+- \`update_memory\`: Use to record mindspace or long-term facts.
+  - Example: User says "I prefer to workout in the mornings". Output: \`{ "type": "update_memory", "key": "workout_preference", "value": "mornings", "kind": "preference" }\`.
+- \`create_todo\` / \`update_todo\` / \`delete_todo\`: Use for managing standalone tasks that don't need calendar blocks right now.
 
 🚫 IMMUTABLE BLOCKS (PROCEED WITH CAUTION):
 - Sleep, meals, wind_down, and anchors are biological necessities and fixed commitments.
@@ -1248,17 +1277,29 @@ PATCH OPERATION TYPES:
 - create_block: { type: "create_block", data: { date, start_time, end_time, title, context, block_type, goal_id?, pillar?, checklist? } }
 - move_block: { type: "move_block", block_id: "existing-id", title: "Block Title", new_start: "HH:MM", new_end: "HH:MM", new_date?: "YYYY-MM-DD" }
 - update_block: { type: "update_block", block_id: "existing-id", title: "Block Title", changes: { status?, title?, start_time?, end_time? } }
-- delete_block: { type: "delete_block", block_id: "existing-id", title: "Block Title" }
-- replan_week: { type: "replan_week", mode: "balanced|momentum|recovery", allow_weekend: boolean } Use this when user wants to replan the rest of their week.
-- replan_day: { type: "replan_day", mode: "balanced|momentum|recovery" } Use this when user wants to replan ONLY today to fit missed blocks.
-- create_goal: { type: "create_goal", data: { title, pillar, minutes_per_day, days_per_week } }
-- update_goal: { type: "update_goal", goal_id: "existing-id", changes: { ... } }
-- delete_goal: { type: "delete_goal", goal_id: "existing-id", title: "Goal Title" }
-- create_todo: { type: "create_todo", data: { title, due_date?, priority? } }
-- update_todo: { type: "update_todo", todo_id: "existing-id", changes: { is_completed?, title?, due_date?, priority? } }
-- delete_todo: { type: "delete_todo", todo_id: "existing-id" }
-- update_settings: { type: "update_settings", data: { ... } }
-- update_memory: { type: "update_memory", key: string, value: any, kind?: string }
+- If the user says a block "ran late", "was extended", or "took longer", you MUST generate an \`update_block\` operation on that block, extending its \`end_time\` by the requested duration. The backend Auto-Cascade engine will automatically shift the subsequent flexible blocks to make space.
+- If the user needs to add an ad-hoc event like "grocery shopping" or "going out with friends", infer a reasonable duration (e.g., 60-120 mins). You must safely place a \`create_block\` in a free slot OR if they specify a time that overlaps flexible blocks, let Auto-Cascade shift them.
+- NEVER let ad-hoc events or extensions overlap with immutable blocks (anchors/sleep/meals). If an extension hits an anchor, you must warn them in the \`tradeoff\` field.
+
+⚙️ PATCH OPERATION TYPES:
+- create_block: { type: "create_block", data: { title: string, date: string, start_time: string, end_time: string, block_type: string, goal_id?: string } }
+- move_block: { type: "move_block", block_id: string, new_date?: string, new_start: string, new_end: string }
+- delete_block: { type: "delete_block", block_id: string }
+- compress_block: { type: "compress_block", block_id: string, new_start: string, new_end: string }
+- update_block: { type: "update_block", block_id: string, changes: { title?: string, start_time?: string, end_time?: string } }
+- replan_day: { type: "replan_day", mode: "balanced|momentum|recovery" }
+- replan_week: { type: "replan_week", mode: "balanced|momentum|recovery" }
+- update_settings: { type: "update_settings", data: { sleep_start?: string, sleep_end?: string, meal_time_1?: string, meal_time_2?: string, meal_time_3?: string, theme?: string } }
+- update_memory: { type: "update_memory", key: string, value: any, kind: string }
+- create_goal: { type: "create_goal", data: { title: string, pillar: "mind"|"body"|"craft", minutes_per_day: number, days_per_week: number, priority?: number } }
+- update_goal: { type: "update_goal", goal_id: string, changes: { title?: string, minutes_per_day?: number, days_per_week?: number, priority?: number } }
+- delete_goal: { type: "delete_goal", goal_id: string }
+- create_todo: { type: "create_todo", data: { title: string, due_date?: string, priority?: string } }
+- update_todo: { type: "update_todo", todo_id: string, changes: { title?: string, is_completed?: boolean, due_date?: string, priority?: string } }
+- delete_todo: { type: "delete_todo", todo_id: string }
+- create_habit_stack: { type: "create_habit_stack", data: { name: string, preferred_window: "morning"|"afternoon"|"evening", steps: [{title: string, minutes: number}] } }
+- update_habit_stack: { type: "update_habit_stack", stack_id: string, changes: { name?: string, preferred_window?: string, steps?: [{title: string, minutes: number}], is_active?: boolean } }
+- delete_habit_stack: { type: "delete_habit_stack", stack_id: string }
 
 --- FINAL VALIDATION CHECKLIST (CHECK EVERY OPTION BEFORE OUTPUTTING) ---
 For EACH option you generate, mentally verify ALL of the following BEFORE including it in your output:
@@ -1304,10 +1345,9 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
 
     const recentHistory = conversationHistory.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n');
 
-    const isMissedBlock = classification.primary_intent === CoachIntent.RESCHEDULE_DAY || 
-                          classification.primary_intent === CoachIntent.MOVE_BLOCK ||
-                          /missed|miss|didn't|did not|avoided|avoid|option|options|reschedule|move|shift|change|can't make|cant make|delay|postpone|skip|delayed|postponed|skipped/i.test(userMessage) || 
-                          /missed|miss|didn't|did not|avoided|avoid|option|options|reschedule|move|shift|change|delay|postpone|skip/i.test(recentHistory);
+    const isMissedBlock = !!(coachCtx as any).pre_resolved_block || 
+                          classification.primary_intent === CoachIntent.RESCHEDULE_DAY ||
+                          /missed|miss|didn't|did not|avoided|skip|skipped/i.test(userMessage);
 
     const isRejection = /none|neither|don't like|dont like|manual|myself|reject|no|stop/i.test(userMessage);
 

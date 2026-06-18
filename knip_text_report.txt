@@ -1,0 +1,374 @@
+[dotenv@17.2.3] injecting env (15) from .env.local -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+Unused files (225)
+e2e/auth.setup.ts                                          
+jest.config.js                                             
+public/sw.js                                               
+scratch_test_supabase.ts                                   
+scratch_test.js                                            
+scratch/inspect_all_conversations.ts                       
+scratch/inspect_db.ts                                      
+scratch/inspect_messages.ts                                
+scratch/inspect_week.ts                                    
+scratch/reset_password.js                                  
+scratch/test_ai_context.ts                                 
+scratch/test_date_fns.js                                   
+scratch/test_replan.ts                                     
+scripts/apply_rate_limit_sql.ts                            
+scripts/apply-cascade-fix.ts                               
+scripts/apply-hardening.ts                                 
+scripts/apply-rate-limits.ts                               
+scripts/audit-ctas.ts                                      
+scripts/audit-db.ts                                        
+scripts/clear-all-users.ts                                 
+scripts/create-debug-user.ts                               
+scripts/create-ui-user.ts                                  
+scripts/db/apply-phase1.ts                                 
+scripts/db/apply-phase2.ts                                 
+scripts/debug_commitments.ts                               
+scripts/debug-delete-user.ts                               
+scripts/delete_user.ts                                     
+scripts/export_schema.ts                                   
+scripts/fix_db_constraint.ts                               
+scripts/get-debug-user.ts                                  
+scripts/init-agent-options.ts                              
+scripts/inspect-all-user-fks.ts                            
+scripts/inspect-fk.ts                                      
+scripts/list-triggers.ts                                   
+scripts/migrate_manual.ts                                  
+scripts/migrate_remaining.ts                               
+scripts/seed-test-user.ts                                  
+scripts/setup-stagnation-ui-test.ts                        
+scripts/smoke-ai.ts                                        
+scripts/smoke-api.ts                                       
+scripts/stress_test_chaos.ts                               
+scripts/stress-test-ai.ts                                  
+scripts/stress-test.ts                                     
+scripts/test_active.ts                                     
+scripts/test_cmts.ts                                       
+scripts/test_coach_conversations.ts                        
+scripts/test_days.ts                                       
+scripts/test_fetch.ts                                      
+scripts/test_null_times.ts                                 
+scripts/test_parse.js                                      
+scripts/test_sat.ts                                        
+scripts/test_schema.ts                                     
+scripts/test_summary_api.ts                                
+scripts/test_summary_debug.ts                              
+scripts/test_summary_now.ts                                
+scripts/test_summary.ts                                    
+scripts/test_sunday_blocks.ts                              
+scripts/test_sunday.ts                                     
+scripts/test_tz.js                                         
+scripts/test-ai-channels.ts                                
+scripts/test-ai-reliability.ts                             
+scripts/test-ai.ts                                         
+scripts/test-anchors.ts                                    
+scripts/test-backend-integration.ts                        
+scripts/test-behavior.ts                                   
+scripts/test-briefing.ts                                   
+scripts/test-persona.ts                                    
+scripts/test-pipeline.ts                                   
+scripts/test-sacrifice.ts                                  
+scripts/test-scheduler.ts                                  
+scripts/test-state-engine.ts                               
+scripts/test-validation.ts                                 
+scripts/test-weekly-intelligence.ts                        
+scripts/validate-anchors.ts                                
+scripts/verify-action-contract.ts                          
+scripts/verify-calendar-law.ts                             
+scripts/verify-context.ts                                  
+scripts/verify-db-schema.ts                                
+scripts/verify-failure-mode.ts                             
+scripts/verify-full-flow.ts                                
+scripts/verify-onboarding-fix.ts                           
+scripts/verify-one-engine.ts                               
+scripts/verify-patch-fix.ts                                
+scripts/verify-phase7.ts                                   
+scripts/verify-pillar1.ts                                  
+scripts/verify-pillar2.ts                                  
+scripts/verify-pillar3.ts                                  
+scripts/verify-pillar4.ts                                  
+scripts/verify-scheduler.ts                                
+scripts/verify-thinking.ts                                 
+scripts/verify-undo-fix.ts                                 
+scripts/wipe-developer-account.ts                          
+src/app/actions/anticipation.ts                            
+src/app/actions/apply-lever.ts                             
+src/app/actions/intelligence.ts                            
+src/app/app/settings/_components/body-diet.tsx             
+src/app/app/settings/_components/integrations.tsx          
+src/app/app/settings/_components/personal-rules-manager.tsx
+src/app/app/settings/_components/productivity-profile.tsx  
+src/app/app/settings/_components/work-preferences.tsx      
+src/components/ai-insight-card.tsx                         
+src/components/ai-suggestion-chip.tsx                      
+src/components/calendar/agenda-view.tsx                    
+src/components/calendar/calendar-layout.tsx                
+src/components/calendar/conflict-resolution-modal.tsx      
+src/components/calendar/control-stack.tsx                  
+src/components/calendar/daily-grid.tsx                     
+src/components/calendar/patch-preview-modal.tsx            
+src/components/calendar/proactive-inbox.tsx                
+src/components/coach/CoachOptionCard.tsx                   
+src/components/coach/ProactiveBanner.tsx                   
+src/components/dashboard/ambient-pulse.tsx                 
+src/components/dashboard/anticipation-banner.tsx           
+src/components/dashboard/focus-compass.tsx                 
+src/components/dashboard/focus-hero.tsx                    
+src/components/dashboard/intelligence-heartbeat.tsx        
+src/components/dashboard/intervention-card.tsx             
+src/components/dashboard/morning-briefing.tsx              
+src/components/dashboard/pillar-balance.tsx                
+src/components/dashboard/pillar-pulse.tsx                  
+src/components/dashboard/reality-intake.tsx                
+src/components/dashboard/timeline-strip.tsx                
+src/components/dashboard/wisdom-feed.tsx                   
+src/components/deviation-classifier.tsx                    
+src/components/goal-interpret.tsx                          
+src/components/goals/clear-goals-dialog.tsx                
+src/components/goals/commitment-modal.tsx                  
+src/components/goals/goal-strategy-modal.tsx               
+src/components/goals/strategy-option-card.tsx              
+src/components/habit-grid.tsx                              
+src/components/habit-stacks.tsx                            
+src/components/habit-stacks/habit-stack-wizard.tsx         
+src/components/home/ai-profile-badge.tsx                   
+src/components/home/briefing-module.tsx                    
+src/components/home/habit-stacks.tsx                       
+src/components/home/home-header.tsx                        
+src/components/home/home-todos.tsx                         
+src/components/home/insights-card.tsx                      
+src/components/home/next-up-card.tsx                       
+src/components/home/now-card.tsx                           
+src/components/home/priorities-card.tsx                    
+src/components/home/reality-intake.tsx                     
+src/components/home/stacks-module.tsx                      
+src/components/home/state-hero.tsx                         
+src/components/home/timeline-strip.tsx                     
+src/components/home/today-checklist.tsx                    
+src/components/navigation/tab-bar.tsx                      
+src/components/next-move.tsx                               
+src/components/onboarding/step-1-framing.tsx               
+src/components/onboarding/step-2-time.tsx                  
+src/components/onboarding/step-3-goals.tsx                 
+src/components/onboarding/step-3-meals.tsx                 
+src/components/onboarding/step-4-baseline.tsx              
+src/components/onboarding/step-4-commitments.tsx           
+src/components/onboarding/step-5-body.tsx                  
+src/components/onboarding/step-5-permissions.tsx           
+src/components/onboarding/step-6-complete.tsx              
+src/components/reality-intake.tsx                          
+src/components/routines/routine-card.tsx                   
+src/components/settings/status-panel.tsx                   
+src/components/settings/usage-gauge.tsx                    
+src/components/ui/button.tsx                               
+src/components/ui/energy-gauge.tsx                         
+src/components/ui/error-boundary.tsx                       
+src/components/ui/glass-toggle.tsx                         
+src/components/ui/real-time-indicator.tsx                  
+src/components/ui/skeleton.tsx                             
+src/hooks/use-capacity.ts                                  
+src/hooks/use-coach-analytics.ts                           
+src/hooks/use-home-manager.ts                              
+src/hooks/use-patch-pipeline.tsx                           
+src/hooks/use-schedule-watchdog.ts                         
+src/lib/ai/goals-strategy.ts                               
+src/lib/calendar/conflict-resolver.ts                      
+src/lib/calendar/meal-planner.ts                           
+src/lib/calendar/operation-logger.ts                       
+src/lib/calendar/optimise-week-service.ts                  
+src/lib/calendar/plan-week-service.ts                      
+src/lib/calendar/scoring-engine.ts                         
+src/lib/calendar/types.ts                                  
+src/lib/calendar/utils.ts                                  
+src/lib/calendar/week-orchestrator.ts                      
+src/lib/capacity.ts                                        
+src/lib/celebration.ts                                     
+src/lib/coach/__tests__/intent-classifier.test.ts          
+src/lib/coach/proactive-checker.ts                         
+src/lib/context-service.ts                                 
+src/lib/date-safe.ts                                       
+src/lib/intelligence/anticipation-service.ts               
+src/lib/scheduler/conflict-utils.ts                        
+src/lib/scheduler/scheduler-service.ts                     
+src/lib/scheduling/optimization-service.ts                 
+src/lib/scheduling/week-service.ts                         
+src/lib/security/encryption.ts                             
+src/lib/security/index.ts                                  
+src/lib/security/session-manager.ts                        
+src/lib/services/emergency-service.ts                      
+src/scripts/check_db.ts                                    
+src/scripts/deep-reset.ts                                  
+src/scripts/simulate_ai_channels.ts                        
+src/scripts/stress_test_coach.ts                           
+src/scripts/test_apply_schedule.ts                         
+src/scripts/test_calendar_api.ts                           
+src/scripts/test_calendar_audit.ts                         
+src/scripts/test_calendar_e2e.ts                           
+src/scripts/test_constraint.ts                             
+src/scripts/test_insert_block.ts                           
+src/scripts/test_orchestrator.ts                           
+src/scripts/test_plan_apply.ts                             
+src/scripts/test_week_orchestrator.ts                      
+src/scripts/test_weekly_review.ts                          
+src/scripts/test-calendar-engine.ts                        
+src/scripts/test-coach-ai.ts                               
+src/scripts/test-plan-week.ts                              
+src/stores/agent-store.ts                                  
+src/types/calendar-patch.ts                                
+src/types/todos.ts                                         
+src/types/v1.ts                                            
+test_habit.ts                                              
+test-checkin.ts                                            
+test-coach.ts                                              
+test-drop-constraint.ts                                    
+test-get-user.ts                                           
+test-insert.ts                                             
+test-upsert.ts                                             
+Unused dependencies (14)
+@ai-sdk/react          package.json:18:6
+@dnd-kit/modifiers     package.json:20:6
+@dnd-kit/sortable      package.json:21:6
+@dnd-kit/utilities     package.json:22:6
+@google/generative-ai  package.json:23:6
+@types/uuid            package.json:37:6
+ai                     package.json:39:6
+cobe                   package.json:43:6
+glob                   package.json:47:6
+gsap                   package.json:49:6
+node-fetch             package.json:54:6
+react-markdown         package.json:58:6
+recharts               package.json:59:6
+three                  package.json:62:6
+Unused devDependencies (3)
+@types/pg  package.json:76:6
+pg         package.json:82:6
+ts-jest    package.json:84:6
+Unlisted binaries (1)
+tsx  package.json
+Unresolved imports (1)
+../src/lib/ai/memory  scripts/test-memory.ts:7:31
+Unused exports (70)
+PlanWeekFAB                      function  src/components/calendar/plan-week-modal.tsx:288:17        
+calendarAnimationVariants                  src/components/calendar/premium-calendar-styles.tsx:52:14 
+getPremiumBlockColors                      src/components/calendar/premium-calendar-styles.tsx:80:14 
+getStatusStyles                            src/components/calendar/premium-calendar-styles.tsx:149:14
+interpolateTimeProgress                    src/components/calendar/premium-calendar-styles.tsx:186:14
+useKeyboardShortcuts                       src/components/calendar/premium-calendar-styles.tsx:199:14
+useSwipeGestures                           src/components/calendar/premium-calendar-styles.tsx:214:14
+glassButtonVariants                        src/components/ui/glass-button.tsx:77:23                  
+StaticGlassCard                  function  src/components/ui/glass-card.tsx:64:17                    
+GlassTextarea                              src/components/ui/glass-input.tsx:84:14                   
+PlannerIntentSchema                        src/lib/agents/core/types.ts:39:14                        
+TimeRefSchema                              src/lib/agents/core/types.ts:52:14                        
+CalendarChangeSchema                       src/lib/agents/core/types.ts:92:14                        
+SacrificeSchema                            src/lib/agents/core/types.ts:98:14                        
+CalendarPatchSchema                        src/lib/agents/core/types.ts:108:14                       
+SchedulerOptionSchema                      src/lib/agents/core/types.ts:118:14                       
+SYSTEM_CONSTITUTION                        src/lib/ai/groq-client.ts:7:14                            
+GroqError                        class     src/lib/ai/groq-client.ts:69:14                           
+CoachOutputSchema                          src/lib/ai/registry.ts:25:14                              
+OnboardingPlanOutputSchema                 src/lib/ai/registry.ts:58:14                              
+HabitStackOutputSchema                     src/lib/ai/registry.ts:67:14                              
+GoalStrategyOutputSchema                   src/lib/ai/registry.ts:82:14                              
+WeeklyReviewOutputSchema                   src/lib/ai/registry.ts:97:14                              
+GoalDecompositionSchema                    src/lib/ai/registry.ts:111:14                             
+DailyBriefingOutputSchema                  src/lib/ai/registry.ts:155:14                             
+OnboardingInsightOutputSchema              src/lib/ai/registry.ts:162:14                             
+ProactiveProposalSchema                    src/lib/ai/registry.ts:175:14                             
+ScheduleVariantSchema                      src/lib/ai/schemas.ts:77:14                               
+ModeEnum                                   src/lib/ai/schemas.ts:145:14                              
+PatchOpSchema                              src/lib/ai/schemas.ts:147:14                              
+CanonicalPatchOpSchema                     src/lib/ai/schemas.ts:246:14                              
+CalendarOptionSchema                       src/lib/ai/schemas.ts:292:14                              
+WeeklyReviewOutputSchema                   src/lib/ai/schemas.ts:312:14                              
+CoachResponseSchema                        src/lib/ai/schemas.ts:325:14                              
+OptionSchema                               src/lib/ai/schemas.ts:362:14                              
+QuestionSchema                             src/lib/ai/schemas.ts:370:14                              
+GoalDecompositionSchema                    src/lib/ai/schemas.ts:376:14                              
+RefusalSchema                              src/lib/ai/schemas.ts:396:14                              
+StackSchema                                src/lib/ai/schemas.ts:401:14                              
+buildCoachContext                function  src/lib/coach/coach-context.ts:5:23                       
+INTENT_EXAMPLES                            src/lib/coach/intent-classifier.ts:67:14                  
+buildIntentClassificationPrompt  function  src/lib/coach/intent-classifier.ts:266:17                 
+checkRateLimit                   function  src/lib/rate-limit.ts:12:23                               
+rebuildSchedule                  function  src/lib/scheduling/solver.ts:98:17                        
+resolveOverlaps                  function  src/lib/scheduling/solver.ts:157:17                       
+logDataAccess                    function  src/lib/security/audit-logger.ts:90:23                    
+getUserAuditLogs                 function  src/lib/security/audit-logger.ts:205:23                   
+detectSuspiciousPatterns         function  src/lib/security/audit-logger.ts:224:23                   
+escapeHtml                       function  src/lib/security/input-validator.ts:130:17                
+validateEmail                    function  src/lib/security/input-validator.ts:155:17                
+validateUUID                     function  src/lib/security/input-validator.ts:174:17                
+validateCoachMessage             function  src/lib/security/input-validator.ts:187:17                
+sanitizeObject                   function  src/lib/security/input-validator.ts:212:17                
+sanitizeForAI                    function  src/lib/security/input-validator.ts:242:17                
+applySecurityHeaders             function  src/lib/security/security-headers.ts:31:17                
+formatDate                       function  src/lib/utils.ts:8:17                                     
+formatTime                       function  src/lib/utils.ts:18:17                                    
+formatTimeString                 function  src/lib/utils.ts:27:17                                    
+getGreeting                      function  src/lib/utils.ts:37:17                                    
+calculateProgress                function  src/lib/utils.ts:44:17                                    
+PatchOpSchema                              src/lib/validation/calendar-contract.ts:22:14             
+PatchChangeSchema                          src/lib/validation/calendar-contract.ts:33:14             
+SacrificeSchema                            src/lib/validation/calendar-contract.ts:110:14            
+CalendarPatchSchema                        src/lib/validation/calendar-contract.ts:121:14            
+CoachActionTypeSchema                      src/lib/validation/calendar-contract.ts:138:14            
+CoachOptionSchema                          src/lib/validation/calendar-contract.ts:148:14            
+CoachPlanResponseSchema                    src/lib/validation/calendar-contract.ts:158:14            
+IMMUTABLE_BLOCK_TYPES                      src/lib/validation/calendar-contract.ts:183:14            
+isImmutable                      function  src/lib/validation/calendar-contract.ts:185:17            
+Constants                                  src/types/database.ts:2567:14                             
+Unused exported types (50)
+Metrics                  interface  src/components/home/progress-bars.tsx:7:18    
+GlassButtonProps         interface  src/components/ui/glass-button.tsx:31:18      
+PageBgColor              type       src/components/ui/PageBackground.tsx:3:13     
+PageBgVariant            type       src/components/ui/PageBackground.tsx:4:13     
+PageBgIntensity          type       src/components/ui/PageBackground.tsx:5:13     
+ScheduleStrategy         type       src/hooks/use-schedule-sync.ts:15:13          
+EnergyLevel              type       src/lib/agents/core/types.ts:7:13             
+EmotionalState           type       src/lib/agents/core/types.ts:8:13             
+BlockType                type       src/lib/agents/core/types.ts:19:13            
+EnergyCost               type       src/lib/agents/core/types.ts:20:13            
+PlannerIntent            type       src/lib/agents/core/types.ts:50:13            
+SystemPromptType         type       src/lib/ai/groq-client.ts:62:13               
+Role                     type       src/lib/ai/groq-client.ts:66:13               
+AIContext                type       src/lib/ai/registry.ts:15:13                  
+AILimits                 type       src/lib/ai/registry.ts:16:13                  
+CanonicalPatchOp         type       src/lib/ai/schemas.ts:289:13                  
+FirstScheduleGenerator   type       src/lib/ai/schemas.ts:458:13                  
+ScheduleVariant          type       src/lib/ai/schemas.ts:459:13                  
+GoalDiscoveryExtraction  type       src/lib/ai/schemas.ts:460:13                  
+LifeSnapshotExtraction   type       src/lib/ai/schemas.ts:461:13                  
+PatchOp                  type       src/lib/ai/schemas.ts:464:13                  
+AIModel                  type       src/lib/ai/unified-client.ts:9:13             
+ApiErrorCode             type       src/lib/api/api-utils.ts:13:13                
+ApiEnvelope              type       src/lib/api/envelope.ts:4:13                  
+DayOptimization          interface  src/lib/calendar/ai/optimize-day.ts:18:18     
+PatchOp                  interface  src/lib/calendar/ai/optimize-day.ts:26:18     
+PlanBlock                interface  src/lib/calendar/ai/plan-week.ts:26:18        
+CoachOption              interface  src/lib/coach/response-generator.ts:37:18     
+SchedulePatch            interface  src/lib/coach/response-generator.ts:57:18     
+PatchOperation           type       src/lib/coach/response-generator.ts:62:13     
+ResolutionOption         type       src/lib/scheduling/conflict-service.ts:4:13   
+AuditAction              type       src/lib/security/audit-logger.ts:8:13         
+PatchOpType              type       src/lib/services/patch-service.ts:9:13        
+MealWindow               interface  src/lib/types/settings.ts:3:18                
+PillarWindow             interface  src/lib/types/settings.ts:10:18               
+PatchOp                  type       src/lib/validation/calendar-contract.ts:172:13
+PatchChange              type       src/lib/validation/calendar-contract.ts:173:13
+CoachOption              type       src/lib/validation/calendar-contract.ts:175:13
+CoachPlanResponse        type       src/lib/validation/calendar-contract.ts:176:13
+Sacrifice                type       src/lib/validation/calendar-contract.ts:177:13
+CoachMode                type       src/types/coach-v4.ts:4:13                    
+CalendarPatchOp          interface  src/types/coach-v4.ts:6:18                    
+CalendarPatch            interface  src/types/coach-v4.ts:28:18                   
+Json                     type       src/types/database.ts:1:13                    
+Tables                   type       src/types/database.ts:2454:13                 
+TablesInsert             type       src/types/database.ts:2483:13                 
+TablesUpdate             type       src/types/database.ts:2508:13                 
+Enums                    type       src/types/database.ts:2533:13                 
+CompositeTypes           type       src/types/database.ts:2550:13                 
+GoalStatus               type       src/types/goals.ts:4:13                       
+Duplicate exports (1)
+apiFail|apiError  src/lib/api/envelope.ts

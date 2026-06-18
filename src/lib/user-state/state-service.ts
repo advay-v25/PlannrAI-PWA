@@ -44,7 +44,7 @@ export class StateService {
         const completedBlocks = blocks?.filter(b => b.status === 'done').length || 0;
         const completionRate = totalBlocks > 0 ? (completedBlocks / totalBlocks) : 1.0;
 
-        // 3. Determine sentiment (Defaulting to neutral, previously from Brain Dump)
+        // 3. Determine sentiment
         let sentiment: 'positive' | 'negative' | 'neutral' = 'neutral';
 
         // 4. Construct Inputs

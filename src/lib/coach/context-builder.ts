@@ -44,6 +44,15 @@ export interface CoachContext {
         priority?: string;
     }>;
 
+    habit_stacks: Array<{
+        id: string;
+        name: string;
+        steps: any;
+        preferred_window: string;
+        current_streak: number;
+        is_active: boolean;
+    }>;
+
     schedule: {
         today: ScheduleBlock[];
         tomorrow: ScheduleBlock[];
@@ -136,6 +145,7 @@ export async function buildCoachContext(
     // 3. Parallel fetch all remaining data using the localized dates
     const [
         goalsRes,
+        habitStacksRes,
         commitmentsRes,
         todayBlocksRes,
         tomorrowBlocksRes,
@@ -151,6 +161,11 @@ export async function buildCoachContext(
             .select('id, title, pillar, category, weekly_target_minutes, current_streak_days, priority, importance, status, energy_demand, minutes_per_day, days_per_week, ai_strategy')
             .eq('user_id', userId)
             .eq('status', 'active'),
+
+        supabase.from('habit_stacks')
+            .select('id, name, steps, preferred_window, current_streak, is_active')
+            .eq('user_id', userId)
+            .eq('enabled', true),
 
         supabase.from('commitments')
             .select('id, title, start_time, end_time, days_of_week, is_active')
@@ -222,6 +237,7 @@ export async function buildCoachContext(
 
 
     const goals = goalsRes.data || [];
+    const habit_stacks = habitStacksRes.data || [];
     const commitments = commitmentsRes.data || [];
     const todayBlocks = todayBlocksRes.data || [];
     const tomorrowBlocks = tomorrowBlocksRes.data || [];
@@ -310,6 +326,7 @@ export async function buildCoachContext(
             failure_modes: (profile.bio_data as any)?.failure_modes || [],
         },
         goals,
+        habit_stacks,
         todos,
         commitments: commitments.map((c: any) => ({
             ...c,
