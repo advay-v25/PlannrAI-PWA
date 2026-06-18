@@ -557,6 +557,22 @@ function findMissedBlockDuration(
         if (duration > 0) return duration;
     }
 
+    // 4. Word-level partial match for duration lookup (same logic as findMissedBlock step 4)
+    const msgWords = msgLower.split(/\W+/).filter(w => w.length >= 3);
+    const wordMatch = allBlocks
+        .map(b => {
+            const t = ((b as any).title || b.context || '').toLowerCase();
+            const tWords = t.split(/\W+/).filter((w: string) => w.length >= 3);
+            const hits = tWords.filter((w: string) => msgWords.includes(w)).length;
+            return { block: b, hits };
+        })
+        .filter(x => x.hits > 0)
+        .sort((a, b) => b.hits - a.hits)[0]?.block;
+    if (wordMatch) {
+        const duration = timeToMinutes(wordMatch.end_time) - timeToMinutes(wordMatch.start_time);
+        if (duration > 0) return duration;
+    }
+
     // Default fallback: 30 minutes
     return 30;
 }
@@ -617,6 +633,22 @@ function findMissedBlock(
         return (t && msgLower.includes(t)) || (c && msgLower.includes(c));
     });
     if (titleMatch) return titleMatch;
+
+    // 4. Word-level partial match: any meaningful word (≥3 chars) from a block title appears
+    // in the message. This catches "move my workout" → "Gym Session" (word "gym" matches).
+    // Only considers planned/future blocks and sorts by match quality (most matching words first).
+    const msgWords = msgLower.split(/\W+/).filter(w => w.length >= 3);
+    const scored = allBlocks
+        .filter(b => b.status === 'planned' || b.status === 'missed')
+        .map(b => {
+            const t = ((b as any).title || b.context || '').toLowerCase();
+            const tWords = t.split(/\W+/).filter((w: string) => w.length >= 3);
+            const hits = tWords.filter((w: string) => msgWords.includes(w)).length;
+            return { block: b, hits };
+        })
+        .filter(x => x.hits > 0)
+        .sort((a, b) => b.hits - a.hits);
+    if (scored.length > 0) return scored[0].block;
 
     return null;
 }

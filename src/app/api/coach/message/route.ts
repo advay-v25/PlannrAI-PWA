@@ -157,8 +157,11 @@ export const POST = secureApiRoute(
                     const bTitle = (b.title || b.context || '').toLowerCase();
                     const bWords = bTitle.split(/\s+/);
                     for (const word of bWords) {
-                        if (word.length > 3 && msgLower.includes(word)) score += 2;
+                        // Match any word ≥ 2 chars so short block names like "Gym" still score
+                        if (word.length >= 2 && msgLower.includes(word)) score += 2;
                     }
+                    // Exact block title as substring scores extra (stronger signal)
+                    if (bTitle.length >= 2 && msgLower.includes(bTitle)) score += 3;
                     const timeMatches = message.match(/\b(\d{1,2}):(\d{2})\b/g) || [];
                     for (const t of timeMatches) {
                         if (b.start_time?.startsWith(t.padStart(5, '0'))) score += 5;
@@ -180,6 +183,7 @@ export const POST = secureApiRoute(
                     return { block: b, score };
                 });
                 scored.sort((a: any, b: any) => b.score - a.score);
+                // Accept the top-scoring block as long as it has any signal at all
                 if (scored[0].score > 0) preResolvedBlock = scored[0].block;
             }
         }
