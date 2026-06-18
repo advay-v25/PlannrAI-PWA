@@ -27,7 +27,7 @@ export const POST = secureApiRoute(
             const { buildFeatureContext } = await import('@/lib/services/feature-context');
             const featureCtx = await buildFeatureContext(userId, supabase, {
                 includeChatHistory: false,
-                includeRecentDumps: false,
+
                 includeHabitStacks: false,
                 weekDays: 1
             });

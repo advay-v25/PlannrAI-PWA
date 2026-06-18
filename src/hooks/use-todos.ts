@@ -110,12 +110,6 @@ export function useTodos() {
         await apiClient.post('/api/todos', { action: 'reorder_todos', updates });
     };
 
-    const dumpThoughts = async (text: string) => {
-        await apiClient.post('/api/todos/dump', { text });
-        await loadTodos();
-        window.dispatchEvent(new CustomEvent('calendar-refresh'));
-    };
-
     return {
         todos,
         isLoading,
@@ -123,7 +117,6 @@ export function useTodos() {
         toggleTodo,
         updateTodo,
         deleteTodo,
-        reorderTodos,
-        dumpThoughts
+        reorderTodos
     };
 }

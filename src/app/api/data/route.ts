@@ -71,7 +71,7 @@ export const DELETE = secureApiRoute(
             'ai_proposals',
             'daily_logs',
             'habit_logs',         // must come before habit_stacks (FK)
-            'brain_dump_entries',
+
             'session_bindings',
         ];
 

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { buildCoachContext } from '@/lib/coach/context-builder';
-import { classifyIntent } from '@/lib/coach/intent-classifier';
+import { classifyIntent, CoachIntent } from '@/lib/coach/intent-classifier';
 import { generateCoachResponse } from '@/lib/coach/response-generator';
 import { secureApiRoute, SecureApiContext } from '@/lib/security/api-protection';
 
@@ -214,13 +214,13 @@ export const POST = secureApiRoute(
 
         let topicUpdate: any = {};
         if (conversationHistory.length === 0) { // Only set on first message
-            if (intentClassification.primary_intent === 'replan_today') {
+            if (intentClassification.primary_intent === CoachIntent.RESCHEDULE_DAY) {
                 topicUpdate.primary_topic = "Fix Today's Schedule";
-            } else if (intentClassification.primary_intent === 'reduce_load') {
+            } else if (intentClassification.primary_intent === CoachIntent.MINIMAL_OS) {
                 topicUpdate.primary_topic = "Reduce Today's Load";
             } else if (preResolvedBlock?.title) {
                 topicUpdate.primary_topic = `Reschedule: ${preResolvedBlock.title}`;
-            } else if (intentClassification.primary_intent === 'reschedule_block' || intentClassification.primary_intent === 'missed_block') {
+            } else if (intentClassification.primary_intent === CoachIntent.MOVE_BLOCK) {
                 topicUpdate.primary_topic = "Reschedule Block";
             }
         }

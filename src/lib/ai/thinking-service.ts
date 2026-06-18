@@ -16,7 +16,7 @@ export class ThinkingService {
 
             const featureCtx = await buildFeatureContext(userId, supabase, {
                 includeChatHistory: false,
-                includeRecentDumps: true,
+
                 includeHabitStacks: true,
                 weekDays: 3
             });

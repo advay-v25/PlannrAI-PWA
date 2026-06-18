@@ -225,7 +225,7 @@ export async function executeAI(userId: string, body: ExecuteRequest) {
                 const featureSupabase = await createClient();
                 const featureCtx = await buildFeatureContext(userId, featureSupabase, {
                     includeChatHistory: channel === 'coach',
-                    includeRecentDumps: false,
+
                     weekDays: channel === 'weekly_review' ? 7 : channel.startsWith('calendar_') ? 7 : 3
                 });
                 richContext = { ...richContext, ...featureCtx };

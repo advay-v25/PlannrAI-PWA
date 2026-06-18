@@ -3,14 +3,16 @@
 import { GlassCard } from '@/components/ui/glass-card';
 import { Target, Sparkles, Crosshair, Brain } from 'lucide-react';
 import Link from 'next/link';
+import { HabitStackTile } from '@/components/habit-stacks/habit-stack-tile';
 
 interface DashboardCardsProps {
     goals: Array<{ id: string; title: string; progress?: number; minutes_per_day?: number; importance?: string }>;
     insight?: string;
     topTask?: { id: string; title: string } | null;
+    isPreview?: boolean;
 }
 
-export function DashboardCards({ goals, insight, topTask }: DashboardCardsProps) {
+export function DashboardCards({ goals, insight, topTask, isPreview = false }: DashboardCardsProps) {
     // Fill with sample data if empty for visual completeness
     const displayGoals = goals && goals.length > 0 
         ? goals.slice(0, 3) 
@@ -51,27 +53,8 @@ export function DashboardCards({ goals, insight, topTask }: DashboardCardsProps)
                 </GlassCard>
             </Link>
 
-            {/* Habit Stacks (Coming Soon) */}
-            <GlassCard className="p-6 relative overflow-hidden group">
-                {/* Construction Strip */}
-                <div className="absolute top-5 -right-12 bg-yellow-500 text-black text-[10px] font-bold py-1 w-40 text-center rotate-45 transform uppercase tracking-wider z-10 shadow-lg">
-                    Coming Soon
-                </div>
-                
-                <div className="flex items-center gap-2 mb-4 opacity-50 transition-opacity group-hover:opacity-100">
-                    <Target className="w-5 h-5 text-emerald-400" />
-                    <h3 className="font-semibold text-sm text-[var(--text-secondary)]">Habit Stacks</h3>
-                </div>
-                <div className="space-y-3 opacity-30 grayscale transition-all duration-300 group-hover:opacity-50">
-                    <div className="h-2 w-full bg-[var(--glass-border)] rounded-full overflow-hidden">
-                        <div className="h-full w-2/3 bg-emerald-400" />
-                    </div>
-                    <div className="flex justify-between text-xs text-[var(--text-secondary)]">
-                        <span>Morning Stack</span>
-                        <span>2/3 Done</span>
-                    </div>
-                </div>
-            </GlassCard>
+            {/* Habit Stacks */}
+            <HabitStackTile isPreview={isPreview} />
 
             {/* Active Goals Card */}
             <Link href="/app/goals" className="block outline-none focus:ring-2 focus:ring-[var(--color-primary)] rounded-2xl transition-transform hover:scale-[1.02]">
