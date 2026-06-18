@@ -20,6 +20,7 @@ export interface AICallOptions {
     useNvidia?: boolean; // Use dedicated CALENDAR_NVIDIA_API_KEY for Coach & Calendar
     skipOpenRouter?: boolean; // When true, skip OpenRouter and go straight to NVIDIA 70B (for MOVE_BLOCK — avoids OpenRouter latency eating into the budget)
     strictNvidia?: boolean; // When true, ONLY uses NVIDIA endpoints, skipping OpenRouter, Gemini, and Groq entirely.
+    groqOnly?: boolean; // When true, use ONLY Groq llama-3.3-70b-versatile with the FULL remaining time budget. No NVIDIA/Gemini/OpenRouter fallback. Used by the deterministic reschedule narrator. On failure, returns a clean error (hard fail).
     userId?: string; // Optional user ID for logging/auditing
 }
 
@@ -395,6 +396,27 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
     const MAX_PROVIDER_TIME = 15000; // Strict 15s limit per provider to prevent Vercel 504 timeouts
 
     const getRemainingTime = () => Math.max(5000, MAX_TOTAL_TIME - (Date.now() - totalStartTime));
+
+    // ── GROQ-ONLY MODE ───────────────────────────────────────────────
+    // Strictly Groq Llama 3.3 70B, given the FULL remaining budget so a long
+    // generation can finish instead of being cut at 15s and falling through.
+    // No NVIDIA / Gemini / OpenRouter fallback. Hard fail with a clean error.
+    if (options.groqOnly) {
+        if (!process.env.GROQ_API_KEY) {
+            return { success: false, error: 'GROQ_API_KEY not configured', provider: 'groq', model: 'llama-3.3-70b-versatile', latency_ms: 0 };
+        }
+        const provider = getGroqConfig('llama-3.3-70b-versatile');
+        console.log(`\x1b[36m[AI ✨]\x1b[0m Groq-only mode → ${provider.model} (full ${getRemainingTime()}ms budget)...`);
+        const result = await callProvider<T>(provider, { ...options, timeout: getRemainingTime() });
+        if (result.success) return result;
+        return {
+            success: false,
+            error: result.error || 'Groq 70B unavailable',
+            provider: 'groq',
+            model: provider.model,
+            latency_ms: Date.now() - totalStartTime,
+        };
+    }
 
     // Coach/Calendar dedicated engine: NVIDIA (primary) → NVIDIA (tertiary) → Groq → Gemini
     if (options.useNvidia) {
