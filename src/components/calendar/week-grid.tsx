@@ -38,7 +38,7 @@ function getBlockColors(block: any) {
     if (block.block_type === 'meal') return PILLAR_COLORS.meal;
     if (block.block_type === 'sleep') return PILLAR_COLORS.sleep;
     if (block.block_type === 'break' || block.block_type === 'buffer') return PILLAR_COLORS.break;
-    const pillar = (block.goal?.pillar || block.pillar || '').toLowerCase();
+    const pillar = (block.goal?.category || block.goal?.pillar || block.pillar || '').toLowerCase();
     return PILLAR_COLORS[pillar] || PILLAR_COLORS.default;
 }
 
@@ -346,7 +346,7 @@ function BlockCard({ block, layout, onClick, isDayView, index = 0 }: { block: an
                 {layout.height > 60 && (
                     <div className="mt-auto pt-1 flex items-center justify-between border-t border-white/[0.04]">
                         <div className={cn("text-[9px] font-bold uppercase tracking-wider truncate", colors.text, "opacity-50")}>
-                            {block.pillar || block.block_type || 'general'}
+                            {block.goal?.category || block.goal?.pillar || block.pillar || block.block_type || 'general'}
                         </div>
                         {isDone && (
                             <div className="text-[9px] text-emerald-400/60 font-bold">DONE</div>

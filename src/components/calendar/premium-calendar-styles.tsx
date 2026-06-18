@@ -78,7 +78,7 @@ export const calendarAnimationVariants = {
 };
 
 export const getPremiumBlockColors = (block: any) => {
-  const pillar = (block.goal?.pillar || block.pillar || block.block_type || 'default').toLowerCase();
+  const pillar = (block.goal?.category || block.goal?.pillar || block.pillar || block.block_type || 'default').toLowerCase();
   
   const gradients = {
     mind: {

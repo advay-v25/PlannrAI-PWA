@@ -304,16 +304,20 @@ function buildScheduleContextForAI(
 
     const todayText = todayBlocks.length > 0
         ? todayBlocks.map((b: any) => {
-            const goal = coachCtx.goals.find(g => g.id === b.goal_id);
-            const pillarInfo = goal ? ` [Pillar: ${goal.pillar}, Priority: ${goal.priority}]` : '';
+            const goal = (coachCtx.goals as any[]).find((g: any) => g.id === b.goal_id);
+            const gPillar = goal ? (goal.category || goal.pillar || '') : '';
+            const gPriority = goal ? (goal.importance || goal.priority || 'medium') : '';
+            const pillarInfo = goal ? ` [Pillar: ${gPillar}, Priority: ${gPriority}]` : '';
             return `  [${b.start_time} - ${b.end_time}] "${b.context || b.title}" [${b.block_type}] (${b.status})${b.goal_id ? ` → Goal: ${b.goal_id}` : ''}${pillarInfo}${b.id ? ` ID:${b.id}` : ''}`;
         }).join('\n')
         : '  (No blocks scheduled today)';
 
     const tomorrowText = tomorrowBlocks.length > 0
         ? tomorrowBlocks.slice(0, 10).map((b: any) => {
-            const goal = coachCtx.goals.find(g => g.id === b.goal_id);
-            const pillarInfo = goal ? ` [Pillar: ${goal.pillar}, Priority: ${goal.priority}]` : '';
+            const goal = (coachCtx.goals as any[]).find((g: any) => g.id === b.goal_id);
+            const gPillar = goal ? (goal.category || goal.pillar || '') : '';
+            const gPriority = goal ? (goal.importance || goal.priority || 'medium') : '';
+            const pillarInfo = goal ? ` [Pillar: ${gPillar}, Priority: ${gPriority}]` : '';
             return `  [${b.start_time} - ${b.end_time}] "${b.context || b.title}" [${b.block_type}] (${b.status})${pillarInfo}${b.id ? ` ID:${b.id}` : ''}`;
         }).join('\n')
         : '  (No blocks for tomorrow)';
@@ -326,8 +330,8 @@ Tomorrow (${tomorrowDate}): ${tomorrowFreeSlots.length > 0 ? tomorrowFreeSlots.m
 ⚠️ These slots are mathematically guaranteed to be empty. Any other time is OCCUPIED.`;
 
     const goalsText = coachCtx.goals.length > 0
-        ? coachCtx.goals.map((g: any) =>
-            `  - "${g.title}" (Pillar: ${g.pillar}, ${g.minutes_per_day || 60}min/day, ${g.days_per_week || 5}d/week, ${g.weekly_target_minutes || 0}min/week total, Priority: ${g.priority || 'medium'}) ID:${g.id}`
+        ? (coachCtx.goals as any[]).map((g: any) =>
+            `  - "${g.title}" (Pillar: ${g.category || g.pillar || 'unknown'}, ${g.minutes_per_day || 60}min/day, ${g.days_per_week || 5}d/week, ${g.weekly_target_minutes || 0}min/week total, Priority: ${g.importance || g.priority || 'medium'}) ID:${g.id}`
         ).join('\n')
         : '  (No active goals)';
 
@@ -419,8 +423,10 @@ ${(() => {
         let lines = '    (No blocks scheduled)';
         if (blocks.length > 0) {
             lines = blocks.map((b: any) => {
-                const goal = coachCtx.goals.find(g => g.id === b.goal_id);
-                const pillarInfo = goal ? ` [Pillar: ${goal.pillar}, Priority: ${goal.priority}]` : '';
+                const goal = (coachCtx.goals as any[]).find((g: any) => g.id === b.goal_id);
+                const gPillar = goal ? (goal.category || goal.pillar || '') : '';
+                const gPriority = goal ? (goal.importance || goal.priority || 'medium') : '';
+                const pillarInfo = goal ? ` [Pillar: ${gPillar}, Priority: ${gPriority}]` : '';
                 return `    [${b.start_time} - ${b.end_time}] "${b.context || b.title}" [${b.block_type}] (${b.status})${b.goal_id ? ` → Goal: ${b.goal_id}` : ''}${pillarInfo}${b.id ? ` ID:${b.id}` : ''}`;
             }).join('\n');
         }
@@ -711,7 +717,9 @@ function findReplaceableBlock(missedBlock: any, duration: number, coachCtx: Coac
         return a.start_time.localeCompare(b.start_time);
     });
 
-    // Pass 1: strictly lower importance (requires both goals to have known importance)
+    // Pass 1: strictly lower importance — only when BOTH blocks have a known importance level.
+    // Most goals default to 'medium', so this usually only triggers when a user has explicitly
+    // set a goal to 'high' and there exist 'low' or 'medium' same-pillar blocks to swap.
     if (missedInfo.importanceKnown) {
         const strictCandidates = baseCandidates.filter((b: any) => {
             const bInfo = getBlockPillarAndPriority(b, coachCtx);
@@ -722,12 +730,13 @@ function findReplaceableBlock(missedBlock: any, duration: number, coachCtx: Coac
         }
     }
 
-    // Pass 2: importance is not set / all blocks share the same level → any same-pillar
-    // different-goal block is eligible (sorted by lowest importance then closest duration)
+    // Pass 2: no strictly-lower block was found (common when all goals share the same default
+    // 'medium' importance, or importance is not set at all).
+    // Allow any same-pillar, different-goal block EXCEPT those with a KNOWN STRICTLY HIGHER
+    // importance than the missed block (we never displace a more-important block).
     const fallback = baseCandidates.filter((b: any) => {
         const bInfo = getBlockPillarAndPriority(b, coachCtx);
-        // Exclude blocks whose importance is KNOWN to be >= missed (strict protection)
-        if (missedInfo.importanceKnown && bInfo.importanceKnown && bInfo.priorityVal >= missedInfo.priorityVal) return false;
+        if (missedInfo.importanceKnown && bInfo.importanceKnown && bInfo.priorityVal > missedInfo.priorityVal) return false;
         return true;
     });
     return fallback.length > 0 ? sortCandidates(fallback)[0] : null;
@@ -849,9 +858,9 @@ function buildCoachOption(
         impact = `• Protects the rest of today\n• Lands in a verified free gap on ${dayLabel(comp.date)}`;
     } else {
         const r = comp.replacedBlock;
-        title = 'Replace a lower-priority block';
+        title = 'Swap with another block';
         description = `Replace "${r.title || r.context}" (${dayLabel(r.date)} ${formatTime(r.start_time)}) with "${missedName}" at ${when}${shrunkNote}.`;
-        impact = `• Frees space by dropping lower-priority "${r.title || r.context}"\n• Places "${missedName}" on ${dayLabel(comp.date)}`;
+        impact = `• Frees space by removing "${r.title || r.context}"\n• Places "${missedName}" on ${dayLabel(comp.date)}`;
     }
 
     return {
@@ -946,7 +955,7 @@ async function buildDeterministicRescheduleResponse(
     const options: CoachOption[] = [
         buildCoachOption(opt1, 1, missedName, missedBlock, coachCtx, recommendedIdx === 1, 'No free time today', `No gap fits "${missedName}" later today.`),
         buildCoachOption(opt2, 2, missedName, missedBlock, coachCtx, recommendedIdx === 2, 'No free time this week', `No gap fits "${missedName}" in the rest of the week.`),
-        buildCoachOption(opt3, 3, missedName, missedBlock, coachCtx, recommendedIdx === 3, 'No block to replace', `No lower-priority block in the same pillar to swap.`),
+        buildCoachOption(opt3, 3, missedName, missedBlock, coachCtx, recommendedIdx === 3, 'No block to swap', `No other block in the same pillar available to swap.`),
     ];
 
     const summary = await narrateReschedule(missedName, duration, coachCtx, opt1, opt2, opt3);
