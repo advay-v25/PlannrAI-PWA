@@ -114,7 +114,7 @@ export const POST = secureApiRoute(
         // When the user says "I missed my [BlockName] at [time] today/on [day]",
         // find the block server-side so the AI gets the exact ID and doesn't hallucinate.
         let preResolvedBlock: any = null;
-        if (intentClassification.primary_intent === 'move_block') {
+        if (intentClassification.primary_intent === 'move_block' || intentClassification.primary_intent === 'busy_at_time') {
             const msgLower = message.toLowerCase();
             const searchDates: string[] = [];
             for (let i = -1; i <= 7; i++) {

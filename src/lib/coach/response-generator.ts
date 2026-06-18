@@ -611,6 +611,331 @@ function findMissedBlock(
 }
 
 
+// ============ DETERMINISTIC SINGLE-BLOCK RESCHEDULE ENGINE ============
+// Computes the 3 reschedule options in code (find_time / find_empty_time / find_block).
+// The LLM never chooses times — so it cannot hallucinate or collide with anchors/meals/sleep.
+
+interface ComputedReschedule {
+    kind: 'today' | 'week' | 'replace';
+    date: string;       // YYYY-MM-DD
+    start: string;      // HH:MM
+    end: string;        // HH:MM
+    shrunk: boolean;    // true if we had to shorten the block to fit (min 30 min)
+    replacedBlock?: any; // option 3 only
+}
+
+function dayLabel(date: string): string {
+    const d = getDayOfWeek(date);
+    return d.charAt(0).toUpperCase() + d.slice(1);
+}
+
+function getWeekDaysFrom(startDate: string): string[] {
+    const days: string[] = [];
+    let curr = startDate;
+    for (let i = 0; i < 8; i++) {
+        days.push(curr);
+        if (getDayOfWeek(curr) === 'sunday') break;
+        curr = addDays(curr, 1);
+    }
+    return days;
+}
+
+// find_empty_time for ONE day. Tries the FULL block duration in every gap first;
+// only if nothing fits anywhere that day does it shrink to a smaller block (min 30 min).
+// treatAll=true → every existing block (anchor/meal/sleep/buffer/goal) is occupied space.
+function findSlotOnDay(
+    weekBlocks: any[], date: string, duration: number,
+    wakeTime: string, sleepTime: string, notBefore?: string
+): { start: string; end: string; shrunk: boolean } | null {
+    const full = findAvailableSlots(weekBlocks, date, duration, wakeTime, sleepTime, 8, notBefore, true);
+    if (full.length > 0) {
+        const s = full[0];
+        return { start: s.start, end: minutesToTime(timeToMinutes(s.start) + duration), shrunk: false };
+    }
+    const small = findAvailableSlots(weekBlocks, date, 30, wakeTime, sleepTime, 8, notBefore, true);
+    if (small.length > 0) {
+        const s = small[0];
+        const useDur = Math.max(30, Math.min(duration, s.duration_mins));
+        if (useDur >= 30) {
+            return { start: s.start, end: minutesToTime(timeToMinutes(s.start) + useDur), shrunk: useDur < duration };
+        }
+    }
+    return null;
+}
+
+// find_block: the best LOWER-priority, same-pillar, different-goal, non-immutable block to replace.
+function findReplaceableBlock(missedBlock: any, duration: number, coachCtx: CoachContext): any | null {
+    const missedInfo = getBlockPillarAndPriority(missedBlock, coachCtx);
+    const missedGoalId = missedBlock.goal_id;
+    const missedTitle = (missedBlock.title || '').toLowerCase();
+    const missedContext = (missedBlock.context || '').toLowerCase();
+    const now = coachCtx.current;
+
+    const seen = new Set<string>();
+    const candidates = [...(coachCtx.schedule.this_week || []), ...(coachCtx.schedule.today || [])].filter((b: any) => {
+        if (!b.id || seen.has(b.id)) return false;
+        seen.add(b.id);
+        if (b.id === missedBlock.id) return false;
+        const type = (b.block_type || '').toLowerCase();
+        if (['sleep', 'meal', 'wind_down', 'anchor', 'buffer', 'routine'].includes(type)) return false; // immutable
+        if (b.status !== 'planned') return false;
+        if (b.date < now.date) return false;                                  // never the past
+        if (b.date === now.date && b.start_time <= now.time) return false;    // not already started today
+        const bInfo = getBlockPillarAndPriority(b, coachCtx);
+        if (bInfo.pillar !== missedInfo.pillar) return false;                 // same pillar only
+        if (b.goal_id && b.goal_id === missedGoalId) return false;            // never same goal
+        if ((b.title || '').toLowerCase() === missedTitle) return false;
+        if ((b.context || '').toLowerCase() === missedContext) return false;
+        if (bInfo.priorityVal >= missedInfo.priorityVal) return false;        // STRICTLY lower priority
+        return true;
+    });
+
+    candidates.sort((a: any, b: any) => {
+        const aI = getBlockPillarAndPriority(a, coachCtx);
+        const bI = getBlockPillarAndPriority(b, coachCtx);
+        if (aI.priorityVal !== bI.priorityVal) return aI.priorityVal - bI.priorityVal; // lowest priority first
+        const aDur = timeToMinutes(a.end_time) - timeToMinutes(a.start_time);
+        const bDur = timeToMinutes(b.end_time) - timeToMinutes(b.start_time);
+        const aDiff = Math.abs(aDur - duration);
+        const bDiff = Math.abs(bDur - duration);
+        if (aDiff !== bDiff) return aDiff - bDiff;                            // closest duration match
+        if (a.date !== b.date) return a.date.localeCompare(b.date);
+        return a.start_time.localeCompare(b.start_time);
+    });
+
+    return candidates.length > 0 ? candidates[0] : null;
+}
+
+function computeRescheduleOptions(missedBlock: any, duration: number, coachCtx: CoachContext) {
+    const wakeTime = coachCtx.user.sleep_end || '07:00';
+    const sleepTime = coachCtx.user.sleep_start || '23:00';
+    const weekBlocks = coachCtx.schedule.this_week || [];
+    const now = coachCtx.current;
+
+    // OPTION 1 — same day, only AFTER the prompt time
+    let opt1: ComputedReschedule | null = null;
+    const todaySlot = findSlotOnDay(weekBlocks, now.date, duration, wakeTime, sleepTime, now.time);
+    if (todaySlot) opt1 = { kind: 'today', date: now.date, ...todaySlot };
+
+    // OPTION 2 — rest of the week (tomorrow → Sunday, INCLUDING weekends)
+    let opt2: ComputedReschedule | null = null;
+    const weekDays = getWeekDaysFrom(addDays(now.date, 1));
+    for (const d of weekDays) { // pass 1: try the full block, earliest day wins
+        const full = findAvailableSlots(weekBlocks, d, duration, wakeTime, sleepTime, 8, undefined, true);
+        if (full.length > 0) {
+            const s = full[0];
+            opt2 = { kind: 'week', date: d, start: s.start, end: minutesToTime(timeToMinutes(s.start) + duration), shrunk: false };
+            break;
+        }
+    }
+    if (!opt2) { // pass 2: only if the full block fits NOWHERE this week, shrink (min 30)
+        for (const d of weekDays) {
+            const slot = findSlotOnDay(weekBlocks, d, duration, wakeTime, sleepTime);
+            if (slot) { opt2 = { kind: 'week', date: d, ...slot }; break; }
+        }
+    }
+
+    // OPTION 3 — replace a lower-priority block
+    let opt3: ComputedReschedule | null = null;
+    const replaceable = findReplaceableBlock(missedBlock, duration, coachCtx);
+    if (replaceable) {
+        const candDur = timeToMinutes(replaceable.end_time) - timeToMinutes(replaceable.start_time);
+        const useDur = Math.max(30, Math.min(duration, candDur)); // clamp into the freed slot, never overflow
+        opt3 = {
+            kind: 'replace',
+            date: replaceable.date,
+            start: replaceable.start_time,
+            end: minutesToTime(timeToMinutes(replaceable.start_time) + useDur),
+            shrunk: useDur < duration,
+            replacedBlock: replaceable,
+        };
+    }
+
+    return { opt1, opt2, opt3 };
+}
+
+// Build the patch operations for one computed option.
+// move_block "picks up" the block and relocates it (start/end/date) — the original spot
+// is left as empty space. compress (update_block) is emitted first when the block is shortened.
+function buildOpsForComputed(comp: ComputedReschedule, missedBlock: any): PatchOperation[] {
+    const ops: PatchOperation[] = [];
+    if (comp.kind === 'replace' && comp.replacedBlock) {
+        ops.push({ type: 'delete_block', block_id: comp.replacedBlock.id, title: comp.replacedBlock.title } as any);
+    }
+    if (comp.shrunk) {
+        const newDur = timeToMinutes(comp.end) - timeToMinutes(comp.start);
+        ops.push({
+            type: 'update_block',
+            block_id: missedBlock.id,
+            changes: {
+                start_time: missedBlock.start_time,
+                end_time: minutesToTime(timeToMinutes(missedBlock.start_time) + newDur),
+            },
+        } as any);
+    }
+    ops.push({
+        type: 'move_block',
+        block_id: missedBlock.id,
+        title: missedBlock.title || missedBlock.context,
+        new_date: comp.date,
+        new_start: comp.start,
+        new_end: comp.end,
+    } as any);
+    return ops;
+}
+
+function buildCoachOption(
+    comp: ComputedReschedule | null,
+    idx: number,
+    missedName: string,
+    missedBlock: any,
+    _coachCtx: CoachContext,
+    recommended: boolean,
+    emptyTitle: string,
+    emptyDesc: string
+): CoachOption {
+    if (!comp) {
+        return {
+            id: `opt_${idx}`, title: emptyTitle, description: emptyDesc, impact: '',
+            patch: { operations: [], ops: [], requires_confirmation: true } as any,
+            preview: { blocks_added: 0, blocks_modified: 0, blocks_removed: 0, affected_dates: [] },
+            recommended: false,
+        } as any;
+    }
+
+    const ops = buildOpsForComputed(comp, missedBlock);
+    const calendarOps = ops.map(convertToCalendarPatchOp);
+    const durMin = timeToMinutes(comp.end) - timeToMinutes(comp.start);
+    const shrunkNote = comp.shrunk ? ` (shortened to ${durMin}min to fit)` : '';
+    const when = `${comp.kind === 'today' ? 'today' : dayLabel(comp.date)} ${formatTime(comp.start)}–${formatTime(comp.end)}`;
+
+    let title: string;
+    let description: string;
+    let impact: string;
+    if (comp.kind === 'today') {
+        title = 'Reschedule today';
+        description = `Move "${missedName}" to ${when}${shrunkNote}.`;
+        impact = `• Keeps "${missedName}" today\n• Drops into a verified free gap — no other block touched`;
+    } else if (comp.kind === 'week') {
+        title = 'Reschedule later this week';
+        description = `Move "${missedName}" to ${when}${shrunkNote}.`;
+        impact = `• Protects the rest of today\n• Lands in a verified free gap on ${dayLabel(comp.date)}`;
+    } else {
+        const r = comp.replacedBlock;
+        title = 'Replace a lower-priority block';
+        description = `Replace "${r.title || r.context}" (${dayLabel(r.date)} ${formatTime(r.start_time)}) with "${missedName}" at ${when}${shrunkNote}.`;
+        impact = `• Frees space by dropping lower-priority "${r.title || r.context}"\n• Places "${missedName}" on ${dayLabel(comp.date)}`;
+    }
+
+    return {
+        id: `opt_${idx}`,
+        title,
+        description,
+        impact,
+        patch: { operations: ops, ops: calendarOps, requires_confirmation: true } as any,
+        preview: {
+            blocks_added: 0,
+            blocks_modified: ops.filter(o => o.type === 'move_block' || o.type === 'update_block').length,
+            blocks_removed: ops.filter(o => o.type === 'delete_block').length,
+            affected_dates: [comp.date],
+        },
+        recommended,
+    } as any;
+}
+
+// LLM narrator: ONLY writes Donna's summary paragraph. It never picks times.
+// Groq-70B only, full budget. On failure, falls back to a deterministic template
+// (a static string is not another AI model, so the "Groq-only" rule is preserved).
+async function narrateReschedule(
+    missedName: string, duration: number, coachCtx: CoachContext,
+    opt1: ComputedReschedule | null, opt2: ComputedReschedule | null, opt3: ComputedReschedule | null
+): Promise<string> {
+    const now = coachCtx.current;
+    const line = (o: ComputedReschedule | null, label: string) =>
+        o ? `${label}: ${o.kind === 'today' ? 'today' : dayLabel(o.date)} ${formatTime(o.start)}–${formatTime(o.end)}${o.shrunk ? ' (shortened)' : ''}${o.kind === 'replace' ? ` by replacing "${o.replacedBlock.title || o.replacedBlock.context}"` : ''}`
+          : `${label}: none available`;
+
+    const systemPrompt = `You are Donna, PlannrAI's execution coach. Tough-love, direct, no fluff, no markdown, no lists. Write 2-3 plain-text sentences (max 60 words). Acknowledge the situation, then prompt them to pick an option. NEVER invent times — only reference what is given.`;
+    const prompt = `User wants to reschedule "${missedName}" (${duration} min). It is ${now.time} on ${now.day_of_week}.
+${line(opt1, 'Option 1')}
+${line(opt2, 'Option 2')}
+${line(opt3, 'Option 3')}
+Write the summary now.`;
+
+    try {
+        const res = await callAI<string>({
+            prompt,
+            systemPrompt,
+            model: 'smart',
+            temperature: 0.5,
+            maxTokens: 300,
+            requireJSON: false,
+            groqOnly: true,
+            timeout: 45000,
+        });
+        if (res.success && typeof res.data === 'string' && res.data.trim().length > 0) {
+            return res.data.trim();
+        }
+    } catch (e) {
+        console.warn('[CoachAI] Narrator failed, using template summary:', e);
+    }
+
+    // Deterministic fallback summary (not an AI provider — keeps Groq-only contract).
+    const parts: string[] = [`Let's get "${missedName}" back on track.`];
+    if (opt1) parts.push(`There's room today at ${formatTime(opt1.start)}.`);
+    else if (opt2) parts.push(`Today's full, but ${dayLabel(opt2.date)} has space.`);
+    else if (opt3) parts.push(`No clean gaps left, so the move is to swap out a lower-priority block.`);
+    parts.push('Pick the option that fits and I\'ll apply it.');
+    return parts.join(' ');
+}
+
+// Entry point for deterministic single-block rescheduling.
+async function buildDeterministicRescheduleResponse(
+    userMessage: string,
+    _conversationHistory: Array<{ role: string; content: string }>,
+    coachCtx: CoachContext,
+    classification: IntentClassification,
+    missedBlock: any
+): Promise<CoachResponse> {
+    const duration = findMissedBlockDuration(userMessage, classification, coachCtx);
+    const missedName = missedBlock.title || missedBlock.context || 'that block';
+
+    const { opt1, opt2, opt3 } = computeRescheduleOptions(missedBlock, duration, coachCtx);
+
+    // If literally nothing is available, tell them plainly and offer a manual move.
+    if (!opt1 && !opt2 && !opt3) {
+        return {
+            id: generateId(),
+            timestamp: new Date().toISOString(),
+            mode: 'inform',
+            summary: `I can't find a single free gap for "${missedName}" anywhere this week, and there's no lower-priority block to swap it with. Your safest move is to drag it onto the calendar manually where you know you'll have time.`,
+            minimal_mode: coachCtx.user_state.is_minimal_mode,
+            conversation_context: { can_undo: false },
+            options_expire_at: getExpirationTime(15),
+        };
+    }
+
+    const recommendedIdx = opt1 ? 1 : opt2 ? 2 : 3;
+    const options: CoachOption[] = [
+        buildCoachOption(opt1, 1, missedName, missedBlock, coachCtx, recommendedIdx === 1, 'No free time today', `No gap fits "${missedName}" later today.`),
+        buildCoachOption(opt2, 2, missedName, missedBlock, coachCtx, recommendedIdx === 2, 'No free time this week', `No gap fits "${missedName}" in the rest of the week.`),
+        buildCoachOption(opt3, 3, missedName, missedBlock, coachCtx, recommendedIdx === 3, 'No block to replace', `No lower-priority block in the same pillar to swap.`),
+    ];
+
+    const summary = await narrateReschedule(missedName, duration, coachCtx, opt1, opt2, opt3);
+
+    return {
+        id: generateId(),
+        timestamp: new Date().toISOString(),
+        mode: 'propose',
+        summary,
+        options,
+        minimal_mode: coachCtx.user_state.is_minimal_mode,
+        conversation_context: { can_undo: false },
+        options_expire_at: getExpirationTime(15),
+    };
+}
+
 /**
  * AI-powered response generator for schedule modification intents.
  * Uses the full calendar context + user message to produce real CalendarPatch options.
@@ -622,6 +947,27 @@ async function generateAIScheduleResponse(
     classification: IntentClassification,
     calCtx?: CalendarContext | null
 ): Promise<CoachResponse> {
+    // ── DETERMINISTIC SINGLE-BLOCK RESCHEDULE INTERCEPT ───────────────
+    // Only for "move/reschedule THIS block" style prompts. Does NOT touch
+    // replan_day / replan_week / reduce_load (minimal_os) — those fall through.
+    const isBlockRescheduleIntent =
+        classification.primary_intent === CoachIntent.MOVE_BLOCK ||
+        classification.primary_intent === CoachIntent.BUSY_AT_TIME;
+    const isRejectionMsg = /none|neither|don't like|dont like|manual|myself|reject|stop/i.test(userMessage);
+    if (isBlockRescheduleIntent && !isRejectionMsg) {
+        const targetBlock = findMissedBlock(userMessage, classification, coachCtx);
+        if (targetBlock && targetBlock.id) {
+            try {
+                return await buildDeterministicRescheduleResponse(
+                    userMessage, conversationHistory, coachCtx, classification, targetBlock
+                );
+            } catch (e) {
+                console.error('[CoachAI] Deterministic reschedule failed, falling back to LLM path:', e);
+                // fall through to the existing LLM path below
+            }
+        }
+    }
+
     const missedBlockDuration = findMissedBlockDuration(userMessage, classification, coachCtx);
     const scheduleContext = buildScheduleContextForAI(coachCtx, calCtx, missedBlockDuration);
 
