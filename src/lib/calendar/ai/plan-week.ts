@@ -23,7 +23,7 @@ export interface WeekPlanVariant {
     };
 }
 
-export interface PlanBlock {
+interface PlanBlock {
     date: string;
     start_time: string;
     end_time: string;

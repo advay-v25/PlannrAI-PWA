@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, Plus, CheckCircle2, Flame, Loader2, Save, Edit2 } from 'lucide-react';
+import { X, Sparkles, Plus, CheckCircle2, Flame, Loader2, Save, Edit2, Layers } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/components/ui/toast';
 

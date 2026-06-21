@@ -1,8 +1,8 @@
 'use client';
 
-export type PageBgColor    = 'orange' | 'purple' | 'teal' | 'pink';
-export type PageBgVariant  = 'blob' | 'aurora' | 'horizon' | 'rising';
-export type PageBgIntensity = 'subtle' | 'medium' | 'strong';
+type PageBgColor    = 'orange' | 'purple' | 'teal' | 'pink';
+type PageBgVariant  = 'blob' | 'aurora' | 'horizon' | 'rising';
+type PageBgIntensity = 'subtle' | 'medium' | 'strong';
 
 interface Props {
   color?:     PageBgColor;

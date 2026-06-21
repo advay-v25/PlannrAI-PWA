@@ -353,6 +353,9 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                             : m
                     ));
                     onCalendarUpdate?.();
+                    import('@/stores').then(({ useSyncStore }) => {
+                        useSyncStore.getState().incrementGraphVersion();
+                    });
                     const moveOps = (option.patch as any).operations || [];
                     moveOps.forEach((op: any) => {
                         if (op.type === 'move_block' && op.block_id) {
@@ -394,6 +397,9 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                     blockIdsToAnimate.forEach(id => usePremiumCalendar.getState().addAnimatingBlock(id, 1000));
                 }
                 onCalendarUpdate?.();
+                import('@/stores').then(({ useSyncStore }) => {
+                    useSyncStore.getState().incrementGraphVersion();
+                });
             }
         } finally {
             setIsApplyingChanges(false);

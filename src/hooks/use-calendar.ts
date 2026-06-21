@@ -89,6 +89,23 @@ export function useCalendar(initialDate: Date = new Date()) {
         return () => window.removeEventListener('calendar-refresh', handler);
     }, [loadData]);
 
+    // Listen to Zustand graphVersion for global sync
+    useEffect(() => {
+        let isMounted = true;
+        let unsub: () => void;
+        import('@/stores').then(({ useSyncStore }) => {
+            unsub = useSyncStore.subscribe((state, prevState) => {
+                if (isMounted && state.graphVersion > prevState.graphVersion) {
+                    loadData();
+                }
+            });
+        });
+        return () => {
+            isMounted = false;
+            if (unsub) unsub();
+        };
+    }, [loadData]);
+
     // --- Actions ---
 
     const autoPlace = async (blockId: string, durationMinutes: number) => {

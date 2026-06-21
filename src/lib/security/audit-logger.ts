@@ -5,7 +5,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 
-export type AuditAction =
+type AuditAction =
     | 'login_success'
     | 'login_failed'
     | 'logout'

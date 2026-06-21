@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Target, Trophy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export interface Metrics {
+interface Metrics {
     planned_min: number;
     completed_min: number;
     planned_items?: number;

@@ -25,6 +25,7 @@ export interface SecureApiContext {
         email: string | undefined;
     };
     request: NextRequest;
+    params?: any;
     ip: string;
     supabase: SupabaseClient;
 }
@@ -54,7 +55,7 @@ export interface SecureApiOptions {
 export function secureApiRoute(
     handler: SecureApiHandler,
     options: SecureApiOptions = {}
-): (request: NextRequest) => Promise<NextResponse> {
+): (request: NextRequest, nextContext?: any) => Promise<NextResponse> {
     const {
         requireAuth = true,
         rateLimit = 'user',
@@ -62,7 +63,7 @@ export function secureApiRoute(
         skipRateLimit = false,
     } = options;
 
-    return async (request: NextRequest): Promise<NextResponse> => {
+    return async (request: NextRequest, nextContext?: any): Promise<NextResponse> => {
         const ip = getClientIP(request);
         const isDev = process.env.NODE_ENV === 'development';
         console.log(`[API HIT] ${request.method} ${request.nextUrl.pathname} ip=${ip}`);
@@ -166,6 +167,7 @@ export function secureApiRoute(
                     email: user?.email,
                 },
                 request,
+                params: nextContext?.params,
                 ip,
                 supabase, // Pass the authenticated client
             };

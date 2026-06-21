@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 
-export type ApiEnvelope<T = any> = {
+type ApiEnvelope<T = any> = {
     ok: boolean;
     data?: T;
     error?: {

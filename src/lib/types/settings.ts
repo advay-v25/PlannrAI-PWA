@@ -1,13 +1,13 @@
 
 
-export interface MealWindow {
+interface MealWindow {
 
 
     start: string;
     end: string;
 }
 
-export interface PillarWindow {
+interface PillarWindow {
     preferred: string[]; // ["09:00-12:00"]
     avoid?: string[];
 }

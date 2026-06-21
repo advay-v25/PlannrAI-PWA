@@ -1,36 +1,36 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PlannrAI - Neural OS for Personal Productivity
+
+PlannrAI is a "Lived-In" Intelligence system designed to optimize personal scheduling through understanding, regulation, and narrative reflection. It is not just a calendar; it is a proactive agent that manages time, energy, and goals using a sophisticated multi-agent AI architecture.
+
+## Key Features
+
+* **The Dashboard**: A unified daily nexus combining your reality intake (Mindspace, Quick Adds) and ambient pulse (energy level).
+* **Mindspace**: Smart task and goal intake powered by AI extraction. Proposes changes via Option Cards.
+* **Donna - Super Intelligence Performance Coach**: Context-aware AI coach that nudges you structurally and prevents burnout.
+* **Narrative Weekly Review**: Reflection tool that avoids gamification, suggesting actionable changes (One Lever).
+* **Goal Engine**: Auto-schedules goals based on your historical "Best Windows".
+
+## Architecture & Technology
+
+PlannrAI relies on a robust real-time synchronization engine and a multi-agent AI setup:
+* **Frontend:** Next.js 14 (App Router), React, Framer Motion, Tailwind CSS
+* **Backend:** Supabase (PostgreSQL), Next.js Server Actions
+* **AI:** Groq API (Llama 3.3 70B) for fast inference
+* **State Management:** Zustand with custom real-time DB syncing (`useSyncStore`, `graphVersion`)
+* **PWA:** Hybrid offline support with explicit `NetworkOnly` strategies for AI routes.
 
 ## Getting Started
 
-First, run the development server:
+1. Clone the repository and install dependencies:
+   ```bash
+   npm install
+   ```
+2. Setup your `.env` file with Supabase and Groq API keys.
+3. Run the development server:
+   ```bash
+   npm run dev
+   ```
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Design Philosophy
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The system follows a strict, premium design language (Glassmorphism, deep purples, typography-first hierarchy) emphasizing clarity, low cognitive load, and instant understandability. See `DESIGN_SYSTEM.md` and `FEATURES.md` for more details.

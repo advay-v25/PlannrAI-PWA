@@ -4,7 +4,7 @@ import type { Goal } from '@/types/database';
 // --- SHARED PRIMITIVES ---
 
 export type UserMode = 'survival' | 'maintenance' | 'growth';
-export type EnergyLevel = 1 | 2 | 3 | 4 | 5;
+type EnergyLevel = 1 | 2 | 3 | 4 | 5;
 export type EmotionalState = 'overwhelmed' | 'avoidant' | 'coasting' | 'focused' | 'burnt' | 'motivated';
 
 export interface UserState {
@@ -16,8 +16,8 @@ export interface UserState {
     last_updated: Date;
 }
 
-export type BlockType = 'anchor' | 'body' | 'craft' | 'mind' | 'meal' | 'buffer';
-export type EnergyCost = 'low' | 'medium' | 'high';
+type BlockType = 'anchor' | 'body' | 'craft' | 'mind' | 'meal' | 'buffer';
+type EnergyCost = 'low' | 'medium' | 'high';
 
 export interface AgentContext {
     userId: string;
@@ -47,7 +47,7 @@ export const PlannerIntentSchema = z.enum([
     'unknown'
 ]);
 
-export type PlannerIntent = z.infer<typeof PlannerIntentSchema>;
+type PlannerIntent = z.infer<typeof PlannerIntentSchema>;
 
 export const TimeRefSchema = z.object({
     start: z.string().nullable().optional(), // ISO or "HH:mm"

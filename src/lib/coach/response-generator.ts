@@ -34,7 +34,7 @@ export interface CoachResponse {
     options_expire_at: string;
 }
 
-export interface CoachOption {
+interface CoachOption {
     id: string;
     title: string;
     description: string;
@@ -54,12 +54,12 @@ export interface CoachOption {
     recommended: boolean;
 }
 
-export interface SchedulePatch {
+interface SchedulePatch {
     operations: PatchOperation[];
     requires_confirmation: boolean;
 }
 
-export type PatchOperation =
+type PatchOperation =
     | { type: 'create_block'; data: NewBlockData }
     | { type: 'move_block'; block_id: string; title?: string; new_start: string; new_end: string; new_date?: string }
     | { type: 'update_block'; block_id: string; changes: Partial<BlockData> }
@@ -953,6 +953,8 @@ Write the summary now.`;
             requireJSON: false,
             groqOnly: true,
             timeout: 45000,
+            clientDate: coachCtx.current.exact_iso_timestamp,
+            clientTimezone: coachCtx.current.exact_timezone,
         });
         if (res.success && typeof res.data === 'string' && res.data.trim().length > 0) {
             return res.data.trim();
@@ -1060,7 +1062,7 @@ const analyticsText = coachCtx.analytics ? `
 - Pillar Balance: Mind (${Math.round(coachCtx.analytics.pillar_balance.mind / 60)}h), Body (${Math.round(coachCtx.analytics.pillar_balance.body / 60)}h), Craft (${Math.round(coachCtx.analytics.pillar_balance.craft / 60)}h)
 ` : '';
 
-const systemPrompt = `You are Donna, PlannrAI's proactive intelligence layer. You encompass three core personas: Flow State Coach, Performance Enhancer, and Execution Master. You are direct, proactive, and outcome-oriented.
+const systemPrompt = `You are Donna, PlannrAI's proactive intelligence layer. You encompass three core personas: Flow State Coach, Performance Enhancer, and Execution Master. You are direct, proactive, and outcome-oriented. You are the ultimate Execution Master.
 
 👑 DONNA'S CORE RULES (SITUATIONAL MASTERY & 40,000+ SCENARIOS READY):
 1. You are direct, proactive, and outcome-oriented. You are the ultimate Execution Master.
@@ -1457,6 +1459,8 @@ ${optionsInstruction}`;
             useNvidia: true,
             strictNvidia: false, // Set to false to allow Groq's high-speed Llama 3.3 70B to prevent 504 timeouts
             skipOpenRouter: true, // Bypass OpenRouter and Gemini to strictly use fast Llama 70B engines
+            clientDate: coachCtx.current.exact_iso_timestamp,
+            clientTimezone: coachCtx.current.exact_timezone,
         });
 
         // Since requireJSON is false for CoT, we need to extract the JSON from the raw text
@@ -2301,6 +2305,8 @@ Respond in strict JSON matching this schema. The "response" field MUST follow th
             model: 'fast',
             requireJSON: true,
             useNvidia: true,
+            clientDate: coachCtx.current.exact_iso_timestamp,
+            clientTimezone: coachCtx.current.exact_timezone,
         });
 
         if (aiRes.success && aiRes.data?.response) {
@@ -2403,7 +2409,8 @@ export async function generateCoachResponse(
     lightOrFullContext: any, // Could be LightContext or CoachContext
     supabase?: any,
     prebuiltCalCtx?: CalendarContext | null,
-    precomputedClassification?: IntentClassification
+    precomputedClassification?: IntentClassification,
+    clientConfig?: { date: string; timezone: string }
 ): Promise<CoachResponse> {
     // 1. Classify intent (or use pre-computed)
     let classification = precomputedClassification;

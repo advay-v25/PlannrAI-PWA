@@ -16,20 +16,9 @@ import { RealtimeSync } from '@/components/realtime-sync';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
-    const { profile, setProfile } = useUserStore();
-    const supabase = useMemo(() => createClient(), []);
+    // State hydration and realtime subscriptions are handled by <RealtimeSync />
+    const { profile } = useUserStore();
     const displayName = profile?.full_name?.split(' ')[0] || profile?.full_name || 'User';
-
-    // Hydrate profile in layout so it's available on every page
-    useEffect(() => {
-        if (profile) return; // Already loaded
-        (async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-            const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-            if (data) setProfile(data);
-        })();
-    }, [profile, supabase, setProfile]);
 
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 

@@ -385,3 +385,14 @@ export const useDailyLogStore = create<DailyLogState>((set) => ({
         }),
 }));
 
+// Global Sync Store for Event-Driven Architecture
+interface SyncState {
+    graphVersion: number;
+    incrementGraphVersion: () => void;
+}
+
+export const useSyncStore = create<SyncState>((set) => ({
+    graphVersion: 0,
+    incrementGraphVersion: () => set((state) => ({ graphVersion: state.graphVersion + 1 })),
+}));
+

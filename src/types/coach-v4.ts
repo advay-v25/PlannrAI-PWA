@@ -3,7 +3,7 @@
 
 export type CoachMode = 'execute' | 'propose' | 'ask' | 'refuse' | 'choice' | 'refusal' | 'executed' | 'clarify' | 'acknowledge' | 'inform';
 
-export interface CalendarPatchOp {
+interface CalendarPatchOp {
     op: 'create' | 'update' | 'delete' | 'move'
     | 'create_event' | 'update_event' | 'delete_event' | 'move_event'
     | 'update_goal' | 'update_settings'
@@ -25,7 +25,7 @@ export interface CalendarPatchOp {
     date?: string;
 }
 
-export interface CalendarPatch {
+interface CalendarPatch {
     ops: CalendarPatchOp[];
     undoable?: boolean;
     requires_confirmation?: boolean;

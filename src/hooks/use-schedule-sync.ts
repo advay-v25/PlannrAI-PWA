@@ -8,11 +8,11 @@
 
 'use client';
 
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 
-export type ScheduleStrategy = 'momentum' | 'balanced' | 'recovery';
+type ScheduleStrategy = 'momentum' | 'balanced' | 'recovery';
 
 export interface ScheduleModeBanner {
     strategy: ScheduleStrategy;
@@ -49,6 +49,8 @@ export function useScheduleSync(options?: ScheduleSyncOptions) {
         }
     }, [options]);
 
+    const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
+
     useEffect(() => {
         const handler = (e: Event) => {
             const detail = (e as CustomEvent).detail || {};
@@ -67,10 +69,15 @@ export function useScheduleSync(options?: ScheduleSyncOptions) {
                 });
             }
 
-            // Auto-trigger calendar refresh for simple cases
+            // Debounced Global Sync Trigger
             if (trigger === 'todo_completed' || trigger === 'goal_paused') {
-                window.dispatchEvent(new Event('calendar-refresh'));
-                options?.onCalendarRefresh?.();
+                if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
+                debounceTimeout.current = setTimeout(() => {
+                    import('@/stores').then(({ useSyncStore }) => {
+                        useSyncStore.getState().incrementGraphVersion();
+                    });
+                    options?.onCalendarRefresh?.();
+                }, 400); // 400ms debounce
             }
 
             // For energy-driven changes, suggest re-optimization via toast

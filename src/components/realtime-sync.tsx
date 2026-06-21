@@ -1,14 +1,42 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useUserStore, useGoalsStore, useHabitStacksStore } from '@/stores';
 import { createClient } from '@/lib/supabase/client';
+import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
 
 export function RealtimeSync() {
     const { profile, setProfile } = useUserStore();
-    const supabase = createClient();
+    const supabase = useMemo(() => createClient(), []);
 
+    // 1. Initial State Hydration (Profile, Goals, Stacks)
+    useEffect(() => {
+        (async () => {
+            if (!profile) {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) return;
+                const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+                if (data) setProfile(data);
+            }
+            
+            // Re-inflate graph state automatically to ensure Coach Hub / Sidebar has full context
+            const goalsStore = useGoalsStore.getState();
+            if (goalsStore.goals.length === 0) {
+                apiClient.get('/api/goals').then((data: any) => {
+                    if (data?.goals) goalsStore.setGoals(data.goals);
+                }).catch(console.error);
+            }
+            const stacksStore = useHabitStacksStore.getState();
+            if (stacksStore.stacks.length === 0) {
+                apiClient.get('/api/habit-stacks').then((data: any) => {
+                    if (data?.data) stacksStore.setStacks(data.data);
+                }).catch(console.error);
+            }
+        })();
+    }, [profile, supabase, setProfile]);
+
+    // 2. Realtime Subscriptions
     useEffect(() => {
         if (!profile?.id) return;
 
