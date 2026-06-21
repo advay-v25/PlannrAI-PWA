@@ -10,7 +10,7 @@ export const API_ERROR_CODES = {
     RATE_LIMITED: 'RATE_LIMITED'
 } as const;
 
-export type ApiErrorCode = keyof typeof API_ERROR_CODES;
+type ApiErrorCode = keyof typeof API_ERROR_CODES;
 
 export const apiError = fail;
 export const apiSuccess = success;

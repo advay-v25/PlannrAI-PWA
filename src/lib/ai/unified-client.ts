@@ -6,7 +6,7 @@
 
 // ── Types ────────────────────────────────────────────────────────
 
-export type AIModel = 'smart' | 'fast' | 'creative';
+type AIModel = 'smart' | 'fast' | 'creative';
 
 export interface AICallOptions {
     prompt: string;
@@ -22,6 +22,8 @@ export interface AICallOptions {
     strictNvidia?: boolean; // When true, ONLY uses NVIDIA endpoints, skipping OpenRouter, Gemini, and Groq entirely.
     groqOnly?: boolean; // When true, use ONLY Groq llama-3.3-70b-versatile with the FULL remaining time budget. No NVIDIA/Gemini/OpenRouter fallback. Used by the deterministic reschedule narrator. On failure, returns a clean error (hard fail).
     userId?: string; // Optional user ID for logging/auditing
+    clientDate?: string; // Exact ISO string from the client
+    clientTimezone?: string; // Browser's timezone string
 }
 
 export interface AIResponse<T = any> {
@@ -268,6 +270,15 @@ async function callProvider<T>(
     if (options.systemPrompt) {
         messages.push({ role: 'system', content: options.systemPrompt });
     }
+    
+    // Inject Dual Timezone Anchoring if provided
+    if (options.clientDate && options.clientTimezone) {
+        messages.push({ 
+            role: 'system', 
+            content: `CRITICAL CONTEXT: The user's EXACT current local time on their device is ${options.clientDate} (Timezone: ${options.clientTimezone}). Always use this exact timestamp as the absolute anchor for "now", "today", "tomorrow", etc.` 
+        });
+    }
+
     if (options.messages && options.messages.length > 0) {
         messages.push(...options.messages);
     }

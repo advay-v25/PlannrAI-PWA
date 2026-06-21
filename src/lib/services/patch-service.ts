@@ -6,7 +6,7 @@ import crypto from 'crypto';
 
 // --- Patch Op Types ---
 
-export type PatchOpType =
+type PatchOpType =
     | 'create' | 'create_event'
     | 'update' | 'update_event'
     | 'delete' | 'delete_event'

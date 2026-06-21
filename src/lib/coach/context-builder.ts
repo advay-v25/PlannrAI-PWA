@@ -84,6 +84,8 @@ export interface CoachContext {
         date: string;
         time: string;
         day_of_week: string;
+        exact_iso_timestamp?: string;
+        exact_timezone?: string;
     };
 
     // Set by response generator

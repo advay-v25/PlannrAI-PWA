@@ -15,7 +15,7 @@ import {
 
 // ── Types ────────────────────────────────────────────────────────
 
-export interface DayOptimization {
+interface DayOptimization {
     id: string;
     label: string;
     description: string;
@@ -23,7 +23,7 @@ export interface DayOptimization {
     ops: PatchOp[];
 }
 
-export interface PatchOp {
+interface PatchOp {
     op: 'create_event' | 'move_event' | 'update_event' | 'delete_event';
     event_id?: string;
     payload?: any;

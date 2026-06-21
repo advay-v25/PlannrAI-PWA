@@ -9,6 +9,7 @@ export const maxDuration = 60;
 interface MessageRequest {
     message: string;
     conversation_id?: string;
+    date?: string; // Client's ISO timestamp
     clientTimezone?: string; // Browser timezone (e.g. "Asia/Kolkata") — used as fallback if profile.timezone is null
 }
 
@@ -18,7 +19,7 @@ export const POST = secureApiRoute(
 
         try {
             const { user, supabase } = context;
-            const { message, conversation_id, clientTimezone } = body as MessageRequest;
+            const { message, conversation_id, clientTimezone, date: clientDate } = body as MessageRequest;
 
         if (!message || message.trim().length === 0) {
             return NextResponse.json(
@@ -191,6 +192,8 @@ export const POST = secureApiRoute(
         // Actually build the FULL coach context for the response generation
         const fullCoachContext = await buildCoachContext(user.id, supabase);
         (fullCoachContext as any).pre_resolved_block = preResolvedBlock;
+        fullCoachContext.current.exact_iso_timestamp = clientDate;
+        fullCoachContext.current.exact_timezone = timezone;
 
         const response = await generateCoachResponse(
             message,

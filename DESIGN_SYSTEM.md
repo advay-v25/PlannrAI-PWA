@@ -155,8 +155,8 @@ Never mix icon packs.
 ---
 
 # PART 10: NAVIGATION SYSTEM
-Maximum 5 Primary Tabs. Never exceed.
-PlannrAI: Home, Planner, Goals, Brain Dump, Coach
+Maximum 6 Primary Tabs. Never exceed.
+PlannrAI: Home, Mindspace, Calendar, Goals, Review, Coach Hub
 Settings hidden. Not primary.
 
 ---
@@ -237,3 +237,11 @@ If not: Redesign.
 # FINAL COMMANDMENT
 Beauty is not the goal. Clarity is the goal.
 When clarity becomes perfect, beauty appears automatically.
+
+---
+
+# PART 20: INTERACTION & STATE (V2.0 UPDATES)
+- **Optimistic Updates**: UI must react instantly. Never wait for the network to show the user's action succeeded.
+- **Transactional Undos**: For destructive actions (e.g., deleting branches or changing schedules), provide a 10-second confirmation barrier (Undo Toast) rather than interruptive modal dialogues.
+- **Background Sync**: State must feel unified. If data changes on the server or via AI, use silent reactive primitives (`graphVersion`) to smoothly re-render the view without jarring hard refreshes.
+- **Structural Loading**: Use dedicated skeleton cells that mimic the final content structure during long AI inferences. Never use blank screens or blocking spinners.

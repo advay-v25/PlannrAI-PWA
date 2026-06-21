@@ -12,8 +12,8 @@ import {
 } from './schemas';
 
 // --- Shared Types ---
-export type AIContext = Record<string, any>;
-export type AILimits = {
+type AIContext = Record<string, any>;
+type AILimits = {
   max_options?: number;
   low_energy?: boolean;
   overwhelmed?: boolean;

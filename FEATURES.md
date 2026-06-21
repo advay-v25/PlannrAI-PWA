@@ -33,13 +33,13 @@ The system looks ahead to "Tomorrow" silently.
 - **Reality Intake**: A unified input for Brain Dumps, Quick Adds, and Status Updates.
 - **Ambient Pulse**: Background visuals that reflect your energy level.
 
-### 🧠 Brain Dump 2.0
+### 🧠 Mindspace
 - **Smart intake**: Type anything ("I need to workout more", "Call Mom").
 - **Extraction**: The AI extracts Tasks, Habits, or Goal constraints.
-- **Application**: Changes are proposed via "Option Cards" (Preview -> Apply/Undo).
+- **Application**: AI proposes changes directly (Preview -> Apply/Undo) with a 10-second transactional undo barrier.
 
-### 🤖 The Coach
-- **Contextual Chat**: Knows your schedule, energy, and recent history.
+### 🤖 Donna - Super Intelligence Performance Coach
+- **Contextual Chat**: Knows your schedule, energy, and recent history (with dual timezone anchoring).
 - **Interventions**: Proactively nudges you if you are stagnant or overworking.
 - **Structure**: Responses are always structured (Facts -> Interpretation -> Options).
 
@@ -69,7 +69,7 @@ A reflection tool that avoids gamification.
 ## 4. How to Use
 
 1.  **Onboarding**: Set your "Baseline" (Sleep, Meals, Energy).
-2.  **Planning**: Use the **Brain Dump** to add tasks. The AI will schedule them.
+2.  **Planning**: Use the **Goals** to add tasks. The AI will schedule them.
 3.  **Living**: Check the **Dashboard** for what's next. Mark blocks as Done/Missed.
-4.  **Regulating**: If you feel overwhelmed, tell the Coach ("I'm swamped"). The **Regulator** will shift the AI to "Minimal Mode" and help you cut tasks.
+4.  **Regulating**: If you feel overwhelmed, tell the Coach ("I'm swamped"). The **Regulator** will shift the AI to "Recovery Mode" and help you cut tasks.
 5.  **Reviewing**: Once a week, check the **Weekly Review** to tweak your system with "One Lever".

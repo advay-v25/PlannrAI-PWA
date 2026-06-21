@@ -286,7 +286,7 @@ export const CanonicalPatchSchema = z.object({
 });
 
 export type CanonicalPatch = z.infer<typeof CanonicalPatchSchema>;
-export type CanonicalPatchOp = z.infer<typeof CanonicalPatchOpSchema>;
+type CanonicalPatchOp = z.infer<typeof CanonicalPatchOpSchema>;
 
 // Calendar Option Schema (Shared between Plan Week and Optimize Day)
 export const CalendarOptionSchema = z.object({
@@ -455,10 +455,10 @@ export const AIResponseSchema = z.object({
     }
 });
 
-export type FirstScheduleGenerator = z.infer<typeof FirstScheduleGeneratorSchema>;
-export type ScheduleVariant = z.infer<typeof ScheduleVariantSchema>;
-export type GoalDiscoveryExtraction = z.infer<typeof GoalDiscoveryExtractionSchema>;
-export type LifeSnapshotExtraction = z.infer<typeof LifeSnapshotExtractionSchema>;
+type FirstScheduleGenerator = z.infer<typeof FirstScheduleGeneratorSchema>;
+type ScheduleVariant = z.infer<typeof ScheduleVariantSchema>;
+type GoalDiscoveryExtraction = z.infer<typeof GoalDiscoveryExtractionSchema>;
+type LifeSnapshotExtraction = z.infer<typeof LifeSnapshotExtractionSchema>;
 export type AIResponse = z.infer<typeof AIResponseSchema>;
 export type Patch = z.infer<typeof PatchSchema>;
 export type PatchOp = z.infer<typeof PatchOpSchema>;

@@ -59,11 +59,11 @@ export const SYSTEM_PROMPTS = {
     THINKING_ENGINE: `Channel: thinking_engine. Purpose: proactive synthesis. Analyze user context and generate interventions. Return JSON with "interventions" array, each having type, message, confidence (0-1), and optional payload.`,
 };
 
-export type SystemPromptType = keyof typeof SYSTEM_PROMPTS;
+type SystemPromptType = keyof typeof SYSTEM_PROMPTS;
 
 // --- NEW WRAPPER IMPLEMENTATION ---
 
-export type Role = "system" | "user" | "assistant";
+type Role = "system" | "user" | "assistant";
 export type ChatMessage = { role: Role; content: string };
 
 export class GroqError extends Error {
