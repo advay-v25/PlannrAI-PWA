@@ -57,14 +57,33 @@ interface CoachState extends PersistentCoachData {
 }
 
 function extractCoachResponse(raw: any): { response: any; conversationId?: string } {
+  // If raw is a string, try parsing it
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      return { response: { dialogue_response: raw, mode: 'chat', execution_mode: 'AUTO_EXECUTE', system_state_flag: 'NORMAL' } };
+    }
+  }
+
   // Format: { success, conversation_id, response }
-  if (raw?.response && typeof raw.response === 'object') {
+  if (raw?.response) {
+    if (typeof raw.response === 'string') {
+      try {
+        const parsed = JSON.parse(raw.response);
+        return { response: parsed, conversationId: raw.conversation_id };
+      } catch {
+        return { response: { dialogue_response: raw.response, execution_mode: 'AUTO_EXECUTE', system_state_flag: 'NORMAL' }, conversationId: raw.conversation_id };
+      }
+    }
     return { response: raw.response, conversationId: raw.conversation_id };
   }
+  
   // Already unwrapped CoachResponse (has dialogue_response directly)
   if (raw?.dialogue_response || raw?.execution_mode || raw?.summary || raw?.mode) {
     return { response: raw, conversationId: raw.conversation_id };
   }
+  
   // Fallback
   return { response: raw };
 }
@@ -192,6 +211,7 @@ export const useCoach = create<CoachState>()(
 
           // Validate response
           if (!coachRes.dialogue_response && !coachRes.execution_mode && !coachRes.summary && !coachRes.mode) {
+            console.error('[Coach Validation Failed] RAW:', raw, 'COACHRES:', coachRes);
             throw new Error('Invalid response from AI Coach. Please try again.');
           }
 

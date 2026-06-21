@@ -137,7 +137,8 @@ export const apiClient = {
                         return data.data;
                     }
                     return data;
-                } catch {
+                } catch (e) {
+                    console.error(`[apiClient] JSON Parse Failed for ${endpoint}:`, e);
                     return {} as T;
                 }
 

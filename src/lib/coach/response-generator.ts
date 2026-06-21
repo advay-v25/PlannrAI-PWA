@@ -1417,12 +1417,26 @@ ${optionsInstruction}`;
         let parsedData = response.data as any;
         if (isMissedBlock && typeof response.data === 'string') {
             const rawStr = response.data as any as string;
-            const jsonMatch = rawStr.match(/```json\s*([\s\S]*?)\s*```/) || rawStr.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
+            // First try to find markdown json blocks
+            const markdownMatch = rawStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+            if (markdownMatch) {
                 try {
-                    parsedData = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+                    parsedData = JSON.parse(markdownMatch[1]);
                 } catch (e) {
-                    console.error('[CoachAI] Failed to parse CoT JSON:', e);
+                    console.error('[CoachAI] Failed to parse markdown JSON:', e);
+                }
+            } else {
+                // Heuristic: find the last occurrence of something that looks like the root JSON object
+                // It usually starts with { and ends with }
+                const firstBrace = rawStr.indexOf('{');
+                const lastBrace = rawStr.lastIndexOf('}');
+                if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                    const extracted = rawStr.substring(firstBrace, lastBrace + 1);
+                    try {
+                        parsedData = JSON.parse(extracted);
+                    } catch (e) {
+                        console.error('[CoachAI] Failed to parse extracted CoT JSON:', e);
+                    }
                 }
             }
         }
