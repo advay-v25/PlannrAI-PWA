@@ -6,7 +6,7 @@ PlannrAI is a "Lived-In" Intelligence system designed to optimize personal sched
 
 * **The Dashboard**: A unified daily nexus combining your reality intake (Mindspace, Quick Adds) and ambient pulse (energy level).
 * **Mindspace**: Smart task and goal intake powered by AI extraction. Proposes changes via Option Cards.
-* **Donna - Super Intelligence Performance Coach**: Context-aware AI coach that nudges you structurally and prevents burnout.
+* **Donna - Super Intelligence Performance Coach**: Context-aware AI coach utilizing a robust Auto-Execute and Proposed Option dual-path execution engine. Includes silent retry on schedule collision.
 * **Narrative Weekly Review**: Reflection tool that avoids gamification, suggesting actionable changes (One Lever).
 * **Goal Engine**: Auto-schedules goals based on your historical "Best Windows".
 
@@ -17,7 +17,7 @@ PlannrAI relies on a robust real-time synchronization engine and a multi-agent A
 * **Backend:** Supabase (PostgreSQL), Next.js Server Actions
 * **AI:** Groq API (Llama 3.3 70B) for fast inference
 * **State Management:** Zustand with custom real-time DB syncing (`useSyncStore`, `graphVersion`)
-* **PWA:** Hybrid offline support with explicit `NetworkOnly` strategies for AI routes.
+* **PWA:** Fully decoupled Service Worker architecture (`sw.js`) combining Web Push Notifications and local Precaching, completely bypassing dynamic AI inference routes to maintain offline integrity without cache poisoning.
 
 ## Getting Started
 

@@ -28,11 +28,12 @@ export function RealtimeSync() {
                 }).catch(console.error);
             }
             const stacksStore = useHabitStacksStore.getState();
-            if (stacksStore.stacks.length === 0) {
-                apiClient.get('/api/habit-stacks').then((data: any) => {
-                    if (data?.data) stacksStore.setStacks(data.data);
-                }).catch(console.error);
-            }
+            // Disconnected for now to fix coach
+            // if (stacksStore.stacks.length === 0) {
+            //     apiClient.get('/api/habit-stacks').then((data: any) => {
+            //         if (data?.data) stacksStore.setStacks(data.data);
+            //     }).catch(console.error);
+            // }
         })();
     }, [profile, supabase, setProfile]);
 

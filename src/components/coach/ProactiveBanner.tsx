@@ -21,14 +21,14 @@ export function ProactiveBanner({
     };
 
     return (
-        <div className={`rounded-xl border p-4 backdrop-blur-md transition-all ${priorityStyles[suggestion.priority]}`}>
+        <div className={`rounded-xl border p-4 backdrop-blur-md transition-all ${priorityStyles[suggestion.severity]}`}>
             <div className="flex justify-between items-start">
                 <div className="flex-1">
                     <h4 className="font-semibold text-[var(--text-primary)] mb-1 flex items-center gap-2">
                         <span className="text-lg">💡</span> {suggestion.title}
                     </h4>
                     <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
-                        {suggestion.message}
+                        {suggestion.description}
                     </p>
                 </div>
                 <button
@@ -47,7 +47,7 @@ export function ProactiveBanner({
                     onClick={onAct}
                     className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg hover:brightness-110 active:scale-95 transition-all shadow-lg"
                 >
-                    {suggestion.action_label}
+                    {suggestion.action}
                 </button>
                 <button
                     onClick={onDismiss}

@@ -5,7 +5,7 @@ import { useToast } from '@/components/ui/toast';
 import { apiClient } from '@/lib/api-client';
 import { formatDistanceToNow } from 'date-fns';
 import { useCoach, CoachMessage } from '@/hooks/use-coach';
-import { CoachOption } from '@/types/coach-v4';
+import { ProposedOption } from '@/types/coach-v4';
 import { CoachMessageBubble } from './CoachMessageBubble';
 import { ConfirmationModal } from './ConfirmationModal';
 import { usePremiumCalendar } from '@/components/calendar/premium-calendar-styles';
@@ -38,7 +38,7 @@ function InlineOptionCard({
     onSelect,
     disabled,
 }: {
-    option: CoachOption;
+    option: ProposedOption & { recommended?: boolean; description?: string; tradeoff?: any; scenario_analysis?: any; preview?: any };
     onSelect: () => void;
     disabled: boolean;
 }) {
@@ -181,7 +181,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const [input, setInput] = useState('');
-    const [pendingOption, setPendingOption] = useState<CoachOption | null>(null);
+    const [pendingOption, setPendingOption] = useState<ProposedOption | null>(null);
     const [pendingParentId, setPendingParentId] = useState<string>('');
     const [showPreview, setShowPreview] = useState(false);
     const [isApplyingChanges, setIsApplyingChanges] = useState(false);
@@ -271,12 +271,12 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
             const { summary, ops } = raw;
             const assistantId = `assistant_${Date.now()}`;
 
-            const option: CoachOption = {
-                id: `quick_${action}_${Date.now()}`,
+            const option: ProposedOption = {
+                id: `opt_${Date.now()}`,
                 title: labelMap[action],
                 description: summary,
                 impact: `${raw.meta?.moved || 0} block${(raw.meta?.moved || 0) !== 1 ? 's' : ''} rescheduled${raw.meta?.dropped ? `, ${raw.meta.dropped} dropped` : ''}`,
-                patch: {
+                ledger: {
                     ops: ops.map((op: any) => {
                         if (op.type === 'move_block') {
                             return { op: 'move_event', event_id: op.block_id, title: op.title, to_start: op.new_start, to_end: op.new_end, date: op.new_date };
@@ -322,10 +322,10 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
     };
 
     // ── Option select (handles both synthetic + real message options) ─────────
-    const handleOptionSelect = async (option: CoachOption, parentMessageId: string) => {
+    const handleOptionSelect = async (option: ProposedOption, parentMessageId: string) => {
         const isSynthetic = parentMessageId.startsWith('assistant_') || parentMessageId.startsWith('local_');
 
-        if (option.tradeoff || option.patch.requires_confirmation) {
+        if ((option as any).tradeoff || (option as any).patch?.requires_confirmation) {
             setPendingOption(option);
             setPendingParentId(parentMessageId);
             setShowPreview(true);
@@ -335,7 +335,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
         await executeApply(option, parentMessageId, isSynthetic);
     };
 
-    const executeApply = async (option: CoachOption, parentMessageId: string, isSynthetic: boolean) => {
+    const executeApply = async (option: ProposedOption, parentMessageId: string, isSynthetic: boolean) => {
         setIsApplyingChanges(true);
 
         if (isSynthetic) {
@@ -343,7 +343,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                 const result = await apiClient.post('/api/coach/apply', {
                     conversation_id: null,
                     option_id: option.id,
-                    patch: option.patch,
+                    patch: { operations: option.ledger?.ops || [] },
                 }) as any;
 
                 if (result.success || result.applied_operations > 0) {
@@ -356,7 +356,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                     import('@/stores').then(({ useSyncStore }) => {
                         useSyncStore.getState().incrementGraphVersion();
                     });
-                    const moveOps = (option.patch as any).operations || [];
+                    const moveOps = option.ledger?.ops || [];
                     moveOps.forEach((op: any) => {
                         if (op.type === 'move_block' && op.block_id) {
                             usePremiumCalendar.getState().addAnimatingBlock(op.block_id, 1000);
@@ -381,7 +381,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
             const result = await applyOption(parentMessage.id, option.id);
             if (result) {
                 const appliedOption = typeof result === 'object' ? result : option;
-                const ops = (appliedOption.patch as any)?.operations || [];
+                const ops = appliedOption.ledger?.ops || [];
                 let isReplan = false;
                 const blockIdsToAnimate: string[] = [];
                 ops.forEach((op: any) => {

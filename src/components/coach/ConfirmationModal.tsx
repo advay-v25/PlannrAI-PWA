@@ -1,11 +1,11 @@
 'use client';
 
 import { useCoach } from '@/hooks/use-coach';
-import { CoachOption } from '@/types/coach-v4';
+import { ProposedOption } from '@/types/coach-v4';
 
 
 interface ConfirmationModalProps {
-    option: CoachOption;
+    option: ProposedOption;
     onConfirm: () => void;
     onCancel: () => void;
     isLoading: boolean;
@@ -42,9 +42,8 @@ export function ConfirmationModal({
                     )}
                 </div>
 
-                {/* Tradeoff Warning */}
                 {option.tradeoff && (
-                    <div className={`p-4 rounded-lg border flex items-start gap-3 ${severityColors[option.tradeoff.severity || 'info']}`}>
+                    <div className={`p-4 rounded-lg border flex items-start gap-3 ${severityColors[(option.tradeoff.severity as 'info' | 'caution' | 'warning') || 'info']}`}>
                         <div className="shrink-0 mt-0.5">
                             {option.tradeoff.severity === 'warning' ? '⚠️' : 'ℹ️'}
                         </div>

@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { CoachOption } from '@/types/coach-v4';
+import { ProposedOption } from '@/types/coach-v4';
 import { format, parseISO } from 'date-fns';
 
 interface CoachOptionCardProps {
-    option: CoachOption;
+    option: ProposedOption;
     onSelect: () => void;
     disabled: boolean;
     minimalMode: boolean;
@@ -162,9 +162,8 @@ export function CoachOptionCard({
                     </div>
                 )}
 
-                {/* Tradeoff Warning */}
                 {option.tradeoff && (
-                    <div className={`text-xs p-3 rounded-xl border backdrop-blur-sm mt-2 ${severityColors[option.tradeoff.severity]}`}>
+                    <div className={`text-xs p-3 rounded-xl border backdrop-blur-sm mt-2 ${severityColors[(option.tradeoff.severity as 'info' | 'caution' | 'warning')]}`}>
                         <span className="font-bold">NOTICE:</span> {option.tradeoff.warning}
                     </div>
                 )}

@@ -39,21 +39,21 @@ The system looks ahead to "Tomorrow" silently.
 - **Application**: AI proposes changes directly (Preview -> Apply/Undo) with a 10-second transactional undo barrier.
 
 ### 🤖 Donna - Super Intelligence Performance Coach
-- **Contextual Chat**: Knows your schedule, energy, and recent history (with dual timezone anchoring).
-- **Interventions**: Proactively nudges you if you are stagnant or overworking.
-- **Structure**: Responses are always structured (Facts -> Interpretation -> Options).
+- **Contextual Chat**: Knows your schedule, energy, and recent history (anchored to your exact local client timezone and sleep-cycle logic).
+- **Execution Engine**: Directives are classified by complexity. Simple tasks (e.g., adding a block, removing an event) use an `AUTO_EXECUTE` mutation ledger with a plain English description of what was done. Complex requests use `PROPOSE_OPTIONS`, generating distinct choices allowing the user to select the preferred path.
+- **Conflict Prevention**: Built-in `ConflictService` traps schedule collisions or overlapping blocks, triggering a silent LLM recalculation retry before ever showing an invalid option to the user.
 
 ### 📖 Narrative Weekly Review
 A reflection tool that avoids gamification.
 - **Reality**: "Planned vs Actual" text (no scores).
 - **Patterns**: Identifies exactly 3 friction patterns (e.g., "Overscheduled Mornings").
-- **One Lever**: The AI suggests **ONE** executable change (e.g., "Reduce goal minutes by 20%").
-    - **Apply**: Instantly executes the change on your settings/goals.
-    - **Ignore**: Dismisses it.
+- **One Lever**: Suggests **ONE** executable change (e.g., "Reduce goal minutes by 20%").
+    - Note: The Weekly Review is currently kept isolated and is not ingested into the AI Coach context to maintain scope separation.
 
 ### 🎯 Goal Engine
 - **Smart Distribution**: Goals ("Read 3x/week") are auto-scheduled based on your "Best Windows" (learned from history).
 - **Displacement**: Goals can push "Flexible" blocks out of the way, but yield to "Anchors".
+- Note: Habit Stacks and Goals operate independently from the primary AI Coach inference pipeline for now.
 
 ---
 
