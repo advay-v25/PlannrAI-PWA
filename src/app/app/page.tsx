@@ -407,7 +407,7 @@ export default function HomePage() {
             )}
 
             {proactiveSuggestion && (
-                <div className="mb-6 bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 rounded-2xl p-4 flex items-center justify-between">
+                <div className="mb-6 bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <span className="text-[var(--color-primary)] text-xl">✨</span>
                         <div>
@@ -415,18 +415,31 @@ export default function HomePage() {
                             <p className="text-[var(--color-primary)]/70 text-xs">{proactiveSuggestion.message}</p>
                         </div>
                     </div>
-                    <button
-                        onClick={() => {
-                            if (proactiveSuggestion.id === 'no-schedule' || proactiveSuggestion.id === 'goal-sync-needed') {
-                                router.push('/app/calendar?action=optimize_day');
-                            } else {
-                                router.push(`/app/coach?mode=strategic&prompt=${encodeURIComponent(proactiveSuggestion.message)}`);
-                            }
-                        }}
-                        className="px-4 py-2 bg-[var(--color-primary)]/20 text-[var(--color-primary)] text-xs font-bold rounded-lg hover:bg-[var(--color-primary)]/30 transition-colors"
-                    >
-                        {proactiveSuggestion.action_label || 'Resolve'}
-                    </button>
+                    <div className="flex items-center gap-2 w-full md:w-auto">
+                        <button
+                            onClick={async () => {
+                                setProactiveSuggestion(null);
+                                if (proactiveSuggestion.dismiss_uid) {
+                                    await apiClient.post('/api/coach/dismiss', { suggestion_id: proactiveSuggestion.dismiss_uid }).catch(console.error);
+                                }
+                            }}
+                            className="flex-1 md:flex-none px-4 py-2 bg-white/5 text-white/60 text-xs font-bold rounded-lg hover:bg-white/10 transition-colors"
+                        >
+                            Dismiss
+                        </button>
+                        <button
+                            onClick={() => {
+                                if (proactiveSuggestion.id === 'no-schedule' || proactiveSuggestion.id === 'goal-sync-needed') {
+                                    router.push('/app/calendar?action=optimize_day');
+                                } else {
+                                    router.push(`/app/coach?mode=strategic&prompt=${encodeURIComponent(proactiveSuggestion.query || proactiveSuggestion.message)}`);
+                                }
+                            }}
+                            className="flex-1 md:flex-none px-4 py-2 bg-[var(--color-primary)] text-white text-xs font-bold rounded-lg hover:brightness-110 shadow-lg shadow-[var(--color-primary)]/20 transition-all"
+                        >
+                            {proactiveSuggestion.action_label || 'Resolve'}
+                        </button>
+                    </div>
                 </div>
             )}
 

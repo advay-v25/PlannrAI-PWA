@@ -157,7 +157,7 @@ export const useCoach = create<CoachState>()(
           const assistantMsg: CoachMessage = {
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: sanitizeSummary(coachRes.summary || ''),
+            content: sanitizeSummary(coachRes.dialogue_response || coachRes.summary || ''),
             mode: coachRes.mode,
             options: coachRes.options,
             timestamp: Date.now()
@@ -204,6 +204,8 @@ export const useCoach = create<CoachState>()(
             message: text,
             conversation_id: get().conversationId,
             date: new Date().toISOString(),
+            clientDate: new Date().toLocaleDateString('en-CA'),
+            clientTime: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
             clientTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }, { signal: abortController.signal });
 
@@ -442,7 +444,7 @@ export const useCoach = create<CoachState>()(
         
         try {
           const raw = await apiClient.get('/api/coach/proactive') as any;
-          const proactiveData = raw?.proactive || (raw?.response && raw.response.proactive) || null;
+          const proactiveData = raw?.suggestion || (raw?.response && raw.response.suggestion) || null;
           set({
             proactiveSuggestion: proactiveData,
             hasLoadedProactive: true,
@@ -467,6 +469,10 @@ export const useCoach = create<CoachState>()(
                 role: m.role,
                 content: m.content,
                 mode: m.mode,
+                execution_mode: m.execution_mode,
+                executed_ledger: m.executed_ledger,
+                suggestedActions: m.suggested_actions,
+                undoToken: m.undo_token,
                 options: m.options,
                 selected_option_id: m.selected_option_id,
                 timestamp: new Date(m.created_at).getTime()

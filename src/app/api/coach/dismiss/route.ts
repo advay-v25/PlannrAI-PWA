@@ -14,13 +14,21 @@ export const POST = secureApiRoute(
                 );
             }
 
-            await supabase
-                .from('coach_proactive_log')
-                .update({ dismissed_at: new Date().toISOString() })
-                .eq('id', suggestion_id)
-                .eq('user_id', user.id);
+            const { data: profile } = await supabase.from('profiles').select('bio_data').eq('id', user.id).single();
+            const bioData = (profile?.bio_data as any) || {};
+            const dismissed = bioData.dismissed_suggestions || [];
+            if (!dismissed.includes(suggestion_id)) {
+                dismissed.push(suggestion_id);
+                // Keep only last 20 dismissals to prevent bloat
+                if (dismissed.length > 20) dismissed.shift();
+            }
+
+            await supabase.from('profiles').update({
+                bio_data: { ...bioData, dismissed_suggestions: dismissed }
+            }).eq('id', user.id);
 
             // Also clear needs_rescheduling flag if this was a scheduling suggestion
+
             if (suggestion_id === 'settings-sync-needed') {
                 const { data: profile } = await supabase.from('profiles').select('bio_data').eq('id', user.id).single();
                 const bioData = (profile?.bio_data as any) || {};
