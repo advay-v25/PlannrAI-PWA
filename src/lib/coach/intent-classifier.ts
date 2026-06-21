@@ -291,6 +291,9 @@ export function buildIntentClassificationPrompt(
     conversationHistory: Array<{ role: string; content: string }>,
     userContext: {
         current_time: string;
+        current_date?: string;
+        exact_iso_timestamp?: string;
+        in_active_wake_cycle?: boolean;
         today_blocks: any[];
         goals: any[];
         recent_energy?: string;
@@ -306,7 +309,8 @@ CURRENT USER MESSAGE:
 "${userMessage}"
 
 USER CONTEXT:
-- Current time: ${userContext.current_time || 'unknown'}
+- Temporal Map: System Time: ${userContext.exact_iso_timestamp || 'unknown'} | Behavioral Day: ${userContext.current_date || 'today'} | in_active_wake_cycle: ${userContext.in_active_wake_cycle ? 'TRUE' : 'FALSE'}
+- Current Time: ${userContext.current_time || 'unknown'}
 - Today's remaining blocks: ${userContext.today_blocks?.length || 0}
 - Active goals: ${userContext.goals?.map(g => g.title).join(', ') || 'none'}
 - Recent energy: ${userContext.recent_energy || 'unknown'}

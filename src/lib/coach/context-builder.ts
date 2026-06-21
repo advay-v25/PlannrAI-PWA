@@ -139,10 +139,25 @@ export async function buildCoachContext(
     let logicalNow = now;
     let in_active_wake_cycle = false;
     
-    // Treat 12:00 AM - 3:59 AM as continuation of the previous day
-    if (hour >= 0 && hour < 4) {
-        logicalNow = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        in_active_wake_cycle = true;
+    // If it's early morning (0:00 - 5:59 AM), check if the user has officially ended their day
+    // We check for a recent 'daily_logs' entry (which acts as a terminal 'Sleep Log' event).
+    if (hour >= 0 && hour < 6) {
+        // Look for a daily log created within the last 12 hours
+        const twelveHoursAgo = new Date(now.getTime() - 12 * 60 * 60 * 1000).toISOString();
+        const { data: recentLog } = await supabase
+            .from('daily_logs')
+            .select('id, created_at')
+            .eq('user_id', userId)
+            .gte('created_at', twelveHoursAgo)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        // If no log was found, the user hasn't ended their day yet
+        if (!recentLog) {
+            logicalNow = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            in_active_wake_cycle = true;
+        }
     }
 
     const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
