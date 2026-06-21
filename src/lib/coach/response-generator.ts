@@ -1417,37 +1417,68 @@ ${optionsInstruction}`;
         let parsedData = response.data as any;
         if (isMissedBlock && typeof response.data === 'string') {
             const rawStr = response.data as any as string;
-            const jsonMatch = rawStr.match(/```json\s*([\s\S]*?)\s*```/) || rawStr.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
+            // First try to find markdown json blocks
+            const markdownMatch = rawStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+            if (markdownMatch) {
                 try {
-                    parsedData = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+                    parsedData = JSON.parse(markdownMatch[1]);
                 } catch (e) {
-                    console.error('[CoachAI] Failed to parse CoT JSON:', e);
+                    console.error('[CoachAI] Failed to parse markdown JSON:', e);
+                }
+            } else {
+                // Heuristic: find the last occurrence of something that looks like the root JSON object
+                // It usually starts with { and ends with }
+                const firstBrace = rawStr.indexOf('{');
+                const lastBrace = rawStr.lastIndexOf('}');
+                if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                    const extracted = rawStr.substring(firstBrace, lastBrace + 1);
+                    try {
+                        parsedData = JSON.parse(extracted);
+                    } catch (e) {
+                        console.error('[CoachAI] Failed to parse extracted CoT JSON:', e);
+                    }
                 }
             }
         }
 
-        if (response.success && parsedData && parsedData.options?.length) {
+        const optionsArray = parsedData.proposed_options || parsedData.options || [];
+        const hasOptions = Array.isArray(optionsArray) && optionsArray.length > 0;
+        const isAutoExecute = parsedData.execution_mode === 'AUTO_EXECUTE' && parsedData.executed_ledger?.ops?.length > 0;
+
+        if (response.success && parsedData && (hasOptions || isAutoExecute)) {
             const data = parsedData;
 
-            // Determine the final mode: if AI is confident and recommends 'execute', we double-check complexity
-            const option = data.options[0];
-            const opCount = option.operations?.length || 0;
-            const hasAnchorMove = option.operations?.some((op: any) => 
-                (op.type === 'move_block' || op.type === 'update_block') && 
-                op.block_type === 'anchor'
-            );
+            let sourceOptions: any[] = [];
+            let aiMode: 'AUTO_EXECUTE' | 'PROPOSE_OPTIONS' = data.execution_mode || 'PROPOSE_OPTIONS';
 
-            // Simple = High confidence, suggested execute, small op count, no anchors
-            const isSimple = data.suggested_mode === 'execute' && 
-                             option.confidence_score === 'high' && 
-                             opCount <= 1 && 
-                             !hasAnchorMove;
+            if (isAutoExecute) {
+                sourceOptions = [{ ledger: data.executed_ledger, id: 'auto_exec', title: 'Auto Execute', impact: 'Executed automatically' }];
+                aiMode = 'AUTO_EXECUTE';
+            } else {
+                sourceOptions = optionsArray;
+                
+                // Determine the final mode: if AI is confident and recommends 'execute', we double-check complexity
+                const option = sourceOptions[0];
+                const opsArray = option.ledger?.ops || option.operations || [];
+                const opCount = opsArray.length;
+                const hasAnchorMove = opsArray.some((op: any) => 
+                    (op.type === 'move_block' || op.type === 'update_block') && 
+                    op.block_type === 'anchor'
+                );
 
-            const aiMode = isSimple ? 'execute' : 'propose';
+                const isSimple = data.suggested_mode === 'execute' && 
+                                 option.confidence_score === 'high' && 
+                                 opCount <= 1 && 
+                                 !hasAnchorMove;
 
-            const proposed_options: ProposedOption[] = data.options.map((opt: any, i: number) => {
-                let normalizedOps = (opt.operations || []).map(normalizeOperation);
+                if (isSimple && !data.execution_mode) {
+                    aiMode = 'AUTO_EXECUTE';
+                }
+            }
+
+            const proposed_options: ProposedOption[] = sourceOptions.map((opt: any, i: number) => {
+                let rawOps = opt.ledger?.ops || opt.operations || [];
+                let normalizedOps = rawOps.map(normalizeOperation);
 
                 // Anti-Hallucination Auto-Correction: Ensure rescheduled blocks have their own mathematically verified independent slot
                 const hasDelete = normalizedOps.some((o: any) => o.type === 'delete_block');
@@ -1472,9 +1503,9 @@ ${optionsInstruction}`;
                                 op.type = 'move_block';
                                 op.block_id = missedBlock.id;
                                 op.title = missedBlock.title;
-                                op.new_start = op.data.start_time;
-                                op.new_end = op.data.end_time;
-                                op.new_date = op.data.date || coachCtx.current.date;
+                                op.new_start = op.data?.start_time || op.start_time;
+                                op.new_end = op.data?.end_time || op.end_time;
+                                op.new_date = op.data?.date || op.date || coachCtx.current.date;
                                 delete op.data;
                             } else if (moveOrCreateOp.type === 'move_block') {
                                 const op = moveOrCreateOp as any;
@@ -1567,9 +1598,9 @@ ${optionsInstruction}`;
                                             op.type = 'move_block';
                                             op.block_id = missedBlock.id;
                                             op.title = missedBlock.title;
-                                            op.new_start = op.data.start_time;
-                                            op.new_end = op.data.end_time;
-                                            op.new_date = op.data.date || coachCtx.current.date;
+                                            op.new_start = op.data?.start_time || op.start_time;
+                                            op.new_end = op.data?.end_time || op.end_time;
+                                            op.new_date = op.data?.date || op.date || coachCtx.current.date;
                                             delete op.data;
                                         } else if (moveOrCreateOp.type === 'move_block') {
                                             const op = moveOrCreateOp as any;
@@ -1686,16 +1717,6 @@ ${optionsInstruction}`;
 
                 // Convert to CalendarPatchOp format for the UI card
                 const calendarOps = normalizedOps.map(convertToCalendarPatchOp);
-                // Compute preview counts from actual operations (don't trust AI)
-                const blocksAdded = normalizedOps.filter((o: any) => o.type === 'create_block' || o.type === 'create_todo' || o.type === 'create_goal').length;
-                const blocksModified = normalizedOps.filter((o: any) => o.type === 'move_block' || o.type === 'update_block' || o.type === 'update_todo' || o.type === 'update_goal').length;
-                const blocksRemoved = normalizedOps.filter((o: any) => o.type === 'delete_block' || o.type === 'delete_todo' || o.type === 'delete_goal').length;
-                const dates = new Set<string>();
-                normalizedOps.forEach((o: any) => {
-                    if (o.type === 'create_block' && o.data?.date) dates.add(o.data.date);
-                    else if (o.type === 'move_block' && o.new_date) dates.add(o.new_date);
-                    else dates.add(coachCtx.current.date);
-                });
 
                 return {
                     id: opt.id || `opt_${i + 1}`,
@@ -1708,16 +1729,10 @@ ${optionsInstruction}`;
                     } : undefined,
                     confidence_score: opt.confidence_score,
                     scenario_analysis: opt.scenario_analysis,
-                    patch: {
-                        operations: normalizedOps,
+                    preview: opt.preview,
+                    ledger: {
                         ops: calendarOps,
-                        requires_confirmation: aiMode === 'execute' ? false : true,
-                    },
-                    preview: {
-                        blocks_added: blocksAdded,
-                        blocks_modified: blocksModified,
-                        blocks_removed: blocksRemoved,
-                        affected_dates: Array.from(dates),
+                        reason: opt.ledger?.reason || opt.reason || ''
                     },
                     recommended: opt.recommended || false,
                 };
@@ -1731,20 +1746,12 @@ ${optionsInstruction}`;
             return {
                 dialogue_response: data.dialogue_response || data.summary || "Here is what I can do.",
                 system_state_flag: data.system_state_flag || 'NORMAL',
-                execution_mode: data.execution_mode || aiMode,
-                executed_ledger: data.executed_ledger ? {
-                    ops: data.executed_ledger.ops.map(convertToCalendarPatchOp),
-                    reason: data.executed_ledger.reason
+                execution_mode: aiMode,
+                executed_ledger: aiMode === 'AUTO_EXECUTE' ? {
+                    ops: proposed_options[0]?.ledger?.ops || [],
+                    reason: proposed_options[0]?.ledger?.reason || data.executed_ledger?.reason || 'Executed automatically'
                 } : null,
-                proposed_options: data.proposed_options ? data.proposed_options.map((opt: any) => ({
-                    id: opt.id,
-                    title: opt.title,
-                    impact: opt.impact,
-                    ledger: {
-                        ops: opt.ledger?.ops?.map(convertToCalendarPatchOp) || [],
-                        reason: opt.ledger?.reason
-                    }
-                })) : null,
+                proposed_options: aiMode === 'AUTO_EXECUTE' ? null : proposed_options,
                 contextual_options: data.contextual_options || [],
                 focus_node_id: data.focus_node_id || null
             };

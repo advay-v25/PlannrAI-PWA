@@ -88,6 +88,13 @@ export const GET = secureApiRoute(
             });
         }
 
+        const dismissed = bioData.dismissed_suggestions || [];
+        if (suggestion.dismiss_uid && dismissed.includes(suggestion.dismiss_uid)) {
+            return apiSuccess({
+                has_suggestion: false,
+            });
+        }
+
         return apiSuccess({
             has_suggestion: true,
             suggestion,

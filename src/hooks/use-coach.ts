@@ -57,14 +57,33 @@ interface CoachState extends PersistentCoachData {
 }
 
 function extractCoachResponse(raw: any): { response: any; conversationId?: string } {
+  // If raw is a string, try parsing it
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      return { response: { dialogue_response: raw, mode: 'chat', execution_mode: 'AUTO_EXECUTE', system_state_flag: 'NORMAL' } };
+    }
+  }
+
   // Format: { success, conversation_id, response }
-  if (raw?.response && typeof raw.response === 'object') {
+  if (raw?.response) {
+    if (typeof raw.response === 'string') {
+      try {
+        const parsed = JSON.parse(raw.response);
+        return { response: parsed, conversationId: raw.conversation_id };
+      } catch {
+        return { response: { dialogue_response: raw.response, execution_mode: 'AUTO_EXECUTE', system_state_flag: 'NORMAL' }, conversationId: raw.conversation_id };
+      }
+    }
     return { response: raw.response, conversationId: raw.conversation_id };
   }
+  
   // Already unwrapped CoachResponse (has dialogue_response directly)
   if (raw?.dialogue_response || raw?.execution_mode || raw?.summary || raw?.mode) {
     return { response: raw, conversationId: raw.conversation_id };
   }
+  
   // Fallback
   return { response: raw };
 }
@@ -138,7 +157,7 @@ export const useCoach = create<CoachState>()(
           const assistantMsg: CoachMessage = {
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: sanitizeSummary(coachRes.summary || ''),
+            content: sanitizeSummary(coachRes.dialogue_response || coachRes.summary || ''),
             mode: coachRes.mode,
             options: coachRes.options,
             timestamp: Date.now()
@@ -185,6 +204,8 @@ export const useCoach = create<CoachState>()(
             message: text,
             conversation_id: get().conversationId,
             date: new Date().toISOString(),
+            clientDate: new Date().toLocaleDateString('en-CA'),
+            clientTime: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
             clientTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }, { signal: abortController.signal });
 
@@ -192,6 +213,7 @@ export const useCoach = create<CoachState>()(
 
           // Validate response
           if (!coachRes.dialogue_response && !coachRes.execution_mode && !coachRes.summary && !coachRes.mode) {
+            console.error('[Coach Validation Failed] RAW:', raw, 'COACHRES:', coachRes);
             throw new Error('Invalid response from AI Coach. Please try again.');
           }
 
@@ -422,7 +444,7 @@ export const useCoach = create<CoachState>()(
         
         try {
           const raw = await apiClient.get('/api/coach/proactive') as any;
-          const proactiveData = raw?.proactive || (raw?.response && raw.response.proactive) || null;
+          const proactiveData = raw?.suggestion || (raw?.response && raw.response.suggestion) || null;
           set({
             proactiveSuggestion: proactiveData,
             hasLoadedProactive: true,
@@ -447,6 +469,10 @@ export const useCoach = create<CoachState>()(
                 role: m.role,
                 content: m.content,
                 mode: m.mode,
+                execution_mode: m.execution_mode,
+                executed_ledger: m.executed_ledger,
+                suggestedActions: m.suggested_actions,
+                undoToken: m.undo_token,
                 options: m.options,
                 selected_option_id: m.selected_option_id,
                 timestamp: new Date(m.created_at).getTime()

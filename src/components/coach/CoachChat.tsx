@@ -343,7 +343,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                 const result = await apiClient.post('/api/coach/apply', {
                     conversation_id: null,
                     option_id: option.id,
-                    patch: { operations: option.ledger?.ops || [] },
+                    patch: option.ledger,
                 }) as any;
 
                 if (result.success || result.applied_operations > 0) {
