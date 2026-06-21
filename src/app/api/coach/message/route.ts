@@ -82,10 +82,32 @@ export const POST = secureApiRoute(
         // OPTIMIZATION: Only build light context for intent classification
         const profileRes = await supabase.from('profiles').select('id, first_name, timezone').eq('id', user.id).single();
         const timezone = profileRes.data?.timezone || clientTimezone || 'UTC';
-        const now = new Date();
+        const now = clientDate ? new Date(clientDate) : new Date();
+        const hour = parseInt(new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: 'numeric', hour12: false }).format(now));
+        
+        let logicalNow = now;
+        let in_active_wake_cycle = false;
+        
+        if (hour >= 0 && hour < 6) {
+            const twelveHoursAgo = new Date(now.getTime() - 12 * 60 * 60 * 1000).toISOString();
+            const { data: recentLog } = await supabase
+                .from('daily_logs')
+                .select('id, created_at')
+                .eq('user_id', user.id)
+                .gte('created_at', twelveHoursAgo)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (!recentLog) {
+                logicalNow = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+                in_active_wake_cycle = true;
+            }
+        }
+
         const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
         const timeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false });
-        const today = dateFormatter.format(now);
+        const today = dateFormatter.format(logicalNow);
         const currentTime = timeFormatter.format(now);
 
         const [goalsRes, todayBlocksRes, energyRes, missedBlocksRes] = await Promise.all([
@@ -97,6 +119,9 @@ export const POST = secureApiRoute(
 
         const lightContext = {
             current_time: currentTime,
+            current_date: today,
+            exact_iso_timestamp: clientDate,
+            in_active_wake_cycle,
             today_blocks: todayBlocksRes.data || [],
             goals: goalsRes.data || [],
             recent_energy: energyRes.data?.energy_level,
