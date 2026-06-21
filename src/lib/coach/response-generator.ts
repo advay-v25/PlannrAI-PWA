@@ -1324,23 +1324,14 @@ CRITICAL FORMATTING REQUIREMENTS:
         if (isRejection && !/missed|miss|reschedule|another|new/i.test(userMessage)) {
              optionsInstruction = "The user rejected the previous AI options. Provide EXACTLY ONE option: 'Manual Movement', which instructs them to manually move the block in the calendar UI themselves. Do NOT generate any patch operations (empty operations array []). Return valid JSON only.";
         } else {
-             optionsInstruction = `CRITICAL: You must execute a Chain-of-Thought process BEFORE generating the JSON response.
-You must output your reasoning in text first, going through these exact steps:
-1. \`read_prompt\`: Analyze the user's prompt to identify the exact block and time being rescheduled or missed.
-2. \`read_priority\`: Determine the priority level of the block the user is asking to reschedule.
-3. \`read_calendar\`: Scan the provided calendar context. You must explicitly execute the following sub-processes:
-   - \`read_time\`: Read current time.
-   - \`read_anchor\`: Identify all anchor blocks.
-   - \`read_block\`: Read all existing pre-scheduled blocks.
-   - \`read_goals\`: Read the user's goals.
-   - \`read_completion\`: Identify which blocks are completed or missed.
-   This gives you complete, up-to-date knowledge about the user's calendar blocks, meal times, buffers, sleep times, morning/wind-down times, and completion statuses.
-4. \`find_time\`: Go option by option to find empty space.
-   - For Option 1 (Today): Run \`find_empty_time\` to find gaps today > 30 mins after the prompt's time. If the entire block can't fit, look for a smaller time (minimum 30 mins). It MUST NOT cut into anchors, buffer blocks, sleep blocks, meal blocks, or pre-existing blocks.
-   - For Option 2 (This Week): Run \`find_empty_time\` to find gaps this week > 30 mins. If the entire block can't fit, look for a smaller time (min 30 mins). MUST NOT cut into anchors, buffer blocks, sleep, meals, or pre-existing blocks.
-   - For Option 3: Run \`find_block\` to find blocks with priority LOWER than the missed block. Accurately read the blocks to see which can be replaced.
+             optionsInstruction = `CRITICAL: You must execute a brief Chain-of-Thought process (max 50 words) BEFORE generating the JSON response.
+You must output your reasoning in text first, briefly stating:
+1. The block and time being rescheduled.
+2. The priority of the block.
+3. The empty time slots available today and this week.
+4. The lower priority block that can be replaced.
 
-Once you have completed this thought process, you MUST output a JSON block wrapped in \`\`\`json ... \`\`\` containing EXACTLY 3 actionable options.
+Once you have completed this brief thought process, you MUST output a JSON block wrapped in \`\`\`json ... \`\`\` containing EXACTLY 3 actionable options.
 
 Option 1: Reschedule Today (same or reduced duration).
 If empty time exists today, place it there. You MUST output TWO operations: if the available gap is shorter, first use \`compress_block\` (changing time duration), then use \`move_block\` to literally pick up the block and move it. Do NOT leave traces behind.
@@ -1401,11 +1392,11 @@ ${optionsInstruction}`;
             prompt: userPrompt,
             systemPrompt,
             messages: conversationHistory as any,
-            model: isMissedBlock ? 'smart' : 'smart', // MUST use 70B for CoT logic
+            model: 'fast', // Use fast models (8B/Flash) to avoid 70B TPM limits and slow generation timeouts
             temperature: 0.5,
-            maxTokens: 3000,
+            maxTokens: 2000,
             requireJSON: !isMissedBlock, // If missed block, we expect CoT text before JSON
-            timeout: isMissedBlock ? 55000 : 30000,
+            timeout: isMissedBlock ? 35000 : 25000,
             useNvidia: true,
             strictNvidia: false, // Set to false to allow Groq's high-speed Llama 3.3 70B to prevent 504 timeouts
             skipOpenRouter: true, // Bypass OpenRouter and Gemini to strictly use fast Llama 70B engines

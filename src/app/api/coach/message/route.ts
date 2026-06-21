@@ -191,7 +191,12 @@ export const POST = secureApiRoute(
                     if (bTitle.length >= 2 && msgLower.includes(bTitle)) score += 3;
                     const timeMatches = message.match(/\b(\d{1,2}):(\d{2})\b/g) || [];
                     for (const t of timeMatches) {
-                        if (b.start_time?.startsWith(t.padStart(5, '0'))) score += 5;
+                        const parts = t.split(':');
+                        const h = parseInt(parts[0]);
+                        const m = parts[1];
+                        const t12 = `${h.toString().padStart(2, '0')}:${m}`;
+                        const t24 = h < 12 ? `${(h + 12).toString().padStart(2, '0')}:${m}` : t12;
+                        if (b.start_time?.startsWith(t12) || b.start_time?.startsWith(t24)) score += 5;
                     }
                     const ampmMatches = message.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/gi) || [];
                     for (const t of ampmMatches) {

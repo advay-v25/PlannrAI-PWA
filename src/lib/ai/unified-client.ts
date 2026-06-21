@@ -404,7 +404,7 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
     const tier = options.model ?? 'fast';
     const totalStartTime = Date.now();
     const MAX_TOTAL_TIME = options.timeout ?? 55000;
-    const MAX_PROVIDER_TIME = 15000; // Strict 15s limit per provider to prevent Vercel 504 timeouts
+    const MAX_PROVIDER_TIME = (tier === 'smart' || tier === 'creative') ? 35000 : 15000; // Allow 35s for complex CoT to prevent premature aborts
 
     const getRemainingTime = () => Math.max(5000, MAX_TOTAL_TIME - (Date.now() - totalStartTime));
 
