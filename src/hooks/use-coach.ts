@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { apiClient } from '@/lib/api-client';
-import type { CoachResponse, CoachOption, CoachQuestion, CoachRefusal, ProactiveSuggestion } from '@/types/coach-v4';
+import type { CoachResponse, ProposedOption, MutationLedger, ProactiveSuggestion } from '@/types/coach-v4';
 
 export interface CoachMessage {
   id: string;
@@ -12,9 +12,9 @@ export interface CoachMessage {
   mode?: string;
   thinking?: string[];
   contextUsed?: string[];
-  options?: CoachOption[];
-  question?: CoachQuestion;
-  refusal?: CoachRefusal;
+  options?: ProposedOption[];
+  execution_mode?: 'AUTO_EXECUTE' | 'PROPOSE_OPTIONS';
+  executed_ledger?: MutationLedger | null;
   suggestedActions?: string[];
   isApplying?: boolean;
   selected_option_id?: string;
@@ -43,7 +43,7 @@ interface CoachState extends PersistentCoachData {
   
   sendMessage: (text: string) => Promise<{ success: boolean; error?: string }>;
   stopGenerating: () => string;
-  applyOption: (messageId: string, optionId: string) => Promise<CoachOption | boolean>;
+  applyOption: (messageId: string, optionId: string) => Promise<ProposedOption | boolean>;
   undo: () => Promise<boolean>;
   clearError: () => void;
   refreshContext: () => Promise<void>;
@@ -61,8 +61,8 @@ function extractCoachResponse(raw: any): { response: any; conversationId?: strin
   if (raw?.response && typeof raw.response === 'object') {
     return { response: raw.response, conversationId: raw.conversation_id };
   }
-  // Already unwrapped CoachResponse (has summary/mode directly)
-  if (raw?.summary || raw?.mode) {
+  // Already unwrapped CoachResponse (has dialogue_response directly)
+  if (raw?.dialogue_response || raw?.execution_mode || raw?.summary || raw?.mode) {
     return { response: raw, conversationId: raw.conversation_id };
   }
   // Fallback
@@ -191,7 +191,7 @@ export const useCoach = create<CoachState>()(
           const { response: coachRes, conversationId } = extractCoachResponse(raw);
 
           // Validate response
-          if (!coachRes.summary && !coachRes.mode) {
+          if (!coachRes.dialogue_response && !coachRes.execution_mode && !coachRes.summary && !coachRes.mode) {
             throw new Error('Invalid response from AI Coach. Please try again.');
           }
 
@@ -217,14 +217,14 @@ export const useCoach = create<CoachState>()(
           const assistantMsg: CoachMessage = {
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: sanitizeSummary(coachRes.summary || ''),
-            mode: coachRes.mode,
+            content: sanitizeSummary(coachRes.dialogue_response || coachRes.summary || ''),
+            mode: coachRes.execution_mode || coachRes.mode,
+            execution_mode: coachRes.execution_mode,
+            executed_ledger: coachRes.executed_ledger,
             thinking: coachRes.thinking,
             contextUsed: coachRes.context_used,
-            options: coachRes.options,
-            question: coachRes.question,
-            refusal: coachRes.refusal,
-            suggestedActions: coachRes.suggested_actions,
+            options: coachRes.proposed_options || coachRes.options,
+            suggestedActions: coachRes.contextual_options || coachRes.suggested_actions,
             timestamp: Date.now()
           };
 
@@ -241,9 +241,21 @@ export const useCoach = create<CoachState>()(
             abortController: null
           }));
 
-          // Auto-execute if mode is 'execute'
-          if (coachRes.mode === 'execute' && coachRes.options?.length) {
-            const recommended = coachRes.options.find((o: any) => o.recommended) || coachRes.options[0];
+          // Auto-execute if mode is 'AUTO_EXECUTE' and we have an executed ledger
+          if ((coachRes.execution_mode === 'AUTO_EXECUTE' || coachRes.mode === 'execute') && coachRes.executed_ledger) {
+              console.log('[Coach] Auto-executing ledger');
+              // Create a dummy option out of the executed ledger to pass to applyOption
+              const dummyOption: ProposedOption = {
+                  id: 'auto_execute',
+                  title: 'Auto Execute',
+                  impact: 'Auto Executed',
+                  ledger: coachRes.executed_ledger
+              };
+              assistantMsg.options = [dummyOption];
+              get().applyOption(assistantMsg.id, 'auto_execute');
+          } else if (coachRes.mode === 'execute' && (coachRes.proposed_options?.length || coachRes.options?.length)) {
+            const opts = coachRes.proposed_options || coachRes.options;
+            const recommended = opts.find((o: any) => o.recommended) || opts[0];
             if (recommended) {
               console.log('[Coach] Auto-executing directive:', recommended.title);
               get().applyOption(assistantMsg.id, recommended.id);
@@ -294,7 +306,7 @@ export const useCoach = create<CoachState>()(
           return false;
         }
 
-        const ops = (option.patch as any)?.operations || (option.patch as any)?.ops || [];
+        const ops = (option.ledger?.ops) || (option as any).patch?.operations || (option as any).patch?.ops || [];
         if (ops.length === 0) {
           set(state => ({
             messages: state.messages.map(m => 
@@ -321,7 +333,7 @@ export const useCoach = create<CoachState>()(
             body: JSON.stringify({
               conversation_id: get().conversationId,
               option_id: optionId,
-              patch: option.patch
+              patch: { operations: option.ledger?.ops || [] }
             })
           });
 

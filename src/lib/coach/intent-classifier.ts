@@ -38,6 +38,11 @@ export enum CoachIntent {
     UNDO_LAST = 'undo_last',                 // "Undo that change"
     GENERAL_CHAT = 'general_chat',           // Off-topic / venting
     OUT_OF_SCOPE = 'out_of_scope',          // Not Coach's domain
+
+    // ===== TRIAGE STATES (V4) =====
+    BRAIN_DUMP = 'brain_dump',               // "I need to workout more, call mom, buy milk"
+    EMOTIONAL_COLLAPSE = 'emotional_collapse', // "I can't do this anymore, I'm burning out"
+    TEMPORAL_OVERRUN = 'temporal_overrun',     // "I'm running 30 mins late on everything"
 }
 
 export interface IntentClassification {
@@ -261,6 +266,24 @@ export const INTENT_EXAMPLES = {
         "What should I eat for dinner?",
         "Can you help with my taxes?",
     ],
+
+    [CoachIntent.BRAIN_DUMP]: [
+        "I need to call mom, buy groceries, and finish the report",
+        "Just a brain dump: clean house, email boss, read 10 pages",
+        "Add tasks to workout, study, and meditate",
+    ],
+
+    [CoachIntent.EMOTIONAL_COLLAPSE]: [
+        "I can't do this anymore, I'm burning out",
+        "Everything is falling apart, I'm so stressed",
+        "I need a break from life right now",
+    ],
+
+    [CoachIntent.TEMPORAL_OVERRUN]: [
+        "I'm running 30 mins late on everything",
+        "My meeting ran over by an hour",
+        "I'm behind schedule today",
+    ],
 };
 
 export function buildIntentClassificationPrompt(
@@ -307,6 +330,9 @@ CLASSIFICATION RULES:
 SPECIAL CASES:
 - If "Protect my focus" -> DEEP_WORK_OPTIMIZE
 - If "Too tired for X" -> ENERGY_OFFSET
+- If multiple unstructured tasks -> BRAIN_DUMP
+- If extreme stress/burnout -> EMOTIONAL_COLLAPSE
+- If schedule is delayed -> TEMPORAL_OVERRUN
 - If "I'm busy at [time]" → BUSY_AT_TIME + extract constraint
 - If "Move X to Y" → MOVE_BLOCK + extract entities
 - If "Mark X as done" (referring to a task) → COMPLETE_TASK
@@ -413,6 +439,16 @@ function quickIntentMatch(message: string): IntentClassification | null {
     if (/(miss|missed|didn't|did not|reschedule|postpone|delay|shift|move|change.*time)/i.test(lower)) {
         return {
             primary_intent: CoachIntent.MOVE_BLOCK,
+            confidence: 0.95,
+            entities: {},
+            requires_clarification: false,
+        };
+    }
+
+    // Temporal Overrun
+    if (/(running late|behind schedule|ran over|delayed)/i.test(lower)) {
+        return {
+            primary_intent: CoachIntent.TEMPORAL_OVERRUN,
             confidence: 0.95,
             entities: {},
             requires_clarification: false,

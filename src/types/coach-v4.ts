@@ -25,70 +25,40 @@ interface CalendarPatchOp {
     date?: string;
 }
 
-interface CalendarPatch {
+export interface MutationLedger {
     ops: CalendarPatchOp[];
-    undoable?: boolean;
-    requires_confirmation?: boolean;
-    scope?: 'day' | 'week';
     reason?: string;
 }
 
-
-export interface CoachOption {
+export interface ProposedOption {
     id: string;
     title: string;
-    description?: string;
     impact: string;
-    tradeoff?: {
-        warning: string;
-        severity: 'info' | 'caution' | 'warning';
-    };
-    confidence_score?: 'high' | 'medium' | 'low';
-    scenario_analysis?: string;
-    effort?: 'low' | 'medium' | 'high';
-    time_impact_mins?: number;
-    patch: CalendarPatch;
-    preview?: {
-        blocks_added: number;
-        blocks_modified: number;
-        blocks_removed: number;
-        affected_dates: string[];
-    };
+    ledger: MutationLedger;
     recommended?: boolean;
-}
-
-
-export interface CoachQuestion {
-    prompt: string;
-    type: 'text' | 'confirm' | 'choice';
-    choices?: string[];
-}
-
-export interface CoachRefusal {
-    reason: string;
-    next_best?: string;
+    description?: string;
+    tradeoff?: any;
+    scenario_analysis?: string;
+    preview?: any;
+    confidence_score?: 'high' | 'medium' | 'low';
 }
 
 export interface ProactiveSuggestion {
     id: string;
     title: string;
-    message: string;
-    priority: 'high' | 'medium' | 'low';
-    action_label: string;
-    trigger_type?: string;
+    description: string;
+    severity: 'high' | 'medium' | 'low';
+    action: string;
     dismiss_uid?: string;
     query?: string;
 }
 
 export interface CoachResponse {
-
-    mode: CoachMode;
-    thinking?: string[];
-    summary: string;
-    context_used?: string[];
-    options?: CoachOption[];
-    question?: CoachQuestion;
-    refusal?: CoachRefusal;
-    suggested_actions?: string[];
-    undo_token?: string | null;
+    dialogue_response: string;
+    system_state_flag: 'NORMAL' | 'RECOVERY' | 'CASCADE_WARNING';
+    execution_mode: 'AUTO_EXECUTE' | 'PROPOSE_OPTIONS';
+    executed_ledger: MutationLedger | null;
+    proposed_options: ProposedOption[] | null;
+    contextual_options: string[];
+    focus_node_id: string | null;
 }

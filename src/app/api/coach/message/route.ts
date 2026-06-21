@@ -3,6 +3,7 @@ import { buildCoachContext } from '@/lib/coach/context-builder';
 import { classifyIntent, CoachIntent } from '@/lib/coach/intent-classifier';
 import { generateCoachResponse } from '@/lib/coach/response-generator';
 import { secureApiRoute, SecureApiContext } from '@/lib/security/api-protection';
+import { ConflictService } from '@/lib/scheduling/conflict-service';
 
 export const maxDuration = 60;
 
@@ -195,7 +196,9 @@ export const POST = secureApiRoute(
         fullCoachContext.current.exact_iso_timestamp = clientDate;
         fullCoachContext.current.exact_timezone = timezone;
 
-        const response = await generateCoachResponse(
+        const currentSchedule = [...(fullCoachContext.schedule.today || []), ...(fullCoachContext.schedule.this_week || [])];
+        
+        let response = await generateCoachResponse(
             message,
             conversationHistory,
             fullCoachContext,
@@ -204,14 +207,57 @@ export const POST = secureApiRoute(
             intentClassification
         );
 
+        // Internal LLM Retry Loop
+        let retryCount = 0;
+        let valid = false;
+        
+        while (!valid && retryCount < 1) {
+            let conflictErrors: string[] = [];
+            
+            if (response.executed_ledger && response.executed_ledger.ops) {
+                const val = ConflictService.validateAIPatch(currentSchedule as any, response.executed_ledger.ops);
+                if (!val.valid) conflictErrors.push(...val.errors);
+            }
+            if (response.proposed_options) {
+                for (const opt of response.proposed_options) {
+                    if (opt.ledger && opt.ledger.ops) {
+                        const val = ConflictService.validateAIPatch(currentSchedule as any, opt.ledger.ops);
+                        if (!val.valid) conflictErrors.push(...val.errors);
+                    }
+                }
+            }
+            
+            if (conflictErrors.length > 0) {
+                retryCount++;
+                console.warn(`[Coach AI] Conflict detected. Retrying... Errors:`, conflictErrors);
+                
+                // Silent LLM recalculation retry
+                const retryHistory = [...conversationHistory, {
+                    role: 'user',
+                    content: `SYSTEM REJECTION: Your last schedule patch contained overlaps or violated immutable blocks. Errors: ${conflictErrors.join('; ')}. Recalculate and output a new patch ensuring NO overlaps. Use a different time slot.`
+                }];
+                
+                response = await generateCoachResponse(
+                    message,
+                    retryHistory,
+                    fullCoachContext,
+                    supabase,
+                    null,
+                    intentClassification
+                );
+            } else {
+                valid = true;
+            }
+        }
+
         await supabase.from('coach_messages').insert({
             conversation_id: conversationId,
             user_id: user.id,
             role: 'assistant',
-            content: response.summary,
+            content: response.dialogue_response || (response as any).summary,
             intent: intentClassification.primary_intent,
-            mode: response.mode,
-            options: response.options || null,
+            mode: response.execution_mode || (response as any).mode,
+            options: response.proposed_options || (response as any).options || null,
             created_at: new Date().toISOString(),
         });
 

@@ -11,52 +11,26 @@ import {
 
 // ============ RESPONSE SCHEMA ============
 
-export interface CoachResponse {
-    id: string;
-    timestamp: string;
-    mode: 'execute' | 'propose' | 'clarify' | 'acknowledge' | 'inform';
-    summary: string;
-    execution_tactics?: string;
-    options?: CoachOption[];
-    clarification?: {
-        question: string;
-        suggestions?: string[];
-    };
-    acknowledgment?: {
-        message: string;
-        offer?: string;
-    };
-    minimal_mode: boolean;
-    conversation_context: {
-        can_undo: boolean;
-        last_patch_version_id?: string;
-    };
-    options_expire_at: string;
+export interface MutationLedger {
+    ops: any[];
+    reason?: string;
 }
 
-interface CoachOption {
+export interface ProposedOption {
     id: string;
     title: string;
-    description: string;
     impact: string;
-    tradeoff?: {
-        warning: string;
-        severity: 'info' | 'caution' | 'warning';
-    };
-    scenario_analysis?: string;
-    patch: SchedulePatch;
-    preview: {
-        blocks_added: number;
-        blocks_modified: number;
-        blocks_removed: number;
-        affected_dates: string[];
-    };
-    recommended: boolean;
+    ledger: MutationLedger;
 }
 
-interface SchedulePatch {
-    operations: PatchOperation[];
-    requires_confirmation: boolean;
+export interface CoachResponse {
+    dialogue_response: string;
+    system_state_flag: 'NORMAL' | 'RECOVERY' | 'CASCADE_WARNING';
+    execution_mode: 'AUTO_EXECUTE' | 'PROPOSE_OPTIONS';
+    executed_ledger: MutationLedger | null;
+    proposed_options: ProposedOption[] | null;
+    contextual_options: string[];
+    focus_node_id: string | null;
 }
 
 type PatchOperation =
@@ -862,61 +836,49 @@ function buildOpsForComputed(comp: ComputedReschedule, missedBlock: any): PatchO
 }
 
 function buildCoachOption(
-    comp: ComputedReschedule | null,
+    opt: any,
     idx: number,
     missedName: string,
     missedBlock: any,
-    _coachCtx: CoachContext,
-    recommended: boolean,
-    emptyTitle: string,
-    emptyDesc: string
-): CoachOption {
-    if (!comp) {
+    coachCtx: CoachContext,
+    isRecommended: boolean,
+    fallbackTitle: string,
+    fallbackImpact: string
+): ProposedOption {
+    if (!opt) {
         return {
-            id: `opt_${idx}`, title: emptyTitle, description: emptyDesc, impact: '',
-            patch: { operations: [], ops: [], requires_confirmation: true } as any,
-            preview: { blocks_added: 0, blocks_modified: 0, blocks_removed: 0, affected_dates: [] },
-            recommended: false,
-        } as any;
+            id: `opt_${idx}`,
+            title: fallbackTitle,
+            impact: fallbackImpact,
+            ledger: {
+                ops: [],
+                reason: fallbackImpact
+            }
+        };
     }
 
-    const ops = buildOpsForComputed(comp, missedBlock);
-    const calendarOps = ops.map(convertToCalendarPatchOp);
-    const durMin = timeToMinutes(comp.end) - timeToMinutes(comp.start);
-    const shrunkNote = comp.shrunk ? ` (shortened to ${durMin}min to fit)` : '';
-    const when = `${comp.kind === 'today' ? 'today' : dayLabel(comp.date)} ${formatTime(comp.start)}–${formatTime(comp.end)}`;
+    const { targetDate, slot, tradeoff, warningType } = opt;
+    const sameDay = targetDate === coachCtx.current.date;
 
-    let title: string;
-    let description: string;
-    let impact: string;
-    if (comp.kind === 'today') {
-        title = 'Reschedule today';
-        description = `Move "${missedName}" to ${when}${shrunkNote}.`;
-        impact = `• Keeps "${missedName}" today\n• Drops into a verified free gap — no other block touched`;
-    } else if (comp.kind === 'week') {
-        title = 'Reschedule later this week';
-        description = `Move "${missedName}" to ${when}${shrunkNote}.`;
-        impact = `• Protects the rest of today\n• Lands in a verified free gap on ${dayLabel(comp.date)}`;
-    } else {
-        const r = comp.replacedBlock;
-        title = 'Swap with another block';
-        description = `Replace "${r.title || r.context}" (${dayLabel(r.date)} ${formatTime(r.start_time)}) with "${missedName}" at ${when}${shrunkNote}.`;
-        impact = `• Frees space by removing "${r.title || r.context}"\n• Places "${missedName}" on ${dayLabel(comp.date)}`;
+    let patchOps: any[] = [];
+    if (slot) {
+        patchOps = [{
+            type: 'move_block' as const,
+            block_id: missedBlock.id,
+            new_start: slot.start,
+            new_end: slot.end,
+            new_date: targetDate,
+        }];
     }
 
     return {
         id: `opt_${idx}`,
-        title,
-        description,
-        impact,
-        patch: { operations: ops, ops: calendarOps, requires_confirmation: true } as any,
-        preview: {
-            blocks_added: 0,
-            blocks_modified: ops.filter(o => o.type === 'move_block' || o.type === 'update_block').length,
-            blocks_removed: ops.filter(o => o.type === 'delete_block').length,
-            affected_dates: [comp.date],
-        },
-        recommended,
+        title: sameDay ? `Move to ${slot.start} today` : `Move to ${targetDate} at ${slot.start}`,
+        impact: `Moved "${missedName}" to ${targetDate}`,
+        ledger: {
+            ops: patchOps,
+            reason: `Moved "${missedName}"`
+        }
     } as any;
 }
 
@@ -984,18 +946,18 @@ async function buildDeterministicRescheduleResponse(
     // If literally nothing is available, tell them plainly and offer a manual move.
     if (!opt1 && !opt2 && !opt3) {
         return {
-            id: generateId(),
-            timestamp: new Date().toISOString(),
-            mode: 'inform',
-            summary: `I can't find a single free gap for "${missedName}" anywhere this week, and there's no lower-priority block to swap it with. Your safest move is to drag it onto the calendar manually where you know you'll have time.`,
-            minimal_mode: coachCtx.user_state.is_minimal_mode,
-            conversation_context: { can_undo: false },
-            options_expire_at: getExpirationTime(15),
+            dialogue_response: `I can't find a single free gap for "${missedName}" anywhere this week, and there's no lower-priority block to swap it with. Your safest move is to drag it onto the calendar manually where you know you'll have time.`,
+            system_state_flag: 'NORMAL',
+            execution_mode: 'AUTO_EXECUTE',
+            executed_ledger: null,
+            proposed_options: null,
+            contextual_options: [],
+            focus_node_id: null
         };
     }
 
     const recommendedIdx = opt1 ? 1 : opt2 ? 2 : 3;
-    const options: CoachOption[] = [
+    const proposed_options: ProposedOption[] = [
         buildCoachOption(opt1, 1, missedName, missedBlock, coachCtx, recommendedIdx === 1, 'No free time today', `No gap fits "${missedName}" later today.`),
         buildCoachOption(opt2, 2, missedName, missedBlock, coachCtx, recommendedIdx === 2, 'No free time this week', `No gap fits "${missedName}" in the rest of the week.`),
         buildCoachOption(opt3, 3, missedName, missedBlock, coachCtx, recommendedIdx === 3, 'No block to swap', `No other block in the same pillar available to swap.`),
@@ -1004,14 +966,13 @@ async function buildDeterministicRescheduleResponse(
     const summary = await narrateReschedule(missedName, duration, coachCtx, opt1, opt2, opt3);
 
     return {
-        id: generateId(),
-        timestamp: new Date().toISOString(),
-        mode: 'propose',
-        summary,
-        options,
-        minimal_mode: coachCtx.user_state.is_minimal_mode,
-        conversation_context: { can_undo: false },
-        options_expire_at: getExpirationTime(15),
+        dialogue_response: summary,
+        system_state_flag: 'NORMAL',
+        execution_mode: 'PROPOSE_OPTIONS',
+        executed_ledger: null,
+        proposed_options: proposed_options,
+        contextual_options: [],
+        focus_node_id: null
     };
 }
 
@@ -1311,31 +1272,28 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
 - Return a single valid JSON object.
 - NO markdown formatting (no \`\`\`json).
 - NO text before or after the JSON.
-- "summary": You MUST output exactly 4 parts in this string, combined in a single readable message (No markdown, plain text only, max 150 words):
-    1. Greeting & Context Summary: (1 sentence) Read the room. Acknowledge time, energy, or what they just finished/missed.
-    2. Execution Insight: (1-2 sentences) Focus on the NEXT 1-2 hours. Identify immediate blocker/optimization.
-    3. Performance Insight (optional): (1 sentence) Zoom out. Connect today to weekly goals/trends.
-    4. Closing Prompt: (1 sentence) End with a sharp, decisive question pushing them to action.
+- For simple requests (mark done, simple add, delete), use execution_mode "AUTO_EXECUTE" with a single executed_ledger.
+- For complex requests (reschedule, replan, missed block), use execution_mode "PROPOSE_OPTIONS" with 3 distinct proposed_options.
 {
-  "summary": "Greeting... Execution insight... Performance insight... Closing prompt...",
-  "execution_tactics": "Specific, tactical advice on HOW to execute the next block based on their current energy.",
-  "suggested_mode": "propose" | "execute",
-  "strategic_insight": "A single sentence explaining WHY this optimization matters for their goals",
-  "options": [
-    {
-      "id": "option_1",
-      "title": "Short title",
-      "description": "What this option does (1 concise sentence max)",
-      "impact": "Concrete positive outcome (e.g., 'Reclaims 2 hours of peak focus')",
-      "confidence_score": "high|medium|low",
-      "tradeoff": { "warning": "Any downsides", "severity": "info|caution|warning" },
-      "scenario_analysis": "Deviation Analyst breakdown of secondary impacts (e.g., 'Moving this to Friday will protect focus but cannibalize your wind-down time').",
-      "operations": [
-        { "type": "create_block|move_block|update_block|delete_block|replan_week|replan_day|create_todo|update_todo|delete_todo|create_goal|update_goal|delete_goal|update_settings|update_memory", ... }
-      ],
-      "recommended": true
-    }
-  ]
+  "dialogue_response": "Concise, coach-toned text describing what was done or asking the user.",
+  "system_state_flag": "NORMAL" | "RECOVERY" | "CASCADE_WARNING",
+  "execution_mode": "AUTO_EXECUTE" | "PROPOSE_OPTIONS",
+  "executed_ledger": {
+     "ops": [
+        { "type": "create_block|move_block|update_block|delete_block|create_todo|update_todo|delete_todo|create_goal|update_goal|delete_goal", ... }
+     ],
+     "reason": "Why you did this"
+  } | null,
+  "proposed_options": [
+     {
+         "id": "option_1",
+         "title": "Short title",
+         "impact": "Concrete positive outcome (e.g., • Reclaims 2 hours of peak focus)",
+         "ledger": { "ops": [...] }
+     }
+  ] | null,
+  "contextual_options": ["Reply pill 1", "Reply pill 2"],
+  "focus_node_id": "block_id_or_null"
 }`;
 
     const recentHistory = conversationHistory.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n');
@@ -1421,25 +1379,18 @@ ${classification.extracted_constraint ? `Constraint: ${classification.extracted_
 ${optionsInstruction}`;
     try {
         const response = await callAI<{
-            summary: string;
-            execution_tactics?: string;
-            suggested_mode: 'execute' | 'propose';
-            strategic_insight?: string;
-            options: Array<{
+            dialogue_response: string;
+            system_state_flag: 'NORMAL' | 'RECOVERY' | 'CASCADE_WARNING';
+            execution_mode: 'AUTO_EXECUTE' | 'PROPOSE_OPTIONS';
+            executed_ledger: { ops: PatchOperation[], reason?: string } | null;
+            proposed_options: Array<{
                 id: string;
                 title: string;
-                description: string;
                 impact: string;
-                confidence_score?: 'high' | 'medium' | 'low';
-                tradeoff?: { warning: string; severity: string };
-                scenario_analysis?: string;
-                operations: PatchOperation[];
-                blocks_added: number;
-                blocks_modified: number;
-                blocks_removed: number;
-                affected_dates: string[];
-                recommended: boolean;
-            }>;
+                ledger: { ops: PatchOperation[], reason?: string };
+            }> | null;
+            contextual_options: string[];
+            focus_node_id: string | null;
         }>({
             prompt: userPrompt,
             systemPrompt,
@@ -1489,7 +1440,7 @@ ${optionsInstruction}`;
 
             const aiMode = isSimple ? 'execute' : 'propose';
 
-            const options: CoachOption[] = data.options.map((opt: any, i: number) => {
+            const proposed_options: ProposedOption[] = data.options.map((opt: any, i: number) => {
                 let normalizedOps = (opt.operations || []).map(normalizeOperation);
 
                 // Anti-Hallucination Auto-Correction: Ensure rescheduled blocks have their own mathematically verified independent slot
@@ -1767,20 +1718,29 @@ ${optionsInstruction}`;
             });
 
             // Ensure at least one is recommended
-            if (!options.some(o => o.recommended) && options.length > 0) {
-                options[0].recommended = true;
+            if (!proposed_options.some((o: any) => o.recommended) && proposed_options.length > 0) {
+                (proposed_options[0] as any).recommended = true;
             }
 
             return {
-                id: generateId(),
-                timestamp: new Date().toISOString(),
-                mode: aiMode,
-                summary: data.summary || "Here are some options for you.",
-                execution_tactics: data.execution_tactics,
-                options: options.length > 0 ? options : undefined,
-                minimal_mode: coachCtx.user_state.is_minimal_mode,
-                conversation_context: { can_undo: false },
-                options_expire_at: getExpirationTime(15),
+                dialogue_response: data.dialogue_response || data.summary || "Here is what I can do.",
+                system_state_flag: data.system_state_flag || 'NORMAL',
+                execution_mode: data.execution_mode || aiMode,
+                executed_ledger: data.executed_ledger ? {
+                    ops: data.executed_ledger.ops.map(convertToCalendarPatchOp),
+                    reason: data.executed_ledger.reason
+                } : null,
+                proposed_options: data.proposed_options ? data.proposed_options.map((opt: any) => ({
+                    id: opt.id,
+                    title: opt.title,
+                    impact: opt.impact,
+                    ledger: {
+                        ops: opt.ledger?.ops?.map(convertToCalendarPatchOp) || [],
+                        reason: opt.ledger?.reason
+                    }
+                })) : null,
+                contextual_options: data.contextual_options || [],
+                focus_node_id: data.focus_node_id || null
             };
         }
 
@@ -2046,7 +2006,7 @@ function generateFallbackResponse(
     );
 
     let summary = "I understand what you need. Here's what I can do:";
-    const options: CoachOption[] = [];
+    const proposed_options: ProposedOption[] = [];
 
     if (intent === CoachIntent.OVERWHELMED || intent === CoachIntent.ENERGY_LOW) {
         summary = "I hear you. Let's lighten your load.";
@@ -2057,58 +2017,38 @@ function generateFallbackResponse(
             const nonEssential = remainingBlocks.slice(2);
 
             if (nonEssential.length > 0) {
-                options.push({
+                proposed_options.push({
                     id: 'essentials_only',
                     title: 'Keep essentials only',
-                    description: `Focus on your ${essential.length} most important tasks, defer ${nonEssential.length} to tomorrow`,
                     impact: `${nonEssential.length} blocks moved to tomorrow`,
-                    patch: {
-                        operations: nonEssential.map((block: any) => ({
+                    ledger: {
+                        ops: nonEssential.map((block: any) => ({
                             type: 'move_block' as const,
                             block_id: block.id,
                             new_start: block.start_time,
                             new_end: block.end_time,
                             new_date: addDays(coachCtx.current.date, 1),
                         })),
-                        requires_confirmation: false,
-                    },
-                    preview: {
-                        blocks_added: 0,
-                        blocks_modified: nonEssential.length,
-                        blocks_removed: 0,
-                        affected_dates: [coachCtx.current.date, addDays(coachCtx.current.date, 1)],
-                    },
-                    recommended: true,
+                        reason: 'Moved non-essentials to tomorrow'
+                    }
                 });
             }
 
             // Option 2: Recovery day
-            options.push({
+            proposed_options.push({
                 id: 'recovery_day',
                 title: 'Take a recovery day',
-                description: `Clear all ${remainingBlocks.length} remaining blocks`,
                 impact: 'Full recovery — all blocks deferred to tomorrow',
-                tradeoff: {
-                    warning: "Today's goals won't be met, but you'll recover",
-                    severity: 'info',
-                },
-                patch: {
-                    operations: remainingBlocks.map((block: any) => ({
+                ledger: {
+                    ops: remainingBlocks.map((block: any) => ({
                         type: 'move_block' as const,
                         block_id: block.id,
                         new_start: block.start_time,
                         new_end: block.end_time,
                         new_date: addDays(coachCtx.current.date, 1),
                     })),
-                    requires_confirmation: true,
-                },
-                preview: {
-                    blocks_added: 0,
-                    blocks_modified: remainingBlocks.length,
-                    blocks_removed: 0,
-                    affected_dates: [coachCtx.current.date, addDays(coachCtx.current.date, 1)],
-                },
-                recommended: false,
+                    reason: 'Full recovery day'
+                }
             });
         }
     } else if (intent === CoachIntent.WHAT_NEXT) {
@@ -2158,14 +2098,13 @@ function generateFallbackResponse(
     // No manual fallback option as per user request
 
     return {
-        id: generateId(),
-        timestamp: new Date().toISOString(),
-        mode: options.length > 1 ? 'propose' : 'inform',
-        summary,
-        options,
-        minimal_mode: coachCtx.user_state.is_minimal_mode,
-        conversation_context: { can_undo: false },
-        options_expire_at: getExpirationTime(15),
+        dialogue_response: summary,
+        system_state_flag: 'NORMAL',
+        execution_mode: proposed_options.length > 0 ? 'PROPOSE_OPTIONS' : 'AUTO_EXECUTE',
+        executed_ledger: null,
+        proposed_options: proposed_options.length > 0 ? proposed_options : null,
+        contextual_options: [],
+        focus_node_id: null
     };
 }
 
@@ -2226,22 +2165,13 @@ Respond with helpful, data-driven information. Return valid JSON only.`;
 
         if (response.success && response.data?.summary) {
             return {
-                id: generateId(),
-                timestamp: new Date().toISOString(),
-                mode: 'inform',
-                summary: response.data.summary,
-                options: (response.data.suggestions || []).map((s, i) => ({
-                    id: `suggestion_${i}`,
-                    title: s,
-                    description: s,
-                    impact: '',
-                    patch: { operations: [], requires_confirmation: false },
-                    preview: { blocks_added: 0, blocks_modified: 0, blocks_removed: 0, affected_dates: [] },
-                    recommended: i === 0,
-                })),
-                minimal_mode: coachCtx.user_state.is_minimal_mode,
-                conversation_context: { can_undo: false },
-                options_expire_at: getExpirationTime(10),
+                dialogue_response: response.data.summary || "Here is your progress update.",
+                system_state_flag: 'NORMAL',
+                execution_mode: 'AUTO_EXECUTE',
+                executed_ledger: null,
+                proposed_options: null,
+                contextual_options: response.data.suggestions || [],
+                focus_node_id: null
             };
         }
     } catch (error) {
@@ -2310,14 +2240,13 @@ Respond in strict JSON matching this schema. The "response" field MUST follow th
     }
 
     return {
-        id: generateId(),
-        timestamp: new Date().toISOString(),
-        mode: 'acknowledge',
-        summary: responseText,
-        acknowledgment: { message: responseText },
-        minimal_mode: coachCtx.user_state.is_minimal_mode,
-        conversation_context: { can_undo: false },
-        options_expire_at: getExpirationTime(10),
+        dialogue_response: responseText,
+        system_state_flag: 'NORMAL',
+        execution_mode: 'AUTO_EXECUTE',
+        executed_ledger: null,
+        proposed_options: null,
+        contextual_options: [],
+        focus_node_id: null
     };
 }
 
@@ -2344,14 +2273,13 @@ function generateClarificationResponse(
     suggestions.push("I'm exhausted");
 
     return {
-        id: generateId(),
-        timestamp: new Date().toISOString(),
-        mode: 'clarify',
-        summary: question,
-        clarification: { question, suggestions: suggestions.slice(0, 4) },
-        minimal_mode: coachCtx.user_state.is_minimal_mode,
-        conversation_context: { can_undo: false },
-        options_expire_at: getExpirationTime(10),
+        dialogue_response: question,
+        system_state_flag: 'NORMAL',
+        execution_mode: 'AUTO_EXECUTE',
+        executed_ledger: null,
+        proposed_options: null,
+        contextual_options: suggestions.slice(0, 4),
+        focus_node_id: null
     };
 }
 
@@ -2361,36 +2289,24 @@ function generateClarificationResponse(
 function generateUndoResponse(coachCtx: CoachContext): CoachResponse {
     if (coachCtx.last_applied_patch_version_id) {
         return {
-            id: generateId(),
-            timestamp: new Date().toISOString(),
-            mode: 'execute',
-            summary: "I'll undo the last change for you.",
-            options: [{
-                id: 'undo',
-                title: 'Undo last change',
-                description: 'Revert the most recent schedule modification',
-                impact: 'Schedule restored to previous state',
-                patch: { operations: [], requires_confirmation: false },
-                preview: { blocks_added: 0, blocks_modified: 0, blocks_removed: 0, affected_dates: [] },
-                recommended: true,
-            }],
-            minimal_mode: coachCtx.user_state.is_minimal_mode,
-            conversation_context: {
-                can_undo: true,
-                last_patch_version_id: coachCtx.last_applied_patch_version_id,
-            },
-            options_expire_at: getExpirationTime(5),
+            dialogue_response: "I'll undo the last change for you.",
+            system_state_flag: 'NORMAL',
+            execution_mode: 'AUTO_EXECUTE',
+            executed_ledger: { ops: [], reason: "Undo last change" },
+            proposed_options: null,
+            contextual_options: [],
+            focus_node_id: null
         };
     }
 
     return {
-        id: generateId(),
-        timestamp: new Date().toISOString(),
-        mode: 'inform',
-        summary: "There's nothing to undo right now.",
-        minimal_mode: coachCtx.user_state.is_minimal_mode,
-        conversation_context: { can_undo: false },
-        options_expire_at: getExpirationTime(10),
+        dialogue_response: "There's nothing to undo right now.",
+        system_state_flag: 'NORMAL',
+        execution_mode: 'AUTO_EXECUTE',
+        executed_ledger: null,
+        proposed_options: null,
+        contextual_options: [],
+        focus_node_id: null
     };
 }
 
@@ -2437,13 +2353,13 @@ export async function generateCoachResponse(
             } catch (e) {
                 console.warn('[CoachAI] Failed to upgrade context:', e);
                 return {
-                    id: `error_${Date.now()}`,
-                    timestamp: new Date().toISOString(),
-                    mode: 'inform',
-                    summary: "I'm having trouble accessing your calendar data right now. Please try again in a moment.",
-                    minimal_mode: false,
-                    conversation_context: { can_undo: false },
-                    options_expire_at: new Date(Date.now() + 60000).toISOString(),
+                    dialogue_response: "I'm having trouble accessing your calendar data right now. Please try again in a moment.",
+                    system_state_flag: 'NORMAL',
+                    execution_mode: 'AUTO_EXECUTE',
+                    executed_ledger: null,
+                    proposed_options: null,
+                    contextual_options: [],
+                    focus_node_id: null
                 };
             }
         }

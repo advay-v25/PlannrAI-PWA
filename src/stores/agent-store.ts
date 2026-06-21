@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { apiClient } from '@/lib/api-client';
-import type { CoachOption, CoachResponse, CoachMode } from '@/types/coach-v4';
+import type { ProposedOption, CoachResponse, CoachMode } from '@/types/coach-v4';
 
 export interface Message {
     id: string;
@@ -9,7 +9,7 @@ export interface Message {
 
     // V4 Fields
     mode?: CoachMode;
-    options?: CoachOption[];
+    options?: ProposedOption[];
     undoToken?: string | null;
     refusal?: { reason: string; question?: string | null };
 
@@ -55,7 +55,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
             const parsedMessages: Message[] = dbMessages.reverse().map(msg => {
                 let content = msg.content;
-                let options: CoachOption[] = [];
+                let options: ProposedOption[] = [];
                 let mode: CoachMode = 'choice';
                 let refusal = undefined;
 
@@ -73,7 +73,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                             id: `hist_${msg.id}_${idx}`,
                             title: opt.label, // Label from V5
                             impact: opt.tradeoff || opt.label,
-                            patch: opt.patch
+                            ledger: { ops: opt.patch || [], reason: 'Migrated' }
                         })) || [];
 
                         if (options.length > 0) mode = 'choice';
@@ -90,7 +90,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                                     id: `hist_${msg.id}_${idx}`,
                                     title: opt.title,
                                     impact: opt.impact || opt.title,
-                                    patch: opt.patch
+                                    ledger: { ops: opt.patch?.ops || opt.patch?.operations || opt.patch || [], reason: 'Migrated' }
                                 })) || [];
 
                                 if (parsed.refusal) {
@@ -166,11 +166,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                 mode = 'choice';
             }
 
-            const options: CoachOption[] = data.options?.map((opt: any, idx: number) => ({
+            const options: ProposedOption[] = data.options?.map((opt: any, idx: number) => ({
                 id: `opt_${Date.now()}_${idx}`,
                 title: opt.label,
                 impact: opt.tradeoff || opt.label,
-                patch: opt.patch
+                ledger: { ops: opt.patch || [], reason: 'Migrated' }
             })) || [];
 
             const agentMsg: Message = {
@@ -210,7 +210,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         set({ isApplying: true });
 
         // Find option and patch
-        let selectedOption: CoachOption | undefined;
+        let selectedOption: ProposedOption | undefined;
         const messages = get().messages;
 
         for (const m of messages) {
@@ -232,7 +232,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         try {
             // Use standard Apply Patch endpoint
             const data = await apiClient.post<{ success: boolean; patch_run_id: string }>('/api/patch/apply', {
-                patch: selectedOption.patch
+                patch: selectedOption.ledger?.ops || []
             });
 
             // Add confirmation message

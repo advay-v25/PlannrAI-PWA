@@ -86,6 +86,7 @@ export interface CoachContext {
         day_of_week: string;
         exact_iso_timestamp?: string;
         exact_timezone?: string;
+        in_active_wake_cycle: boolean;
     };
 
     // Set by response generator
@@ -121,22 +122,36 @@ interface ScheduleBlock {
 
 export async function buildCoachContext(
     userId: string,
-    supabase: any
+    supabase: any,
+    clientIsoTimestamp?: string,
+    clientTimezoneFallback?: string
 ): Promise<CoachContext> {
     // 1. Fetch profile first to get the user's timezone
     const profileRes = await supabase.from('profiles').select('*').eq('id', userId).single();
     const profile = profileRes.data || {};
-    const timezone = profile.timezone || 'UTC';
+    const timezone = profile.timezone || clientTimezoneFallback || 'UTC';
 
     // 2. Calculate dates and times relative to the user's timezone
-    const now = new Date();
+    const now = clientIsoTimestamp ? new Date(clientIsoTimestamp) : new Date();
+    
+    // Temporal Grounding: Behavioral Sleep-Boundary
+    const hour = parseInt(new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: 'numeric', hour12: false }).format(now));
+    let logicalNow = now;
+    let in_active_wake_cycle = false;
+    
+    // Treat 12:00 AM - 3:59 AM as continuation of the previous day
+    if (hour >= 0 && hour < 4) {
+        logicalNow = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        in_active_wake_cycle = true;
+    }
+
     const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
     const timeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false });
     
-    const today = dateFormatter.format(now);
+    const today = dateFormatter.format(logicalNow);
     const currentTime = timeFormatter.format(now);
     
-    const tomorrowDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const tomorrowDate = new Date(logicalNow.getTime() + 24 * 60 * 60 * 1000);
     const tomorrow = dateFormatter.format(tomorrowDate);
 
     // Get week boundaries (can remain in general date sync, but best to align relative to the local date)
@@ -352,6 +367,9 @@ export async function buildCoachContext(
             date: today,
             time: currentTime,
             day_of_week: now.toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone }),
+            exact_iso_timestamp: clientIsoTimestamp || now.toISOString(),
+            exact_timezone: timezone,
+            in_active_wake_cycle: in_active_wake_cycle
         },
         analytics: {
             weekly_completion_rate: weeklyCompletionRate,
@@ -391,10 +409,15 @@ function markLockedBlocks(
         .map(c => ({ start: c.start_time, end: c.end_time }));
 
     return blocks.map(block => {
-        const isLocked = lockedTimes.some(lt =>
+        const isCommitmentLocked = lockedTimes.some(lt =>
             block.start_time === lt.start && block.end_time === lt.end
         );
-        return { ...block, is_locked: isLocked };
+        const isLocked = isCommitmentLocked || block.block_type === 'anchor' || (block as any).is_locked === true;
+        return { 
+            ...block, 
+            is_locked: isLocked,
+            context: isLocked ? `[LOCKED/IMMUTABLE] ${(block as any).context || ''}` : (block as any).context
+        };
     });
 }
 

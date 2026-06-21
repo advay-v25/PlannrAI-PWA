@@ -1,22 +1,4 @@
 /** @type {import('next').NextConfig} */
-const defaultCache = require('next-pwa/cache');
-
-const withPWA = require('next-pwa')({
-    dest: 'public',
-    register: true,
-    skipWaiting: true,
-    disable: process.env.NODE_ENV === 'development',
-    runtimeCaching: [
-        {
-            urlPattern: /^\/api\/(coach|ai)\/.*/i,
-            handler: 'NetworkOnly',
-            options: {
-                cacheName: 'ai-endpoints-bypass',
-            },
-        },
-        ...defaultCache
-    ]
-});
 
 const nextConfig = {
     images: {
@@ -43,4 +25,4 @@ const nextConfig = {
     },
 };
 
-module.exports = withPWA(nextConfig);
+module.exports = nextConfig;
