@@ -388,11 +388,7 @@ Meals/day: ${calCtx.user.meals_per_day}
 Performance (7-day): ${calCtx.performance.last_7_days_completion_rate}% completion (${calCtx.performance.completed_blocks_last_7}/${calCtx.performance.total_blocks_last_7} blocks)
 Capacity: ${calCtx.capacity.daily_awake_hours}h awake, ${calCtx.capacity.weekly_available_hours}h available/week
 ${calCtx.capacity.is_overcommitted ? '⚠️ USER IS OVERCOMMITTED — reduce load' : '✓ Capacity OK'}
-
-━━━ HABIT STACKS ━━━
-${calCtx.habitStacks.length > 0
-                ? calCtx.habitStacks.map(h => `  When "${h.trigger_habit}" → "${h.action_habit}" (${h.action_duration_mins}min)`).join('\n')
-                : '  (None)'}`;
+`;
     }
 
     const prefsText = coachCtx.learned_preferences?.length > 0
@@ -1299,9 +1295,6 @@ PATCH OPERATION TYPES:
 - create_todo: { type: "create_todo", data: { title: string, due_date?: string, priority?: string } }
 - update_todo: { type: "update_todo", todo_id: string, changes: { title?: string, is_completed?: boolean, due_date?: string, priority?: string } }
 - delete_todo: { type: "delete_todo", todo_id: string }
-- create_habit_stack: { type: "create_habit_stack", data: { name: string, preferred_window: "morning"|"afternoon"|"evening", steps: [{title: string, minutes: number}] } }
-- update_habit_stack: { type: "update_habit_stack", stack_id: string, changes: { name?: string, preferred_window?: string, steps?: [{title: string, minutes: number}], is_active?: boolean } }
-- delete_habit_stack: { type: "delete_habit_stack", stack_id: string }
 
 --- FINAL VALIDATION CHECKLIST (CHECK EVERY OPTION BEFORE OUTPUTTING) ---
 For EACH option you generate, mentally verify ALL of the following BEFORE including it in your output:

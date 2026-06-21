@@ -164,10 +164,11 @@ export async function buildCoachContext(
             .eq('user_id', userId)
             .eq('status', 'active'),
 
-        supabase.from('habit_stacks')
-            .select('id, name, steps, preferred_window, current_streak, is_active')
-            .eq('user_id', userId)
-            .eq('enabled', true),
+        Promise.resolve({ data: [] }), // Disconnected habit_stacks for now
+        // supabase.from('habit_stacks')
+        //     .select('id, name, steps, preferred_window, current_streak, is_active')
+        //     .eq('user_id', userId)
+        //     .eq('enabled', true),
 
         supabase.from('commitments')
             .select('id, title, start_time, end_time, days_of_week, is_active')
