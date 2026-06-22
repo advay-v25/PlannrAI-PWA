@@ -1812,18 +1812,21 @@ ${optionsInstruction}`;
             };
         }
 
-        // AI failed — generate a simple fallback based on intent
+        // AI failed — use the exact requested error message
         console.warn('[CoachAI] AI response failed, using fallback for intent:', classification.primary_intent);
         const fallback = generateFallbackResponse(coachCtx, classification, userMessage);
         
-        // DEBUG: Append what we parsed so we can see why it failed
-        fallback.dialogue_response += ` [DEBUG: hasOptions=${hasOptions}, success=${response.success}, error=${response.error || 'none'}, parsedKeys=${Object.keys(parsedData || {}).join(',')}]`;
+        // Remove debug strings and use the clean user-requested message
+        fallback.dialogue_response = "Unable to execute right now - please try again later";
         
         return fallback;
     } catch (error: any) {
         console.error('[CoachAI] Error in AI schedule response:', error);
         const fallback = generateFallbackResponse(coachCtx, classification, userMessage);
-        fallback.dialogue_response += ` [DEBUG ERROR: ${error.message}]`;
+        
+        // Remove debug strings and use the clean user-requested message
+        fallback.dialogue_response = "Unable to execute right now - please try again later";
+        
         return fallback;
     }
 }
