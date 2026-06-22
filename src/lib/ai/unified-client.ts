@@ -462,8 +462,8 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
             const remaining = getRemainingTime();
             if (remaining < 5000) break;
             console.log(`\x1b[36m[AI ✨]\x1b[0m Coach engine trying ${provider.name}/${provider.model}...`);
-            // If strictNvidia, allow the provider to use the full remaining time (for long CoT generations).
-            const providerTimeout = options.strictNvidia ? remaining : Math.min(MAX_PROVIDER_TIME, remaining);
+            const baseTimeout = options.timeout ? options.timeout : MAX_PROVIDER_TIME;
+            const providerTimeout = options.strictNvidia ? remaining : Math.min(baseTimeout, remaining);
             const result = await callProvider<T>(provider, { ...options, timeout: providerTimeout });
             if (result.success) return result;
         }
@@ -478,7 +478,8 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
         const remaining = getRemainingTime();
         if (remaining < 5000) break;
         console.log(`\x1b[33m[AI →]\x1b[0m Trying ${provider.name}/${provider.model}...`);
-        const providerTimeout = Math.min(MAX_PROVIDER_TIME, remaining);
+        const baseTimeout = options.timeout ? options.timeout : MAX_PROVIDER_TIME;
+        const providerTimeout = Math.min(baseTimeout, remaining);
         const result = await callProvider<T>(provider, { ...options, timeout: providerTimeout });
         lastResult = result;
         if (result.success) return result;
