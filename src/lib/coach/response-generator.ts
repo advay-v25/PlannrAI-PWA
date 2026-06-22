@@ -193,7 +193,7 @@ function findAvailableSlots(
     sleepTime: string,
     count: number = 8,
     notBeforeTime?: string,
-    treatAllBlocksAsOccupied: boolean = false
+    treatAllBlocksAsOccupied: boolean = true
 ): FreeSlot[] {
     const dayBlocks = blocks
         .filter(b => {
@@ -420,7 +420,7 @@ ${(() => {
         // Free slots: for today, skip past times; for future days, full day
         const notBefore = date === now.date ? now.time : undefined;
         const dayMinDuration = date === now.date ? 30 : missedBlockDuration;
-        const treatAll = date !== now.date;
+        const treatAll = true;
         const dayFreeSlots = findAvailableSlots(weekBlocks, date, dayMinDuration, wakeTime, sleepTime, 8, notBefore, treatAll);
         const freeLine = dayFreeSlots.length > 0
             ? `    FREE SLOTS: ${dayFreeSlots.map(formatSlot).join(' | ')}`
