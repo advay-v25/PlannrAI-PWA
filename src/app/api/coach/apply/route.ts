@@ -392,61 +392,65 @@ function normalizePatchForService(patch: any): any {
 async function resolveBlockIds(patch: any, userId: string, supabase: any) {
     if (!patch.ops || !Array.isArray(patch.ops)) return;
 
-    for (const op of patch.ops) {
-        if (!['move_event', 'move', 'update_event', 'update', 'delete_event', 'delete'].includes(op.op)) continue;
-        if (!op.event_id) continue;
-
-        // Check if the ID actually exists
-        const { data: existing } = await supabase
-            .from('schedule_blocks')
-            .select('id')
-            .eq('id', op.event_id)
-            .eq('user_id', userId)
-            .maybeSingle();
-
-        if (existing) continue; // ID is valid — nothing to do
-
-        console.warn(`[Coach Apply] Block ID ${op.event_id} not found — attempting title-based resolution. title="${op.title}"`);
-
-        if (!op.title || op.title === 'Block') {
-            console.warn('[Coach Apply] No title to resolve by — skipping resolution');
-            continue;
-        }
-
-        // Build a date window to search: use op.date or today ±3 days
-        const baseDate = op.date ? new Date(op.date) : new Date();
-        const dates: string[] = [];
-        for (let d = -3; d <= 3; d++) {
-            const dt = new Date(baseDate);
-            dt.setDate(dt.getDate() + d);
-            dates.push(dt.toISOString().split('T')[0]);
-        }
-
-        // Try exact title match first, then partial match
-        const { data: candidates } = await supabase
-            .from('schedule_blocks')
-            .select('id, title, context, date, start_time, status')
-            .eq('user_id', userId)
-            .in('date', dates)
-            .or(`title.ilike.%${op.title}%,context.ilike.%${op.title}%`);
-
-        if (candidates && candidates.length > 0) {
-            // Prefer blocks with 'missed' status first to resolve the correct block being rescheduled, then by closest date
-            const sorted = candidates.sort((a: any, b: any) => {
-                const aMissed = a.status === 'missed' ? 1 : 0;
-                const bMissed = b.status === 'missed' ? 1 : 0;
-                if (aMissed !== bMissed) {
-                    return bMissed - aMissed; // 1 (missed) comes before 0 (planned)
+    // First pass: Resolve move_event (missed block)
+    const moveOp = patch.ops.find((o: any) => o.op === 'move_event' || o.op === 'move' || o.op === 'update_event' || o.op === 'update');
+    if (moveOp && moveOp.event_id) {
+        const { data: existing } = await supabase.from('schedule_blocks').select('id').eq('id', moveOp.event_id).eq('user_id', userId).maybeSingle();
+        if (!existing) {
+            console.warn(`[Coach Apply] Move Block ID ${moveOp.event_id} not found. Attempting resolution...`);
+            let resolved = false;
+            if (moveOp.title && moveOp.title !== 'Block') {
+                const { data: candidates } = await supabase.from('schedule_blocks')
+                    .select('id, title, date, start_time, status').eq('user_id', userId)
+                    .or(`title.ilike.%${moveOp.title}%,context.ilike.%${moveOp.title}%`);
+                if (candidates && candidates.length > 0) {
+                    const sorted = candidates.sort((a: any, b: any) => (a.status === 'missed' ? -1 : 1));
+                    moveOp.event_id = sorted[0].id;
+                    resolved = true;
                 }
-                const da = Math.abs(new Date(a.date).getTime() - baseDate.getTime());
-                const db = Math.abs(new Date(b.date).getTime() - baseDate.getTime());
-                return da - db;
-            });
-            const resolved = sorted[0];
-            console.log(`[Coach Apply] Resolved "${op.title}" → block ${resolved.id} on ${resolved.date} ${resolved.start_time}`);
-            op.event_id = resolved.id;
-        } else {
-            console.warn(`[Coach Apply] Could not resolve block for title="${op.title}" in dates ${dates.join(',')}`);
+            }
+            if (!resolved) {
+                // Find the missed block as fallback
+                const { data: missedBlocks } = await supabase.from('schedule_blocks')
+                    .select('id, title, date, start_time').eq('user_id', userId).eq('status', 'missed')
+                    .order('start_time', { ascending: false }).limit(1);
+                if (missedBlocks && missedBlocks.length > 0) {
+                    moveOp.event_id = missedBlocks[0].id;
+                    moveOp.title = missedBlocks[0].title;
+                    console.log(`[Coach Apply] Fallback resolved move_event to missed block: ${missedBlocks[0].title}`);
+                }
+            }
+        }
+    }
+
+    // Second pass: Resolve delete_event (lower priority block)
+    const deleteOp = patch.ops.find((o: any) => o.op === 'delete_event' || o.op === 'delete');
+    if (deleteOp && deleteOp.event_id) {
+        const { data: existing } = await supabase.from('schedule_blocks').select('id').eq('id', deleteOp.event_id).eq('user_id', userId).maybeSingle();
+        if (!existing) {
+            console.warn(`[Coach Apply] Delete Block ID ${deleteOp.event_id} not found. Attempting resolution...`);
+            let resolved = false;
+            if (deleteOp.title && deleteOp.title !== 'Block') {
+                const { data: candidates } = await supabase.from('schedule_blocks')
+                    .select('id, title, date, start_time').eq('user_id', userId)
+                    .or(`title.ilike.%${deleteOp.title}%,context.ilike.%${deleteOp.title}%`);
+                if (candidates && candidates.length > 0) {
+                    deleteOp.event_id = candidates[0].id;
+                    resolved = true;
+                }
+            }
+            if (!resolved && moveOp && moveOp.date && moveOp.to_start && moveOp.to_end) {
+                // Find block at the target move location
+                const { data: targetBlocks } = await supabase.from('schedule_blocks')
+                    .select('id, title, date, start_time, end_time').eq('user_id', userId)
+                    .eq('date', moveOp.date).neq('status', 'missed');
+                const overlapped = targetBlocks?.find((b: any) => (b.start_time < moveOp.to_end && b.end_time > moveOp.to_start));
+                if (overlapped) {
+                    deleteOp.event_id = overlapped.id;
+                    deleteOp.title = overlapped.title;
+                    console.log(`[Coach Apply] Fallback resolved delete_event to overlapping block: ${overlapped.title}`);
+                }
+            }
         }
     }
 }
