@@ -1827,7 +1827,7 @@ ${optionsInstruction}`;
         const fallback = generateFallbackResponse(coachCtx, classification, userMessage);
         
         // DEBUG: Append what we parsed so we can see why it failed
-        fallback.dialogue_response += ` [DEBUG: hasOptions=${hasOptions}, success=${response.success}, parsedKeys=${Object.keys(parsedData || {}).join(',')}]`;
+        fallback.dialogue_response += ` [DEBUG: hasOptions=${hasOptions}, success=${response.success}, error=${response.error || 'none'}, parsedKeys=${Object.keys(parsedData || {}).join(',')}]`;
         
         return fallback;
     } catch (error: any) {
