@@ -1432,8 +1432,8 @@ ${optionsInstruction}`;
                 let extracted = false;
                 
                 // Try object {}
-                const lastBrace = rawStr.lastIndexOf('}');
-                if (lastBrace !== -1) {
+                let lastBrace = rawStr.lastIndexOf('}');
+                while (lastBrace !== -1 && !extracted) {
                     let firstBrace = rawStr.lastIndexOf('{', lastBrace);
                     while (firstBrace !== -1) {
                         try {
@@ -1444,12 +1444,15 @@ ${optionsInstruction}`;
                             firstBrace = rawStr.lastIndexOf('{', firstBrace - 1);
                         }
                     }
+                    if (!extracted) {
+                        lastBrace = rawStr.lastIndexOf('}', lastBrace - 1);
+                    }
                 }
                 
                 // Try array []
                 if (!extracted) {
-                    const lastBracket = rawStr.lastIndexOf(']');
-                    if (lastBracket !== -1) {
+                    let lastBracket = rawStr.lastIndexOf(']');
+                    while (lastBracket !== -1 && !extracted) {
                         let firstBracket = rawStr.lastIndexOf('[', lastBracket);
                         while (firstBracket !== -1) {
                             try {
@@ -1459,6 +1462,9 @@ ${optionsInstruction}`;
                             } catch (e) {
                                 firstBracket = rawStr.lastIndexOf('[', firstBracket - 1);
                             }
+                        }
+                        if (!extracted) {
+                            lastBracket = rawStr.lastIndexOf(']', lastBracket - 1);
                         }
                     }
                 }
@@ -1803,10 +1809,17 @@ ${optionsInstruction}`;
 
         // AI failed — generate a simple fallback based on intent
         console.warn('[CoachAI] AI response failed, using fallback for intent:', classification.primary_intent);
-        return generateFallbackResponse(coachCtx, classification, userMessage);
-    } catch (error) {
+        const fallback = generateFallbackResponse(coachCtx, classification, userMessage);
+        
+        // DEBUG: Append what we parsed so we can see why it failed
+        fallback.dialogue_response += ` [DEBUG: hasOptions=${hasOptions}, success=${response.success}, parsedKeys=${Object.keys(parsedData || {}).join(',')}]`;
+        
+        return fallback;
+    } catch (error: any) {
         console.error('[CoachAI] Error in AI schedule response:', error);
-        return generateFallbackResponse(coachCtx, classification, userMessage);
+        const fallback = generateFallbackResponse(coachCtx, classification, userMessage);
+        fallback.dialogue_response += ` [DEBUG ERROR: ${error.message}]`;
+        return fallback;
     }
 }
 
