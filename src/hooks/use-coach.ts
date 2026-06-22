@@ -54,7 +54,6 @@ interface CoachState extends PersistentCoachData {
   clearConversation: () => void;
   retryLastAction: () => void;
   getLatestMessageWithOptions: () => CoachMessage | undefined;
-  generateAsyncOptions: (text: string, conversationId: string) => Promise<void>;
 }
 
 function extractCoachResponse(raw: any): { response: any; conversationId?: string } {
@@ -108,55 +107,6 @@ export const useCoach = create<CoachState>()(
       lastSync: null,
       connectionStatus: 'connecting',
       abortController: null,
-
-      generateAsyncOptions: async (text: string, conversationId: string) => {
-        try {
-          // Tell UI that options are loading without blocking the chat UI entirely
-          // Wait... we can set isLoading = true but it will hide the text input. Let's just do it in the background.
-          const raw = await apiClient.post('/api/coach/generate-options', {
-            message: text,
-            conversation_id: conversationId,
-            date: new Date().toISOString(),
-            clientTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          });
-
-          const { response: coachRes } = extractCoachResponse(raw);
-
-          // Update the specific assistant message to include the newly generated options
-          set(state => {
-            const msgs = [...state.messages];
-            const lastAssistantMsgIndex = msgs.length - 1; // It should be the very last message in normal flows
-            
-            if (lastAssistantMsgIndex >= 0 && msgs[lastAssistantMsgIndex].role === 'assistant') {
-              msgs[lastAssistantMsgIndex] = {
-                ...msgs[lastAssistantMsgIndex],
-                content: coachRes.dialogue_response || msgs[lastAssistantMsgIndex].content,
-                mode: coachRes.execution_mode || coachRes.mode,
-                execution_mode: coachRes.execution_mode,
-                executed_ledger: coachRes.executed_ledger,
-                options: coachRes.proposed_options || coachRes.options,
-                suggestedActions: coachRes.contextual_options || coachRes.suggested_actions,
-              };
-            }
-            return { messages: msgs, lastSync: Date.now() };
-          });
-
-        } catch (error: any) {
-          console.error("Coach Async Options Error:", error);
-          // If we fail, we could append a small error text to the message
-          set(state => {
-            const msgs = [...state.messages];
-            const lastAssistantMsgIndex = msgs.length - 1;
-            if (lastAssistantMsgIndex >= 0 && msgs[lastAssistantMsgIndex].role === 'assistant') {
-              msgs[lastAssistantMsgIndex] = {
-                ...msgs[lastAssistantMsgIndex],
-                content: msgs[lastAssistantMsgIndex].content + "\n\n⚠️ Failed to generate options. Please try again.",
-              };
-            }
-            return { messages: msgs };
-          });
-        }
-      },
 
       stopGenerating: () => {
         const { abortController, messages } = get();
@@ -312,13 +262,6 @@ export const useCoach = create<CoachState>()(
             lastSync: Date.now(),
             abortController: null
           }));
-
-          // PHASE 2: Async Options Generation
-          if (coachRes.execution_mode === 'PROPOSE_OPTIONS_ASYNC') {
-              console.log('[Coach] Phase 1 complete. Triggering Phase 2 Options Generation in background...');
-              get().generateAsyncOptions(text, conversationId || get().conversationId);
-              return { success: true };
-          }
 
           // Auto-execute if mode is 'AUTO_EXECUTE' and we have an executed ledger
           if ((coachRes.execution_mode === 'AUTO_EXECUTE' || coachRes.mode === 'execute') && coachRes.executed_ledger) {

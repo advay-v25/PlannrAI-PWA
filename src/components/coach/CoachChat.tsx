@@ -616,23 +616,6 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                 </div>
                             )}
 
-                            {/* Async options loading state */}
-                            {message.role === 'assistant' &&
-                                message.execution_mode === 'PROPOSE_OPTIONS_ASYNC' &&
-                                (!message.options || message.options.length === 0) && (
-                                <div className="pl-2">
-                                    <div className="p-3 rounded-xl bg-orange-500/5 border border-orange-500/20 flex items-center gap-3">
-                                        <div className="w-5 h-5 rounded-full bg-orange-500/20 flex items-center justify-center">
-                                            <span className="text-[10px] text-orange-400 animate-spin">⚡</span>
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="text-[11px] font-bold text-orange-400 uppercase tracking-wider">Generating Options</span>
-                                            <span className="text-[10px] text-white/40">Analyzing your calendar constraints...</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
                             {/* Applying indicator */}
                             {message.role === 'assistant' &&
                                 message.options &&

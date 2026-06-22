@@ -375,6 +375,12 @@ function normalizePatchForService(patch: any): any {
     // Fallback: ops[] already in PatchService format (no operations[] present)
     if (patch.ops && Array.isArray(patch.ops)) {
         patch.ops.forEach((op: any) => {
+            if (op.type && !op.op) op.op = op.type;
+            if (op.op === 'move_block' || op.op === 'move') op.op = 'move_event';
+            if (op.op === 'delete_block' || op.op === 'delete') op.op = 'delete_event';
+            if (op.op === 'update_block' || op.op === 'update') op.op = 'update_event';
+            if (op.op === 'create_block' || op.op === 'create') op.op = 'create_event';
+
             if (op.payload) sanitizeBlockType(op.payload);
             if (op.event) sanitizeBlockType(op.event);
         });

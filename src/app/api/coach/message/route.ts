@@ -223,79 +223,54 @@ export const POST = secureApiRoute(
 
         const currentSchedule = [...(fullCoachContext.schedule.today || []), ...(fullCoachContext.schedule.this_week || [])];
         
-        let response: any = null;
-        const requiresAsyncOptions = [CoachIntent.RESCHEDULE_DAY, CoachIntent.MOVE_BLOCK, CoachIntent.MINIMAL_OS].includes(intentClassification.primary_intent);
-        
-        if (requiresAsyncOptions) {
-            let summary = "I'm analyzing your schedule. Let me generate a few options for you...";
-            if (intentClassification.primary_intent === CoachIntent.MOVE_BLOCK) {
-                 if (preResolvedBlock) {
-                     summary = `I found your "${preResolvedBlock.title || preResolvedBlock.context || 'block'}". Let me generate the best slots to reschedule it...`;
-                 } else {
-                     // We might not have found the block. generateCoachResponse will figure out if we need to ask.
-                     // We'll still go async and let the async job return the clarification question if needed.
-                     summary = "I'm looking for that block in your schedule to see where we can move it...";
-                 }
-            }
-            
-            response = {
-                dialogue_response: summary,
-                execution_mode: 'PROPOSE_OPTIONS_ASYNC',
-                system_state_flag: 'NORMAL',
-                executed_ledger: null,
-                proposed_options: null,
-                contextual_options: [],
-            };
-        } else {
-            response = await generateCoachResponse(
-                message,
-                conversationHistory,
-                fullCoachContext,
-                supabase,
-                null,
-                intentClassification
-            );
+        let response = await generateCoachResponse(
+            message,
+            conversationHistory,
+            fullCoachContext,
+            supabase,
+            null,
+            intentClassification
+        );
 
-            // Internal LLM Retry Loop
-            let retryCount = 0;
-            let valid = false;
+        // Internal LLM Retry Loop
+        let retryCount = 0;
+        let valid = false;
+        
+        while (!valid && retryCount < 0) {
+            let conflictErrors: string[] = [];
             
-            while (!valid && retryCount < 1) {
-                let conflictErrors: string[] = [];
-                
-                if (response.executed_ledger && response.executed_ledger.ops) {
-                    const val = ConflictService.validateAIPatch(currentSchedule as any, response.executed_ledger.ops);
-                    if (!val.valid) conflictErrors.push(...val.errors);
-                }
-                if (response.proposed_options) {
-                    for (const opt of response.proposed_options) {
-                        if (opt.ledger && opt.ledger.ops) {
-                            const val = ConflictService.validateAIPatch(currentSchedule as any, opt.ledger.ops);
-                            if (!val.valid) conflictErrors.push(...val.errors);
-                        }
+            if (response.executed_ledger && response.executed_ledger.ops) {
+                const val = ConflictService.validateAIPatch(currentSchedule as any, response.executed_ledger.ops);
+                if (!val.valid) conflictErrors.push(...val.errors);
+            }
+            if (response.proposed_options) {
+                for (const opt of response.proposed_options) {
+                    if (opt.ledger && opt.ledger.ops) {
+                        const val = ConflictService.validateAIPatch(currentSchedule as any, opt.ledger.ops);
+                        if (!val.valid) conflictErrors.push(...val.errors);
                     }
                 }
+            }
+            
+            if (conflictErrors.length > 0) {
+                retryCount++;
+                console.warn(`[Coach AI] Conflict detected. Retrying... Errors:`, conflictErrors);
                 
-                if (conflictErrors.length > 0) {
-                    retryCount++;
-                    console.warn(`[Coach AI] Conflict detected. Retrying... Errors:`, conflictErrors);
-                    
-                    const retryHistory = [...conversationHistory, {
-                        role: 'user',
-                        content: `SYSTEM REJECTION: Your last schedule patch contained overlaps or violated immutable blocks. Errors: ${conflictErrors.join('; ')}. Recalculate and output a new patch ensuring NO overlaps. Use a different time slot.`
-                    }];
-                    
-                    response = await generateCoachResponse(
-                        message,
-                        retryHistory,
-                        fullCoachContext,
-                        supabase,
-                        null,
-                        intentClassification
-                    );
-                } else {
-                    valid = true;
-                }
+                const retryHistory = [...conversationHistory, {
+                    role: 'user',
+                    content: `SYSTEM REJECTION: Your last schedule patch contained overlaps or violated immutable blocks. Errors: ${conflictErrors.join('; ')}. Recalculate and output a new patch ensuring NO overlaps. Use a different time slot.`
+                }];
+                
+                response = await generateCoachResponse(
+                    message,
+                    retryHistory,
+                    fullCoachContext,
+                    supabase,
+                    null,
+                    intentClassification
+                );
+            } else {
+                valid = true;
             }
         }
 
