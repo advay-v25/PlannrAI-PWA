@@ -1324,21 +1324,11 @@ CRITICAL FORMATTING REQUIREMENTS:
         if (isRejection && !/missed|miss|reschedule|another|new/i.test(userMessage)) {
              optionsInstruction = "The user rejected the previous AI options. Provide EXACTLY ONE option: 'Manual Movement', which instructs them to manually move the block in the calendar UI themselves. Do NOT generate any patch operations (empty operations array []). Return valid JSON only.";
         } else {
-             optionsInstruction = `CRITICAL: You must execute a Chain-of-Thought process BEFORE generating the JSON response.
-You must output your reasoning in text first, going through these exact steps:
-1. \`read_prompt\`: Analyze the user's prompt to identify the exact block and time being rescheduled or missed.
-2. \`read_priority\`: Determine the priority level of the block the user is asking to reschedule.
-3. \`read_calendar\`: Scan the provided calendar context. You must explicitly execute the following sub-processes:
-   - \`read_time\`: Read current time.
-   - \`read_anchor\`: Identify all anchor blocks.
-   - \`read_block\`: Read all existing pre-scheduled blocks.
-   - \`read_goals\`: Read the user's goals.
-   - \`read_completion\`: Identify which blocks are completed or missed.
-   This gives you complete, up-to-date knowledge about the user's calendar blocks, meal times, buffers, sleep times, morning/wind-down times, and completion statuses.
-4. \`find_time\`: Go option by option to find empty space.
-   - For Option 1 (Today): Run \`find_empty_time\` to find gaps today > 30 mins after the prompt's time. If the entire block can't fit, look for a smaller time (minimum 30 mins). It MUST NOT cut into anchors, buffer blocks, sleep blocks, meal blocks, or pre-existing blocks.
-   - For Option 2 (This Week): Run \`find_empty_time\` to find gaps this week > 30 mins. If the entire block can't fit, look for a smaller time (min 30 mins). MUST NOT cut into anchors, buffer blocks, sleep, meals, or pre-existing blocks.
-   - For Option 3: Run \`find_block\` to find a real, existing block in the user's schedule with a priority LOWER than the missed block. You MUST carefully read the exact block name, date, and timings from the provided schedule context. Never hallucinate a block or a random time.
+             optionsInstruction = `CRITICAL: You must write a CONCISE Chain-of-Thought (under 100 words) BEFORE generating the JSON.
+1. Identify the block being rescheduled and its priority.
+2. Mentally scan the provided calendar to find an empty slot TODAY for Option 1.
+3. Mentally scan the calendar to find an empty slot THIS WEEK for Option 2.
+4. Mentally scan the calendar to find an EXACT existing lower-priority block for Option 3. Read its exact name, date, and timings from the context. Do NOT hallucinate blocks or times.
 
 Once you have completed this thought process, you MUST output a JSON block wrapped in \`\`\`json ... \`\`\` containing EXACTLY 3 actionable options.
 
@@ -1406,7 +1396,7 @@ ${optionsInstruction}`;
             maxTokens: 3000,
             requireJSON: !isMissedBlock, // If missed block, we expect CoT text before JSON
             timeout: isMissedBlock ? 55000 : 30000,
-            useNvidia: true,
+            useNvidia: false,
             strictNvidia: false, // Set to false to allow Groq's high-speed Llama 3.3 70B to prevent 504 timeouts
             skipOpenRouter: true, // Bypass OpenRouter and Gemini to strictly use fast Llama 70B engines
             clientDate: coachCtx.current.exact_iso_timestamp,
@@ -1822,18 +1812,21 @@ ${optionsInstruction}`;
             };
         }
 
-        // AI failed — generate a simple fallback based on intent
+        // AI failed — use the exact requested error message
         console.warn('[CoachAI] AI response failed, using fallback for intent:', classification.primary_intent);
         const fallback = generateFallbackResponse(coachCtx, classification, userMessage);
         
-        // DEBUG: Append what we parsed so we can see why it failed
-        fallback.dialogue_response += ` [DEBUG: hasOptions=${hasOptions}, success=${response.success}, error=${response.error || 'none'}, parsedKeys=${Object.keys(parsedData || {}).join(',')}]`;
+        // Remove debug strings and use the clean user-requested message
+        fallback.dialogue_response = "Unable to execute right now - please try again later";
         
         return fallback;
     } catch (error: any) {
         console.error('[CoachAI] Error in AI schedule response:', error);
         const fallback = generateFallbackResponse(coachCtx, classification, userMessage);
-        fallback.dialogue_response += ` [DEBUG ERROR: ${error.message}]`;
+        
+        // Remove debug strings and use the clean user-requested message
+        fallback.dialogue_response = "Unable to execute right now - please try again later";
+        
         return fallback;
     }
 }
