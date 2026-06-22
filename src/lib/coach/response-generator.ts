@@ -1343,15 +1343,15 @@ You must output your reasoning in text first, going through these exact steps:
 Once you have completed this thought process, you MUST output a JSON block wrapped in \`\`\`json ... \`\`\` containing EXACTLY 3 actionable options.
 
 Option 1: Reschedule Today (same or reduced duration).
-If empty time exists today, place it there. You MUST output TWO operations: if the available gap is shorter, first use \`compress_block\` (changing time duration), then use \`move_block\` to literally pick up the block and move it. Do NOT leave traces behind.
+If empty time exists today, place it there. In this option's \`ledger.ops\` array, you MUST generate TWO operations: if the available gap is shorter, first use \`compress_block\` (changing time duration), then use \`move_block\` to literally pick up the block and move it. Do NOT leave traces behind.
 IF THERE IS NO FREE TIME TODAY: Option 1 MUST simply say 'No free time today' in title/description, and output an empty operations array: \`[]\`. NEVER replace a block for Option 1.
 
 Option 2: Reschedule This Week (same or reduced duration).
-If empty time exists later this week, pick ONE EXACT specific day and time. Output TWO operations: if shorter, first use \`compress_block\`, then use \`move_block\`.
+If empty time exists later this week, pick ONE EXACT specific day and time. In this option's \`ledger.ops\` array, generate TWO operations: if shorter, first use \`compress_block\`, then use \`move_block\`.
 IF THERE IS NO FREE TIME THIS WEEK: Option 2 MUST simply say 'No free time this week' in title/description, and output an empty operations array: \`[]\`. NEVER replace a block for Option 2.
 
 Option 3: Replace Lower Priority Block.
-You MUST strictly read the user's provided schedule. You CANNOT make up blocks, names, or random times. You MUST select an EXACT existing block from the schedule that has a LOWER priority than the missed block. You MUST use that block's EXACT date, start_time, and end_time. Do not hallucinate the day of the week or block name. You MUST output TWO operations: first a \`delete_block\` on the existing lower-priority block (removing it with no trace), then a \`move_block\` on the missed block to place it exactly into the newly opened space.
+You MUST strictly read the user's provided schedule. You CANNOT make up blocks, names, or random times. You MUST select an EXACT existing block from the schedule that has a LOWER priority than the missed block. You MUST use that block's EXACT date, start_time, and end_time. Do not hallucinate the day of the week or block name. In this option's \`ledger.ops\` array, you MUST generate TWO operations: first a \`delete_block\` on the existing lower-priority block (removing it with no trace), then a \`move_block\` on the missed block to place it exactly into the newly opened space.
 
 CRITICAL FORMATTING REQUIREMENTS:
 1. For the 'description' field:
@@ -1359,7 +1359,7 @@ CRITICAL FORMATTING REQUIREMENTS:
    - Option 3 MUST state the exact name, day, and time of the lower priority block being replaced.
 2. For the 'impact' field:
    - Format as a string containing 2-3 concise bullet points (using • symbol).
-3. Patch Operations format:
+3. Patch Operations format (placed inside \`ledger.ops\`):
    - \`compress_block\`: { "type": "compress_block", "block_id": "...", "new_start": "...", "new_end": "..." }
    - \`move_block\`: { "type": "move_block", "block_id": "...", "new_date": "...", "new_start": "...", "new_end": "..." }
    - \`delete_block\`: { "type": "delete_block", "block_id": "..." }
