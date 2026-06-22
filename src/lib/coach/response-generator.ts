@@ -1338,7 +1338,7 @@ You must output your reasoning in text first, going through these exact steps:
 4. \`find_time\`: Go option by option to find empty space.
    - For Option 1 (Today): Run \`find_empty_time\` to find gaps today > 30 mins after the prompt's time. If the entire block can't fit, look for a smaller time (minimum 30 mins). It MUST NOT cut into anchors, buffer blocks, sleep blocks, meal blocks, or pre-existing blocks.
    - For Option 2 (This Week): Run \`find_empty_time\` to find gaps this week > 30 mins. If the entire block can't fit, look for a smaller time (min 30 mins). MUST NOT cut into anchors, buffer blocks, sleep, meals, or pre-existing blocks.
-   - For Option 3: Run \`find_block\` to find blocks with priority LOWER than the missed block. Accurately read the blocks to see which can be replaced.
+   - For Option 3: Run \`find_block\` to find a real, existing block in the user's schedule with a priority LOWER than the missed block. You MUST carefully read the exact block name, date, and timings from the provided schedule context. Never hallucinate a block or a random time.
 
 Once you have completed this thought process, you MUST output a JSON block wrapped in \`\`\`json ... \`\`\` containing EXACTLY 3 actionable options.
 
@@ -1351,7 +1351,7 @@ If empty time exists later this week, pick ONE EXACT specific day and time. Outp
 IF THERE IS NO FREE TIME THIS WEEK: Option 2 MUST simply say 'No free time this week' in title/description, and output an empty operations array: \`[]\`. NEVER replace a block for Option 2.
 
 Option 3: Replace Lower Priority Block.
-Replace a lower priority block. Pay extremely close attention to the EXACT DAY AND DATE the lower priority block is currently on. Do not hallucinate the day of the week. You MUST output TWO operations: first a \`delete_block\` on the old lower-priority block (removing it with no trace), then a \`move_block\` on the missed block to place it into the newly opened space.
+You MUST strictly read the user's provided schedule. You CANNOT make up blocks, names, or random times. You MUST select an EXACT existing block from the schedule that has a LOWER priority than the missed block. You MUST use that block's EXACT date, start_time, and end_time. Do not hallucinate the day of the week or block name. You MUST output TWO operations: first a \`delete_block\` on the existing lower-priority block (removing it with no trace), then a \`move_block\` on the missed block to place it exactly into the newly opened space.
 
 CRITICAL FORMATTING REQUIREMENTS:
 1. For the 'description' field:
