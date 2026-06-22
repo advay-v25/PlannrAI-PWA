@@ -394,10 +394,15 @@ async function resolveBlockIds(patch: any, userId: string, supabase: any) {
 
     // First pass: Resolve move_event (missed block)
     const moveOp = patch.ops.find((o: any) => o.op === 'move_event' || o.op === 'move' || o.op === 'update_event' || o.op === 'update');
-    if (moveOp && moveOp.event_id) {
-        const { data: existing } = await supabase.from('schedule_blocks').select('id').eq('id', moveOp.event_id).eq('user_id', userId).maybeSingle();
+    if (moveOp) {
+        let existing = null;
+        if (moveOp.event_id) {
+            const { data } = await supabase.from('schedule_blocks').select('id').eq('id', moveOp.event_id).eq('user_id', userId).maybeSingle();
+            existing = data;
+        }
+        
         if (!existing) {
-            console.warn(`[Coach Apply] Move Block ID ${moveOp.event_id} not found. Attempting resolution...`);
+            console.warn(`[Coach Apply] Move Block ID ${moveOp.event_id || 'missing'} not found. Attempting resolution...`);
             let resolved = false;
             if (moveOp.title && moveOp.title !== 'Block') {
                 const { data: candidates } = await supabase.from('schedule_blocks')
@@ -425,10 +430,15 @@ async function resolveBlockIds(patch: any, userId: string, supabase: any) {
 
     // Second pass: Resolve delete_event (lower priority block)
     const deleteOp = patch.ops.find((o: any) => o.op === 'delete_event' || o.op === 'delete');
-    if (deleteOp && deleteOp.event_id) {
-        const { data: existing } = await supabase.from('schedule_blocks').select('id').eq('id', deleteOp.event_id).eq('user_id', userId).maybeSingle();
+    if (deleteOp) {
+        let existing = null;
+        if (deleteOp.event_id) {
+            const { data } = await supabase.from('schedule_blocks').select('id').eq('id', deleteOp.event_id).eq('user_id', userId).maybeSingle();
+            existing = data;
+        }
+        
         if (!existing) {
-            console.warn(`[Coach Apply] Delete Block ID ${deleteOp.event_id} not found. Attempting resolution...`);
+            console.warn(`[Coach Apply] Delete Block ID ${deleteOp.event_id || 'missing'} not found. Attempting resolution...`);
             let resolved = false;
             if (deleteOp.title && deleteOp.title !== 'Block') {
                 const { data: candidates } = await supabase.from('schedule_blocks')

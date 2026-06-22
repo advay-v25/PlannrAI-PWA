@@ -92,19 +92,6 @@ function InlineOptionCard({
                             ? 'bg-orange-500 text-white hover:bg-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.35)]'
                             : 'bg-white/10 text-white/80 hover:bg-white/[0.16]'
                     }`}
-                >
-                    {reviewOpen ? 'Hide Review' : 'Review & Execute'}
-                </button>
-                {option.scenario_analysis && (
-                    <button
-                        onClick={e => { e.stopPropagation(); setReviewOpen(!reviewOpen); }}
-                        className="px-3 py-1.5 rounded-xl text-[11px] font-bold uppercase tracking-widest bg-white/[0.04] text-white/35 hover:text-white/60 transition-colors"
-                    >
-                        Why?
-                    </button>
-                )}
-            </div>
-
             <AnimatePresence>
                 {reviewOpen && (
                     <motion.div
@@ -115,30 +102,40 @@ function InlineOptionCard({
                         className="mt-3 overflow-hidden"
                     >
                         <div className="p-3 rounded-xl bg-black/30 border border-white/[0.08] space-y-3">
-                            <p className="text-[11px] font-bold text-white/60 uppercase tracking-widest">
-                                Changes Preview
-                            </p>
-                            <p className="text-sm text-white/75 whitespace-pre-line leading-relaxed">
-                                {(() => {
-                                    if (option.description && option.description.length > 10) return option.description;
-                                    const ops = option.ledger?.ops || [];
-                                    const moveOp = ops.find((o: any) => o.type === 'move_block' || o.type === 'move');
-                                    const deleteOp = ops.find((o: any) => o.type === 'delete_block' || o.type === 'delete');
-                                    if (moveOp) {
-                                        const start = moveOp.new_start || moveOp.to_start;
-                                        const end = moveOp.new_end || moveOp.to_end;
-                                        const date = moveOp.new_date || moveOp.date;
-                                        if (deleteOp) {
-                                            return `• The block being replaced is at ${start} to ${end} on ${date}.\n• The missed block will now be scheduled from ${start} to ${end}.`;
-                                        } else {
-                                            return `• The missed block will now be scheduled from ${start} to ${end} on ${date}.`;
+                            {option.impact && (
+                                <div className="space-y-1">
+                                    <p className="text-[11px] font-bold text-white/60 uppercase tracking-widest">
+                                        Impact
+                                    </p>
+                                    <p className="text-xs text-orange-400/80 whitespace-pre-line leading-relaxed">{option.impact}</p>
+                                </div>
+                            )}
+                            <div className="space-y-1 mt-3">
+                                <p className="text-[11px] font-bold text-white/60 uppercase tracking-widest">
+                                    Changes Preview
+                                </p>
+                                <p className="text-sm text-white/75 whitespace-pre-line leading-relaxed">
+                                    {(() => {
+                                        if (option.description && option.description.length > 10) return option.description;
+                                        const ops = option.ledger?.ops || [];
+                                        const moveOp = ops.find((o: any) => o.type === 'move_block' || o.type === 'move');
+                                        const deleteOp = ops.find((o: any) => o.type === 'delete_block' || o.type === 'delete');
+                                        if (moveOp) {
+                                            const start = moveOp.new_start || moveOp.to_start;
+                                            const end = moveOp.new_end || moveOp.to_end;
+                                            const date = moveOp.new_date || moveOp.date;
+                                            if (deleteOp) {
+                                                return `• The block being replaced is at ${start} to ${end} on ${date}.\n• The missed block will now be scheduled from ${start} to ${end}.`;
+                                            } else {
+                                                return `• The missed block will now be scheduled from ${start} to ${end} on ${date}.`;
+                                            }
                                         }
-                                    }
-                                    return "See impact for details.";
-                                })()}
-                            </p>
+                                        return "See impact for details.";
+                                    })()}
+                                </p>
+                            </div>
                             {option.scenario_analysis && (
-                                <p className="text-xs text-white/40 leading-relaxed">{option.scenario_analysis}</p>
+                                <p className="text-xs text-white/40 leading-relaxed mt-2">{option.scenario_analysis}</p>
                             )}
                             <button
                                 onClick={e => {
@@ -146,7 +143,7 @@ function InlineOptionCard({
                                     if (!disabled) { setReviewOpen(false); onSelect(); }
                                 }}
                                 disabled={disabled}
-                                className="w-full py-2.5 rounded-xl text-[12px] font-bold uppercase tracking-widest bg-orange-500 text-white hover:bg-orange-400 transition-colors shadow-[0_0_20px_rgba(249,115,22,0.3)] disabled:opacity-50"
+                                className="w-full py-2.5 rounded-xl text-[12px] font-bold uppercase tracking-widest bg-orange-500 text-white hover:bg-orange-400 transition-colors shadow-[0_0_20px_rgba(249,115,22,0.3)] disabled:opacity-50 mt-3"
                             >
                                 Apply Changes
                             </button>
