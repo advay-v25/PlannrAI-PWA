@@ -1638,8 +1638,16 @@ ${optionsInstruction}`;
                                     const replacementCandidate = candidates[0];
                                     console.log(`[Coach Auto-Correction] Replaced same-goal/invalid delete op with candidate: "${(replacementCandidate as any).title}" (${replacementCandidate.date} ${replacementCandidate.start_time})`);
                                     
+                                    const candidateTitle = (replacementCandidate as any).title || 'Block';
+                                    const dateObj = new Date(replacementCandidate.date);
+                                    // Fix JS timezone offset issue by explicitly treating it as UTC for day name
+                                    const candidateDay = new Date(dateObj.getTime() + dateObj.getTimezoneOffset() * 60000).toLocaleDateString('en-US', { weekday: 'long' });
+                                    
                                     deleteOp.block_id = replacementCandidate.id;
-                                    deleteOp.title = (replacementCandidate as any).title;
+                                    deleteOp.title = candidateTitle;
+                                    
+                                    opt.title = `Replace ${candidateTitle} on ${candidateDay}`;
+                                    opt.description = `Replace the lower priority ${candidateTitle} block on ${candidateDay} with the ${missedBlock.title || 'missed'} block.`;
                                     
                                     const moveOrCreateOp = normalizedOps.find((o: any) => o.type === 'move_block' || o.type === 'create_block');
                                     if (moveOrCreateOp) {
@@ -1665,6 +1673,13 @@ ${optionsInstruction}`;
                                             op.new_end = replacementCandidate.end_time;
                                         }
                                     }
+                                } else {
+                                    console.log(`[Coach Auto-Correction] No valid replacement candidates found. Nullifying option 3.`);
+                                    opt.title = "No displaceable blocks";
+                                    opt.description = "There are no lower-priority blocks on your schedule that can be safely replaced.";
+                                    opt.tradeoff = { warning: "Your schedule is fully packed with high-priority commitments.", severity: "info" };
+                                    if (opt.ledger) opt.ledger.ops = [];
+                                    normalizedOps = [];
                                 }
                             }
                         }
