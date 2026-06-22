@@ -256,7 +256,6 @@ export const POST = secureApiRoute(
                 retryCount++;
                 console.warn(`[Coach AI] Conflict detected. Retrying... Errors:`, conflictErrors);
                 
-                // Silent LLM recalculation retry
                 const retryHistory = [...conversationHistory, {
                     role: 'user',
                     content: `SYSTEM REJECTION: Your last schedule patch contained overlaps or violated immutable blocks. Errors: ${conflictErrors.join('; ')}. Recalculate and output a new patch ensuring NO overlaps. Use a different time slot.`
