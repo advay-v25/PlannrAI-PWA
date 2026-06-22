@@ -119,7 +119,23 @@ function InlineOptionCard({
                                 Changes Preview
                             </p>
                             <p className="text-sm text-white/75 whitespace-pre-line leading-relaxed">
-                                {option.description}
+                                {(() => {
+                                    if (option.description && option.description.length > 10) return option.description;
+                                    const ops = option.ledger?.ops || [];
+                                    const moveOp = ops.find((o: any) => o.type === 'move_block' || o.type === 'move');
+                                    const deleteOp = ops.find((o: any) => o.type === 'delete_block' || o.type === 'delete');
+                                    if (moveOp) {
+                                        const start = moveOp.new_start || moveOp.to_start;
+                                        const end = moveOp.new_end || moveOp.to_end;
+                                        const date = moveOp.new_date || moveOp.date;
+                                        if (deleteOp) {
+                                            return `• The block being replaced is at ${start} to ${end} on ${date}.\n• The missed block will now be scheduled from ${start} to ${end}.`;
+                                        } else {
+                                            return `• The missed block will now be scheduled from ${start} to ${end} on ${date}.`;
+                                        }
+                                    }
+                                    return "See impact for details.";
+                                })()}
                             </p>
                             {option.scenario_analysis && (
                                 <p className="text-xs text-white/40 leading-relaxed">{option.scenario_analysis}</p>
