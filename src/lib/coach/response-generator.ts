@@ -1425,23 +1425,67 @@ ${optionsInstruction}`;
                 } catch (e) {
                     console.error('[CoachAI] Failed to parse markdown JSON:', e);
                 }
-            } else {
-                // Heuristic: find the last occurrence of something that looks like the root JSON object
-                // It usually starts with { and ends with }
-                const firstBrace = rawStr.indexOf('{');
+            }
+            
+            // If it's still a string (markdown parse failed or not present), try robust heuristic extraction
+            if (typeof parsedData === 'string') {
+                let extracted = false;
+                
+                // Try object {}
                 const lastBrace = rawStr.lastIndexOf('}');
-                if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-                    const extracted = rawStr.substring(firstBrace, lastBrace + 1);
-                    try {
-                        parsedData = JSON.parse(extracted);
-                    } catch (e) {
-                        console.error('[CoachAI] Failed to parse extracted CoT JSON:', e);
+                if (lastBrace !== -1) {
+                    let firstBrace = rawStr.lastIndexOf('{', lastBrace);
+                    while (firstBrace !== -1) {
+                        try {
+                            parsedData = JSON.parse(rawStr.substring(firstBrace, lastBrace + 1));
+                            extracted = true;
+                            break;
+                        } catch (e) {
+                            firstBrace = rawStr.lastIndexOf('{', firstBrace - 1);
+                        }
                     }
+                }
+                
+                // Try array []
+                if (!extracted) {
+                    const lastBracket = rawStr.lastIndexOf(']');
+                    if (lastBracket !== -1) {
+                        let firstBracket = rawStr.lastIndexOf('[', lastBracket);
+                        while (firstBracket !== -1) {
+                            try {
+                                parsedData = JSON.parse(rawStr.substring(firstBracket, lastBracket + 1));
+                                extracted = true;
+                                break;
+                            } catch (e) {
+                                firstBracket = rawStr.lastIndexOf('[', firstBracket - 1);
+                            }
+                        }
+                    }
+                }
+                
+                if (!extracted) {
+                    console.error('[CoachAI] Failed to extract valid JSON from CoT response.');
+                    parsedData = {};
                 }
             }
         }
 
-        const optionsArray = parsedData.proposed_options || parsedData.options || [];
+        let optionsArray = parsedData.proposed_options || parsedData.options || [];
+        if (!Array.isArray(optionsArray) || optionsArray.length === 0) {
+            if (Array.isArray(parsedData)) {
+                optionsArray = parsedData;
+            } else if (parsedData.id && parsedData.title) {
+                optionsArray = [parsedData];
+            } else if (parsedData.option_1 || parsedData.Option_1) {
+                // Sometimes AI returns { option_1: {}, option_2: {} }
+                optionsArray = [
+                    parsedData.option_1 || parsedData.Option_1,
+                    parsedData.option_2 || parsedData.Option_2,
+                    parsedData.option_3 || parsedData.Option_3
+                ].filter(Boolean);
+            }
+        }
+        
         const hasOptions = Array.isArray(optionsArray) && optionsArray.length > 0;
         const isAutoExecute = parsedData.execution_mode === 'AUTO_EXECUTE' && parsedData.executed_ledger?.ops?.length > 0;
 
@@ -1477,7 +1521,7 @@ ${optionsInstruction}`;
             }
 
             const proposed_options: ProposedOption[] = sourceOptions.map((opt: any, i: number) => {
-                let rawOps = opt.ledger?.ops || opt.operations || [];
+                let rawOps = opt.ledger?.ops || opt.operations || opt.ops || [];
                 let normalizedOps = rawOps.map(normalizeOperation);
 
                 // Anti-Hallucination Auto-Correction: Ensure rescheduled blocks have their own mathematically verified independent slot
