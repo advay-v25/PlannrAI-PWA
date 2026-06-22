@@ -1476,13 +1476,13 @@ ${optionsInstruction}`;
             }
         }
 
-        let optionsArray = parsedData.proposed_options || parsedData.options || [];
+        let optionsArray = parsedData?.proposed_options || parsedData?.options || [];
         if (!Array.isArray(optionsArray) || optionsArray.length === 0) {
             if (Array.isArray(parsedData)) {
                 optionsArray = parsedData;
-            } else if (parsedData.id && parsedData.title) {
+            } else if (parsedData?.id && parsedData?.title) {
                 optionsArray = [parsedData];
-            } else if (parsedData.option_1 || parsedData.Option_1) {
+            } else if (parsedData?.option_1 || parsedData?.Option_1) {
                 // Sometimes AI returns { option_1: {}, option_2: {} }
                 optionsArray = [
                     parsedData.option_1 || parsedData.Option_1,
@@ -1493,7 +1493,7 @@ ${optionsInstruction}`;
         }
         
         const hasOptions = Array.isArray(optionsArray) && optionsArray.length > 0;
-        const isAutoExecute = parsedData.execution_mode === 'AUTO_EXECUTE' && parsedData.executed_ledger?.ops?.length > 0;
+        const isAutoExecute = parsedData?.execution_mode === 'AUTO_EXECUTE' && parsedData?.executed_ledger?.ops?.length > 0;
 
         if (response.success && parsedData && (hasOptions || isAutoExecute)) {
             const data = parsedData;
