@@ -426,8 +426,19 @@ export const useCoach = create<CoachState>()(
           });
 
           if (!res.ok) throw new Error('Undo failed');
-
-          set(state => ({ canUndo: false, lastUndoToken: null }));
+          set(state => ({ 
+            canUndo: false, 
+            lastUndoToken: null,
+            messages: [
+              ...state.messages,
+              {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: 'Change reverted',
+                timestamp: new Date().toISOString()
+              }
+            ]
+          }));
           return true;
         } catch (error) {
           console.error('[Coach] Undo error:', error);

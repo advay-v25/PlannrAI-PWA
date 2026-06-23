@@ -135,8 +135,8 @@ export default function HomePage() {
             setBriefing(result?.briefing || 'Systems online.');
             setBriefingTone(result?.tone || 'focused');
             setPriorities(result?.priorities || []);
-        } catch (e) {
-            console.error(e);
+        } catch (e: any) {
+            console.warn('[Briefing] Skipped or rate-limited:', e.message || e);
             setBriefing('Systems ready.');
         } finally {
             setBriefingLoading(false);

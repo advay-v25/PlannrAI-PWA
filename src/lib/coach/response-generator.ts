@@ -701,23 +701,26 @@ function findReplaceableBlock(missedBlock: any, duration: number, coachCtx: Coac
 
     const seen = new Set<string>();
 
-    // Base filter: immutable types, past/started blocks, same goal/title
-    const baseCandidates = [...(coachCtx.schedule.this_week || []), ...(coachCtx.schedule.today || [])].filter((b: any) => {
-        if (!b.id || seen.has(b.id)) return false;
-        seen.add(b.id);
-        if (b.id === missedBlock.id) return false;
-        const type = (b.block_type || '').toLowerCase();
-        if (['sleep', 'meal', 'wind_down', 'anchor', 'buffer', 'routine'].includes(type)) return false;
-        if (b.status !== 'planned') return false;
-        if (b.date < now.date) return false;
-        if (b.date === now.date && b.start_time <= now.time) return false;
-        const bInfo = getBlockPillarAndPriority(b, coachCtx);
-        if (bInfo.pillar !== missedInfo.pillar) return false;                  // same pillar only
-        if (b.goal_id && b.goal_id === missedGoalId) return false;             // never same goal
-        if ((b.title || '').toLowerCase() === missedTitle) return false;
-        if ((b.context || '').toLowerCase() === missedContext) return false;
-        return true;
-    });
+    const getCandidates = (requireSamePillar: boolean, allowSameGoalOrTitle: boolean = false) => {
+        return [...(coachCtx.schedule.this_week || []), ...(coachCtx.schedule.today || [])].filter((b: any) => {
+            if (!b.id || seen.has(b.id)) return false;
+            if (b.id === missedBlock.id) return false;
+            const type = (b.block_type || '').toLowerCase();
+            if (['sleep', 'meal', 'wind_down', 'anchor', 'buffer', 'routine'].includes(type)) return false;
+            if (b.status !== 'planned') return false;
+            if (b.date < now.date) return false;
+            if (b.date === now.date && b.start_time <= now.time) return false;
+            const bInfo = getBlockPillarAndPriority(b, coachCtx);
+            if (requireSamePillar && bInfo.pillar !== missedInfo.pillar) return false;
+            
+            if (!allowSameGoalOrTitle) {
+                if (b.goal_id && b.goal_id === missedGoalId) return false;
+                if ((b.title || '').toLowerCase() === missedTitle) return false;
+                if ((b.context || '').toLowerCase() === missedContext) return false;
+            }
+            return true;
+        });
+    };
 
     const sortCandidates = (list: any[]) => list.sort((a: any, b: any) => {
         const aI = getBlockPillarAndPriority(a, coachCtx);
@@ -732,29 +735,46 @@ function findReplaceableBlock(missedBlock: any, duration: number, coachCtx: Coac
         return a.start_time.localeCompare(b.start_time);
     });
 
-    // Pass 1: strictly lower importance — only when BOTH blocks have a known importance level.
-    // Most goals default to 'medium', so this usually only triggers when a user has explicitly
-    // set a goal to 'high' and there exist 'low' or 'medium' same-pillar blocks to swap.
-    if (missedInfo.importanceKnown) {
-        const strictCandidates = baseCandidates.filter((b: any) => {
-            const bInfo = getBlockPillarAndPriority(b, coachCtx);
-            return bInfo.importanceKnown && bInfo.priorityVal < missedInfo.priorityVal;
-        });
-        if (strictCandidates.length > 0) {
-            return sortCandidates(strictCandidates)[0];
+    const tryFind = (requireSamePillar: boolean, allowSameGoalOrTitle: boolean = false, enforceLowerPriority: boolean = false) => {
+        const baseCandidates = getCandidates(requireSamePillar, allowSameGoalOrTitle);
+        
+        if (enforceLowerPriority && missedInfo.importanceKnown) {
+            const strictCandidates = baseCandidates.filter((b: any) => {
+                const bInfo = getBlockPillarAndPriority(b, coachCtx);
+                return bInfo.importanceKnown && bInfo.priorityVal < missedInfo.priorityVal;
+            });
+            if (strictCandidates.length > 0) {
+                return sortCandidates(strictCandidates)[0];
+            }
         }
+
+        const fallback = baseCandidates.filter((b: any) => {
+            if (enforceLowerPriority) {
+                const bInfo = getBlockPillarAndPriority(b, coachCtx);
+                if (missedInfo.importanceKnown && bInfo.importanceKnown && bInfo.priorityVal > missedInfo.priorityVal) return false;
+            }
+            return true;
+        });
+        return fallback.length > 0 ? sortCandidates(fallback)[0] : null;
+    };
+
+    // Strategy 1: Same pillar, different goal/title, lower or equal priority
+    let block = tryFind(true, false, true);
+    
+    // Strategy 2: Any pillar, different goal/title, lower or equal priority
+    if (!block) {
+        seen.clear();
+        block = tryFind(false, false, true);
+    }
+    
+    // Strategy 3: Absolute Failsafe - Any pillar, any goal/title, any priority 
+    // (still sorts to pick the lowest priority available)
+    if (!block) {
+        seen.clear();
+        block = tryFind(false, true, false);
     }
 
-    // Pass 2: no strictly-lower block was found (common when all goals share the same default
-    // 'medium' importance, or importance is not set at all).
-    // Allow any same-pillar, different-goal block EXCEPT those with a KNOWN STRICTLY HIGHER
-    // importance than the missed block (we never displace a more-important block).
-    const fallback = baseCandidates.filter((b: any) => {
-        const bInfo = getBlockPillarAndPriority(b, coachCtx);
-        if (missedInfo.importanceKnown && bInfo.importanceKnown && bInfo.priorityVal > missedInfo.priorityVal) return false;
-        return true;
-    });
-    return fallback.length > 0 ? sortCandidates(fallback)[0] : null;
+    return block;
 }
 
 function computeRescheduleOptions(missedBlock: any, duration: number, coachCtx: CoachContext) {
@@ -857,24 +877,41 @@ function buildCoachOption(
         };
     }
 
-    const { targetDate, slot, tradeoff, warningType } = opt;
+    const targetDate = opt.targetDate || opt.date;
+    const start = opt.slot ? opt.slot.start : opt.start;
+    const end = opt.slot ? opt.slot.end : opt.end;
     const sameDay = targetDate === coachCtx.current.date;
 
+    const [yyyy, mm, dd] = targetDate.split('-');
+    const dateObj = new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd));
+    const dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dateObj.getDay()];
+    const formattedDate = `${dayOfWeek} ${dd}/${mm}`;
+
     let patchOps: any[] = [];
-    if (slot) {
-        patchOps = [{
+    if (start && end) {
+        if (opt.replacedBlock) {
+            patchOps.push({
+                type: 'delete_block' as const,
+                block_id: opt.replacedBlock.id,
+                title: opt.replacedBlock.title || opt.replacedBlock.context,
+            });
+        }
+        patchOps.push({
             type: 'move_block' as const,
             block_id: missedBlock.id,
-            new_start: slot.start,
-            new_end: slot.end,
+            new_start: start,
+            new_end: end,
             new_date: targetDate,
-        }];
+        });
     }
+
+    const replaceText = opt.replacedBlock ? ` (Replaces "${opt.replacedBlock.title || opt.replacedBlock.context}")` : '';
+    const displayStart = start ? start.substring(0, 5) : '';
 
     return {
         id: `opt_${idx}`,
-        title: sameDay ? `Move to ${slot.start} today` : `Move to ${targetDate} at ${slot.start}`,
-        impact: `Moved "${missedName}" to ${targetDate}`,
+        title: sameDay ? `Move to ${displayStart} today${replaceText}` : `Move to ${formattedDate} at ${displayStart}${replaceText}`,
+        impact: `Moved "${missedName}" to ${formattedDate}${replaceText}`,
         ledger: {
             ops: patchOps,
             reason: `Moved "${missedName}"`
@@ -882,52 +919,12 @@ function buildCoachOption(
     } as any;
 }
 
-// LLM narrator: ONLY writes Donna's summary paragraph. It never picks times.
-// Groq-70B only, full budget. On failure, falls back to a deterministic template
-// (a static string is not another AI model, so the "Groq-only" rule is preserved).
 async function narrateReschedule(
     missedName: string, duration: number, coachCtx: CoachContext,
     opt1: ComputedReschedule | null, opt2: ComputedReschedule | null, opt3: ComputedReschedule | null
 ): Promise<string> {
     const now = coachCtx.current;
-    const line = (o: ComputedReschedule | null, label: string) =>
-        o ? `${label}: ${o.kind === 'today' ? 'today' : dayLabel(o.date)} ${formatTime(o.start)}–${formatTime(o.end)}${o.shrunk ? ' (shortened)' : ''}${o.kind === 'replace' ? ` by replacing "${o.replacedBlock.title || o.replacedBlock.context}"` : ''}`
-          : `${label}: none available`;
-
-    const systemPrompt = `You are Donna, PlannrAI's execution coach. Tough-love, direct, no fluff, no markdown, no lists. Write 2-3 plain-text sentences (max 60 words). Acknowledge the situation, then prompt them to pick an option. NEVER invent times — only reference what is given.`;
-    const prompt = `User wants to reschedule "${missedName}" (${duration} min). It is ${now.time} on ${now.day_of_week}.
-${line(opt1, 'Option 1')}
-${line(opt2, 'Option 2')}
-${line(opt3, 'Option 3')}
-Write the summary now.`;
-
-    try {
-        const res = await callAI<string>({
-            prompt,
-            systemPrompt,
-            model: 'smart',
-            temperature: 0.5,
-            maxTokens: 300,
-            requireJSON: false,
-            groqOnly: true,
-            timeout: 45000,
-            clientDate: coachCtx.current.exact_iso_timestamp,
-            clientTimezone: coachCtx.current.exact_timezone,
-        });
-        if (res.success && typeof res.data === 'string' && res.data.trim().length > 0) {
-            return res.data.trim();
-        }
-    } catch (e) {
-        console.warn('[CoachAI] Narrator failed, using template summary:', e);
-    }
-
-    // Deterministic fallback summary (not an AI provider — keeps Groq-only contract).
-    const parts: string[] = [`Let's get "${missedName}" back on track.`];
-    if (opt1) parts.push(`There's room today at ${formatTime(opt1.start)}.`);
-    else if (opt2) parts.push(`Today's full, but ${dayLabel(opt2.date)} has space.`);
-    else if (opt3) parts.push(`No clean gaps left, so the move is to swap out a lower-priority block.`);
-    parts.push('Pick the option that fits and I\'ll apply it.');
-    return parts.join(' ');
+    return `It's currently ${now.time} on ${now.day_of_week}, and you want to reschedule ${missedName} for ${duration} minutes. Here are your options.`;
 }
 
 // Entry point for deterministic single-block rescheduling.
@@ -957,20 +954,23 @@ async function buildDeterministicRescheduleResponse(
     }
 
     const recommendedIdx = opt1 ? 1 : opt2 ? 2 : 3;
-    const proposed_options: ProposedOption[] = [
+    const finalOptions: ProposedOption[] = [
         buildCoachOption(opt1, 1, missedName, missedBlock, coachCtx, recommendedIdx === 1, 'No free time today', `No gap fits "${missedName}" later today.`),
         buildCoachOption(opt2, 2, missedName, missedBlock, coachCtx, recommendedIdx === 2, 'No free time this week', `No gap fits "${missedName}" in the rest of the week.`),
         buildCoachOption(opt3, 3, missedName, missedBlock, coachCtx, recommendedIdx === 3, 'No block to swap', `No other block in the same pillar available to swap.`),
     ];
-
-    const summary = await narrateReschedule(missedName, duration, coachCtx, opt1, opt2, opt3);
+    
+    // Ensure at least one is recommended, prioritizing options with actual operations
+    if (!finalOptions.some((o: any) => o.recommended) && finalOptions.length > 0) {
+        finalOptions[0].recommended = true;
+    }
 
     return {
-        dialogue_response: summary,
+        dialogue_response: await narrateReschedule(missedName, duration, coachCtx, opt1, opt2, opt3),
         system_state_flag: 'NORMAL',
         execution_mode: 'PROPOSE_OPTIONS',
         executed_ledger: null,
-        proposed_options: proposed_options,
+        proposed_options: finalOptions,
         contextual_options: [],
         focus_node_id: null
     };
@@ -1281,7 +1281,7 @@ For EACH option you generate, mentally verify ALL of the following BEFORE includ
 - For simple requests (mark done, simple add, delete), use execution_mode "AUTO_EXECUTE" with a single executed_ledger.
 - For complex requests (reschedule, replan, missed block), use execution_mode "PROPOSE_OPTIONS" with 3 distinct proposed_options.
 {
-  "dialogue_response": "Concise, coach-toned text describing what was done or asking the user.",
+  "dialogue_response": "If proposing options, this MUST strictly be: 'It's currently [HH:MM] on [Day], and you want to reschedule [Block Name] for [X] minutes. Here are your options.' Otherwise, write concise text.",
   "system_state_flag": "NORMAL" | "RECOVERY" | "CASCADE_WARNING",
   "execution_mode": "AUTO_EXECUTE" | "PROPOSE_OPTIONS",
   "executed_ledger": {
@@ -1326,15 +1326,15 @@ CRITICAL FORMATTING REQUIREMENTS:
         } else {
              optionsInstruction = `CRITICAL: You must write a CONCISE Chain-of-Thought (under 100 words) BEFORE generating the JSON.
 1. Identify the block being rescheduled and its priority.
-2. Mentally scan the provided calendar to find an empty slot TODAY for Option 1.
+2. Check the user_state.free_slots_today array to explicitly see if any free slot exists TODAY for Option 1. Do NOT calculate gaps manually; rely entirely on the provided array.
 3. Mentally scan the calendar to find an empty slot THIS WEEK for Option 2.
 4. Mentally scan the calendar to find an EXACT existing lower-priority block for Option 3. Read its exact name, date, and timings from the context. Do NOT hallucinate blocks or times.
 
 Once you have completed this thought process, you MUST output a JSON block wrapped in \`\`\`json ... \`\`\` containing EXACTLY 3 actionable options.
 
 Option 1: Reschedule Today (same or reduced duration).
-If empty time exists today, place it there. In this option's \`ledger.ops\` array, you MUST generate TWO operations: if the available gap is shorter, first use \`compress_block\` (changing time duration), then use \`move_block\` to literally pick up the block and move it. Do NOT leave traces behind.
-IF THERE IS NO FREE TIME TODAY: Option 1 MUST simply say 'No free time today' in title/description, and output an empty operations array: \`[]\`. NEVER replace a block for Option 1.
+If an available free slot exists in user_state.free_slots_today today, place it there. In this option's \`ledger.ops\` array, you MUST generate TWO operations: if the available gap is shorter, first use \`compress_block\` (changing time duration), then use \`move_block\` to literally pick up the block and move it exactly into the free slot time. Do NOT leave traces behind.
+IF THERE IS NO FREE TIME TODAY (user_state.free_slots_today is empty): Option 1 MUST simply say 'No free time today' in title/description, and output an empty operations array: \`[]\`. NEVER replace a block for Option 1.
 
 Option 2: Reschedule This Week (same or reduced duration).
 If empty time exists later this week, pick ONE EXACT specific day and time. In this option's \`ledger.ops\` array, generate TWO operations: if shorter, first use \`compress_block\`, then use \`move_block\`.
@@ -1345,10 +1345,10 @@ You MUST strictly read the user's provided schedule. You CANNOT make up blocks, 
 
 CRITICAL FORMATTING REQUIREMENTS:
 1. For the 'description' field:
-   - Options 1 & 2 MUST state the specific day and time the block will be moved to (e.g., 'Move to Thursday 14:00 - 15:30').
+   - Option titles MUST include the Day, Date (dd/mm format), and start time (e.g., 'Move to Thursday 25/06 at 14:00').
    - Option 3 MUST state the exact name, day, and time of the lower priority block being replaced.
 2. For the 'impact' field:
-   - Format as a string containing 2-3 concise bullet points (using • symbol).
+   - Format as a string containing 2-3 concise bullet points (using • symbol). Must include the Day and Date (dd/mm format).
 3. Patch Operations format (placed inside \`ledger.ops\`):
    - \`compress_block\`: { "type": "compress_block", "block_id": "...", "new_start": "...", "new_end": "..." }
    - \`move_block\`: { "type": "move_block", "block_id": "...", "new_date": "...", "new_start": "...", "new_end": "..." }
@@ -1791,9 +1791,14 @@ ${optionsInstruction}`;
                 };
             });
 
-            // Ensure at least one is recommended
+            // Ensure at least one is recommended, prioritizing options with actual operations
             if (!proposed_options.some((o: any) => o.recommended) && proposed_options.length > 0) {
-                (proposed_options[0] as any).recommended = true;
+                const firstValid = proposed_options.find((o: any) => o.ledger?.ops?.length > 0);
+                if (firstValid) {
+                    firstValid.recommended = true;
+                } else {
+                    (proposed_options[0] as any).recommended = true;
+                }
             }
 
             return {
