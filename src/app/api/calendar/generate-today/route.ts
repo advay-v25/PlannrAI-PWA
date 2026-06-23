@@ -286,7 +286,7 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
             } else {
                 // Fallback: generate flow-state-aware deterministic schedule
                 console.warn('[GenerateToday] AI failed, using fallback:', response.error);
-                const fb = generateFlowStateFallback(ctx, targetDate, effectiveWakeTime, windDownTime, phases);
+                const fb = generateFlowStateFallback(ctx, targetDate, effectiveWakeTime, windDownTime, phases, scheduleMode.strategy);
                 blocks = fb.blocks;
                 summary = fb.summary;
                 philosophy = fb.philosophy;
@@ -539,7 +539,8 @@ function generateFlowStateFallback(
     date: string,
     wakeTime: string,
     windDownTime: string,
-    phases: ReturnType<typeof computeDayPhases>
+    phases: ReturnType<typeof computeDayPhases>,
+    strategy: string = 'balanced'
 ) {
     const timeToMinutes = (t: string) => {
         const [h, m] = t.split(':').map(Number);
@@ -593,17 +594,31 @@ function generateFlowStateFallback(
             if (windowCursor + durationMin > windows[windowIdx].end) return false;
         }
 
+        let start = windowCursor;
+        let buffer = 15;
+        if (strategy === 'momentum') buffer = 0;
+        if (strategy === 'recovery') buffer = 60;
+        
+        // Mathematical Centering for balanced/recovery
+        if ((strategy === 'balanced' || strategy === 'recovery') && (win.end - start) > durationMin + buffer * 2) {
+            const freeSpace = (win.end - start) - durationMin;
+            start = start + Math.floor(freeSpace / 2);
+        } else if (strategy === 'recovery') {
+            const possibleStart = start + Math.min(buffer, (win.end - start) - durationMin);
+            start = Math.max(start, possibleStart);
+        }
+
         blocks.push({
             date,
-            start_time: minutesToTime(windowCursor),
-            end_time: minutesToTime(windowCursor + durationMin),
+            start_time: minutesToTime(start),
+            end_time: minutesToTime(start + durationMin),
             title,
             block_type: type,
             status: 'planned',
             checklist: [],
             ...extra,
         });
-        windowCursor += durationMin;
+        windowCursor = start + durationMin;
         return true;
     };
 

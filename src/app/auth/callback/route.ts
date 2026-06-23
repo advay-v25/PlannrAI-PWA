@@ -30,7 +30,7 @@ export async function GET(request: Request) {
                     .eq('id', user.id)
                     .single();
 
-                // If no profile exists, create one and redirect to onboarding
+                // If no profile exists, create one and redirect to onboarding/set-password
                 if (profileError || !profile) {
                     // Create new profile for the user
                     await supabase.from('profiles').insert({
@@ -38,6 +38,11 @@ export async function GET(request: Request) {
                         email: user.email,
                         onboarding_complete: false,
                     });
+
+                    // If user signed in via google, have them set a password first
+                    if (user.app_metadata?.provider === 'google') {
+                        return NextResponse.redirect(`${origin}/set-password`);
+                    }
 
                     return NextResponse.redirect(`${origin}/onboarding`);
                 }
