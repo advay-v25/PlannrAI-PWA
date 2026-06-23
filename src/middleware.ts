@@ -57,10 +57,11 @@ export async function middleware(request: NextRequest) {
         // App routes protection
         const isAppRoute = pathname.startsWith('/app');
         const isOnboardingRoute = pathname.startsWith('/onboarding');
+        const isSetPasswordRoute = pathname.startsWith('/set-password');
         const isAuthRoute = pathname.startsWith('/login') || pathname.startsWith('/auth');
         
         // Redirect unauthenticated users from protected routes
-        if (!user && (isAppRoute || isOnboardingRoute)) {
+        if (!user && (isAppRoute || isOnboardingRoute || isSetPasswordRoute)) {
             const redirectUrl = request.nextUrl.clone();
             redirectUrl.pathname = '/login';
             return NextResponse.redirect(redirectUrl);

@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import {
     User, LogOut, Trash2, AlertTriangle, Loader2,
-    Clock, Brain, Shield, Save, ChevronRight, Calendar, Download, Bell, Sparkles, Moon, Sun, Monitor, Type
+    Clock, Brain, Shield, Save, ChevronRight, Calendar, Download, Bell, Sparkles, Moon, Sun, Monitor, Type, Lock
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { createClient } from '@/lib/supabase/client';
@@ -227,6 +227,25 @@ function AccountSection({
                 <InfoRow label="AI Engine" value="Donna — Chief of Staff" />
                 <InfoRow label="Data" value="Supabase (encrypted)" icon={<Shield className="w-3 h-3 text-[var(--color-success)]" />} />
             </div>
+
+            {/* Set Password (for Google-only users) */}
+            {profile?.providers && !profile.providers.includes('email') && (
+                <Link
+                    href="/set-password?next=/app/settings"
+                    className="flex items-center justify-between p-4 rounded-2xl bg-[var(--color-primary)]/5 border border-[var(--color-primary)]/20 hover:bg-[var(--color-primary)]/10 transition-all group"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-[var(--color-primary)]/10 flex items-center justify-center">
+                            <Lock className="w-4 h-4 text-[var(--color-primary)]" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-semibold text-[var(--text-primary)]">Set Password</p>
+                            <p className="text-xs text-[var(--text-tertiary)]">Enable login with email & password</p>
+                        </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors" />
+                </Link>
+            )}
 
             {/* Sign out */}
             <button
