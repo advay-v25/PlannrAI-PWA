@@ -150,25 +150,21 @@ ${JSON.stringify({
 }, null, 2)}`;
 
             try {
-                const groqRes = await callAI({
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: userPrompt }
-                    ],
-                    response_format: { type: 'json_object' },
-                    model: 'llama-3.3-70b-versatile',
-                    temperature: 0.1
+                const aiRes = await callAI({
+                    prompt: userPrompt,
+                    systemPrompt: systemPrompt,
+                    model: 'smart',
+                    temperature: 0.1,
+                    requireJSON: true,
+                    groqOnly: true,
+                    timeout: 55000
                 });
                 
-                let text = groqRes.choices?.[0]?.message?.content || '{}';
-                text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-                const parsed = JSON.parse(text);
-                
-                if (parsed.ops && Array.isArray(parsed.ops)) {
-                    finalPatch = { operations: parsed.ops };
-                    console.log(`[Coach Apply] Groq generated ops:`, parsed.ops);
+                if (aiRes.success && aiRes.data && Array.isArray(aiRes.data.ops)) {
+                    finalPatch = { operations: aiRes.data.ops };
+                    console.log(`[Coach Apply] Groq generated ops:`, aiRes.data.ops);
                 } else {
-                    console.warn(`[Coach Apply] Groq failed to generate ops array, falling back to original patch`);
+                    console.warn(`[Coach Apply] Groq failed to generate ops array, falling back to original patch. Error:`, aiRes.error);
                 }
             } catch (e) {
                 console.error(`[Coach Apply] Groq execution failed, falling back:`, e);

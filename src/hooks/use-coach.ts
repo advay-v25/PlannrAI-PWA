@@ -345,16 +345,7 @@ export const useCoach = create<CoachState>()(
         }
 
         const ops = (option.ledger?.ops) || (option as any).patch?.operations || (option as any).patch?.ops || [];
-        if (ops.length === 0) {
-          set(state => ({
-            messages: state.messages.map(m => 
-              m.id === messageId 
-                ? { ...m, selected_option_id: optionId, isApplying: false }
-                : m
-            )
-          }));
-          return option;
-        }
+
 
         set(state => ({
           messages: state.messages.map(m => 
