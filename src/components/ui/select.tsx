@@ -89,7 +89,7 @@ export const SelectContent = ({ children, className }: { children: React.ReactNo
                     exit={{ opacity: 0, y: -10, scale: 0.95 }}
                     transition={{ duration: 0.15, ease: "easeOut" }}
                     className={cn(
-                        "absolute z-50 mt-2 min-w-[8rem] w-full overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--color-bg-secondary)] backdrop-blur-2xl shadow-[var(--shadow-lg)] p-1",
+                        "absolute z-50 mt-2 min-w-full w-max overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--color-bg-secondary)] backdrop-blur-2xl shadow-[var(--shadow-lg)] p-1",
                         className
                     )}
                 >

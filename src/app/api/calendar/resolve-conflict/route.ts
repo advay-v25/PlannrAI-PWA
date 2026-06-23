@@ -1,6 +1,9 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { z } from 'zod';
 
+export const maxDuration = 60;
+
+
 // Request Schema
 const ResolveConflictSchema = z.object({
     proposed_block: z.record(z.string(), z.any()),

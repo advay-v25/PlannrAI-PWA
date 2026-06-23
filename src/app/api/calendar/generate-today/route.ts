@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic';
 export const POST = secureApiRoute(
     async (context, body) => {
         const { userId, supabase } = context;
-        const { date, force } = body as { date?: string; force?: boolean };
+        const { date, force, mode } = body as { date?: string; force?: boolean; mode?: string };
 
         const targetDate = date || format(new Date(), 'yyyy-MM-dd');
         const dayName = format(new Date(targetDate + 'T12:00:00'), 'EEEE');
@@ -137,17 +137,24 @@ export const POST = secureApiRoute(
             const mealsPerDay = ctx.user.meals_per_day || 3;
             const mealWindows = ctx.user.meal_windows || {};
 
-            // SCHEDULING PROTOCOL: Compute mode from energy + mood
-            const scheduleMode = SchedulingProtocol.computeMode({
-                energy: todayEnergy,
-                mood: todayMood,
-                completionRate7d: ctx.performance.last_7_days_completion_rate,
-            });
-            const scheduleIntensity = SchedulingProtocol.getIntensityDescription(
-                scheduleMode,
-                todayEnergy,
-                ctx.performance.last_7_days_completion_rate
-            );
+            let scheduleMode: any;
+            let scheduleIntensity: string;
+
+            if (mode === 'balanced') {
+                scheduleMode = { strategy: 'balanced', rules: [] };
+                scheduleIntensity = 'Balanced Flow (Sustainable mix of deep work and rest. Recommended.)';
+            } else {
+                scheduleMode = SchedulingProtocol.computeMode({
+                    energy: todayEnergy,
+                    mood: todayMood,
+                    completionRate7d: ctx.performance.last_7_days_completion_rate,
+                });
+                scheduleIntensity = SchedulingProtocol.getIntensityDescription(
+                    scheduleMode,
+                    todayEnergy,
+                    ctx.performance.last_7_days_completion_rate
+                );
+            }
 
             console.log(`[GenerateToday] Protocol Mode: ${scheduleMode.strategy} (energy=${todayEnergy}, mood=${todayMood})`);
 

@@ -91,20 +91,22 @@ export default function CoreConstraints({ preferences, onChange }: Props) {
                             className="bg-transparent"
                         />
                     </div>
-                    <div className="space-y-2">
-                        <Label>Lunch Start Time</Label>
-                        <Input
-                            type="time"
-                            value={preferences.meal_windows?.lunch?.start || '12:00'}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ 
-                                meal_windows: { 
-                                    ...preferences.meal_windows, 
-                                    lunch: { start: e.target.value, end: preferences.meal_windows?.lunch?.end || '15:00' } 
-                                } 
-                            })}
-                            className="bg-transparent"
-                        />
-                    </div>
+                    {preferences.meals_per_day !== 2 && (
+                        <div className="space-y-2">
+                            <Label>Lunch Start Time</Label>
+                            <Input
+                                type="time"
+                                value={preferences.meal_windows?.lunch?.start || '12:00'}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ 
+                                    meal_windows: { 
+                                        ...preferences.meal_windows, 
+                                        lunch: { start: e.target.value, end: preferences.meal_windows?.lunch?.end || '15:00' } 
+                                    } 
+                                })}
+                                className="bg-transparent"
+                            />
+                        </div>
+                    )}
                     <div className="space-y-2">
                         <Label>Dinner Start Time</Label>
                         <Input
