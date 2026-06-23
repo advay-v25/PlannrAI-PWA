@@ -39,6 +39,9 @@ export async function GET(request: Request) {
                         onboarding_complete: false,
                     });
 
+                    if (next === '/reset-password') {
+                        return NextResponse.redirect(`${origin}/reset-password`);
+                    }
                     return NextResponse.redirect(`${origin}/onboarding`);
                 }
 

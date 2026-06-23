@@ -33,7 +33,7 @@ export default function LoginPage() {
                     password,
                 });
                 if (error) throw error;
-                router.push('/app');
+                window.location.href = '/app';
             } else {
                 const { error } = await supabase.auth.signUp({
                     email,
@@ -47,11 +47,11 @@ export default function LoginPage() {
                 // If "Confirm Email" is disabled in Supabase, this will log them in immediately.
                 const { data: { session } } = await supabase.auth.getSession();
                 if (session) {
-                    router.push('/onboarding');
+                    window.location.href = '/onboarding';
                 } else {
                     // If email verification is on, Supabase will return an empty session.
                     // Direct users to check inbox.
-                    router.push('/verify-email');
+                    window.location.href = '/verify-email';
                 }
             }
         } catch (err: any) {
@@ -60,7 +60,7 @@ export default function LoginPage() {
             // If they are trying to log in but haven't confirmed email
             const errorMsg = err.message || '';
             if (errorMsg.toLowerCase().includes('email not confirmed') || errorMsg.toLowerCase().includes('verify your email')) {
-                 router.push('/verify-email');
+                 window.location.href = '/verify-email';
                  return;
             }
 

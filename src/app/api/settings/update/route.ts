@@ -71,9 +71,7 @@ export const POST = secureApiRoute(
                 .from('schedule_blocks')
                 .delete()
                 .eq('user_id', userId)
-                .is('commitment_id', null)
-                .neq('block_type', 'anchor')
-                .gte('date', today);
+                .neq('block_type', 'anchor');
 
             if (deleteError) {
                 console.error("[Settings Reset] Failed to clear schedule:", deleteError.message);

@@ -39,9 +39,20 @@ export async function POST(request: Request) {
 
     console.log(`[DeleteAccount] Triggering atomic cascade deletion for user: ${userId}`);
 
-    // 3. Hard-delete the auth user first.
-    // This is a single atomic database operation. Supabase Auth will delete the auth.users record,
-    // which cascades to profiles, goals, schedule_blocks, commitments, weekly_reviews, and all other tables.
+    // 3. Hard-delete user data explicitly to avoid FK constraint issues if ON DELETE CASCADE is missing
+    const tables = [
+        'schedule_blocks', 'commitments', 'goals', 'habit_stacks', 'profile_preferences',
+        'chat_messages', 'chat_sessions', 'daily_logs', 'weekly_reviews', 'user_feedback'
+    ];
+    for (const table of tables) {
+        await admin.from(table).delete().eq('user_id', userId).catch(() => {});
+    }
+    
+    // Some tables might use 'id' or other keys, but 'profiles' is the main one to clear out first.
+    await admin.from('profiles').delete().eq('id', userId).catch(() => {});
+
+    // 4. Hard-delete the auth user
+    // This is a single atomic database operation. Supabase Auth will delete the auth.users record.
     const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
 
     if (deleteError) {
