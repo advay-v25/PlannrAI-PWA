@@ -1393,10 +1393,10 @@ ${optionsInstruction}`;
             messages: conversationHistory as any,
             model: isMissedBlock ? 'smart' : 'smart', // MUST use 70B for CoT logic
             temperature: 0.5,
-            maxTokens: 3000,
+            maxTokens: 1500,
             requireJSON: !isMissedBlock, // If missed block, we expect CoT text before JSON
             timeout: 55000,
-            groqOnly: true, // Give Groq the full 55s budget to finish complex option generation without aborting early
+            skipOpenRouter: true, // Prevent hitting OpenRouter 402 errors
             clientDate: coachCtx.current.exact_iso_timestamp,
             clientTimezone: coachCtx.current.exact_timezone,
         });
