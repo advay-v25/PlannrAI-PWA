@@ -345,16 +345,7 @@ export const useCoach = create<CoachState>()(
         }
 
         const ops = (option.ledger?.ops) || (option as any).patch?.operations || (option as any).patch?.ops || [];
-        if (ops.length === 0) {
-          set(state => ({
-            messages: state.messages.map(m => 
-              m.id === messageId 
-                ? { ...m, selected_option_id: optionId, isApplying: false }
-                : m
-            )
-          }));
-          return option;
-        }
+
 
         set(state => ({
           messages: state.messages.map(m => 
@@ -435,8 +426,19 @@ export const useCoach = create<CoachState>()(
           });
 
           if (!res.ok) throw new Error('Undo failed');
-
-          set(state => ({ canUndo: false, lastUndoToken: null }));
+          set(state => ({ 
+            canUndo: false, 
+            lastUndoToken: null,
+            messages: [
+              ...state.messages,
+              {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: 'Change reverted',
+                timestamp: new Date().toISOString()
+              }
+            ]
+          }));
           return true;
         } catch (error) {
           console.error('[Coach] Undo error:', error);

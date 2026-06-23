@@ -145,10 +145,19 @@ function InlineOptionCard({
                                         const start = moveOp.new_start || moveOp.to_start;
                                         const end = moveOp.new_end || moveOp.to_end;
                                         const date = moveOp.new_date || moveOp.date;
+                                        
+                                        let displayDate = date;
+                                        if (date && date.includes('-')) {
+                                            const [yyyy, mm, dd] = date.split('-');
+                                            const dObj = new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd));
+                                            const dWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dObj.getDay()];
+                                            displayDate = `${dWeek} ${dd}/${mm}`;
+                                        }
+
                                         if (deleteOp) {
-                                            content += `• The block being replaced is at ${start} to ${end} on ${date}.\n• The missed block will now be scheduled from ${start} to ${end}.`;
+                                            content += `• The block being replaced is at ${start} to ${end} on ${displayDate}.\n• The missed block will now be scheduled from ${start} to ${end}.`;
                                         } else {
-                                            content += `• The missed block will now be scheduled from ${start} to ${end} on ${date}.`;
+                                            content += `• The missed block will now be scheduled from ${start} to ${end} on ${displayDate}.`;
                                         }
                                     } else if (!compressOp && content === "") {
                                         content = "See impact for details.";
