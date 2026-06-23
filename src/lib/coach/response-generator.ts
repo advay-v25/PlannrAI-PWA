@@ -1395,10 +1395,8 @@ ${optionsInstruction}`;
             temperature: 0.5,
             maxTokens: 3000,
             requireJSON: !isMissedBlock, // If missed block, we expect CoT text before JSON
-            timeout: isMissedBlock ? 55000 : 30000,
-            useNvidia: false,
-            strictNvidia: false, // Set to false to allow Groq's high-speed Llama 3.3 70B to prevent 504 timeouts
-            skipOpenRouter: true, // Bypass OpenRouter and Gemini to strictly use fast Llama 70B engines
+            timeout: 55000,
+            groqOnly: true, // Give Groq the full 55s budget to finish complex option generation without aborting early
             clientDate: coachCtx.current.exact_iso_timestamp,
             clientTimezone: coachCtx.current.exact_timezone,
         });
