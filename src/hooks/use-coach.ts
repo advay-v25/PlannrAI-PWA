@@ -108,18 +108,34 @@ export const useCoach = create<CoachState>()(
       connectionStatus: 'connecting',
       abortController: null,
 
-      stopGenerating: () => {
-        const { abortController, messages } = get();
+      stopGenerating: async () => {
+        const { abortController, messages, conversationId } = get();
         if (abortController) {
           abortController.abort();
-          const lastMsg = messages[messages.length - 1];
+          
+          const cancelMsg: CoachMessage = {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: 'Prompt cancelled.',
+              timestamp: Date.now()
+          };
+          
           set({
             isLoading: false,
             abortController: null,
-            // Remove the last user message so they can edit it
-            messages: messages.filter(m => m.id !== lastMsg?.id)
+            messages: [...messages, cancelMsg]
           });
-          return lastMsg?.content || '';
+          
+          // If this was the first turn, delete the transient conversation so it doesn't save
+          if (messages.length <= 1 && conversationId) {
+              try {
+                  await apiClient.delete(`/api/coach/conversations?id=${conversationId}`);
+              } catch (e) {
+                  console.error('Failed to delete cancelled conversation', e);
+              }
+          }
+          
+          return 'Prompt cancelled.';
         }
         return '';
       },
@@ -355,7 +371,13 @@ export const useCoach = create<CoachState>()(
             body: JSON.stringify({
               conversation_id: get().conversationId,
               option_id: optionId,
-              patch: { operations: option.ledger?.ops || [] }
+              patch: { operations: option.ledger?.ops || [] },
+              option_text: JSON.stringify({
+                title: option.title,
+                description: option.description,
+                impact: option.impact,
+                ledger: option.ledger
+              })
             })
           });
 
