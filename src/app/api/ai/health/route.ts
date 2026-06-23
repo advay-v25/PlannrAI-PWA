@@ -2,6 +2,9 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { createClient } from '@/lib/supabase/server';
 
+export const maxDuration = 60;
+
+
 export const GET = secureApiRoute(
     async (context) => {
         const apiKey = process.env.GROQ_API_KEY;

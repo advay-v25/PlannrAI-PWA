@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { startOfDay, startOfMonth } from 'date-fns';
 
+export const maxDuration = 60;
+
+
 export async function GET(request: NextRequest) {
     try {
         const supabase = await createClient();
