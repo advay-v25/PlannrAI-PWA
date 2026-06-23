@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
     // 1. Authenticate
     const supabase = await createClient();
@@ -42,14 +44,34 @@ export async function POST(request: Request) {
     // 3. Hard-delete user data explicitly to avoid FK constraint issues if ON DELETE CASCADE is missing
     const tables = [
         'schedule_blocks', 'commitments', 'goals', 'habit_stacks', 'profile_preferences',
-        'chat_messages', 'chat_sessions', 'daily_logs', 'weekly_reviews', 'user_feedback'
+        'chat_messages', 'chat_sessions', 'daily_logs', 'weekly_reviews', 'user_feedback',
+        'user_context', 'intervention_logs', 'memory_facts', 'brain_dumps', 'brain_dump_extractions',
+        'user_state', 'milestones', 'goal_tasks', 'coach_threads', 'coach_messages', 'patch_runs',
+        'behavior_events', 'behavior_patterns', 'inbox_items', 'daily_stats', 'todo_lists', 'todos',
+        'scan_sessions', 'routine_recommendations', 'coach_conversations', 'coach_learned_preferences',
+        'coach_proactive_log', 'coach_conversation_summaries', 'brain_dump_entries', 'calendar_operation_logs',
+        'ai_usage_logs', 'coach_interactions', 'user_states', 'ai_interventions', 'ai_audit_log',
+        'conversations', 'conversation_messages', 'energy_checkins', 'ai_insights', 'block_completions',
+        'schedule_versions', 'block_logs', 'streaks', 'ai_proposals', 'auth_attempts', 'security_audit_log',
+        'session_bindings'
     ];
-    for (const table of tables) {
-        await admin.from(table).delete().eq('user_id', userId).catch(() => {});
-    }
+    
+    await Promise.all(
+        tables.map(async (table) => {
+            try {
+                await admin.from(table).delete().eq('user_id', userId);
+            } catch (err) {
+                console.error(`[DeleteAccount] Silent error deleting from ${table}:`, err);
+            }
+        })
+    );
     
     // Some tables might use 'id' or other keys, but 'profiles' is the main one to clear out first.
-    await admin.from('profiles').delete().eq('id', userId).catch(() => {});
+    try {
+        await admin.from('profiles').delete().eq('id', userId);
+    } catch (err) {
+        console.error(`[DeleteAccount] Silent error deleting from profiles:`, err);
+    }
 
     // 4. Hard-delete the auth user
     // This is a single atomic database operation. Supabase Auth will delete the auth.users record.
