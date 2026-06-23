@@ -78,7 +78,8 @@ const MODE_CONFIGS: Record<ScheduleStrategy, Omit<ScheduleMode, 'shouldSuggestRe
         promptFragment: `ENERGY STATE: MOMENTUM MODE ⚡
 The user has HIGH energy and POSITIVE mood today. This is a peak performance day.
 - Schedule aggressively — pack the day with productive blocks
-- Front-load the hardest, highest-energy tasks in the morning peak
+- Ignore the afternoon trough if necessary; maintain momentum and finish all goals
+- Pack work early and back-to-back without massive gaps
 - Minimize buffer time between blocks (5 min transitions only)
 - Allow up to 5 goal blocks and 5 hours of deep work
 - Push the user to achieve maximum output while they have the capacity
@@ -97,6 +98,7 @@ The user has HIGH energy and POSITIVE mood today. This is a peak performance day
         promptFragment: `ENERGY STATE: BALANCED MODE ⚖️
 The user has moderate energy today. Standard optimized approach.
 - Schedule 3-4 goal blocks with 15-minute buffers between them
+- Mathematically distribute blocks across large free windows (center them) instead of packing them all together
 - Follow ultradian rhythm: 60-90 min deep work → 15-20 min recovery
 - Prioritize goals that are behind on weekly progress
 - Include active recovery blocks between deep work sessions
@@ -115,7 +117,7 @@ The user has moderate energy today. Standard optimized approach.
         promptFragment: `ENERGY STATE: RECOVERY MODE 🛡
 The user has LOW energy or is in a ROUGH mood today. PROTECT their recovery.
 - Schedule at MOST 2 light goal blocks, totaling no more than 90 minutes
-- Use 30-minute buffers between blocks for mental reset
+- Calculate massive mathematical buffers (e.g., at least 60-minute gaps) between blocks
 - Only schedule low-energy-demand goals and high-importance goals
 - Add extra self-care blocks: walks, breathing, journaling
 - DO NOT schedule any high-energy-demand tasks

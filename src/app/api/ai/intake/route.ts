@@ -5,6 +5,9 @@ import { groqChat } from '@/lib/ai/groq-client';
 import { JSONReliability } from '@/lib/ai/json-reliability';
 import { z } from 'zod';
 
+export const maxDuration = 60;
+
+
 const IntakeActionSchema = z.object({
     analysis: z.string(),
     updates: z.object({

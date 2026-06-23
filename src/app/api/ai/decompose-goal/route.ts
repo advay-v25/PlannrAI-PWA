@@ -3,6 +3,9 @@ import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protect
 import { executeAI } from '@/lib/ai/ai-service';
 import { z } from 'zod';
 
+export const maxDuration = 60;
+
+
 const requestSchema = z.object({
     goal: z.string().min(3),
     minutes: z.number().min(5).max(180),

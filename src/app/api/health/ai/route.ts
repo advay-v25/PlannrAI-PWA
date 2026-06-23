@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { groqChat } from '@/lib/ai/groq-client';
 
+export const maxDuration = 60;
+
+
 export const runtime = 'nodejs';
 
 export async function GET(request: Request) {

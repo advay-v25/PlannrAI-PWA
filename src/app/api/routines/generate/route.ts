@@ -1,6 +1,9 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { createClient } from '@/lib/supabase/server';
 
+export const maxDuration = 60;
+
+
 interface RoutineOutput {
     routine_type: string;
     name: string;
