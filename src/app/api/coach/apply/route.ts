@@ -132,7 +132,7 @@ Only output a strict JSON object matching this schema:
   "ops": [
     // Array of operation objects. Available operations:
     // { "type": "move_block", "block_id": "...", "new_start": "HH:mm", "new_end": "HH:mm", "new_date": "YYYY-MM-DD" }
-    // { "type": "delete_block", "block_id": "..." }
+    // { "type": "delete_block", "block_id": "...", "title": "..." }
     // { "type": "compress_block", "block_id": "...", "new_start": "HH:mm", "new_end": "HH:mm" }
   ]
 }
@@ -145,30 +145,32 @@ ${body.option_text}
 
 User Calendar Context:
 ${JSON.stringify({
-    schedule: coachContext.schedule.today,
+    schedule: (coachContext.schedule.this_week || []).map((b: any) => ({
+        id: b.id,
+        title: b.title || b.context,
+        date: b.date,
+        start_time: b.start_time,
+        end_time: b.end_time
+    })),
     goals: coachContext.goals
 }, null, 2)}`;
 
             try {
-                const groqRes = await callAI({
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: userPrompt }
-                    ],
-                    response_format: { type: 'json_object' },
-                    model: 'llama-3.3-70b-versatile',
-                    temperature: 0.1
+                const aiRes = await callAI({
+                    prompt: userPrompt,
+                    systemPrompt: systemPrompt,
+                    model: 'smart',
+                    temperature: 0.1,
+                    requireJSON: true,
+                    groqOnly: true,
+                    timeout: 55000
                 });
                 
-                let text = groqRes.choices?.[0]?.message?.content || '{}';
-                text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-                const parsed = JSON.parse(text);
-                
-                if (parsed.ops && Array.isArray(parsed.ops)) {
-                    finalPatch = { operations: parsed.ops };
-                    console.log(`[Coach Apply] Groq generated ops:`, parsed.ops);
+                if (aiRes.success && aiRes.data && Array.isArray(aiRes.data.ops)) {
+                    finalPatch = { operations: aiRes.data.ops };
+                    console.log(`[Coach Apply] Groq generated ops:`, aiRes.data.ops);
                 } else {
-                    console.warn(`[Coach Apply] Groq failed to generate ops array, falling back to original patch`);
+                    console.warn(`[Coach Apply] Groq failed to generate ops array, falling back to original patch. Error:`, aiRes.error);
                 }
             } catch (e) {
                 console.error(`[Coach Apply] Groq execution failed, falling back:`, e);
@@ -465,8 +467,8 @@ async function resolveBlockIds(patch: any, userId: string, supabase: any) {
     if (!patch.ops || !Array.isArray(patch.ops)) return;
 
     // First pass: Resolve move_event (missed block)
-    const moveOp = patch.ops.find((o: any) => o.op === 'move_event' || o.op === 'move' || o.op === 'update_event' || o.op === 'update');
-    if (moveOp) {
+    const moveOps = patch.ops.filter((o: any) => o.op === 'move_event' || o.op === 'move' || o.op === 'update_event' || o.op === 'update');
+    for (const moveOp of moveOps) {
         let existing = null;
         if (moveOp.event_id) {
             const { data } = await supabase.from('schedule_blocks').select('id').eq('id', moveOp.event_id).eq('user_id', userId).maybeSingle();
@@ -501,8 +503,8 @@ async function resolveBlockIds(patch: any, userId: string, supabase: any) {
     }
 
     // Second pass: Resolve delete_event (lower priority block)
-    const deleteOp = patch.ops.find((o: any) => o.op === 'delete_event' || o.op === 'delete');
-    if (deleteOp) {
+    const deleteOps = patch.ops.filter((o: any) => o.op === 'delete_event' || o.op === 'delete');
+    for (const deleteOp of deleteOps) {
         let existing = null;
         if (deleteOp.event_id) {
             const { data } = await supabase.from('schedule_blocks').select('id').eq('id', deleteOp.event_id).eq('user_id', userId).maybeSingle();
@@ -521,16 +523,19 @@ async function resolveBlockIds(patch: any, userId: string, supabase: any) {
                     resolved = true;
                 }
             }
-            if (!resolved && moveOp && moveOp.date && moveOp.to_start && moveOp.to_end) {
-                // Find block at the target move location
-                const { data: targetBlocks } = await supabase.from('schedule_blocks')
-                    .select('id, title, date, start_time, end_time').eq('user_id', userId)
-                    .eq('date', moveOp.date).neq('status', 'missed');
-                const overlapped = targetBlocks?.find((b: any) => (b.start_time < moveOp.to_end && b.end_time > moveOp.to_start));
-                if (overlapped) {
-                    deleteOp.event_id = overlapped.id;
-                    deleteOp.title = overlapped.title;
-                    console.log(`[Coach Apply] Fallback resolved delete_event to overlapping block: ${overlapped.title}`);
+            if (!resolved) {
+                const firstMove = patch.ops.find((o: any) => o.op === 'move_event' || o.op === 'move' || o.op === 'update_event' || o.op === 'update');
+                if (firstMove && firstMove.date && firstMove.to_start && firstMove.to_end) {
+                    // Find block at the target move location
+                    const { data: targetBlocks } = await supabase.from('schedule_blocks')
+                        .select('id, title, date, start_time, end_time').eq('user_id', userId)
+                        .eq('date', firstMove.date).neq('status', 'missed');
+                    const overlapped = targetBlocks?.find((b: any) => (b.start_time < firstMove.to_end && b.end_time > firstMove.to_start));
+                    if (overlapped) {
+                        deleteOp.event_id = overlapped.id;
+                        deleteOp.title = overlapped.title;
+                        console.log(`[Coach Apply] Fallback resolved delete_event to overlapping block: ${overlapped.title}`);
+                    }
                 }
             }
         }
