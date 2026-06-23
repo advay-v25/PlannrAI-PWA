@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { PatchService } from '@/lib/services/patch-service';
-
+import { buildCoachContext } from '@/lib/coach/context-builder';
+import { callAI } from '@/lib/ai/unified-client';
 
 export const maxDuration = 60;
 
@@ -10,6 +11,7 @@ interface ApplyRequest {
     conversation_id: string;
     option_id: string;
     patch: any;
+    option_text?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -116,8 +118,65 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        let finalPatch = patch;
+
+        if (body.option_text) {
+            console.log(`[Coach Apply] Generating precise execution ops for option via Groq`);
+            const coachContext = await buildCoachContext(user.id, supabase, new Date().toISOString(), 'UTC');
+            const systemPrompt = `You are an expert AI productivity execution agent. The user has selected a specific scheduling option. 
+Your task is to translate this selected option into precise database operations (PatchService).
+You will read the selected option text and the user's current schedule context.
+Then, you must decide exactly which blocks to move, compress, or delete to apply this option flawlessly.
+Only output a strict JSON object matching this schema:
+{
+  "ops": [
+    // Array of operation objects. Available operations:
+    // { "type": "move_block", "block_id": "...", "new_start": "HH:mm", "new_end": "HH:mm", "new_date": "YYYY-MM-DD" }
+    // { "type": "delete_block", "block_id": "..." }
+    // { "type": "compress_block", "block_id": "...", "new_start": "HH:mm", "new_end": "HH:mm" }
+  ]
+}
+DO NOT output any markdown blocks or explanations, just the raw JSON object.
+Make sure you use the exact block IDs from the provided calendar context.
+If a block is being shortened, use compress_block. If it's being shifted, use move_block. If replacing, use delete_block.`;
+
+            const userPrompt = `Selected Option:
+${body.option_text}
+
+User Calendar Context:
+${JSON.stringify({
+    schedule: coachContext.schedule.today,
+    goals: coachContext.goals
+}, null, 2)}`;
+
+            try {
+                const groqRes = await callAI({
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt }
+                    ],
+                    response_format: { type: 'json_object' },
+                    model: 'llama-3.3-70b-versatile',
+                    temperature: 0.1
+                });
+                
+                let text = groqRes.choices?.[0]?.message?.content || '{}';
+                text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                const parsed = JSON.parse(text);
+                
+                if (parsed.ops && Array.isArray(parsed.ops)) {
+                    finalPatch = { operations: parsed.ops };
+                    console.log(`[Coach Apply] Groq generated ops:`, parsed.ops);
+                } else {
+                    console.warn(`[Coach Apply] Groq failed to generate ops array, falling back to original patch`);
+                }
+            } catch (e) {
+                console.error(`[Coach Apply] Groq execution failed, falling back:`, e);
+            }
+        }
+
         // Normalize the Coach's SchedulePatch format to CalendarPatch format for PatchService
-        const normalizedPatch = normalizePatchForService(patch);
+        const normalizedPatch = normalizePatchForService(finalPatch);
 
         normalizedPatch.undoable = true;
 
@@ -380,6 +439,13 @@ function normalizePatchForService(patch: any): any {
             if (op.op === 'delete_block' || op.op === 'delete') op.op = 'delete_event';
             if (op.op === 'update_block' || op.op === 'update') op.op = 'update_event';
             if (op.op === 'create_block' || op.op === 'create') op.op = 'create_event';
+            if (op.op === 'compress_block' || op.op === 'compress') {
+                op.op = 'update_event';
+                op.changes = op.changes || {};
+                if (op.new_start) op.changes.start_time = op.new_start;
+                if (op.new_end) op.changes.end_time = op.new_end;
+                op.payload = op.payload || op.changes;
+            }
 
             if (op.payload) sanitizeBlockType(op.payload);
             if (op.event) sanitizeBlockType(op.event);
