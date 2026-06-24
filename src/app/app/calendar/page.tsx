@@ -291,7 +291,7 @@ function CalendarPageInner() {
             const res = await fetch('/api/calendar/generate-today', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ date: targetDate, force: true }),
+                body: JSON.stringify({ date: targetDate, force: true, mode: 'balanced' }),
             });
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));

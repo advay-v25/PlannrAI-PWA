@@ -375,6 +375,7 @@ export async function buildCoachContext(
             last_energy_checkin: lastEnergy?.energy_level,
             emotional_state: lastEnergy?.emotional_state,
             recent_missed_blocks: missedCount,
+            free_slots_today: computeFreeSlots(todayWithLocks, currentTime, profile.sleep_start || '23:00'),
         },
         bio_rhythm_trend: bioTrend,
         learned_preferences: preferences,
@@ -453,4 +454,42 @@ function getWeekEnd(date: string): string {
 function getDayOfWeek(date: string): string {
     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     return days[new Date(date + 'T12:00:00').getDay()];
+}
+
+function computeFreeSlots(blocks: any[], currentTime: string, sleepStart: string): string[] {
+    const timeToMin = (t: string) => {
+        const [h, m] = (t || '0:0').split(':').map(Number);
+        return (h * 60) + (m || 0);
+    };
+    const minToTime = (m: number) => {
+        const h = Math.floor(m / 60);
+        const mm = m % 60;
+        return `${h.toString().padStart(2, '0')}:${mm.toString().padStart(2, '0')}`;
+    };
+
+    const sortedBlocks = [...blocks].sort((a, b) => timeToMin(a.start_time) - timeToMin(b.start_time));
+    const currentMin = timeToMin(currentTime);
+    const endOfDayMin = timeToMin(sleepStart) < 12 * 60 ? timeToMin(sleepStart) + 24 * 60 : timeToMin(sleepStart);
+
+    let freeSlots: string[] = [];
+    let currentMarker = currentMin;
+
+    for (const block of sortedBlocks) {
+        const startMin = timeToMin(block.start_time);
+        let endMin = timeToMin(block.end_time);
+        if (endMin <= startMin) endMin += 24 * 60;
+
+        if (startMin > currentMarker) {
+            freeSlots.push(`${minToTime(currentMarker % 1440)}-${minToTime(startMin % 1440)} (${startMin - currentMarker}m)`);
+        }
+        if (endMin > currentMarker) {
+            currentMarker = endMin;
+        }
+    }
+
+    if (currentMarker < endOfDayMin) {
+        freeSlots.push(`${minToTime(currentMarker % 1440)}-${minToTime(endOfDayMin % 1440)} (${endOfDayMin - currentMarker}m)`);
+    }
+
+    return freeSlots;
 }

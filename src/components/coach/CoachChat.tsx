@@ -125,21 +125,45 @@ function InlineOptionCard({
                                 </p>
                             <p className="text-sm text-white/75 whitespace-pre-line leading-relaxed">
                                 {(() => {
-                                    if (option.description && option.description.length > 10) return option.description;
-                                    const ops = option.ledger?.ops || [];
+                                    let content = "";
+                                    if (option.description && option.description.length > 10) {
+                                        content = option.description + "\n\n";
+                                    }
+                                    
+                                    const ops = option.ledger?.ops || option.operations || option.ops || [];
                                     const moveOp = ops.find((o: any) => o.type === 'move_block' || o.type === 'move');
                                     const deleteOp = ops.find((o: any) => o.type === 'delete_block' || o.type === 'delete');
+                                    const compressOp = ops.find((o: any) => o.type === 'compress_block' || o.type === 'compress');
+                                    
+                                    if (compressOp) {
+                                        const start = compressOp.new_start || compressOp.to_start;
+                                        const end = compressOp.new_end || compressOp.to_end;
+                                        content += `• The block is being shortened to ${start} - ${end}.\n`;
+                                    }
+                                    
                                     if (moveOp) {
                                         const start = moveOp.new_start || moveOp.to_start;
                                         const end = moveOp.new_end || moveOp.to_end;
                                         const date = moveOp.new_date || moveOp.date;
-                                        if (deleteOp) {
-                                            return `• The block being replaced is at ${start} to ${end} on ${date}.\n• The missed block will now be scheduled from ${start} to ${end}.`;
-                                        } else {
-                                            return `• The missed block will now be scheduled from ${start} to ${end} on ${date}.`;
+                                        
+                                        let displayDate = date;
+                                        if (date && date.includes('-')) {
+                                            const [yyyy, mm, dd] = date.split('-');
+                                            const dObj = new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd));
+                                            const dWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dObj.getDay()];
+                                            displayDate = `${dWeek} ${dd}/${mm}`;
                                         }
+
+                                        if (deleteOp) {
+                                            content += `• The block being replaced is at ${start} to ${end} on ${displayDate}.\n• The missed block will now be scheduled from ${start} to ${end}.`;
+                                        } else {
+                                            content += `• The missed block will now be scheduled from ${start} to ${end} on ${displayDate}.`;
+                                        }
+                                    } else if (!compressOp && content === "") {
+                                        content = "See impact for details.";
                                     }
-                                    return "See impact for details.";
+                                    
+                                    return content.trim();
                                 })()}
                             </p>
                             </div>

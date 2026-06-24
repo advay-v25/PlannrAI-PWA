@@ -284,13 +284,33 @@ function generateVariant(
         exclusions.set(d, ex.map(e => ({ ...e })));
     }
 
-    // Sort goals: Importance first, then total minutes
+    // Sort goals using a mathematical probability tree: Weekly Progress -> Importance -> Energy Demand -> Total Minutes
     const sortedGoals = [...ctx.goals].sort((a, b) => {
-        const aTotal = (a.days_per_week || 5) * (a.minutes_per_day || 60);
-        const bTotal = (b.days_per_week || 5) * (b.minutes_per_day || 60);
+        // Priority 1: Weekly Progress (Behind schedule comes first)
+        const aProgress = ctx.goalProgress?.find(p => p.goal_id === a.id);
+        const bProgress = ctx.goalProgress?.find(p => p.goal_id === b.id);
+        const aBehind = aProgress && aProgress.weekly_target_minutes > 0 
+            ? aProgress.completed_minutes_this_week / aProgress.weekly_target_minutes : 0;
+        const bBehind = bProgress && bProgress.weekly_target_minutes > 0 
+            ? bProgress.completed_minutes_this_week / bProgress.weekly_target_minutes : 0;
+        
+        if (aBehind < 0.5 && bBehind >= 0.5) return -1;
+        if (bBehind < 0.5 && aBehind >= 0.5) return 1;
+
+        // Priority 2: Importance
         const aImportance = a.importance || 5;
         const bImportance = b.importance || 5;
         if (bImportance !== aImportance) return bImportance - aImportance;
+
+        // Priority 3: Energy Demand (High energy first)
+        const energyOrder: Record<string, number> = { high: 3, medium: 2, low: 1 };
+        const aEnergy = energyOrder[(a.energy_demand || 'medium').toLowerCase()] || 2;
+        const bEnergy = energyOrder[(b.energy_demand || 'medium').toLowerCase()] || 2;
+        if (bEnergy !== aEnergy) return bEnergy - aEnergy;
+
+        // Priority 4: Total Minutes
+        const aTotal = (a.days_per_week || 5) * (a.minutes_per_day || 60);
+        const bTotal = (b.days_per_week || 5) * (b.minutes_per_day || 60);
         return bTotal - aTotal;
     });
 
@@ -460,8 +480,20 @@ function generateVariant(
                     if (!protocolConfig?.bufferMinutes) {
                         if (strategyId === 'momentum') buffer = 0;
                         else if (strategyId === 'balanced') buffer = (ctx.user as any).default_buffer_duration || 15;
-                        else if (strategyId === 'recovery') buffer = Math.max(30, ((ctx.user as any).default_buffer_duration || 15) * 2);
+                        else if (strategyId === 'recovery') buffer = 60; // Forced massive buffer
                     }
+
+                    // MATHEMATICAL CENTERING: 
+                    // If balanced or recovery, and window is large, distribute by starting later in the window
+                    if ((strategyId === 'balanced' || strategyId === 'recovery') && (win.end - start) > remainingMinsForDay + buffer * 2) {
+                        const freeSpace = (win.end - start) - remainingMinsForDay;
+                        start = start + Math.floor(freeSpace / 2);
+                    } else if (strategyId === 'recovery') {
+                        // For recovery, even if we can't perfectly center, add as much gap as possible before
+                        const possibleStart = start + Math.min(buffer, (win.end - start) - remainingMinsForDay);
+                        start = Math.max(start, possibleStart);
+                    }
+
                     if ((win.end - start) < remainingMinsForDay + buffer) {
                         buffer = Math.max(0, (win.end - start) - remainingMinsForDay);
                     }
@@ -530,11 +562,21 @@ function generateVariant(
                     if (!protocolConfig?.bufferMinutes) {
                         if (strategyId === 'momentum') buffer = 0;
                         else if (strategyId === 'balanced') buffer = (ctx.user as any).default_buffer_duration || 15;
-                        else if (strategyId === 'recovery') buffer = Math.max(30, ((ctx.user as any).default_buffer_duration || 15) * 2);
+                        else if (strategyId === 'recovery') buffer = 60; // Forced massive buffer
                     }
 
-                    if (availableInWin < minsToPlace + buffer) {
-                        buffer = availableInWin - minsToPlace;
+                    // MATHEMATICAL CENTERING: 
+                    // If balanced or recovery, distribute block within available space
+                    if ((strategyId === 'balanced' || strategyId === 'recovery') && availableInWin > minsToPlace + buffer * 2) {
+                        const freeSpace = availableInWin - minsToPlace;
+                        start = winStart + Math.floor(freeSpace / 2);
+                    } else if (strategyId === 'recovery') {
+                        const possibleStart = winStart + Math.min(buffer, availableInWin - minsToPlace);
+                        start = Math.max(winStart, possibleStart);
+                    }
+
+                    if ((win.end - start) < minsToPlace + buffer) {
+                        buffer = Math.max(0, (win.end - start) - minsToPlace);
                     }
 
                     // Hard minimum: never place a mind/craft chunk shorter than 30 minutes
@@ -615,7 +657,15 @@ function generateVariant(
                     const fitWindows = windows.filter(w => (w.end - w.start) >= remainingToPlace);
                     if (fitWindows.length > 0) {
                         const win = fitWindows[0];
-                        const start = win.start;
+                        let start = win.start;
+                        let buffer = 10;
+                        if ((strategyId === 'balanced' || strategyId === 'recovery') && (win.end - start) > remainingToPlace + buffer * 2) {
+                            const freeSpace = (win.end - start) - remainingToPlace;
+                            start = start + Math.floor(freeSpace / 2);
+                        } else if (strategyId === 'recovery') {
+                            const possibleStart = start + Math.min(buffer, (win.end - start) - remainingToPlace);
+                            start = Math.max(start, possibleStart);
+                        }
                         blocks.push({
                             date: dateStr,
                             start_time: minutesToTime(start),
@@ -669,6 +719,14 @@ function generateVariant(
                         }
 
                         let start = winStart;
+                        let buffer = 10;
+                        if ((strategyId === 'balanced' || strategyId === 'recovery') && availableInWin > minsToPlace + buffer * 2) {
+                            const freeSpace = availableInWin - minsToPlace;
+                            start = winStart + Math.floor(freeSpace / 2);
+                        } else if (strategyId === 'recovery') {
+                            const possibleStart = winStart + Math.min(buffer, availableInWin - minsToPlace);
+                            start = Math.max(winStart, possibleStart);
+                        }
                         
                         blocks.push({
                             date: dateStr,

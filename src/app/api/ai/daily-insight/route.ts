@@ -4,6 +4,9 @@ import { createClient } from '@/lib/supabase/server';
 import { logAIRequest } from '@/lib/security/audit-logger';
 import { startOfDay, subDays, format } from 'date-fns';
 
+export const maxDuration = 60;
+
+
 /**
  * Daily AI Insight API
  * Generates a personalized insight for the user's day

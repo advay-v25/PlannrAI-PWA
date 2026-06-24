@@ -1,7 +1,7 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { createClient } from '@supabase/supabase-js';
 
-export const maxDuration = 60;
+export const maxDuration = 60; // Allow 60s for AI processing
 
 export const POST = secureApiRoute(
     async (context, body) => {

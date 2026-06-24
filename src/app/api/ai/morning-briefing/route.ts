@@ -2,6 +2,9 @@ import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protect
 import { executeAI } from '@/lib/ai/ai-service';
 import { subDays } from 'date-fns';
 
+export const maxDuration = 60;
+
+
 export const POST = secureApiRoute(
     async (context) => {
         const { userId, supabase } = context;

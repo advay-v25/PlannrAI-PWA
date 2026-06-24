@@ -108,18 +108,34 @@ export const useCoach = create<CoachState>()(
       connectionStatus: 'connecting',
       abortController: null,
 
-      stopGenerating: () => {
-        const { abortController, messages } = get();
+      stopGenerating: async () => {
+        const { abortController, messages, conversationId } = get();
         if (abortController) {
           abortController.abort();
-          const lastMsg = messages[messages.length - 1];
+          
+          const cancelMsg: CoachMessage = {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: 'Prompt cancelled.',
+              timestamp: Date.now()
+          };
+          
           set({
             isLoading: false,
             abortController: null,
-            // Remove the last user message so they can edit it
-            messages: messages.filter(m => m.id !== lastMsg?.id)
+            messages: [...messages, cancelMsg]
           });
-          return lastMsg?.content || '';
+          
+          // If this was the first turn, delete the transient conversation so it doesn't save
+          if (messages.length <= 1 && conversationId) {
+              try {
+                  await apiClient.delete(`/api/coach/conversations?id=${conversationId}`);
+              } catch (e) {
+                  console.error('Failed to delete cancelled conversation', e);
+              }
+          }
+          
+          return 'Prompt cancelled.';
         }
         return '';
       },
@@ -329,16 +345,7 @@ export const useCoach = create<CoachState>()(
         }
 
         const ops = (option.ledger?.ops) || (option as any).patch?.operations || (option as any).patch?.ops || [];
-        if (ops.length === 0) {
-          set(state => ({
-            messages: state.messages.map(m => 
-              m.id === messageId 
-                ? { ...m, selected_option_id: optionId, isApplying: false }
-                : m
-            )
-          }));
-          return option;
-        }
+
 
         set(state => ({
           messages: state.messages.map(m => 
@@ -355,7 +362,13 @@ export const useCoach = create<CoachState>()(
             body: JSON.stringify({
               conversation_id: get().conversationId,
               option_id: optionId,
-              patch: { operations: option.ledger?.ops || [] }
+              patch: { operations: option.ledger?.ops || [] },
+              option_text: JSON.stringify({
+                title: option.title,
+                description: option.description,
+                impact: option.impact,
+                ledger: option.ledger
+              })
             })
           });
 
@@ -413,8 +426,19 @@ export const useCoach = create<CoachState>()(
           });
 
           if (!res.ok) throw new Error('Undo failed');
-
-          set(state => ({ canUndo: false, lastUndoToken: null }));
+          set(state => ({ 
+            canUndo: false, 
+            lastUndoToken: null,
+            messages: [
+              ...state.messages,
+              {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: 'Change reverted',
+                timestamp: new Date().toISOString()
+              }
+            ]
+          }));
           return true;
         } catch (error) {
           console.error('[Coach] Undo error:', error);

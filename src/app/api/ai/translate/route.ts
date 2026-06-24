@@ -2,6 +2,9 @@ import { NextRequest } from 'next/server';
 import { secureApiRoute, apiSuccess, apiError, validateRequiredFields } from '@/lib/security/api-protection';
 import { createClient } from '@/lib/supabase/server';
 
+export const maxDuration = 60;
+
+
 /**
  * AI Goal Interpretation API
  * Transforms any goal into actionable subtasks, routines, weekly schedule, and habits

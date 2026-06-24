@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
@@ -18,6 +18,17 @@ function SetPasswordContent() {
     const searchParams = useSearchParams();
     const supabase = createClient();
     const nextPath = searchParams.get('next') ?? '/onboarding';
+
+    useEffect(() => {
+        // Verify that the user is actually authenticated
+        const checkSession = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                setStatus({ type: 'error', message: 'No active session found. Please return to login.' });
+            }
+        };
+        checkSession();
+    }, [supabase.auth]);
 
     const handleUpdatePassword = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -50,6 +61,7 @@ function SetPasswordContent() {
         } catch (err: any) {
             console.error('[Update Password Error]:', err);
             setStatus({ type: 'error', message: err.message || 'Failed to update password' });
+        } finally {
             setIsLoading(false);
         }
     };
@@ -60,6 +72,7 @@ function SetPasswordContent() {
 
     return (
         <div className="min-h-screen flex items-center justify-center p-4 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-950/40 via-neutral-950 to-neutral-950 overflow-hidden relative">
+            {/* Background Orbs */}
             <div className="absolute top-1/4 -left-20 w-[500px] h-[500px] bg-orange-500/10 rounded-full blur-[150px]" />
             <div className="absolute bottom-1/4 -right-20 w-[500px] h-[500px] bg-orange-600/5 rounded-full blur-[150px]" />
 

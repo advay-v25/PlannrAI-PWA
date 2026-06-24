@@ -7,6 +7,9 @@ import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protect
 import { createClient } from '@/lib/supabase/server';
 import Groq from 'groq-sdk';
 
+export const maxDuration = 60;
+
+
 // Activity suggestions based on energy level
 const ENERGY_BASED_SUGGESTIONS = {
     high: {

@@ -6,6 +6,9 @@ import { createClient } from '@/lib/supabase/server';
 import { logAIRequest } from '@/lib/security/audit-logger';
 import { z } from 'zod';
 
+export const maxDuration = 60;
+
+
 const SuggestGoalsOutputSchema = z.object({
     suggestions: z.array(z.object({
         title: z.string(),

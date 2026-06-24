@@ -30,7 +30,7 @@ export async function GET(request: Request) {
                     .eq('id', user.id)
                     .single();
 
-                // If no profile exists, create one and redirect to onboarding
+                // If no profile exists, create one and redirect to onboarding/set-password
                 if (profileError || !profile) {
                     // Create new profile for the user
                     await supabase.from('profiles').insert({
