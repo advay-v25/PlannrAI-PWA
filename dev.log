@@ -1,0 +1,19 @@
+
+> plannrai-web@0.1.0 dev
+> next dev --webpack
+
+⚠ Port 3000 is in use by process 52659, using available port 3001 instead.
+▲ Next.js 16.2.6 (webpack)
+- Local:         http://localhost:3001
+- Network:       http://192.168.29.63:3001
+- Environments: .env.local
+✓ Ready in 249ms
+⨯ Another next dev server is already running.
+
+- Local:        http://localhost:3000
+- PID:          52659
+- Dir:          /Users/advay/plannrai-web
+- Log:          .next/dev/logs/next-development.log
+
+Run kill 52659 to stop it.
+[?25h

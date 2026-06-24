@@ -1,6 +1,14 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { z } from 'zod';
 import { validateWithZod } from '@/lib/security/zod-validator';
+import sanitizeHtml from 'sanitize-html';
+
+const SANITIZE_OPTIONS = {
+    allowedTags: ['p', 'b', 'i', 'em', 'strong', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'br', 'blockquote', 'code'],
+    allowedAttributes: {
+        'a': ['href']
+    }
+};
 
 export const GET = secureApiRoute(
     async (context) => {
@@ -93,7 +101,7 @@ export const POST = secureApiRoute(
                     .insert({ 
                         user_id: userId, 
                         title, 
-                        description: description || null,
+                        description: description ? sanitizeHtml(description, SANITIZE_OPTIONS) : null,
                         is_completed: false,
                         due_date: dueDate || null,
                         priority: priority || 'medium',
@@ -145,7 +153,7 @@ export const POST = secureApiRoute(
                 const { todoId, title, description, dueDate, priority, isCompleted } = payload;
                 const updatePayload: any = {};
                 if (title !== undefined) updatePayload.title = title;
-                if (description !== undefined) updatePayload.description = description;
+                if (description !== undefined) updatePayload.description = description ? sanitizeHtml(description, SANITIZE_OPTIONS) : null;
                 if (dueDate !== undefined) updatePayload.due_date = dueDate;
                 if (priority !== undefined) updatePayload.priority = priority;
                 if (isCompleted !== undefined) updatePayload.is_completed = isCompleted;

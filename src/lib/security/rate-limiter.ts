@@ -68,6 +68,10 @@ export async function checkRateLimit(
     const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
     const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
     
+    if (process.env.NODE_ENV === 'production' && (!upstashUrl || !upstashToken)) {
+        throw new Error('Upstash Redis is REQUIRED in production. Missing UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN.');
+    }
+    
     if (upstashUrl && upstashToken) {
         try {
             const pipeline = [
@@ -200,7 +204,7 @@ export async function checkMultipleRateLimits(
 
     // Check endpoint-specific limit
     if (endpoint && endpointType) {
-        const endpointKey = createRateLimitKey('endpoint', ip, endpoint);
+        const endpointKey = createRateLimitKey('endpoint', userId || ip, endpoint);
         const endpointResult = await checkRateLimit(endpointKey, endpointType);
         if (!endpointResult.allowed) {
             return endpointResult;

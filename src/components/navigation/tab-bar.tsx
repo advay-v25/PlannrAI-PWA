@@ -11,7 +11,8 @@ import {
     Sparkles,
     LineChart,
     Settings,
-    ListTodo
+    ListTodo,
+    Activity
 } from 'lucide-react';
 
 const TABS = [
@@ -20,7 +21,7 @@ const TABS = [
     { id: 'calendar', href: '/app/calendar', icon: Calendar, label: 'Calendar' },
     { id: 'tasks', href: '/app/tasks', icon: ListTodo, label: 'Tasks' },
     { id: 'coach', href: '/app/coach', icon: Sparkles, label: 'Coach' },
-    { id: 'weekly-review', href: '/app/weekly-review', icon: LineChart, label: 'Review' },
+    { id: 'weekly-review', href: '/app/weekly-review', icon: Activity, label: 'Review', soon: true },
     { id: 'settings', href: '/app/settings', icon: Settings, label: 'Settings' },
 ];
 
@@ -59,6 +60,12 @@ export function TabBar() {
                                             : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
                                     )}
                                 >
+                                    {tab.soon && (
+                                        <div className="absolute top-1 right-2 flex h-2 w-2">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+                                        </div>
+                                    )}
                                     {isActive && (
                                         <motion.div
                                             layoutId="activeTab"
@@ -132,7 +139,14 @@ export function SideNav() {
                                 />
                             )}
                             <Icon className="w-5 h-5 relative z-10" />
-                            <span className="font-medium relative z-10">{tab.label}</span>
+                            <span className="font-medium relative z-10 flex items-center justify-between w-full">
+                                {tab.label}
+                                {tab.soon && (
+                                    <span className="text-[9px] uppercase tracking-widest font-bold bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full border border-orange-500/30">
+                                        Soon
+                                    </span>
+                                )}
+                            </span>
                         </Link>
                     );
                 })}

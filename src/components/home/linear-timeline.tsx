@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Clock, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Clock, ArrowRight, CheckCircle2, XCircle } from 'lucide-react';
 import Link from 'next/link';
 
 interface LinearTimelineProps {
@@ -14,7 +14,7 @@ export function LinearTimeline({ blocks, onStatusChange }: LinearTimelineProps) 
     const nowStr = new Date().toTimeString().slice(0, 5);
     
     // Get all blocks for today
-    const upcoming = sorted.filter(b => b.status !== 'cancelled' && b.status !== 'missed');
+    const upcoming = sorted.filter(b => b.status !== 'cancelled');
 
     return (
         <div className="w-full">
@@ -35,8 +35,8 @@ export function LinearTimeline({ blocks, onStatusChange }: LinearTimelineProps) 
                     </div>
                 ) : (
                     upcoming.map((block, index) => {
-                        const isPast = block.end_time < nowStr || block.status === 'done';
-                        const isCurrent = block.start_time <= nowStr && block.end_time > nowStr && block.status !== 'done';
+                        const isPast = block.end_time < nowStr || block.status === 'done' || block.status === 'missed';
+                        const isCurrent = block.start_time <= nowStr && block.end_time > nowStr && block.status === 'planned';
 
                         return (
                             <motion.div 
@@ -63,22 +63,32 @@ export function LinearTimeline({ blocks, onStatusChange }: LinearTimelineProps) 
                                             }`}>
                                                 {block.start_time.slice(0, 5)}
                                             </span>
-                                            <h4 className={`text-sm font-medium ${
+                                            <h4 className={`text-sm font-medium flex items-center gap-2 ${
                                                 isPast ? 'text-[var(--text-secondary)] line-through decoration-white/20' : 'text-[var(--text-secondary)]'
                                             }`}>
                                                 {block.title}
+                                                {block.status === 'done' && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500/70" />}
+                                                {block.status === 'missed' && <XCircle className="w-3.5 h-3.5 text-red-500/70" />}
                                             </h4>
                                         </div>
                                     </div>
                                     
                                     {/* Actions */}
-                                    {!isPast && onStatusChange && (
-                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {block.status === 'planned' && onStatusChange && (
+                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
                                             <button 
                                                 onClick={() => onStatusChange(block.id, 'done')}
                                                 className="p-1 text-[var(--text-tertiary)] hover:text-emerald-400 transition-colors"
+                                                title="Mark Done"
                                             >
                                                 <CheckCircle2 size={16} />
+                                            </button>
+                                            <button 
+                                                onClick={() => onStatusChange(block.id, 'missed')}
+                                                className="p-1 text-[var(--text-tertiary)] hover:text-red-400 transition-colors"
+                                                title="Mark Incomplete"
+                                            >
+                                                <XCircle size={16} />
                                             </button>
                                         </div>
                                     )}

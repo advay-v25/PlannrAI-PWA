@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
+import { apiClient } from '@/lib/api-client';
 import {
     Sparkles,
     CheckCircle2,
@@ -42,29 +43,18 @@ export function GoalInterpret({ goalId, goalTitle, onClose, onApply }: GoalInter
         setError('');
 
         try {
-            const response = await fetch('/api/ai/decompose-goal', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    goal: goalTitle,
-                    minutes: 30, // Default constraint, could be dynamic later
-                    goalId: goalId // Auto-save to DB
-                }),
+            const result = await apiClient.post<{ plan: GoalAIPlan }>('/api/ai/decompose-goal', {
+                goal: goalTitle,
+                minutes: 30, // Default constraint, could be dynamic later
+                goalId: goalId // Auto-save to DB
             });
 
-            const result = await response.json();
-
-            if (!response.ok || !result.ok) {
-                setError(result.error?.message || result.error || 'Failed to generate plan');
-                return;
-            }
-
-            if (result.data?.plan) {
-                setPlan(result.data.plan);
+            if (result.plan) {
+                setPlan(result.plan);
             } else {
-                setError('No plan generated');
+                setError('Failed to generate plan');
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error('Goal plan error:', err);
             setError('Failed to connect to AI service');
         } finally {

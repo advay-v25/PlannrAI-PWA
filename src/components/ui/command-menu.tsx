@@ -6,6 +6,7 @@ import { Command } from 'cmdk';
 import { Search, Brain, Calendar, ArrowRight, Zap, Map } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
+import { apiClient } from '@/lib/api-client';
 
 export function CommandMenu() {
     const [open, setOpen] = React.useState(false);
@@ -44,10 +45,7 @@ export function CommandMenu() {
             await new Promise(r => setTimeout(r, 500));
 
             // Call the Coach Message API
-            await fetch('/api/coach/message', {
-                method: 'POST',
-                body: JSON.stringify({ message: search })
-            });
+            await apiClient.post('/api/coach/message', { message: search });
 
             // Refresh to show changes
             router.refresh();

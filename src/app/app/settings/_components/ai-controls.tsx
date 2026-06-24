@@ -36,7 +36,7 @@ export default function AIControls({ preferences, onChange }: Props) {
                             value={preferences.proactive_level}
                             onValueChange={(v: string) => onChange({ proactive_level: v as 'off' | 'low' | 'standard' })}
                         >
-                            <SelectTrigger className="bg-transparent"><SelectValue /></SelectTrigger>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="off">Off (Passive)</SelectItem>
                                 <SelectItem value="low">Low (Suggestions only)</SelectItem>

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 
 type ButtonSize = 'sm' | 'md' | 'lg' | 'icon';
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -55,6 +56,8 @@ const variantHover: Record<ButtonVariant, object> = {
   },
 };
 
+import Link from 'next/link';
+
 export function LiquidGlassButton({
   children,
   className,
@@ -68,26 +71,24 @@ export function LiquidGlassButton({
 }: LiquidGlassButtonProps) {
   const [isHovered, setIsHovered] = useState(false);
 
-  const inner = (
-    <motion.button
-      type={type}
-      title={title}
-      disabled={disabled}
-      className={cn(
-        'relative overflow-hidden font-medium text-white cursor-pointer',
-        'backdrop-blur-xl border transition-colors duration-300',
-        sizeClasses[size],
-        variantBase[variant],
-        disabled && 'opacity-40 cursor-not-allowed',
-        className,
-      )}
-      onHoverStart={() => !disabled && setIsHovered(true)}
-      onHoverEnd={() => setIsHovered(false)}
-      whileHover={disabled ? undefined : { scale: 1.03, ...(variantHover[variant]) }}
-      whileTap={disabled ? undefined : { scale: 0.97 }}
-      transition={{ type: 'spring', stiffness: 200, damping: 25, mass: 1.2 }}
-      onClick={onClick}
-    >
+  const innerProps = {
+    className: cn(
+      'relative overflow-hidden font-medium text-white cursor-pointer flex items-center justify-center',
+      'backdrop-blur-xl border transition-colors duration-300',
+      sizeClasses[size],
+      variantBase[variant],
+      disabled && 'opacity-40 cursor-not-allowed',
+      className,
+    ),
+    onHoverStart: () => !disabled && setIsHovered(true),
+    onHoverEnd: () => setIsHovered(false),
+    whileHover: disabled ? undefined : { scale: 1.03, ...(variantHover[variant] as any) },
+    whileTap: disabled ? undefined : { scale: 0.97 },
+    transition: { type: 'spring' as const, stiffness: 200, damping: 25, mass: 1.2 }
+  };
+
+  const content = (
+    <>
       {/* Refraction gradient */}
       <motion.div
         className="absolute inset-0 rounded-[inherit] pointer-events-none"
@@ -115,16 +116,35 @@ export function LiquidGlassButton({
       <span className="relative z-10 flex items-center justify-center gap-[inherit]">
         {children}
       </span>
-    </motion.button>
+    </>
   );
 
-  if (href) {
+  if (href && !disabled) {
     return (
-      <a href={href} className="inline-block no-underline">
-        {inner}
-      </a>
+      <Link href={href} title={title} onClick={onClick as any} className={innerProps.className}>
+        <motion.span
+          onHoverStart={innerProps.onHoverStart}
+          onHoverEnd={innerProps.onHoverEnd}
+          whileHover={innerProps.whileHover}
+          whileTap={innerProps.whileTap}
+          transition={innerProps.transition}
+          className="relative w-full h-full flex items-center justify-center"
+        >
+          {content}
+        </motion.span>
+      </Link>
     );
   }
 
-  return inner;
+  return (
+    <motion.button
+      type={type}
+      title={title}
+      disabled={disabled}
+      onClick={onClick}
+      {...innerProps as any}
+    >
+      {content}
+    </motion.button>
+  );
 }

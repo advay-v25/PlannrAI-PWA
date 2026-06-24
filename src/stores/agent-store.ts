@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { apiClient } from '@/lib/api-client';
+import { dispatchAppEvent } from '@/lib/events';
 import type { ProposedOption, CoachResponse, CoachMode } from '@/types/coach-v4';
 
 export interface Message {
@@ -251,7 +252,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             }));
 
             if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('calendar-refresh'));
+                dispatchAppEvent({ type: 'calendar-refresh' });
             }
 
             return { success: true };
@@ -286,7 +287,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             }));
 
             if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('calendar-refresh'));
+                dispatchAppEvent({ type: 'calendar-refresh' });
             }
         } catch (e) {
             console.error("Undo Error", e);

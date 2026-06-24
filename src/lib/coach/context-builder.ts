@@ -64,6 +64,7 @@ export interface CoachContext {
         last_energy_checkin?: number;
         emotional_state?: string;
         recent_missed_blocks: number;
+        free_slots_today?: string[] | number;
     };
 
     bio_rhythm_trend: Array<{

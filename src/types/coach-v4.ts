@@ -4,11 +4,12 @@
 export type CoachMode = 'execute' | 'propose' | 'ask' | 'refuse' | 'choice' | 'refusal' | 'executed' | 'clarify' | 'acknowledge' | 'inform';
 
 interface CalendarPatchOp {
-    op: 'create' | 'update' | 'delete' | 'move'
+    op?: 'create' | 'update' | 'delete' | 'move'
     | 'create_event' | 'update_event' | 'delete_event' | 'move_event'
     | 'update_goal' | 'update_settings'
     | 'create_anchor' | 'delete_anchor'
     | 'create_todo' | 'update_todo' | 'delete_todo';
+    type?: string;
     event_id?: string;
     goal_id?: string;
     anchor_id?: string;
@@ -18,11 +19,14 @@ interface CalendarPatchOp {
     fields?: Record<string, any>;
     to_start?: string;
     to_end?: string;
+    new_start?: string;
+    new_end?: string;
     title?: string;
     start_time?: string;
     end_time?: string;
     days_of_week?: number[];
     date?: string;
+    new_date?: string;
 }
 
 export interface MutationLedger {

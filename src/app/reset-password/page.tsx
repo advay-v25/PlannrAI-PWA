@@ -74,11 +74,8 @@ export default function ResetPasswordPage() {
             <div className="absolute top-1/4 -left-20 w-[500px] h-[500px] bg-orange-500/10 rounded-full blur-[150px]" />
             <div className="absolute bottom-1/4 -right-20 w-[500px] h-[500px] bg-orange-600/5 rounded-full blur-[150px]" />
 
-            <motion.div
-                initial={{ opacity: 0, y: 30, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ type: 'spring', stiffness: 100, damping: 20 }}
-                className="w-full max-w-md relative z-10"
+            <div
+                className="w-full max-w-md relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-700 fill-mode-both"
             >
                 <GlassCard variant="glow" padding="lg" className="border-white/10 shadow-3xl relative overflow-hidden">
                     {/* Minimal geometric accent */}
@@ -160,7 +157,7 @@ export default function ResetPasswordPage() {
                         </form>
                     </div>
                 </GlassCard>
-            </motion.div>
+            </div>
         </div>
     );
 }
