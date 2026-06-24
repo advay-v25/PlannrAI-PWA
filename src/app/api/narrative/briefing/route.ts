@@ -1,6 +1,9 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { callAI } from '@/lib/ai/unified-client';
 
+export const maxDuration = 60;
+
+
 export const POST = secureApiRoute(
     async (context, body) => {
         const { userId, supabase } = context;

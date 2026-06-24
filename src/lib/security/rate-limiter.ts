@@ -40,6 +40,10 @@ const LIMITS = {
     
     // Default user strict for generic supbase DB writes/reads
     userStrict: { windowMs: 60 * 1000, maxRequests: 100 },
+
+    // Auth specific limits
+    authLogin: { windowMs: 15 * 60 * 1000, maxRequests: 5 }, // 5 login attempts per 15 mins
+    authEmail: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 2 }, // 2 reset/signup emails per 24 hours
 } as const;
 
 export type RateLimitType = keyof typeof LIMITS;

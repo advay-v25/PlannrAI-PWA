@@ -60,7 +60,8 @@ export const GET = secureApiRoute(
         return apiSuccess({
             profile: {
                 ...profile,
-                email: userData?.user?.email
+                email: userData?.user?.email,
+                providers: userData?.user?.app_metadata?.providers || []
             },
             preferences,
             habit_stacks_summary: stacks || [],

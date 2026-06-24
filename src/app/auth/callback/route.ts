@@ -30,7 +30,7 @@ export async function GET(request: Request) {
                     .eq('id', user.id)
                     .single();
 
-                // If no profile exists, create one and redirect to onboarding
+                // If no profile exists, create one and redirect to onboarding/set-password
                 if (profileError || !profile) {
                     // Create new profile for the user
                     await supabase.from('profiles').insert({
@@ -39,6 +39,15 @@ export async function GET(request: Request) {
                         onboarding_complete: false,
                     });
 
+                    // If they just created the profile via Google (no email provider), ask them to set a password
+                    const providers = user.app_metadata?.providers || [];
+                    if (!providers.includes('email')) {
+                         return NextResponse.redirect(`${origin}/set-password?next=/onboarding`);
+                    }
+
+                    if (next === '/reset-password') {
+                        return NextResponse.redirect(`${origin}/reset-password`);
+                    }
                     return NextResponse.redirect(`${origin}/onboarding`);
                 }
 

@@ -1,6 +1,8 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { startOfDay, startOfMonth } from 'date-fns';
 
+export const maxDuration = 60;
+
 export const GET = secureApiRoute(async (context) => {
     const { supabase, user } = context;
 

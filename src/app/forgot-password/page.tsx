@@ -23,6 +23,18 @@ export default function ForgotPasswordPage() {
         setStatus({ type: 'idle', message: '' });
 
         try {
+            // Check rate limits before proceeding
+            const rateLimitRes = await fetch('/api/auth/rate-limit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'forgot_password', email }),
+            });
+            
+            if (!rateLimitRes.ok) {
+                const errorData = await rateLimitRes.json();
+                throw new Error(errorData.error || 'Too many requests. Please try again later.');
+            }
+
             const { error } = await supabase.auth.resetPasswordForEmail(email, {
                 redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/auth/callback?next=/reset-password`,
             });

@@ -288,7 +288,7 @@ function CalendarPageInner() {
         const targetDate = targetDateOverride || format(new Date(), 'yyyy-MM-dd');
         showToast('🤖 Planning your day...', 'info');
         try {
-            const res = await apiClient.post<any>('/api/calendar/generate-today', { date: targetDate, force: true });
+            const res = await apiClient.post<any>('/api/calendar/generate-today', { date: targetDate, force: true, mode: 'balanced' });
             
             if (!res.success) {
                 throw new Error(res.error?.message || 'Failed to generate plan');

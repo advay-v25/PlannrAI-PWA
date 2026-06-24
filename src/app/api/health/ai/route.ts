@@ -1,5 +1,8 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 
+export const maxDuration = 60;
+
+
 export const runtime = 'nodejs';
 
 export const GET = secureApiRoute(async (context) => {

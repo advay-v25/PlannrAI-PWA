@@ -19,6 +19,8 @@ const onboardingSchema = z.object({
     selected_variant_id: z.string().optional(),
 });
 
+export const maxDuration = 60; // Allow 60s for AI processing
+
 export const POST = secureApiRoute(
     async (context, body) => {
         const parsed = onboardingSchema.safeParse(body);

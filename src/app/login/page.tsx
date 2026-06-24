@@ -27,13 +27,25 @@ export default function LoginPage() {
         setError('');
 
         try {
+            // Check rate limits before proceeding
+            const rateLimitRes = await fetch('/api/auth/rate-limit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: mode === 'login' ? 'login' : 'signup', email }),
+            });
+            
+            if (!rateLimitRes.ok) {
+                const errorData = await rateLimitRes.json();
+                throw new Error(errorData.error || 'Too many requests. Please try again later.');
+            }
+
             if (mode === 'login') {
                 const { error } = await supabase.auth.signInWithPassword({
                     email,
                     password,
                 });
                 if (error) throw error;
-                router.push('/app');
+                window.location.href = '/app';
             } else {
                 const { error } = await supabase.auth.signUp({
                     email,
@@ -47,11 +59,11 @@ export default function LoginPage() {
                 // If "Confirm Email" is disabled in Supabase, this will log them in immediately.
                 const { data: { session } } = await supabase.auth.getSession();
                 if (session) {
-                    router.push('/onboarding');
+                    window.location.href = '/onboarding';
                 } else {
                     // If email verification is on, Supabase will return an empty session.
                     // Direct users to check inbox.
-                    router.push('/verify-email');
+                    window.location.href = '/verify-email';
                 }
             }
         } catch (err: any) {
@@ -60,7 +72,7 @@ export default function LoginPage() {
             // If they are trying to log in but haven't confirmed email
             const errorMsg = err.message || '';
             if (errorMsg.toLowerCase().includes('email not confirmed') || errorMsg.toLowerCase().includes('verify your email')) {
-                 router.push('/verify-email');
+                 window.location.href = '/verify-email';
                  return;
             }
 
@@ -75,17 +87,31 @@ export default function LoginPage() {
         setError('');
 
         try {
-            const { data, error } = await supabase.auth.signInWithOAuth({
+            // Check rate limits before proceeding
+            const rateLimitRes = await fetch('/api/auth/rate-limit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'oauth' }),
+            });
+            
+            if (!rateLimitRes.ok) {
+                const errorData = await rateLimitRes.json();
+                throw new Error(errorData.error || 'Too many requests. Please try again later.');
+            }
+
+            const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
                     redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/auth/callback`,
+                    queryParams: {
+                        access_type: 'offline',
+                        prompt: 'consent',
+                    }
                 },
             });
 
             if (error) throw error;
-            if (data?.url) {
-                window.location.assign(data.url);
-            }
+            // Removed manual window.location.assign to fix the double-redirect bug
         } catch (err: any) {
             console.error('[Auth Error - Google OAuth]:', err);
             setError(err.message || 'Failed to sign in with Google');

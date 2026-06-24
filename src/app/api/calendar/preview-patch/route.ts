@@ -7,6 +7,9 @@ import { CanonicalPatchSchema } from '@/lib/ai/schemas';
 import { PatchService } from '@/lib/calendar/patch-service';
 import { z } from 'zod';
 
+export const maxDuration = 60;
+
+
 const PreviewBodySchema = z.object({
     patch: CanonicalPatchSchema,
     range: z.object({

@@ -8,6 +8,9 @@ import { secureApiRoute, apiSuccess, apiError, validateRequiredFields } from '@/
 import { createClient } from '@/lib/supabase/server';
 import Groq from 'groq-sdk';
 
+export const maxDuration = 60;
+
+
 const DEVIATION_TYPES = [
     'unavoidable',   // External factors beyond control (emergency, illness)
     'structural',    // Schedule/environment issues (bad timing, wrong place)
