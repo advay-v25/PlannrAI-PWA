@@ -1,21 +1,23 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
 import { GlassInput } from '@/components/ui/glass-input';
-import { Lock, CheckCircle2 } from 'lucide-react';
+import { Lock, CheckCircle2, ChevronRight } from 'lucide-react';
 
-export default function SetPasswordPage() {
+function SetPasswordContent() {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [status, setStatus] = useState<{ type: 'idle' | 'success' | 'error', message: string }>({ type: 'idle', message: '' });
     const router = useRouter();
+    const searchParams = useSearchParams();
     const supabase = createClient();
+    const nextPath = searchParams.get('next') ?? '/onboarding';
 
     useEffect(() => {
         // Verify that the user is actually authenticated
@@ -51,18 +53,21 @@ export default function SetPasswordPage() {
             
             if (error) throw error;
             
-            setStatus({ type: 'success', message: 'Password set successfully! Redirecting...' });
+            setStatus({ type: 'success', message: 'Password set successfully!' });
             
-            // Redirect directly to onboarding after successfully setting the password
             setTimeout(() => {
-                router.push('/onboarding');
-            }, 1500);
+                window.location.href = nextPath;
+            }, 1000);
         } catch (err: any) {
             console.error('[Update Password Error]:', err);
-            setStatus({ type: 'error', message: err.message || 'Failed to set password' });
+            setStatus({ type: 'error', message: err.message || 'Failed to update password' });
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleSkip = () => {
+        window.location.href = nextPath;
     };
 
     return (
@@ -81,31 +86,24 @@ export default function SetPasswordPage() {
                     <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-orange-500 to-transparent opacity-50" />
                     
                     <div className="relative z-10">
-                        {/* Title */}
-                        <div className="text-center mb-10">
+                        <div className="text-center mb-8">
                             <motion.div
                                 initial={{ scale: 0, rotate: -45 }}
                                 animate={{ scale: 1, rotate: 0 }}
-                                transition={{ 
-                                    delay: 0.2, 
-                                    type: 'spring', 
-                                    stiffness: 260, 
-                                    damping: 20 
-                                }}
-                                className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-br from-orange-500/20 to-orange-600/5 border border-orange-500/30 mb-6 shadow-inner-glow"
+                                transition={{ delay: 0.2, type: 'spring', stiffness: 260, damping: 20 }}
+                                className="inline-flex items-center justify-center w-16 h-16 rounded-3xl bg-gradient-to-br from-orange-500/20 to-orange-600/5 border border-orange-500/30 mb-6 shadow-inner-glow"
                             >
-                                <Lock className="w-9 h-9 text-orange-500 filter drop-shadow-[0_0_8px_rgba(249,115,22,0.4)]" />
+                                <Lock className="w-8 h-8 text-orange-500 filter drop-shadow-[0_0_8px_rgba(249,115,22,0.4)]" />
                             </motion.div>
 
-                            <h1 className="text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white via-white to-white/60 mb-3">
-                                Set Password
+                            <h1 className="text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white via-white to-white/60 mb-2">
+                                Optional: Set Password
                             </h1>
-                            <p className="text-white/50 text-sm font-medium">
-                                Secure your account with a password to continue.
+                            <p className="text-white/50 text-xs font-medium px-4">
+                                You signed in with Google. You can set a password now to also sign in using your email in the future.
                             </p>
                         </div>
 
-                        {/* Password Form */}
                         <form onSubmit={handleUpdatePassword} className="space-y-4 mb-6">
                             <GlassInput
                                 type="password"
@@ -142,21 +140,40 @@ export default function SetPasswordPage() {
                                 )}
                             </AnimatePresence>
 
-                            <GlassButton
-                                type="submit"
-                                variant="primary"
-                                size="lg"
-                                loading={isLoading}
-                                className="w-full h-12 text-sm font-bold tracking-wide group"
-                                disabled={status.type === 'success'}
-                            >
-                                {status.type === 'success' ? 'Password Set!' : 'Set Password'}
-                                {status.type === 'success' && <CheckCircle2 className="w-4 h-4 ml-2" />}
-                            </GlassButton>
+                            <div className="pt-2 space-y-3">
+                                <GlassButton
+                                    type="submit"
+                                    variant="primary"
+                                    size="lg"
+                                    loading={isLoading}
+                                    className="w-full h-12 text-sm font-bold tracking-wide group"
+                                    disabled={status.type === 'success'}
+                                >
+                                    {status.type === 'success' ? 'Password Updated!' : 'Set Password'}
+                                    {status.type === 'success' && <CheckCircle2 className="w-4 h-4 ml-2" />}
+                                </GlassButton>
+
+                                <button
+                                    type="button"
+                                    onClick={handleSkip}
+                                    className="w-full h-12 text-xs font-bold tracking-widest uppercase text-white/40 hover:text-white transition-colors flex items-center justify-center group"
+                                >
+                                    Skip for now
+                                    <ChevronRight className="w-4 h-4 ml-1 opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0" />
+                                </button>
+                            </div>
                         </form>
                     </div>
                 </GlassCard>
             </motion.div>
         </div>
+    );
+}
+
+export default function SetPasswordPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-neutral-950 flex items-center justify-center text-white/40 text-xs">Loading...</div>}>
+            <SetPasswordContent />
+        </Suspense>
     );
 }
