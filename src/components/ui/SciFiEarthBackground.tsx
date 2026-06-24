@@ -1,54 +1,14 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
-import { motion, useScroll, useTransform, MotionValue } from 'framer-motion';
-import dynamic from 'next/dynamic';
-
-const Globe = dynamic(() => import('react-globe.gl'), { ssr: false });
+import React from 'react';
+import { useScroll, useTransform, motion } from 'framer-motion';
 
 function InteractiveGlobe() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = React.useState({ width: 800, height: 800 });
-  const globeRef = useRef<any>(null);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const observer = new ResizeObserver((entries) => {
-      if (entries[0]) {
-        const { width, height } = entries[0].contentRect;
-        setDimensions({ width, height });
-      }
-    });
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (globeRef.current) {
-      const controls = globeRef.current.controls();
-      controls.autoRotate = true;
-      controls.autoRotateSpeed = 0.5;
-      controls.enableZoom = false;
-      controls.enablePan = false;
-    }
-  }, [dimensions]);
-
   return (
-    <div ref={containerRef} className="w-full h-full cursor-grab active:cursor-grabbing">
-      {dimensions.width > 0 && (
-        <div style={{ width: '100%', height: '100%', filter: 'brightness(0.9) contrast(1.1)' }}>
-          <Globe
-            ref={globeRef}
-            width={dimensions.width}
-            height={dimensions.height}
-            globeImageUrl="/earth-night.jpg"
-            backgroundColor="rgba(0,0,0,0)"
-            showAtmosphere={true}
-            atmosphereColor="#3b82f6"
-            atmosphereAltitude={0.15}
-          />
-        </div>
-      )}
+    <div className="w-full h-full flex items-center justify-center relative">
+      {/* Globe removed for now */}
+      {/* Atmosphere Glow */}
+      <div className="absolute inset-0 rounded-full shadow-[0_0_80px_rgba(168,85,247,0.15)] pointer-events-none" />
     </div>
   );
 }
@@ -126,4 +86,3 @@ export function SciFiEarthBackground() {
     </div>
   );
 }
-

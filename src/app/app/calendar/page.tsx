@@ -288,17 +288,13 @@ function CalendarPageInner() {
         const targetDate = targetDateOverride || format(new Date(), 'yyyy-MM-dd');
         showToast('🤖 Planning your day...', 'info');
         try {
-            const res = await fetch('/api/calendar/generate-today', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ date: targetDate, force: true }),
-            });
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err?.error?.message || 'Failed to generate plan');
+            const res = await apiClient.post<any>('/api/calendar/generate-today', { date: targetDate, force: true });
+            
+            if (!res.success) {
+                throw new Error(res.error?.message || 'Failed to generate plan');
             }
-            const planData = await res.json();
-            const options = planData.data?.options || planData.options || [];
+            const planData = res.data;
+            const options = planData.options || [];
             if (options.length === 0) {
                 showToast('No schedule generated. Add goals first.', 'error');
                 return;
@@ -309,18 +305,15 @@ function CalendarPageInner() {
                 .filter((o: any) => o.op === 'create_event' || o.op === 'create')
                 .map((o: any) => o.payload || o.event || {});
 
-            const applyRes = await fetch('/api/calendar/apply-schedule', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'optimize_day',
-                    clear_date: targetDate,
-                    patch: { add: addBlocks },
-                }),
+            const applyRes = await apiClient.post<any>('/api/calendar/apply-schedule', {
+                action: 'optimize_day',
+                clear_date: targetDate,
+                patch: { add: addBlocks },
             });
-            if (!applyRes.ok) throw new Error('Failed to apply schedule');
-            const applyData = await applyRes.json();
-            const added = applyData.data?.added || addBlocks.length;
+            
+            if (!applyRes.success) throw new Error(applyRes.error?.message || 'Failed to apply schedule');
+            
+            const added = applyRes.data?.added || addBlocks.length;
             showToast(`✅ Day planned! ${added} blocks created.`, 'success');
             await refresh();
         } catch (e: any) {

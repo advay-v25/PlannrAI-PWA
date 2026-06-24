@@ -36,7 +36,7 @@ export default function AIControls({ preferences, onChange }: Props) {
                             value={preferences.proactive_level}
                             onValueChange={(v: string) => onChange({ proactive_level: v as 'off' | 'low' | 'standard' })}
                         >
-                            <SelectTrigger className="bg-transparent"><SelectValue /></SelectTrigger>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="off">Off (Passive)</SelectItem>
                                 <SelectItem value="low">Low (Suggestions only)</SelectItem>
@@ -98,23 +98,6 @@ export default function AIControls({ preferences, onChange }: Props) {
                 </CardContent>
             </Card>
 
-            <Card className="bg-[var(--glass-bg)] border-[var(--glass-border)]">
-                <CardHeader>
-                    <CardTitle className="text-base">Features</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between">
-                        <div className="space-y-0.5">
-                            <Label>Weekly Review Survey</Label>
-                            <p className="text-xs text-[var(--text-tertiary)]">Interactive end-of-week reflection</p>
-                        </div>
-                        <Switch
-                            checked={preferences.weekly_review_enabled !== false}
-                            onCheckedChange={(c) => onChange({ weekly_review_enabled: c })}
-                        />
-                    </div>
-                </CardContent>
-            </Card>
         </div>
     );
 }

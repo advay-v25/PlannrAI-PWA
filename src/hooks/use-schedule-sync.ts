@@ -11,6 +11,7 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
+import { dispatchAppEvent, useAppEvent } from '@/lib/events';
 
 type ScheduleStrategy = 'momentum' | 'balanced' | 'recovery';
 
@@ -40,7 +41,7 @@ export function useScheduleSync(options?: ScheduleSyncOptions) {
                 energyLevel: 0, // Let the protocol auto-detect from user_states
             });
             toast.success('Schedule re-optimized for your current energy!');
-            window.dispatchEvent(new Event('calendar-refresh'));
+            dispatchAppEvent({ type: 'calendar-refresh' });
             options?.onCalendarRefresh?.();
         } catch (e) {
             toast.error('Failed to re-optimize schedule');
@@ -51,50 +52,45 @@ export function useScheduleSync(options?: ScheduleSyncOptions) {
 
     const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
 
-    useEffect(() => {
-        const handler = (e: Event) => {
-            const detail = (e as CustomEvent).detail || {};
-            const { trigger, schedule_mode, banner } = detail;
+    useAppEvent('schedule-recompute', (detail: any) => {
+        if (!detail) return;
+        const { trigger, schedule_mode, banner } = detail;
 
-            console.log(`[ScheduleSync] Received recompute event: trigger=${trigger}`);
+        console.log(`[ScheduleSync] Received recompute event: trigger=${trigger}`);
 
-            // Update the mode banner if provided
-            if (banner) {
-                setCurrentMode({
-                    strategy: schedule_mode || 'balanced',
-                    label: banner.schedule_mode_label || 'Balanced Mode',
-                    message: banner.message || '',
-                    type: banner.type || null,
-                    actionLabel: banner.action_label || 'Re-optimize',
+        // Update the mode banner if provided
+        if (banner) {
+            setCurrentMode({
+                strategy: schedule_mode || 'balanced',
+                label: banner.schedule_mode_label || 'Balanced Mode',
+                message: banner.message || '',
+                type: banner.type || null,
+                actionLabel: banner.action_label || 'Re-optimize',
+            });
+        }
+
+        // Debounced Global Sync Trigger
+        if (trigger === 'todo_completed' || trigger === 'goal_paused') {
+            if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
+            debounceTimeout.current = setTimeout(() => {
+                import('@/stores').then(({ useSyncStore }) => {
+                    useSyncStore.getState().incrementGraphVersion();
                 });
-            }
+                options?.onCalendarRefresh?.();
+            }, 400); // 400ms debounce
+        }
 
-            // Debounced Global Sync Trigger
-            if (trigger === 'todo_completed' || trigger === 'goal_paused') {
-                if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
-                debounceTimeout.current = setTimeout(() => {
-                    import('@/stores').then(({ useSyncStore }) => {
-                        useSyncStore.getState().incrementGraphVersion();
-                    });
-                    options?.onCalendarRefresh?.();
-                }, 400); // 400ms debounce
-            }
-
-            // For energy-driven changes, suggest re-optimization via toast
-            if (trigger === 'energy_checkin' && detail.should_reoptimize) {
-                toast(detail.suggestion || 'Energy changed. Re-optimize?', {
-                    action: {
-                        label: detail.banner?.action_label || 'Re-optimize',
-                        onClick: handleReoptimize,
-                    },
-                    duration: 8000,
-                });
-            }
-        };
-
-        window.addEventListener('schedule-recompute', handler);
-        return () => window.removeEventListener('schedule-recompute', handler);
-    }, [handleReoptimize, options]);
+        // For energy-driven changes, suggest re-optimization via toast
+        if (trigger === 'energy_checkin' && detail.should_reoptimize) {
+            toast(detail.suggestion || 'Energy changed. Re-optimize?', {
+                action: {
+                    label: detail.banner?.action_label || 'Re-optimize',
+                    onClick: handleReoptimize,
+                },
+                duration: 8000,
+            });
+        }
+    });
 
     return {
         currentMode,

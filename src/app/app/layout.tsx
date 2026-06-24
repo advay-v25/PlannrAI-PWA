@@ -27,13 +27,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         import('@/lib/featureFlags').then(m => setIsPreview(m.isPreviewEnabled()));
     }, []);
 
-    const navItems = [
+    type NavItem = {
+        href: string;
+        icon: any;
+        label: string;
+        disabled?: boolean;
+        badge?: string;
+    };
+
+    const navItems: NavItem[] = [
         { href: '/app', icon: LayoutDashboard, label: 'Home' },
         { href: '/app/tasks', icon: Brain, label: 'Mindspace' },
         { href: '/app/calendar', icon: Calendar, label: 'Calendar' },
         { href: '/app/goals', icon: Target, label: 'Goals' },
-        { href: isPreview ? '/app/weekly-review' : '#', icon: Activity, label: 'Review', disabled: !isPreview, badge: !isPreview ? 'SOON' : undefined },
         { href: '/app/coach', icon: Sparkles, label: 'Coach Hub' },
+        { href: '/app/weekly-review', icon: Activity, label: 'Review', badge: 'Soon', disabled: true },
     ];
 
     return (
@@ -105,9 +113,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                 <item.icon className={cn("w-5 h-5 flex-shrink-0", isActive ? "text-[var(--color-primary)]" : "text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]")} />
                                 {!isSidebarCollapsed && (
                                     <>
-                                        <span className="font-medium text-base flex-1">{item.label}</span>
+                                        <span className="font-medium text-base flex-1 truncate">{item.label}</span>
                                         {item.badge && (
-                                            <span className="text-[9px] font-black uppercase tracking-wider bg-[var(--color-primary)]/10 text-[var(--color-primary)] px-2 py-0.5 rounded-full border border-[var(--color-primary)]/20">
+                                            <span className="text-[9px] font-black uppercase tracking-wider bg-[var(--color-primary)]/10 text-[var(--color-primary)] px-2 py-0.5 rounded-full border border-[var(--color-primary)]/20 flex-shrink-0">
                                                 {item.badge}
                                             </span>
                                         )}

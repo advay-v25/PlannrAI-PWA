@@ -28,7 +28,8 @@ export function apiFail(
     message: string,
     status: number = 500,
     code?: string,
-    details?: any
+    details?: any,
+    headers?: Headers | Record<string, string>
 ) {
     const request_id = uuidv4();
     console.error(`[API FAIL] [${request_id}] ${status} - ${message}`, details);
@@ -44,7 +45,7 @@ export function apiFail(
         timestamp: new Date().toISOString()
     };
 
-    return NextResponse.json(response, { status });
+    return NextResponse.json(response, { status, headers });
 }
 
 export const apiError = apiFail;

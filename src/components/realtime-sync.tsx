@@ -5,6 +5,7 @@ import { useUserStore, useGoalsStore, useHabitStacksStore } from '@/stores';
 import { createClient } from '@/lib/supabase/client';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
+import { dispatchAppEvent } from '@/lib/events';
 
 export function RealtimeSync() {
     const { profile, setProfile } = useUserStore();
@@ -62,7 +63,7 @@ export function RealtimeSync() {
                 () => {
                     // When goals change in DB (from other tab), refresh goals
                     // A proper implementation would use setGoals(payload.new) but often a refetch is safer to ensure joined data is intact
-                    window.dispatchEvent(new CustomEvent('calendar-refresh'));
+                    dispatchAppEvent({ type: 'calendar-refresh' });
                     // Note: In a full app, you would dispatch an event that useGoalsManager listens to, to refetch goals
                 }
             )
@@ -75,7 +76,7 @@ export function RealtimeSync() {
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'daily_logs', filter: `user_id=eq.${profile.id}` },
                 (payload) => {
-                    window.dispatchEvent(new CustomEvent('calendar-refresh'));
+                    dispatchAppEvent({ type: 'calendar-refresh' });
                 }
             )
             .subscribe();

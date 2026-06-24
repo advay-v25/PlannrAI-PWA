@@ -94,17 +94,8 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-4 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-950/40 via-neutral-950 to-neutral-950 overflow-hidden relative">
-            {/* Background Orbs */}
-            <div className="absolute top-1/4 -left-20 w-[500px] h-[500px] bg-orange-500/10 rounded-full blur-[150px]" />
-            <div className="absolute bottom-1/4 -right-20 w-[500px] h-[500px] bg-orange-600/5 rounded-full blur-[150px]" />
-
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-                className="w-full max-w-md relative z-10"
-            >
+        <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-[#1a0a00] via-neutral-950 to-neutral-950 overflow-hidden relative">
+            <div className="w-full max-w-md relative z-10">
                 <GlassCard variant="glow" padding="lg" className="border-white/10 shadow-2xl">
                     <div className="relative z-10">
                         {/* Logo & Title */}
@@ -240,7 +231,7 @@ export default function LoginPage() {
                         </div>
                     </div>
                 </GlassCard>
-            </motion.div>
+            </div>
         </div>
     );
 }

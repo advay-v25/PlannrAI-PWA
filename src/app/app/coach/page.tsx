@@ -7,6 +7,7 @@ import { useSearchParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { useCoach } from '@/hooks/use-coach';
 import { DynamicBackground } from '@/components/ui/DynamicBackground';
+import { dispatchAppEvent } from '@/lib/events';
 
 function CoachPageInner() {
     const router = useRouter();
@@ -28,7 +29,7 @@ function CoachPageInner() {
                 <CoachDashboard
                     onCalendarUpdate={() => {
                         router.refresh();
-                        window.dispatchEvent(new Event('calendar-refresh'));
+                        dispatchAppEvent({ type: 'calendar-refresh' });
                     }}
                 />
             </div>

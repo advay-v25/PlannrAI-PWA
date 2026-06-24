@@ -58,14 +58,25 @@ async function fetchWithTimeout(resource: RequestInfo, options: RequestInit & { 
 export const apiClient = {
     async fetch<T = any>(endpoint: string, options: ApiOptions = {}): Promise<T> {
         const { skipAuth, throwOnError = true, headers, clientMode = 'default', ...rest } = options;
-        const finalHeaders: HeadersInit = { 'Content-Type': 'application/json', ...headers };
+        const finalHeaders: Record<string, string> = { 'Content-Type': 'application/json', ...(headers as Record<string, string> || {}) };
+
+        // Inject CSRF Token for mutations
+        if (typeof document !== 'undefined') {
+            const method = (rest.method || 'GET').toUpperCase();
+            if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+                const match = document.cookie.match(new RegExp('(^| )csrf_token=([^;]+)'));
+                if (match && match[2]) {
+                    finalHeaders['x-csrf-token'] = match[2];
+                }
+            }
+        }
 
         // Inject Auth
         if (!skipAuth) {
             const supabase = createClient();
             const { data: { session } } = await supabase.auth.getSession();
             if (session?.access_token) {
-                (finalHeaders as any)['Authorization'] = `Bearer ${session.access_token}`;
+                finalHeaders['Authorization'] = `Bearer ${session.access_token}`;
             }
         }
 
@@ -149,7 +160,7 @@ export const apiClient = {
 
                 if (!isRetryable || attempt === MAX_RETRIES) {
                     if (throwOnError) {
-                        console.error(`API Call Failed [${endpoint}]`, error);
+                        console.warn(`[apiClient] Call Failed [${endpoint}]`, error.message);
                         throw error;
                     }
                     return {} as T;
@@ -280,6 +291,12 @@ export const apiClient = {
 
             createCommitment: (data: { title: string; start_time: string; end_time: string; days_of_week: number[] }) =>
                 this.post<{ commitment: Commitment }>('/api/anchors', data),
+
+            updateCommitment: (data: { id: string; title?: string; start_time?: string; end_time?: string; days_of_week?: number[]; is_active?: boolean }) =>
+                this.put<{ commitment: Commitment }>('/api/anchors', data),
+
+            getCommitments: () =>
+                this.get<{ commitments: Commitment[] }>('/api/anchors'),
 
             updateBlockStatus: (data: {
                 block_id: string;

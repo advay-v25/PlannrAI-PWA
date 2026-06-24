@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
+import { dispatchAppEvent } from '@/lib/events';
 
 export interface TodoItem {
     id: string;
@@ -48,7 +49,7 @@ export function useTodos() {
         // apiClient unwraps the ApiEnvelope, so `data` is the raw todo row directly
         if (data && data.id) {
             setTodos(prev => [...prev, data]);
-            window.dispatchEvent(new CustomEvent('calendar-refresh'));
+            dispatchAppEvent({ type: 'calendar-refresh' });
 
             // Cross-feature: Suggest blocking time for high-priority today-due todos
             if (data.calendar_suggestion && data.calendar_suggestion_message) {
@@ -56,9 +57,10 @@ export function useTodos() {
                     action: {
                         label: 'Block Time',
                         onClick: () => {
-                            window.dispatchEvent(new CustomEvent('schedule-recompute', {
-                                detail: { trigger: 'todo_block_time', todoId: data.id, todoTitle: title }
-                            }));
+                            dispatchAppEvent({
+                                type: 'schedule-recompute',
+                                payload: { source: 'todo_block_time' }
+                            });
                         },
                     },
                     duration: 8000,
@@ -70,13 +72,14 @@ export function useTodos() {
     const toggleTodo = async (todoId: string, isCompleted: boolean) => {
         setTodos(prev => prev.map(t => t.id === todoId ? { ...t, is_completed: isCompleted } : t));
         const result = await apiClient.post<any>('/api/todos', { action: 'toggle_todo', todoId, isCompleted });
-        window.dispatchEvent(new CustomEvent('calendar-refresh'));
+        dispatchAppEvent({ type: 'calendar-refresh' });
 
         // Cross-feature: If calendar block was synced, dispatch recompute
         if (result?.calendar_synced) {
-            window.dispatchEvent(new CustomEvent('schedule-recompute', {
-                detail: { trigger: 'todo_completed', todoId }
-            }));
+            dispatchAppEvent({
+                type: 'schedule-recompute',
+                payload: { source: 'todo_completed' }
+            });
         }
     };
 
@@ -95,13 +98,13 @@ export function useTodos() {
             return t;
         }));
         await apiClient.post('/api/todos', { action: 'update_todo', todoId, ...updates });
-        window.dispatchEvent(new CustomEvent('calendar-refresh'));
+        dispatchAppEvent({ type: 'calendar-refresh' });
     };
 
     const deleteTodo = async (todoId: string) => {
         setTodos(prev => prev.filter(t => t.id !== todoId));
         await apiClient.post('/api/todos', { action: 'delete_todo', todoId });
-        window.dispatchEvent(new CustomEvent('calendar-refresh'));
+        dispatchAppEvent({ type: 'calendar-refresh' });
     };
 
     const reorderTodos = async (reorderedTodos: TodoItem[]) => {

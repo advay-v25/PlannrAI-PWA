@@ -32,7 +32,7 @@ export default function CoreConstraints({ preferences, onChange }: Props) {
                             type="time"
                             value={preferences.wake_time}
                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ wake_time: e.target.value })}
-                            className="bg-transparent"
+                            className="w-full bg-[var(--color-bg-primary)] border border-[var(--glass-border)] rounded-md px-3 py-2 text-sm"
                         />
                     </div>
                     <div className="space-y-2">
@@ -41,7 +41,7 @@ export default function CoreConstraints({ preferences, onChange }: Props) {
                             type="time"
                             value={preferences.sleep_start}
                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ sleep_start: e.target.value })}
-                            className="bg-transparent"
+                            className="w-full bg-[var(--color-bg-primary)] border border-[var(--glass-border)] rounded-md px-3 py-2 text-sm"
                         />
                     </div>
                     <div className="space-y-2">
@@ -50,7 +50,7 @@ export default function CoreConstraints({ preferences, onChange }: Props) {
                             value={String(preferences.wind_down_min)}
                             onValueChange={(v: string) => onChange({ wind_down_min: parseInt(v) })}
                         >
-                            <SelectTrigger className="bg-transparent"><SelectValue /></SelectTrigger>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="15">15 min</SelectItem>
                                 <SelectItem value="30">30 min</SelectItem>
@@ -65,7 +65,7 @@ export default function CoreConstraints({ preferences, onChange }: Props) {
                             value={String(preferences.morning_routine_min ?? 0)}
                             onValueChange={(v: string) => onChange({ morning_routine_min: parseInt(v) })}
                         >
-                            <SelectTrigger className="bg-transparent">
+                            <SelectTrigger>
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -88,7 +88,7 @@ export default function CoreConstraints({ preferences, onChange }: Props) {
                                     breakfast: { start: e.target.value, end: preferences.meal_windows?.breakfast?.end || '10:00' } 
                                 } 
                             })}
-                            className="bg-transparent"
+                            className="w-full bg-[var(--color-bg-primary)] border border-[var(--glass-border)] rounded-md px-3 py-2 text-sm"
                         />
                     </div>
                     <div className="space-y-2">
@@ -102,7 +102,7 @@ export default function CoreConstraints({ preferences, onChange }: Props) {
                                     lunch: { start: e.target.value, end: preferences.meal_windows?.lunch?.end || '15:00' } 
                                 } 
                             })}
-                            className="bg-transparent"
+                            className="w-full bg-[var(--color-bg-primary)] border border-[var(--glass-border)] rounded-md px-3 py-2 text-sm"
                         />
                     </div>
                     <div className="space-y-2">
@@ -116,7 +116,7 @@ export default function CoreConstraints({ preferences, onChange }: Props) {
                                     dinner: { start: e.target.value, end: preferences.meal_windows?.dinner?.end || '21:30' } 
                                 } 
                             })}
-                            className="bg-transparent"
+                            className="w-full bg-[var(--color-bg-primary)] border border-[var(--glass-border)] rounded-md px-3 py-2 text-sm"
                         />
                     </div>
                 </CardContent>
@@ -126,17 +126,14 @@ export default function CoreConstraints({ preferences, onChange }: Props) {
                 <CardHeader>
                     <CardTitle className="text-base">Structure</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                    <div className="flex items-center justify-between">
-                        <div className="space-y-0.5">
-                            <Label>Meals per Day</Label>
-                            <p className="text-xs text-[var(--text-tertiary)]">Reserved blocks for fuel</p>
-                        </div>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                        <Label>Meals per Day</Label>
                         <Select
                             value={String(preferences.meals_per_day)}
                             onValueChange={(v: string) => onChange({ meals_per_day: parseInt(v) as 2 | 3 })}
                         >
-                            <SelectTrigger className="w-[120px] bg-transparent"><SelectValue /></SelectTrigger>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="2">2 Meals</SelectItem>
                                 <SelectItem value="3">3 Meals</SelectItem>
@@ -144,16 +141,13 @@ export default function CoreConstraints({ preferences, onChange }: Props) {
                         </Select>
                     </div>
 
-                    <div className="flex items-center justify-between">
-                        <div className="space-y-0.5">
-                            <Label>Buffer Blocks</Label>
-                            <p className="text-xs text-[var(--text-tertiary)]">Transition time between deep work</p>
-                        </div>
+                    <div className="space-y-2">
+                        <Label>Buffer Blocks</Label>
                         <Select
                             value={String(preferences.buffer_min)}
                             onValueChange={(v: string) => onChange({ buffer_min: parseInt(v) as 5 | 10 | 15 })}
                         >
-                            <SelectTrigger className="w-[120px] bg-transparent"><SelectValue /></SelectTrigger>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="5">5 min</SelectItem>
                                 <SelectItem value="10">10 min</SelectItem>
@@ -162,25 +156,25 @@ export default function CoreConstraints({ preferences, onChange }: Props) {
                         </Select>
                     </div>
 
-                    <div className="flex items-center justify-between pt-4 border-t border-[var(--glass-border)]">
-                        <div className="space-y-0.5">
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between mb-2">
                             <Label>Weekend Work</Label>
-                            <p className="text-xs text-[var(--text-tertiary)]">Allow scheduling tasks on Sat/Sun</p>
+                            <Switch
+                                checked={preferences.allow_weekend_work}
+                                onCheckedChange={(c: boolean) => onChange({ allow_weekend_work: c, weekend_intensity: c ? 'light' : 'off' })}
+                            />
                         </div>
-                        <Switch
-                            checked={preferences.allow_weekend_work}
-                            onCheckedChange={(c: boolean) => onChange({ allow_weekend_work: c, weekend_intensity: c ? 'light' : 'off' })}
-                        />
+                        <p className="text-xs text-[var(--text-tertiary)]">Allow scheduling tasks on Sat/Sun</p>
                     </div>
 
                     {preferences.allow_weekend_work && (
-                        <div className="flex items-center justify-between pl-4 border-l-2 border-[var(--glass-border)]">
-                            <Label className="text-sm font-normal text-[var(--text-secondary)]">Intensity</Label>
+                        <div className="space-y-2">
+                            <Label>Weekend Intensity</Label>
                             <Select
                                 value={preferences.weekend_intensity}
                                 onValueChange={(v: string) => onChange({ weekend_intensity: v as 'light' | 'normal' })}
                             >
-                                <SelectTrigger className="w-[120px] h-8 text-xs bg-transparent"><SelectValue /></SelectTrigger>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="light">Light Mode</SelectItem>
                                     <SelectItem value="normal">Full Speed</SelectItem>

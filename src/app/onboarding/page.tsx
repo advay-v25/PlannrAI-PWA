@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useOnboardingStore } from '@/stores';
 import { createClient } from '@/lib/supabase/client';
 import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
 
 // New Step Components
 import { Step1Identity } from '@/components/onboarding/steps/step-1-identity';
@@ -45,22 +46,22 @@ export default function OnboardingPage() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error('Not authenticated');
 
-            const response = await fetch('/api/onboarding/complete', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
+            const completeRes = await apiClient.post<any>('/api/onboarding/complete', data);
 
-            const result = await response.json();
-            // result is an ApiEnvelope: { ok: true, data: {...}, error?: {...} }
-            if (!response.ok || !result.ok) {
-                const errorMsg = result.error?.message || result.error || `API Error: ${response.status}`;
-                throw new Error(errorMsg);
-            }
+            // If it succeeds, completeRes contains the data directly. Error throws automatically.
 
             // Mark session as complete client-side too
             await supabase.auth.updateUser({ data: { onboarding_complete: true } });
 
+            // Generate initial schedule if not skipped
+            if (data.selected_variant_id !== 'skip') {
+                try {
+                    await apiClient.post<any>('/api/onboarding/generate-initial', { selected_variant_id: data.selected_variant_id });
+                } catch (genErr) {
+                    console.error('Initial schedule generation failed, but onboarding is complete', genErr);
+                    // We don't throw here, let them go to the calendar and retry generating later if needed
+                }
+            }
             router.push('/app/calendar?setup=complete');
             setTimeout(() => reset(), 2000);
 
@@ -94,44 +95,41 @@ export default function OnboardingPage() {
     };
 
     return (
-        <div className="min-h-screen relative flex flex-col items-center justify-center p-4 overflow-hidden bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-950/40 via-neutral-950 to-neutral-950 text-white selection:bg-white/30 selection:text-white font-[family-name:var(--font-geist-sans)]">
+        <div className="min-h-screen relative flex flex-col items-center justify-center p-4 overflow-hidden bg-[#020106] text-white font-sans selection:bg-purple-500/30 selection:text-white">
             
-            {/* Dynamic Ambient Background */}
-            <DynamicBackground variant="onboarding" />
+            {/* Premium Subtle Ambient Background */}
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(15,10,35,0.8)_0%,rgba(2,1,6,1)_100%)] pointer-events-none" />
+            <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-purple-900/10 rounded-full blur-[150px] pointer-events-none" />
+            <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-fuchsia-900/10 rounded-full blur-[150px] pointer-events-none" />
 
             <div className="relative z-10 w-full max-w-3xl flex flex-col items-center min-h-[700px] py-10">
 
-                {/* Minimalist Progress Header */}
-                <div className="w-full flex justify-center mb-12 px-2">
-                    <div className="flex items-center justify-between w-full max-w-md bg-[var(--glass-bg)] border border-[var(--glass-border)] px-6 py-3.5 rounded-full backdrop-blur-xl shadow-2xl">
-                        <span className="text-[10px] font-bold font-mono uppercase tracking-widest text-[var(--text-tertiary)] w-16 text-left">
-                            <span className="text-[var(--text-primary)]">S_{currentStep + 1}</span>/{STEPS.length}
+                {/* Premium Minimalist Progress Header */}
+                <div className="w-full flex justify-center mb-16 px-2">
+                    <div className="flex flex-col items-center w-full max-w-md">
+                        <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-purple-400/80 mb-4">
+                            Step {currentStep + 1} of {STEPS.length}
                         </span>
                         
-                        <div className="flex gap-2">
+                        <div className="flex gap-3 w-full mb-6">
                             {STEPS.map((_, i) => (
                                 <div 
                                     key={i} 
-                                    className={`h-1.5 rounded-full transition-all duration-700 ease-in-out ${
+                                    className={`h-1 rounded-full transition-all duration-700 ease-in-out flex-1 ${
                                         i === currentStep 
-                                            ? 'w-8 bg-[var(--color-primary)] shadow-[0_0_12px_var(--color-primary-glow)]' 
+                                            ? 'bg-gradient-to-r from-purple-500 to-fuchsia-500 shadow-[0_0_15px_rgba(168,85,247,0.5)]' 
                                             : i < currentStep 
-                                                ? 'w-4 bg-[var(--color-primary)]/40' 
-                                                : 'w-2 bg-[var(--text-muted)]/20'
+                                                ? 'bg-purple-500/30' 
+                                                : 'bg-white/5'
                                     }`} 
                                 />
                             ))}
                         </div>
 
-                        <span className="text-[10px] font-bold font-mono uppercase tracking-widest text-[var(--text-tertiary)] w-16 text-right truncate">
+                        <h2 className="text-2xl md:text-3xl font-light tracking-tight text-white/90">
                             {currentStepDef.title}
-                        </span>
+                        </h2>
                     </div>
-                </div>
-
-                <div className="absolute top-6 right-6 px-3 py-1.5 bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-full flex items-center gap-2 backdrop-blur-md z-20">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-[10px] font-mono font-bold tracking-widest uppercase text-[var(--text-secondary)]">Basic Plan</span>
                 </div>
 
                 {/* Main Content Area */}
@@ -171,7 +169,7 @@ export default function OnboardingPage() {
                         onClick={prevStep}
                         disabled={isFirstStep || isSaving}
                         className={`
-                            group flex items-center gap-2 text-[10px] uppercase font-bold transition-all duration-300 font-mono tracking-widest px-4 py-3 rounded-xl border border-transparent hover:border-white/10 hover:bg-white/5
+                            group flex items-center gap-2 text-xs font-medium transition-all duration-300 tracking-wide px-4 py-3 rounded-xl border border-transparent hover:border-white/10 hover:bg-white/5
                             ${(isFirstStep || isSaving)
                                 ? 'opacity-0 pointer-events-none'
                                 : 'text-white/40 hover:text-white'
@@ -179,13 +177,13 @@ export default function OnboardingPage() {
                         `}
                     >
                         <ArrowLeft className="w-4 h-4 transition-transform duration-300 group-hover:-translate-x-1 border-[1.5px] rounded-full p-0.5" />
-                        <span>PREV</span>
+                        <span className="text-xs font-medium tracking-wide">Previous</span>
                     </button>
 
                     <button
                         onClick={handleNext}
                         disabled={isSaving}
-                        className="group relative px-10 py-4 md:py-5 rounded-full text-sm font-black tracking-widest uppercase text-black bg-white hover:scale-105 active:scale-95 transition-all duration-300 shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-[0_0_40px_rgba(255,255,255,0.4)] disabled:opacity-50 disabled:pointer-events-none overflow-hidden"
+                        className="group relative px-10 py-4 md:py-5 rounded-full text-sm font-semibold tracking-wide text-black bg-white hover:scale-105 active:scale-95 transition-all duration-300 shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-[0_0_40px_rgba(255,255,255,0.4)] disabled:opacity-50 disabled:pointer-events-none overflow-hidden"
                     >
                         {/* Shimmer effect */}
                         <div className="absolute inset-0 block w-full h-full transform -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/50 to-transparent" />
@@ -193,13 +191,13 @@ export default function OnboardingPage() {
                         {isSaving ? (
                             <div className="flex items-center justify-center gap-3 relative z-10 w-[140px]">
                                 <Loader2 className="w-5 h-5 animate-spin" />
-                                <span className="font-mono text-[10px] sm:text-xs">INITIALIZING OS...</span>
+                                <span className="text-sm font-medium">Setting up account...</span>
                             </div>
                         ) : isLastStep ? (
-                            <span className="relative z-10 px-4">ACTIVATE OS</span>
+                            <span className="relative z-10 px-4">Go to Dashboard</span>
                         ) : (
                             <span className="flex items-center justify-center gap-3 relative z-10 w-[140px]">
-                                <span>NEXT</span>
+                                <span className="font-medium tracking-wide text-sm">Next</span>
                                 <div className="bg-black/10 rounded-full p-1 transition-transform duration-300 group-hover:translate-x-1">
                                     <ArrowRight className="w-4 h-4 ml-0.5" />
                                 </div>

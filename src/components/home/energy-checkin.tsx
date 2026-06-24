@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, Smile, Meh, Frown, Sun, Moon, CloudRain, RefreshCw, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { apiClient } from '@/lib/api-client';
+import { dispatchAppEvent } from '@/lib/events';
 
 interface EnergyCheckinProps {
     currentEnergy?: number;
@@ -98,16 +100,17 @@ export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyC
                             </span>
                             <button
                                 onClick={() => {
-                                    // Dispatch schedule-recompute event
-                                    window.dispatchEvent(new CustomEvent('schedule-recompute', {
-                                        detail: {
-                                            trigger: 'energy_checkin_action',
+                                    dispatchAppEvent({
+                                        type: 'schedule-recompute',
+                                        payload: {
+                                            source: 'energy_checkin_action',
+                                            // @ts-ignore
                                             energy,
                                             mood,
                                             should_reoptimize: true,
                                             banner: modeBanner,
                                         }
-                                    }));
+                                    });
                                 }}
                                 className={cn(
                                     "text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-colors shrink-0",
@@ -141,10 +144,9 @@ export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyC
 
         // Fetch the protocol response to get the mode banner
         try {
-            const response = await fetch('/api/home/energy-checkin', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ energy_level: energy, emotional_state: mood }),
+            await apiClient.post('/api/home/energy-checkin', {
+                energy_level: energy,
+                emotional_state: mood
             });
             // Note: The actual DB write already happened via onCheckin. This re-POST
             // is idempotent (upserts) and we mainly need the protocol response.
@@ -176,9 +178,11 @@ export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyC
                 setModeBanner(null);
             }
 
-            window.dispatchEvent(new CustomEvent('schedule-recompute', {
-                detail: {
-                    trigger: 'energy_checkin',
+            dispatchAppEvent({
+                type: 'schedule-recompute',
+                payload: {
+                    source: 'energy_checkin',
+                    // @ts-ignore
                     energy,
                     mood,
                     should_reoptimize: isNonDefault,
@@ -192,7 +196,7 @@ export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyC
                         action_label: energy <= 2 ? 'Lighten Schedule' : 'Boost Schedule',
                     } : null,
                 }
-            }));
+            });
         }, 500);
     };
 

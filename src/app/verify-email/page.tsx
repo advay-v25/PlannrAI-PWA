@@ -13,11 +13,8 @@ export default function VerifyEmailPage() {
             <div className="absolute top-1/4 -left-20 w-[500px] h-[500px] bg-orange-500/10 rounded-full blur-[150px]" />
             <div className="absolute bottom-1/4 -right-20 w-[500px] h-[500px] bg-orange-600/5 rounded-full blur-[150px]" />
 
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-                className="w-full max-w-md relative z-10"
+            <div
+                className="w-full max-w-md relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-700 fill-mode-both"
             >
                 <GlassCard variant="glow" padding="lg" className="border-white/10 shadow-2xl text-center">
                     <div className="relative z-10">
@@ -60,7 +57,7 @@ export default function VerifyEmailPage() {
                         </div>
                     </div>
                 </GlassCard>
-            </motion.div>
+            </div>
         </div>
     );
 }

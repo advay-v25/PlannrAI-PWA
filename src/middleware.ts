@@ -100,6 +100,18 @@ export async function middleware(request: NextRequest) {
             }
         }
 
+        // CSRF Token Generation
+        const csrfCookie = request.cookies.get('csrf_token');
+        if (!csrfCookie) {
+            const token = crypto.randomUUID();
+            supabaseResponse.cookies.set('csrf_token', token, {
+                httpOnly: false, // JS needs to read this for Double Submit
+                path: '/',
+                sameSite: 'lax',
+                secure: process.env.NODE_ENV === 'production',
+            });
+        }
+
         return supabaseResponse;
     } catch (e) {
         console.error('[Middleware Error]:', e);

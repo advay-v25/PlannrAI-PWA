@@ -1,17 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/toast";
 import { Toaster } from "sonner";
 import { ApiDiagnostics } from "@/components/debug/api-diagnostics";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ThemeProvider } from "@/components/theme-provider";
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "PlannrAI - Build how you want to, adapt when you need to",
@@ -52,7 +45,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
       <body
-        className={`${inter.variable} font-sans antialiased tracking-tight`}
+        className="font-sans antialiased tracking-tight"
         suppressHydrationWarning
       >
         <ThemeProvider

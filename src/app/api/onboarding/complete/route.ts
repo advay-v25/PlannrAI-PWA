@@ -1,8 +1,31 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { createClient } from '@supabase/supabase-js';
+import { z } from 'zod';
+
+const onboardingSchema = z.object({
+    full_name: z.string().min(1, 'Name is required'),
+    timezone: z.string().optional(),
+    sleep_start: z.string().min(1, 'Sleep start is required'),
+    sleep_end: z.string().min(1, 'Sleep end is required'),
+    wind_down_mins: z.number().optional().default(30),
+    morning_routine_mins: z.number().optional().default(0),
+    meals_per_day: z.number().optional().default(3),
+    meal_timing: z.string().optional(),
+    default_buffer_duration: z.number().optional().default(10),
+    custom_meal_times: z.record(z.string(), z.string()).optional(),
+    commitments: z.array(z.any()).optional().default([]),
+    goals: z.array(z.any()).optional().default([]),
+    failure_modes: z.array(z.string()).optional().default([]),
+    selected_variant_id: z.string().optional(),
+});
 
 export const POST = secureApiRoute(
     async (context, body) => {
+        const parsed = onboardingSchema.safeParse(body);
+        if (!parsed.success) {
+            return apiError('Validation failed: ' + (parsed.error as any).errors.map((e: any) => e.message).join(', '), 400);
+        }
+
         const {
             full_name, timezone,
             sleep_start, sleep_end, wind_down_mins, morning_routine_mins,
@@ -10,7 +33,7 @@ export const POST = secureApiRoute(
             two_meals_selection, custom_meal_times,
             commitments, goals, failure_modes,
             selected_variant_id
-        } = body as any;
+        } = parsed.data as any;
 
         const addMinsToTime = (timeStr: string, mins: number) => {
             if (!timeStr) return '';
@@ -20,11 +43,6 @@ export const POST = secureApiRoute(
             const newM = totalMins % 60;
             return `${newH.toString().padStart(2, '0')}:${newM.toString().padStart(2, '0')}`;
         };
-
-        // Basic validation
-        if (!full_name || !sleep_start || !sleep_end) {
-            return apiError('Identity and sleep times are required');
-        }
 
         let supabase = context.supabase;
         const userId = context.userId;
@@ -77,7 +95,6 @@ export const POST = secureApiRoute(
         // Build explicit meal windows based on UI selections
         const meal_windows: Record<string, any> = {};
         const isTwoMeals = meals_per_day === 2;
-        
         if (!isTwoMeals || (isTwoMeals && two_meals_selection?.includes('breakfast'))) {
             meal_windows.breakfast = {
                 start: custom_meal_times?.breakfast || '08:00',
@@ -172,68 +189,9 @@ export const POST = secureApiRoute(
             }
         }
 
-        // 4. Trigger Initial Schedule Generation
-        const { buildCalendarContext } = await import('@/lib/calendar/context-builder');
-        const { generateWeekPlan } = await import('@/lib/calendar/ai/plan-week');
-        const { PatchService } = await import('@/lib/services/patch-service');
-        
-        const today = new Date().toISOString().split('T')[0];
-        let blocksCreated = 0;
-
-        try {
-            const calendarCtx = await buildCalendarContext(effectiveUserId, supabase as any);
-            
-            // Map selected variant to generation mode
-            const modeMap: Record<string, 'balanced' | 'momentum' | 'recovery'> = {
-                balanced: 'balanced',
-                intense: 'momentum',
-                recovery: 'recovery',
-            };
-            const genMode = modeMap[selected_variant_id || 'balanced'] || 'balanced';
-            
-            const variants = await generateWeekPlan(calendarCtx, today, genMode, true);
-
-            if (variants.length > 0) {
-                const bestVariant = variants[0]; // Take standard balanced variant
-                
-                const calendarPatch = {
-                    ops: bestVariant.blocks.map((b: any) => ({
-                        op: 'create_event' as const,
-                        payload: {
-                            date: b.date,
-                            start_time: b.start_time,
-                            end_time: b.end_time,
-                            title: b.title,
-                            block_type: b.block_type,
-                            goal_id: b.goal_id || null,
-                            pillar: b.pillar || null,
-                            status: 'planned',
-                            checklist: b.checklist || null,
-                        }
-                    })),
-                    scope: 'week' as const,
-                    reason: 'Onboarding initial schedule generation',
-                };
-
-                // Use 'coach' source to bypass standard user constraints during initial setup
-                const patchResult = await PatchService.applyPatch(effectiveUserId, calendarPatch as any, supabase as any, 'coach');
-                if (!patchResult.success) {
-                    console.error('Initial schedule patch failed:', patchResult.errors);
-                    throw new Error(`Schedule generation failed: ${patchResult.errors.join(', ')}`);
-                }
-                blocksCreated = bestVariant.blocks.length;
-            } else {
-                throw new Error('Failed to generate any schedule variants. Please check your constraints.');
-            }
-        } catch (genError: any) {
-            console.error('Initial schedule generation failed:', genError);
-            throw new Error(`AI Calendar Planning Error: ${genError.message}`);
-        }
-
         return apiSuccess({
             success: true,
-            message: 'Onboarding completed successfully',
-            blocksCreated
+            message: 'Onboarding completed successfully'
         });
     },
     { requireAuth: process.env.NODE_ENV !== 'development', auditAction: 'onboarding_complete' }

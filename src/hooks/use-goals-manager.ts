@@ -3,6 +3,7 @@ import { useGoalsStore, useUserStore } from '@/stores'; // Assuming these exist
 import { apiClient } from '@/lib/api-client';
 import { useToast } from '@/components/ui/toast';
 import type { Goal } from '@/types/database';
+import { dispatchAppEvent } from '@/lib/events';
 
 export interface GoalCapacity {
     total_minutes: number;
@@ -33,13 +34,14 @@ export function useGoalsManager() {
             const res = await apiClient.put<{ goal: Goal, scheduleChanged: boolean }>('/api/goals', { id, ...updates });
             // Refresh to get updated capacity if schedule changed or goal updated
             fetchGoals();
-            window.dispatchEvent(new CustomEvent('calendar-refresh'));
+            dispatchAppEvent({ type: 'calendar-refresh' });
 
             // Cross-feature: Notify schedule sync when goal is paused/resumed
             if ('status' in updates || 'is_paused' in updates) {
-                window.dispatchEvent(new CustomEvent('schedule-recompute', {
-                    detail: { trigger: 'goal_paused', goalId: id }
-                }));
+                dispatchAppEvent({
+                    type: 'schedule-recompute',
+                    payload: { source: 'goal_paused' }
+                });
             }
             
             showToast('✅ Changes saved. Calendar updated.', 'success');
@@ -63,7 +65,7 @@ export function useGoalsManager() {
             await apiClient.delete('/api/goals', { id });
             showToast('🗑️ Goal deleted. Calendar updated.', 'info');
             fetchGoals(); // Refresh capacity
-            window.dispatchEvent(new CustomEvent('calendar-refresh'));
+            dispatchAppEvent({ type: 'calendar-refresh' });
             import('@/hooks/use-coach').then(({ useCoach }) => {
                 useCoach.getState().refreshContext().catch(console.error);
             });
@@ -80,11 +82,12 @@ export function useGoalsManager() {
                 addGoal(response.goal);
                 showToast('✅ Goal created! Calendar updated.', 'success');
                 fetchGoals(); // Refresh capacity
-                window.dispatchEvent(new CustomEvent('calendar-refresh'));
+                dispatchAppEvent({ type: 'calendar-refresh' });
                 // Cross-feature: Notify schedule sync about new goal
-                window.dispatchEvent(new CustomEvent('schedule-recompute', {
-                    detail: { trigger: 'goal_created', goalId: response.goal.id, goalTitle: response.goal.title }
-                }));
+                dispatchAppEvent({
+                    type: 'schedule-recompute',
+                    payload: { source: 'goal_created' }
+                });
                 import('@/hooks/use-coach').then(({ useCoach }) => {
                     useCoach.getState().refreshContext().catch(console.error);
                 });

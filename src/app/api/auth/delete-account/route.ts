@@ -1,34 +1,27 @@
-import { createClient } from '@/lib/supabase/server';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
-import { NextResponse } from 'next/server';
+import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
+import { z } from 'zod';
 
-export async function POST(request: Request) {
-    // 1. Authenticate
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+const deleteAccountSchema = z.object({
+    confirm: z.literal('delete', {
+        message: 'Confirmation required. Please type "delete" to confirm.'
+    })
+});
 
-    if (!user || authError) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+export const POST = secureApiRoute(async (context, rawBody) => {
+    const { user } = context;
 
-    // 2. Validate Confirmation payload
-    try {
-        const body = await request.json();
-        if (!body || body.confirm !== 'delete') {
-            return NextResponse.json(
-                { error: 'Confirmation required. Please type "delete" to confirm.' },
-                { status: 400 }
-            );
-        }
-    } catch {
-        return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    const parsed = deleteAccountSchema.safeParse(rawBody);
+
+    if (!parsed.success) {
+        return apiError(parsed.error.issues[0].message, 400, 'VALIDATION_ERROR');
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!serviceRoleKey) {
-        return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+        return apiError('Server configuration error', 500, 'SERVER_ERROR');
     }
 
     const admin = createAdminClient(supabaseUrl, serviceRoleKey, {
@@ -46,12 +39,9 @@ export async function POST(request: Request) {
 
     if (deleteError) {
         console.error('[DeleteAccount] Auth user deletion failed:', deleteError);
-        return NextResponse.json(
-            { error: 'Failed to delete user account: ' + deleteError.message },
-            { status: 500 }
-        );
+        return apiError('Failed to delete user account: ' + deleteError.message, 500, 'DELETION_FAILED');
     }
 
     console.log(`[DeleteAccount] Account and all cascaded data successfully deleted for user: ${userId}`);
-    return NextResponse.json({ success: true });
-}
+    return apiSuccess({ success: true });
+}, { requireAuth: true, requireCsrf: true, rateLimit: 'userStrict', auditAction: 'delete_account' });

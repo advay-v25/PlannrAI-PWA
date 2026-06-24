@@ -33,30 +33,16 @@ setup('authenticate', async ({ page }) => {
     }).eq('id', testUser.id);
     if (profileError) throw profileError;
 
-    process.stdout.write('Signing in to get session...\n');
-    const { data: { session }, error: signInError } = await supabase.auth.signInWithPassword({
-        email: testEmail,
-        password: testPassword
-    });
-    if (signInError) throw signInError;
-    if (!session) throw new Error('No session');
-
-    // Sync via in-page fetch
-    process.stdout.write('Syncing session via browser fetch...\n');
+    process.stdout.write('Logging in via UI...\n');
     await page.goto('/login');
-    const syncResult = await page.evaluate(async ({ session, secret }) => {
-        const res = await fetch('/api/auth/session', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session, secret })
-        });
-        return res.ok;
-    }, { session, secret: 'e2e-debug-secret-99' });
-
-    if (!syncResult) throw new Error('In-browser session sync failed');
-
-    process.stdout.write('Navigating to /app...\n');
-    await page.goto('/app');
+    
+    // Switch to login tab if needed (assuming there's a login/signup toggle)
+    // Wait for the email input
+    await page.waitForSelector('input[type="email"]');
+    
+    await page.fill('input[type="email"]', testEmail);
+    await page.fill('input[type="password"]', testPassword);
+    await page.click('button[type="submit"]');
 
     process.stdout.write('Waiting for /app URL...\n');
     await expect(page).toHaveURL(/.*\/app/, { timeout: 30000 });

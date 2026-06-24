@@ -3,23 +3,23 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Plus, Trash2, Edit3, Clock, Loader2, X, Check } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
+import { dispatchAppEvent } from '@/lib/events';
 
 interface Commitment {
     id: string;
     title: string;
     start_time: string;
     end_time: string;
-    days_of_week: number[];
-    is_active: boolean;
+    days_of_week: number[] | null;
+    is_active: boolean | null;
 }
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const DAY_NUM_MAP: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 0 };
 
 export default function CommitmentsManager() {
-    const supabase = createClient();
     const [commitments, setCommitments] = useState<Commitment[]>([]);
     const [loading, setLoading] = useState(true);
     const [isAdding, setIsAdding] = useState(false);
@@ -34,16 +34,15 @@ export default function CommitmentsManager() {
     useEffect(() => { loadCommitments(); }, []);
 
     const loadCommitments = async () => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        const { data } = await supabase
-            .from('commitments')
-            .select('*')
-            .eq('user_id', user.id)
-            .eq('is_active', true)
-            .order('start_time');
-        setCommitments(data || []);
-        setLoading(false);
+        try {
+            const data = await apiClient.schedule.getCommitments();
+            setCommitments(data.commitments?.filter(c => c.is_active) || []);
+        } catch (error) {
+            console.error('Failed to load commitments:', error);
+            toast.error('Failed to load commitments');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const resetForm = () => {
@@ -60,48 +59,46 @@ export default function CommitmentsManager() {
             toast.error('Enter a title and select days');
             return;
         }
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        const payload = {
-            user_id: user.id,
-            title: title.trim(),
-            start_time: startTime,
-            end_time: endTime,
-            days_of_week: days.map(d => DAY_NUM_MAP[d]),
-            is_active: true
-        };
-
-        let err = null;
-        if (editId) {
-            const res = await supabase.from('commitments').update(payload).eq('id', editId);
-            err = res.error;
-            if (!err) toast.success('Commitment updated');
-        } else {
-            const res = await supabase.from('commitments').insert(payload);
-            err = res.error;
-            if (!err) toast.success('Commitment added');
-        }
-
-        if (err) {
+        try {
+            if (editId) {
+                await apiClient.schedule.updateCommitment({
+                    id: editId,
+                    title: title.trim(),
+                    start_time: startTime,
+                    end_time: endTime,
+                    days_of_week: days.map(d => DAY_NUM_MAP[d]),
+                    is_active: true
+                });
+                toast.success('Commitment updated');
+            } else {
+                await apiClient.schedule.createCommitment({
+                    title: title.trim(),
+                    start_time: startTime,
+                    end_time: endTime,
+                    days_of_week: days.map(d => DAY_NUM_MAP[d])
+                });
+                toast.success('Commitment added');
+            }
+        } catch (err: any) {
             toast.error(err.message || 'Failed to save commitment');
             return;
         }
 
         resetForm();
         loadCommitments();
-        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('calendar-refresh'));
+        if (typeof window !== 'undefined') dispatchAppEvent({ type: 'calendar-refresh' });
     };
 
     const handleDelete = async (id: string) => {
-        const { error } = await supabase.from('commitments').update({ is_active: false }).eq('id', id);
-        if (error) {
+        try {
+            await apiClient.schedule.updateCommitment({ id, is_active: false });
+        } catch (error: any) {
             toast.error(error.message || 'Failed to remove commitment');
             return;
         }
         toast.success('Commitment removed');
         loadCommitments();
-        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('calendar-refresh'));
+        if (typeof window !== 'undefined') dispatchAppEvent({ type: 'calendar-refresh' });
     };
 
     const startEdit = (c: any) => {
@@ -118,8 +115,15 @@ export default function CommitmentsManager() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center py-20">
-                <Loader2 className="w-6 h-6 animate-spin text-[var(--color-primary)]" />
+            <div className="space-y-6 animate-pulse">
+                <div className="flex justify-between items-center">
+                    <div className="h-8 w-48 bg-[var(--glass-border)] rounded-md"></div>
+                    <div className="h-10 w-24 bg-[var(--glass-border)] rounded-lg"></div>
+                </div>
+                <div className="space-y-4">
+                    <div className="h-32 w-full bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-2xl"></div>
+                    <div className="h-32 w-full bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-2xl"></div>
+                </div>
             </div>
         );
     }

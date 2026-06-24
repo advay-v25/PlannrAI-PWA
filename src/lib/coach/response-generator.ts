@@ -9,29 +9,7 @@ import {
     buildGoalProgressFragment
 } from '@/lib/calendar/flow-protocol';
 
-// ============ RESPONSE SCHEMA ============
-
-export interface MutationLedger {
-    ops: any[];
-    reason?: string;
-}
-
-export interface ProposedOption {
-    id: string;
-    title: string;
-    impact: string;
-    ledger: MutationLedger;
-}
-
-export interface CoachResponse {
-    dialogue_response: string;
-    system_state_flag: 'NORMAL' | 'RECOVERY' | 'CASCADE_WARNING';
-    execution_mode: 'AUTO_EXECUTE' | 'PROPOSE_OPTIONS';
-    executed_ledger: MutationLedger | null;
-    proposed_options: ProposedOption[] | null;
-    contextual_options: string[];
-    focus_node_id: string | null;
-}
+import { CoachResponse, ProposedOption, MutationLedger } from '@/types/coach-v4';
 
 type PatchOperation =
     | { type: 'create_block'; data: NewBlockData }
