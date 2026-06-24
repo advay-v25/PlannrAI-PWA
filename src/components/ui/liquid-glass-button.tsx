@@ -84,7 +84,7 @@ export function LiquidGlassButton({
     onHoverEnd: () => setIsHovered(false),
     whileHover: disabled ? undefined : { scale: 1.03, ...(variantHover[variant] as any) },
     whileTap: disabled ? undefined : { scale: 0.97 },
-    transition: { type: 'spring', stiffness: 200, damping: 25, mass: 1.2 }
+    transition: { type: 'spring' as const, stiffness: 200, damping: 25, mass: 1.2 }
   };
 
   const content = (
