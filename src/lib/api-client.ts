@@ -149,7 +149,6 @@ export const apiClient = {
 
                 if (!isRetryable || attempt === MAX_RETRIES) {
                     if (throwOnError) {
-                        console.error(`API Call Failed [${endpoint}]`, error);
                         throw error;
                     }
                     return {} as T;

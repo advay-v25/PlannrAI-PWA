@@ -626,17 +626,22 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                             {message.role === 'assistant' &&
                                 message.options &&
                                 message.options.length > 0 &&
-                                !message.selected_option_id &&
                                 !message.isApplying && (
                                 <div className="pl-2 space-y-2">
-                                    {message.options.map(opt => (
-                                        <InlineOptionCard
-                                            key={opt.id}
-                                            option={opt}
-                                            onSelect={() => handleOptionSelect(opt, message.id || '')}
-                                            disabled={isApplyingChanges || showLoadingIndicator}
-                                        />
-                                    ))}
+                                    {message.options.map(opt => {
+                                        const isOldChat = index < allMessages.length - 1;
+                                        const isAlreadySelected = !!message.selected_option_id;
+                                        const isDisabled = isApplyingChanges || showLoadingIndicator || isOldChat || isAlreadySelected;
+                                        
+                                        return (
+                                            <InlineOptionCard
+                                                key={opt.id}
+                                                option={opt}
+                                                onSelect={() => handleOptionSelect(opt, message.id || '')}
+                                                disabled={isDisabled}
+                                            />
+                                        );
+                                    })}
                                 </div>
                             )}
 

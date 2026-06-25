@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { PatchService } from '@/lib/services/patch-service';
 import { buildCoachContext } from '@/lib/coach/context-builder';
@@ -210,6 +211,11 @@ ${JSON.stringify({
         );
 
         // Graceful degradation: if SOME ops succeeded but others failed, still return success
+        const supabaseAdmin = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+
         if (result.changes > 0 && result.errors.length > 0) {
             console.warn('[Coach Apply] Partial success:', result.changes, 'applied,', result.errors.length, 'failed:', result.errors);
             
@@ -219,7 +225,7 @@ ${JSON.stringify({
                     conversation_id,
                     option_id,
                     result.undo_token,
-                    supabase
+                    supabaseAdmin
                 );
             }
 
@@ -249,7 +255,7 @@ ${JSON.stringify({
                 conversation_id,
                 option_id,
                 result.undo_token,
-                supabase
+                supabaseAdmin
             );
         }
 
