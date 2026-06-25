@@ -64,9 +64,20 @@ export const apiClient = {
         if (typeof document !== 'undefined') {
             const method = (rest.method || 'GET').toUpperCase();
             if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
-                const match = document.cookie.match(new RegExp('(^| )csrf_token=([^;]+)'));
-                if (match && match[2]) {
-                    finalHeaders['x-csrf-token'] = match[2];
+                let match = document.cookie.match(new RegExp('(^| )csrf_token=([^;]+)'));
+                let csrfToken = match ? match[2] : null;
+
+                if (!csrfToken) {
+                    // Generate a new CSRF token on the client if missing
+                    csrfToken = (typeof crypto !== 'undefined' && crypto.randomUUID) 
+                        ? crypto.randomUUID() 
+                        : Math.random().toString(36).substring(2) + Date.now().toString(36);
+                    const isProd = typeof window !== 'undefined' && window.location.protocol === 'https:';
+                    document.cookie = `csrf_token=${csrfToken}; path=/; samesite=lax${isProd ? '; secure' : ''}`;
+                }
+
+                if (csrfToken) {
+                    finalHeaders['x-csrf-token'] = csrfToken;
                 }
             }
         }

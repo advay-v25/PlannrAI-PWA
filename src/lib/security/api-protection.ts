@@ -157,6 +157,7 @@ export function secureApiRoute(
                 const csrfHeader = request.headers.get('x-csrf-token');
                 const csrfCookie = request.cookies.get('csrf_token')?.value;
                 if (!csrfHeader || !csrfCookie || csrfHeader !== csrfCookie) {
+                    console.warn(`[CSRF FAILURE] Header: "${csrfHeader}", Cookie: "${csrfCookie}"`);
                     await logSuspiciousActivity(user?.id, 'CSRF validation failed', request, { endpoint: request.url });
                     return apiError('Invalid or missing CSRF token', 403, 'CSRF_FAILED');
                 }
