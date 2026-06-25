@@ -97,7 +97,13 @@ export function secureApiRoute(
         try {
             // 1. Authentication check
             const supabase = await createClient();
-            const { data: { user }, error: authError } = await supabase.auth.getUser();
+            
+            const authHeader = request.headers.get('Authorization');
+            const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+            
+            const { data: { user }, error: authError } = token 
+                ? await supabase.auth.getUser(token)
+                : await supabase.auth.getUser();
 
             if (requireAuth && (!user || authError)) {
                 await logSuspiciousActivity(undefined, 'Unauthenticated API access attempt', request, {
