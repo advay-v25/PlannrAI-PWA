@@ -144,33 +144,56 @@ export const POST = secureApiRoute(
         if (intentClassification.primary_intent === 'move_block' || intentClassification.primary_intent === 'busy_at_time') {
             const msgLower = message.toLowerCase();
             const searchDates: string[] = [];
-            for (let i = -1; i <= 7; i++) {
+            const currentDayOfWeek = new Date(today + 'T12:00:00').getDay();
+            const daysUntilSunday = currentDayOfWeek === 0 ? 0 : 7 - currentDayOfWeek;
+            
+            for (let i = -7; i <= daysUntilSunday; i++) {
                 const dt = new Date(today + 'T12:00:00');
                 dt.setDate(dt.getDate() + i);
                 searchDates.push(dt.toISOString().split('T')[0]);
             }
 
             let targetDate = today;
-            if (/yesterday/i.test(message)) {
+            let explicitDayFound = false;
+
+            if (/\btoday\b/i.test(message)) {
+                explicitDayFound = true;
+                targetDate = today;
+            } else if (/\byesterday\b/i.test(message)) {
                 const yd = new Date(now.getTime() - 86400000);
                 targetDate = dateFormatter.format(yd);
-            } else if (/tomorrow/i.test(message)) {
+                explicitDayFound = true;
+            } else if (/\btomorrow\b/i.test(message)) {
                 const tm = new Date(now.getTime() + 86400000);
                 targetDate = dateFormatter.format(tm);
+                explicitDayFound = true;
             } else {
                 const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
                 for (let di = 0; di < days.length; di++) {
                     if (new RegExp(`\\b${days[di]}\\b`, 'i').test(message)) {
-                        const match = searchDates.find(d => new Date(d + 'T12:00:00').getDay() === di);
-                        if (match) targetDate = match;
+                        let closestMatch = null;
+                        let minDiff = Infinity;
+                        for (const d of searchDates) {
+                            if (new Date(d + 'T12:00:00').getDay() === di) {
+                                const diff = Math.abs(new Date(d + 'T12:00:00').getTime() - new Date(today + 'T12:00:00').getTime());
+                                if (diff < minDiff) {
+                                    minDiff = diff;
+                                    closestMatch = d;
+                                }
+                            }
+                        }
+                        if (closestMatch) {
+                            targetDate = closestMatch;
+                            explicitDayFound = true;
+                        }
                         break;
                     }
                 }
             }
 
-            const nearbyDates = searchDates.filter(d =>
-                Math.abs(new Date(d).getTime() - new Date(targetDate).getTime()) <= 3 * 86400000
-            );
+            const nearbyDates = explicitDayFound
+                ? [targetDate]
+                : searchDates.filter(d => Math.abs(new Date(d).getTime() - new Date(targetDate).getTime()) <= 3 * 86400000);
 
             const { data: candidates } = await supabase
                 .from('schedule_blocks')
@@ -207,6 +230,7 @@ export const POST = secureApiRoute(
                     }
                     if (b.status === 'missed') score += 3;
                     if (b.date === today) score += 1;
+                    if (b.date === targetDate) score += 10; // Massive bonus for matching the requested day
                     return { block: b, score };
                 });
                 scored.sort((a: any, b: any) => b.score - a.score);
@@ -274,13 +298,17 @@ export const POST = secureApiRoute(
             }
         }
 
+        const mappedMode = response.execution_mode === 'PROPOSE_OPTIONS' ? 'propose' 
+            : response.execution_mode === 'AUTO_EXECUTE' ? 'auto' 
+            : 'normal';
+
         await supabase.from('coach_messages').insert({
             conversation_id: conversationId,
             user_id: user.id,
             role: 'assistant',
             content: response.dialogue_response || (response as any).summary,
             intent: intentClassification.primary_intent,
-            mode: response.execution_mode || (response as any).mode,
+            mode: mappedMode,
             options: response.proposed_options || (response as any).options || null,
             created_at: new Date().toISOString(),
         });

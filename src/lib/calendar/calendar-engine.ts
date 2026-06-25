@@ -257,7 +257,8 @@ export class CalendarEngine {
                     date: time.date,
                     start_time: format(time.start, 'HH:mm'),
                     end_time: format(time.end, 'HH:mm'),
-                    user_id: userId
+                    user_id: userId,
+                    _is_modified: true
                 } as unknown as ScheduleBlock);
 
             } else if (opType === 'update_event' || opType === 'move_event' || opType === 'update' || opType === 'move') {
@@ -293,7 +294,8 @@ export class CalendarEngine {
                     ...updates,
                     date: newDate,
                     start_time: newStart,
-                    end_time: newEnd
+                    end_time: newEnd,
+                    _is_modified: true
                 };
 
             } else if (opType === 'delete_event' || opType === 'delete') {
@@ -317,22 +319,25 @@ export class CalendarEngine {
         }
 
         for (const [date, blocks] of Object.entries(groupedByDay)) {
-            // Sort by start time
-            const sorted = blocks.sort((a, b) => {
-                const sA = parseISO(`${a.date}T${a.start_time}`).getTime();
-                const sB = parseISO(`${b.date}T${b.start_time}`).getTime();
-                return sA - sB;
-            });
-
-            for (let i = 0; i < sorted.length - 1; i++) {
-                const b1 = sorted[i];
-                const b2 = sorted[i + 1];
-
-                const b1End = parseISO(`${b1.date}T${b1.end_time}`).getTime();
-                const b2Start = parseISO(`${b2.date}T${b2.start_time}`).getTime();
-
-                if (b1End > b2Start) {
-                    errors.push(`Overlap detected on ${date} between "${b1.title}" (${b1.start_time}-${b1.end_time}) and "${b2.title}" (${b2.start_time}-${b2.end_time}).`);
+            const modifiedBlocks = blocks.filter(b => (b as any)._is_modified);
+            
+            for (const modBlock of modifiedBlocks) {
+                const modStart = parseISO(`${modBlock.date}T${modBlock.start_time}`).getTime();
+                const modEnd = parseISO(`${modBlock.date}T${modBlock.end_time}`).getTime();
+                
+                for (const other of blocks) {
+                    if (modBlock.id === other.id) continue;
+                    
+                    const otherStart = parseISO(`${other.date}T${other.start_time}`).getTime();
+                    const otherEnd = parseISO(`${other.date}T${other.end_time}`).getTime();
+                    
+                    if (Math.max(modStart, otherStart) < Math.min(modEnd, otherEnd)) {
+                        const errMsg = `Overlap detected on ${date} between "${modBlock.title}" (${modBlock.start_time}-${modBlock.end_time}) and "${other.title}" (${other.start_time}-${other.end_time})`;
+                        const inverseMsg = `Overlap detected on ${date} between "${other.title}" (${other.start_time}-${other.end_time}) and "${modBlock.title}" (${modBlock.start_time}-${modBlock.end_time})`;
+                        if (!errors.includes(errMsg) && !errors.includes(inverseMsg)) {
+                            errors.push(errMsg);
+                        }
+                    }
                 }
             }
         }

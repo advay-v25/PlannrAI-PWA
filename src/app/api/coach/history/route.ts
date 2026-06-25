@@ -52,10 +52,35 @@ export const GET = secureApiRoute(async (context) => {
         .select('id, role, content, mode, options, selected_option_id, patch_version_id, created_at')
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: true })
-        .limit(50);
+        .limit(50); // increased limit to load full history
+
+    let finalMessages = messages || [];
+
+    if (finalMessages.length > 0) {
+        const lastMsg = finalMessages[finalMessages.length - 1];
+        if (lastMsg.role === 'assistant' && lastMsg.options && Array.isArray(lastMsg.options) && lastMsg.options.length > 0 && !lastMsg.selected_option_id) {
+            // The chat was abandoned with unselected options.
+            const { data: newMsg } = await supabase
+                .from('coach_messages')
+                .insert({
+                    conversation_id: conversationId,
+                    user_id: user.id,
+                    role: 'assistant',
+                    content: 'No changes applied',
+                    mode: null,
+                    options: null
+                })
+                .select('id, role, content, mode, options, selected_option_id, patch_version_id, created_at')
+                .single();
+
+            if (newMsg) {
+                finalMessages.push(newMsg);
+            }
+        }
+    }
 
     return apiSuccess({
         conversation_id: conversationId,
-        messages: messages || [],
+        messages: finalMessages,
     });
 }, { requireAuth: true, rateLimit: 'userStrict', auditAction: 'fetch_coach_history' });

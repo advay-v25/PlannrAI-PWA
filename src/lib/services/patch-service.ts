@@ -282,6 +282,7 @@ export class PatchService {
         }
 
         const deletedIds = new Set<string>();
+        const modifiedBlockIds = new Set<string>();
 
         // Helper to perform in-memory cascade
         const simulateCascade = (blockId: string, sTime: string, eTime: string, date: string) => {
@@ -313,6 +314,7 @@ export class PatchService {
 
                     block.start_time = newSTime;
                     block.end_time = newETime;
+                    modifiedBlockIds.add(block.id);
 
                     // Recurse cascade
                     simulateCascade(block.id, newSTime, newETime, date);
@@ -369,6 +371,7 @@ export class PatchService {
                 };
 
                 simulatedBlocks.push(newBlock);
+                modifiedBlockIds.add(newId);
 
                 if (source === 'coach') {
                     try {
@@ -417,6 +420,7 @@ export class PatchService {
                 block.start_time = sTime;
                 block.end_time = eTime;
                 block.date = date;
+                modifiedBlockIds.add(block.id);
 
                 if (source === 'coach') {
                     try {
@@ -465,6 +469,7 @@ export class PatchService {
                 block.start_time = sTime;
                 block.end_time = eTime;
                 if (date) block.date = date;
+                modifiedBlockIds.add(block.id);
 
                 if (source === 'coach') {
                     try {
@@ -508,7 +513,9 @@ export class PatchService {
                 const b1End = this.timeToMin(b1.end_time);
                 const b2Start = this.timeToMin(b2.start_time);
                 if (b1End > b2Start) {
-                    errors.push(`Overlap detected on ${date} between "${b1.title}" (${b1.start_time}-${b1.end_time}) and "${b2.title}" (${b2.start_time}-${b2.end_time})`);
+                    if (modifiedBlockIds.has(b1.id) || modifiedBlockIds.has(b2.id)) {
+                        errors.push(`Overlap detected on ${date} between "${b1.title}" (${b1.start_time}-${b1.end_time}) and "${b2.title}" (${b2.start_time}-${b2.end_time})`);
+                    }
                 }
             }
         }
@@ -868,18 +875,80 @@ export class PatchService {
         patchRunId: string,
         supabase: SupabaseClient
     ) {
-        // 1. Update the message
-        await supabase
+        // 1. Find the latest assistant message
+        const { data: latestMsg } = await supabase
             .from('coach_messages')
-            .update({
-                selected_option_id: optionId,
-                patch_version_id: patchRunId, // We use patchRunId as the undo token
-                patch_applied_at: new Date().toISOString()
-            })
+            .select('id, options')
             .eq('conversation_id', conversationId)
             .eq('role', 'assistant')
             .order('created_at', { ascending: false })
-            .limit(1);
+            .limit(1)
+            .single();
+
+        if (latestMsg) {
+            // 2. Update the message
+            const { error: updateErr } = await supabase
+                .from('coach_messages')
+                .update({
+                    selected_option_id: optionId,
+                    patch_version_id: patchRunId // We use patchRunId as the undo token
+                })
+                .eq('id', latestMsg.id);
+
+            if (updateErr) console.error("[PatchService] Update message error:", updateErr);
+
+            // 3. Insert real "Changes applied" message into DB for AI history
+            let finalMsg = "Changes applied.";
+            if (latestMsg.options && Array.isArray(latestMsg.options)) {
+                const opt = latestMsg.options.find((o: any) => o.id === optionId);
+                if (opt) {
+                    let blockTitle = 'The';
+                    let targetTime = '';
+                    let targetDay = '';
+                    let targetDateStr = '';
+                    
+                    const titleMatch = opt.impact?.match(/Moved "(.*?)"/i);
+                    if (titleMatch) blockTitle = titleMatch[1];
+
+                    const ops = opt.ledger?.ops || opt.operations || opt.ops || [];
+                    const moveOp = ops.find((o: any) => o.type === 'move_block' || o.type === 'move' || o.op === 'move_event');
+                    
+                    if (moveOp) {
+                        const newStart = moveOp.new_start || moveOp.to_start || moveOp.start_time;
+                        if (newStart) targetTime = newStart.substring(0, 5);
+                        
+                        const newDate = moveOp.new_date || moveOp.date;
+                        if (newDate && newDate.includes('-')) {
+                            const [yyyy, mm, dd] = newDate.split('-');
+                            const dObj = new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd));
+                            const dWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dObj.getDay()];
+                            targetDay = dWeek;
+                            targetDateStr = `${dd}/${mm}`;
+                        }
+                    }
+
+                    finalMsg = `Changes applied: ${opt.impact}`;
+                    if (targetTime && targetDay && targetDateStr) {
+                        finalMsg = `Changes applied: ${blockTitle} block moved to ${targetTime}, on ${targetDay}, on ${targetDateStr}.`;
+                    }
+                }
+            }
+
+            const { error: insertErr } = await supabase
+                .from('coach_messages')
+                .insert({
+                    conversation_id: conversationId,
+                    user_id: userId,
+                    role: 'assistant',
+                    content: finalMsg,
+                    mode: null,
+                    options: null
+                });
+
+            if (insertErr) console.error("[PatchService] Insert message error:", insertErr);
+        } else {
+            console.warn("[PatchService] No latest assistant message found for conversation:", conversationId);
+        }
 
         // 2. Mark conversation as recently active (replaces non-existent increment_actions_taken RPC)
         try {

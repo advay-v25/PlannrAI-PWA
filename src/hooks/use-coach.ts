@@ -382,12 +382,44 @@ export const useCoach = create<CoachState>()(
             ? `${batchData.applied_operations} change(s) applied, ${batchData.failed_operations} failed: ${(batchData.errors || []).join('; ')}`
             : undefined;
 
+          let finalMsg = `Changes applied: ${option.impact}`;
+          let blockTitle = 'The';
+          let targetTime = '';
+          let targetDay = '';
+          let targetDateStr = '';
+          const titleMatch = option.impact?.match(/Moved "(.*?)"/i);
+          if (titleMatch) blockTitle = titleMatch[1];
+          const moveOp = ops.find((o: any) => o.type === 'move_block' || o.type === 'move' || o.op === 'move_event');
+          if (moveOp) {
+              const newStart = moveOp.new_start || moveOp.to_start || moveOp.start_time;
+              if (newStart) targetTime = newStart.substring(0, 5);
+              const newDate = moveOp.new_date || moveOp.date;
+              if (newDate && newDate.includes('-')) {
+                  const [yyyy, mm, dd] = newDate.split('-');
+                  const dObj = new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd));
+                  const dWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dObj.getDay()];
+                  targetDay = dWeek;
+                  targetDateStr = `${dd}/${mm}`;
+              }
+          }
+          if (targetTime && targetDay && targetDateStr) {
+              finalMsg = `Changes applied: ${blockTitle} block moved to ${targetTime}, on ${targetDay}, on ${targetDateStr}.`;
+          }
+
           set(state => ({
-            messages: state.messages.map(m =>
-              m.id === messageId
-                ? { ...m, selected_option_id: optionId, isApplying: false, undoToken: batchData.undo_token }
-                : m
-            ),
+            messages: [
+              ...state.messages.map(m =>
+                m.id === messageId
+                  ? { ...m, selected_option_id: optionId, isApplying: false, undoToken: batchData.undo_token }
+                  : m
+              ),
+              {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: finalMsg,
+                timestamp: Date.now()
+              } as any
+            ],
             canUndo: !!batchData.undo_token,
             lastUndoToken: batchData.undo_token,
             ...(partialWarning ? { error: partialWarning } : {}),
@@ -486,20 +518,22 @@ export const useCoach = create<CoachState>()(
           const url = conversationId ? `/api/coach/history?id=${conversationId}` : '/api/coach/history';
           const res = await apiClient.get(url) as any;
           if (res?.success && res?.messages && res.messages.length > 0) {
+            let mapped = res.messages.map((m: any) => ({
+              id: m.id,
+              role: m.role,
+              content: m.content,
+              mode: m.mode,
+              execution_mode: m.execution_mode,
+              executed_ledger: m.executed_ledger,
+              suggestedActions: m.suggested_actions,
+              undoToken: m.undo_token,
+              options: m.options,
+              selected_option_id: m.selected_option_id,
+              timestamp: new Date(m.created_at).getTime()
+            }));
+
             set(state => ({
-              messages: res.messages.map((m: any) => ({
-                id: m.id,
-                role: m.role,
-                content: m.content,
-                mode: m.mode,
-                execution_mode: m.execution_mode,
-                executed_ledger: m.executed_ledger,
-                suggestedActions: m.suggested_actions,
-                undoToken: m.undo_token,
-                options: m.options,
-                selected_option_id: m.selected_option_id,
-                timestamp: new Date(m.created_at).getTime()
-              })),
+              messages: mapped,
               conversationId: res.conversation_id,
               lastSync: Date.now()
             }));

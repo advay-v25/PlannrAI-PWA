@@ -3,10 +3,14 @@ import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protect
 export const GET = secureApiRoute(async (context) => {
     const { supabase, user } = context;
 
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
     const { data: conversations, error } = await supabase
         .from('coach_conversations')
         .select('id, primary_topic, last_message_at, created_at, status')
         .eq('user_id', user.id)
+        .gte('last_message_at', sevenDaysAgo.toISOString())
         .order('last_message_at', { ascending: false })
         .limit(20);
 
