@@ -45,6 +45,18 @@ export async function middleware(request: NextRequest) {
             }
         }
 
+        // CSRF Token Generation (Must happen before early returns to support soft navigations)
+        const csrfCookie = request.cookies.get('csrf_token');
+        if (!csrfCookie) {
+            const token = crypto.randomUUID();
+            supabaseResponse.cookies.set('csrf_token', token, {
+                httpOnly: false, // JS needs to read this for Double Submit
+                path: '/',
+                sameSite: 'lax',
+                secure: process.env.NODE_ENV === 'production',
+            });
+        }
+
         // Ignore static files and other api routes for this main auth guard
         if (
             pathname.startsWith('/_next') ||
@@ -99,18 +111,6 @@ export async function middleware(request: NextRequest) {
                 redirectUrl.pathname = isOnboarded ? '/app' : '/onboarding';
                 return NextResponse.redirect(redirectUrl);
             }
-        }
-
-        // CSRF Token Generation
-        const csrfCookie = request.cookies.get('csrf_token');
-        if (!csrfCookie) {
-            const token = crypto.randomUUID();
-            supabaseResponse.cookies.set('csrf_token', token, {
-                httpOnly: false, // JS needs to read this for Double Submit
-                path: '/',
-                sameSite: 'lax',
-                secure: process.env.NODE_ENV === 'production',
-            });
         }
 
         return supabaseResponse;
