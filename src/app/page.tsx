@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Sparkles, ArrowRight, Shield, Heart, Brain, Target, Calendar, BarChart3, Zap } from 'lucide-react';
 import { SciFiEarthBackground } from '@/components/ui/SciFiEarthBackground';
+import { OrbitalScheduleEngine } from '@/components/ui/orbital-schedule-engine';
 import { LiquidGlassButton } from '@/components/ui/liquid-glass-button';
 
 export default function LandingPage() {
@@ -12,23 +13,12 @@ export default function LandingPage() {
       {/* Hero Section */}
       <section className="relative px-4 pt-32 pb-32 overflow-hidden flex flex-col items-center justify-center min-h-[100vh]">
         <div className="max-w-5xl mx-auto text-center relative z-10 flex flex-col items-center mt-10 md:mt-0">
-          {/* Central 3D Logo Element */}
-          <div className="relative inline-flex items-center justify-center w-24 h-24 md:w-28 md:h-28 mb-12 group">
-            {/* Pulsing aura */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/40 via-fuchsia-500/40 to-orange-500/40 rounded-[2rem] blur-2xl opacity-60 group-hover:opacity-100 transition-opacity duration-700 animate-pulse-glow" />
-            
-            {/* Glass core */}
-            <div className="relative w-full h-full rounded-[2rem] bg-white/[0.03] backdrop-blur-3xl border border-white/[0.08] shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_8px_32px_rgba(0,0,0,0.4)] flex items-center justify-center transform transition-all duration-700 hover:scale-105 hover:rotate-2">
-              <Sparkles className="w-10 h-10 md:w-12 md:h-12 text-white/90 drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]" />
-              {/* Refraction highlight */}
-              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent rounded-[2rem] opacity-50" />
-            </div>
-            
-            {/* Sci-fi indicator */}
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-purple-400 shadow-[0_0_12px_rgba(192,132,252,0.8)] animate-pulse" />
+          {/* Tactical Orbital Schedule Engine Centerpiece */}
+          <div className="relative w-full h-[500px] mb-8 md:mb-16 z-20 flex justify-center items-center">
+            <OrbitalScheduleEngine className="absolute w-[800px] h-[800px] md:w-[1000px] md:h-[1000px]" />
           </div>
 
-          <h1 className="text-6xl sm:text-7xl md:text-8xl lg:text-[7.5rem] font-extrabold mb-8 tracking-tighter leading-[1.1]">
+          <h1 className="text-6xl sm:text-7xl md:text-8xl lg:text-[7.5rem] font-extrabold mb-8 tracking-tighter leading-[1.1] relative z-10">
             <span className="text-transparent bg-clip-text bg-gradient-to-b from-white via-white/90 to-white/30 drop-shadow-[0_0_40px_rgba(255,255,255,0.1)]">
               PlannrAI
             </span>

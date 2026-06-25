@@ -18,9 +18,10 @@ interface RichTextEditorProps {
 
 export function RichTextEditor({ content, onChange, placeholder = 'Take a note...', minHeight = '120px' }: RichTextEditorProps) {
     const editor = useEditor({
+        immediatelyRender: false,
         extensions: [
             StarterKit,
-            Underline,
+            Underline.configure(),
             Table.configure({
                 resizable: true,
             }),
