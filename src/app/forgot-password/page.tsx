@@ -23,6 +23,18 @@ export default function ForgotPasswordPage() {
         setStatus({ type: 'idle', message: '' });
 
         try {
+            // Check rate limits before proceeding
+            const rateLimitRes = await fetch('/api/auth/rate-limit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'forgot_password', email }),
+            });
+            
+            if (!rateLimitRes.ok) {
+                const errorData = await rateLimitRes.json();
+                throw new Error(errorData.error || 'Too many requests. Please try again later.');
+            }
+
             const { error } = await supabase.auth.resetPasswordForEmail(email, {
                 redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/auth/callback?next=/reset-password`,
             });
@@ -44,11 +56,8 @@ export default function ForgotPasswordPage() {
             <div className="absolute top-1/4 -left-20 w-[500px] h-[500px] bg-orange-500/10 rounded-full blur-[150px]" />
             <div className="absolute bottom-1/4 -right-20 w-[500px] h-[500px] bg-orange-600/5 rounded-full blur-[150px]" />
 
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-                className="w-full max-w-md relative z-10"
+            <div
+                className="w-full max-w-md relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-700 fill-mode-both"
             >
                 <GlassCard variant="glow" padding="lg" className="border-white/10 shadow-2xl">
                     <div className="relative z-10">
@@ -122,7 +131,7 @@ export default function ForgotPasswordPage() {
                         </div>
                     </div>
                 </GlassCard>
-            </motion.div>
+            </div>
         </div>
     );
 }

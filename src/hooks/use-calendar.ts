@@ -5,6 +5,7 @@ import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import { apiClient } from '@/lib/api-client';
 import type { ScheduleBlock, Goal, Commitment, HabitStack } from '@/types/database';
 import { useToast } from '@/components/ui/toast';
+import { useAppEvent } from '@/lib/events';
 
 export type ViewMode = 'grid' | 'agenda';
 
@@ -83,11 +84,9 @@ export function useCalendar(initialDate: Date = new Date()) {
     }, [loadData]);
 
     // Listen for calendar-refresh events (from coach undo)
-    useEffect(() => {
-        const handler = () => loadData();
-        window.addEventListener('calendar-refresh', handler);
-        return () => window.removeEventListener('calendar-refresh', handler);
-    }, [loadData]);
+    useAppEvent('calendar-refresh', () => {
+        loadData();
+    });
 
     // Listen to Zustand graphVersion for global sync
     useEffect(() => {

@@ -152,11 +152,6 @@ export default function GoalsPage() {
                     <p className="text-sm text-[var(--text-tertiary)]">Design your ideal week.</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    {isPreviewEnabled() && (
-                        <GlassButton variant="primary" onClick={() => {}}>
-                            <Zap className="w-4 h-4 mr-2 text-orange-400" /> Generate Plan
-                        </GlassButton>
-                    )}
                     <GlassButton variant="primary" onClick={() => setIsAdding(true)}>
                         <Plus className="w-4 h-4 mr-2" /> New Goal
                     </GlassButton>

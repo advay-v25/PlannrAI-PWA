@@ -36,7 +36,6 @@ export default function HomePage() {
     const briefingAttempted = useRef(false);
 
     const [proactiveSuggestion, setProactiveSuggestion] = useState<any>(null);
-    const [showWeeklyReviewPrompt, setShowWeeklyReviewPrompt] = useState(false);
     const [manualFeedback, setManualFeedback] = useState<string | null>(null);
 
     const isPreview = process.env.NEXT_PUBLIC_IS_PREVIEW_BUILD === 'true';
@@ -68,17 +67,7 @@ export default function HomePage() {
                 setProactiveSuggestion(proactiveData.suggestion);
             }
 
-            // Check if Weekly Review should be prompted
-            if (summaryData?.weekly_review_enabled !== false) {
-                const dayOfWeek = new Date().getDay(); // 0 = Sunday
-                if (dayOfWeek === 0) {
-                    const dismissedAt = localStorage.getItem('weekly_review_dismissed');
-                    const weekStartStr = format(new Date(), 'yyyy-ww'); // Crude week identifier
-                    if (dismissedAt !== weekStartStr) {
-                        setShowWeeklyReviewPrompt(true);
-                    }
-                }
-            }
+
         } catch (e) {
             console.error(e);
         } finally {
@@ -164,11 +153,7 @@ export default function HomePage() {
         router.push('/app/calendar?action=optimize_day');
     };
 
-    const handleDismissWeeklyReview = () => {
-        const weekStartStr = format(new Date(), 'yyyy-ww');
-        localStorage.setItem('weekly_review_dismissed', weekStartStr);
-        setShowWeeklyReviewPrompt(false);
-    };
+
 
     const handleDismissManualFeedback = () => {
         localStorage.removeItem('manual_review_feedback');
@@ -358,7 +343,7 @@ export default function HomePage() {
                 </div>
             )}
 
-            {effectiveData.nextWeekPlanned === false && !showWeeklyReviewPrompt && (
+            {effectiveData.nextWeekPlanned === false && (
                 <div className="mb-6 bg-orange-500/10 border border-orange-500/20 rounded-2xl p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <span className="text-orange-400 text-xl">⚠️</span>
@@ -376,35 +361,7 @@ export default function HomePage() {
                 </div>
             )}
 
-            {isPreview && showWeeklyReviewPrompt && (
-                <div className="mb-6 bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/30 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-[var(--color-primary)]/20 rounded-full">
-                            <span className="text-[var(--color-primary)] text-xl">📝</span>
-                        </div>
-                        <div>
-                            <h4 className="text-[var(--color-primary)] font-bold text-sm">Time for your Weekly Review!</h4>
-                            <p className="text-[var(--color-primary)]/70 text-xs mt-0.5">
-                                Reflect on the past week and let AI regenerate your schedule with smart adjustments.
-                            </p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2 w-full md:w-auto">
-                        <button
-                            onClick={handleDismissWeeklyReview}
-                            className="flex-1 md:flex-none px-4 py-2 bg-white/5 text-white/60 text-xs font-bold rounded-lg hover:bg-white/10 transition-colors"
-                        >
-                            Not Now
-                        </button>
-                        <button
-                            onClick={() => router.push('/app/weekly-review')}
-                            className="flex-1 md:flex-none px-4 py-2 bg-[var(--color-primary)] text-white text-xs font-bold rounded-lg hover:brightness-110 shadow-lg shadow-[var(--color-primary)]/20 transition-all"
-                        >
-                            Start Review
-                        </button>
-                    </div>
-                </div>
-            )}
+
 
             {proactiveSuggestion && (
                 <div className="mb-6 bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">

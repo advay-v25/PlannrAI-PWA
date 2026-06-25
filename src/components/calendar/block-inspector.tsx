@@ -10,6 +10,7 @@ import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useHabitStacksStore } from '@/stores';
 import { LiquidGlassButton } from '@/components/ui/liquid-glass-button';
+import { apiClient } from '@/lib/api-client';
 
 interface BlockInspectorProps {
     block: any;
@@ -98,20 +99,15 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
     const generateSubtasks = async () => {
         setIsGenerating(true);
         try {
-            const res = await fetch('/api/calendar/generate-checklist', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    block_id: block.id?.startsWith('virt-') ? undefined : block.id,
-                    title: block.title || block.context || 'Block',
-                    block_type: block.block_type,
-                    goal_title: block.goal?.title,
-                    duration_minutes: durationMins,
-                }),
+            const res = await apiClient.post<any>('/api/calendar/generate-checklist', {
+                block_id: block.id?.startsWith('virt-') ? undefined : block.id,
+                title: block.title || block.context || 'Block',
+                block_type: block.block_type,
+                goal_title: block.goal?.title,
+                duration_minutes: durationMins,
             });
-            if (res.ok) {
-                const json = await res.json();
-                const newChecklist = json.data?.checklist || json.checklist || [];
+            if (res?.checklist) {
+                const newChecklist = res.checklist || [];
                 if (newChecklist.length > 0) {
                     onAction('update', { checklist: newChecklist });
                 }

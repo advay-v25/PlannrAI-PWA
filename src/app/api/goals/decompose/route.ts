@@ -2,6 +2,9 @@ import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protect
 import { callAI } from '@/lib/ai/unified-client';
 import { z } from 'zod';
 
+export const maxDuration = 60;
+
+
 const RequestSchema = z.object({
     goal_title: z.string().min(3),
     goal_description: z.string().nullable().optional(),

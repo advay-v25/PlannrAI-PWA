@@ -156,6 +156,7 @@ CRITICAL RULES:
    - Follow the Energy Arc: don't move high-energy blocks into trough/wind-down phases
    - After deep work (60-90min), ensure a 15min Active Recovery block exists
    - 10-15 minute transition buffers between different activities
+   - MATHEMATICAL SPACING: If there are large gaps between fixed blocks, DO NOT pack all movable blocks sequentially into the morning. Mathematically center them or distribute them evenly across the available free time.
    - If user's energy is low, suggest removing blocks, not adding them
    - CHECKLIST SYNC: For every 'goal' block you create, generate a realistic 2-3 item checklist
 8. Use existing block IDs for move/delete operations
@@ -200,14 +201,14 @@ Return valid JSON only.`;
     let optionsText = '';
 
     if (focus === 'momentum') {
-        strategyInstruction = 'USER STRATEGY: MOMENTUM. Maximize output and deep work. Tighten the schedule and push harder. Minimize non-essential breaks.';
+        strategyInstruction = 'USER STRATEGY: MOMENTUM. Maximize output and deep work. Tighten the schedule and push harder. Ignore the afternoon trough if necessary to maintain momentum. Pack work early and back-to-back.';
         optionsText = `Generate 2 options:\nOption 1: "Aggressive Sprint" — Maximum density, clustering all work into long uninterrupted blocks.\nOption 2: "Steady Momentum" — High output but retains standard meal breaks.`;
     } else if (focus === 'recovery') {
-        strategyInstruction = 'USER STRATEGY: RECOVERY. Reduce overwhelm. Priority is active recovery and avoiding burnout. Aggressively remove low-priority blocks and shorten remaining blocks if needed to preserve wind-down time. Do NOT schedule heavy new goals.';
-        optionsText = `Generate 2 options:\nOption 1: "Essential Only" — Strips schedule to only fixed commitments and highest priority goals.\nOption 2: "Active Recovery" — Includes essential goals but heavily spaces them out with large buffers and routine blocks.`;
+        strategyInstruction = 'USER STRATEGY: RECOVERY. Reduce overwhelm. Priority is active recovery and avoiding burnout. Aggressively remove low-priority blocks and shorten remaining blocks. Space remaining blocks out mathematically with at least 60-minute buffers between them. Do NOT schedule heavy new goals.';
+        optionsText = `Generate 2 options:\nOption 1: "Essential Only" — Strips schedule to only fixed commitments and highest priority goals.\nOption 2: "Active Recovery" — Includes essential goals but heavily spaces them out with massive buffers.`;
     } else {
-        strategyInstruction = 'USER STRATEGY: BALANCED. Balance the schedule — ensure breaks, meals, and focus time are placed optimally until wind-down. Sustainable mix of deep work and rest.';
-        optionsText = `Generate 2 options:\nOption 1: "Realistic" — Balanced plan with standard meal times and plenty of breaks.\nOption 2: "Focused Flow" — Slightly more concentrated work/goals with minimal viable breaks.`;
+        strategyInstruction = 'USER STRATEGY: BALANCED. Balance the schedule — ensure breaks, meals, and focus time are placed optimally until wind-down. Use mathematical centering to distribute tasks evenly across large free windows instead of clumping them all together.';
+        optionsText = `Generate 2 options:\nOption 1: "Realistic" — Balanced plan with standard meal times and evenly spaced blocks.\nOption 2: "Focused Flow" — Slightly more concentrated work/goals but still mathematically balanced.`;
     }
 
     // Build the full-day view (ALL blocks, including past) so AI sees what was already planned

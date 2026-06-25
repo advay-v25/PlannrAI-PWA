@@ -1,7 +1,7 @@
+import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { createClient } from '@/lib/supabase/server';
-import { apiSuccess, apiFail } from '@/lib/api/envelope';
 
-export async function GET() {
+export const GET = secureApiRoute(async (context) => {
     try {
         // Check: Supabase Connectivity
         const supabase = await createClient();
@@ -21,6 +21,6 @@ export async function GET() {
         return apiSuccess(healthData);
 
     } catch (e: any) {
-        return apiFail("Health check crashed", 500, "HEALTH_CRASH", e.message);
+        return apiError("Health check crashed", 500, "HEALTH_CRASH", e.message);
     }
-}
+}, { requireAuth: false, skipRateLimit: true });

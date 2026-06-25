@@ -87,8 +87,15 @@ export default function PersonalRulesManager() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center py-20">
-                <Loader2 className="w-6 h-6 animate-spin text-[var(--color-primary)]" />
+            <div className="space-y-6 animate-pulse">
+                <div className="flex justify-between items-center">
+                    <div className="h-8 w-48 bg-[var(--glass-border)] rounded-md"></div>
+                    <div className="h-10 w-32 bg-[var(--glass-border)] rounded-lg"></div>
+                </div>
+                <div className="space-y-4">
+                    <div className="h-32 w-full bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-2xl"></div>
+                    <div className="h-32 w-full bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-2xl"></div>
+                </div>
             </div>
         );
     }

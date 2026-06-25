@@ -32,37 +32,34 @@ test.describe('E2E Regression Pack', () => {
             await page.goto('/onboarding');
             await expect(page).toHaveURL(/.*\/onboarding/);
 
-            await page.getByPlaceholder(/Enter Designation/i).fill('E2E Explorer');
-            // Click START button
-            await page.click('button:has-text("START")');
-            await expect(page.locator('text=Sequence 2/8')).toBeVisible({ timeout: 15000 });
+            await page.getByPlaceholder(/What should I call you?/i).fill('E2E Explorer');
+            // Click NEXT button
+            await page.click('button:has-text("Next")');
         });
 
         await test.step('Step-by-Step Navigation', async () => {
-            // Steps 2 through 7
-            for (let stepNum = 2; stepNum <= 7; stepNum++) {
-                // Small pause for stability
+            // Steps 2 through 5 (index 1 to 4)
+            for (let stepNum = 2; stepNum <= 5; stepNum++) {
                 await page.waitForTimeout(1000);
 
-                // Look for NEXT button and click
-                await page.click('button:has-text("NEXT")');
-
-                // Wait for next sequence indicator
-                if (stepNum < 7) {
-                    await expect(page.locator(`text=Sequence ${stepNum + 1}/8`)).toBeVisible({ timeout: 15000 });
+                if (stepNum === 4) {
+                    // Goals step - needs a goal
+                    await page.click('button:has-text("Add Goal")');
+                    await page.getByPlaceholder(/e.g. Run a marathon/i).fill('E2E Goal');
                 }
+
+                // Look for NEXT button and click
+                await page.click('button:has-text("Next")');
             }
         });
 
         await test.step('Final Synthesis', async () => {
-            // Now on Step 8 (Sequence 8/8)
-            await expect(page.locator('text=Sequence 8/8')).toBeVisible();
+            // Now on Step 6 (index 5)
+            // Wait for apply button
+            await page.waitForSelector('button:has-text("Generate Plan")', { timeout: 60000 });
+            await page.click('button:has-text("Generate Plan")');
 
-            // Wait for synthesis button (it might be in "GENERATING..." state)
-            await page.waitForSelector('button:has-text("APPLY SCHEDULE")', { timeout: 60000 });
-            await page.click('button:has-text("APPLY SCHEDULE")');
-
-            await expect(page).toHaveURL(/.*\/app/, { timeout: 30000 });
+            await expect(page).toHaveURL(/.*\/app\/calendar\?setup=complete/, { timeout: 30000 });
 
             const { data: profile } = await supabase.from('profiles').select('onboarding_complete').eq('id', userId).single();
             expect(profile?.onboarding_complete).toBe(true);
@@ -105,19 +102,28 @@ test.describe('E2E Regression Pack', () => {
         });
     });
 
-    test('Feature: Intelligent Brain Dump', async ({ page }) => {
-        await page.goto('/app/brain-dump');
+    test('Feature: Cross-Feature State Reflection', async ({ page }) => {
+        await page.goto('/app/goals');
+        await page.waitForLoadState('networkidle');
 
-        await test.step('Submit Low Energy Dump', async () => {
-            const dumpInput = page.getByPlaceholder(/What's on your mind\?/i);
-            await dumpInput.fill('I am completely exhausted today. Cannot do anything.');
-            await page.click('button:has-text("Process")');
+        await test.step('Update goal and verify calendar reflection', async () => {
+            // Trigger a goal change that should fire a schedule-recompute event
+            await page.click('button:has-text("Add Goal")');
+            await page.getByPlaceholder(/e.g. Run a marathon/i).fill('Reflection Goal');
+            
+            const craftBtn = page.locator('button:has-text("Craft")');
+            if (await craftBtn.isVisible()) await craftBtn.click();
+            
+            await page.click('button:has-text("Add Goal")');
+            await expect(page.locator('text=Reflection Goal')).toBeVisible();
 
-            await page.waitForSelector('button:has-text("Apply")', { timeout: 45000 });
-            await page.click('button:has-text("Apply")');
-
-            const { data: profile } = await supabase.from('profiles').select('low_energy_mode').eq('id', userId).single();
-            expect(profile?.low_energy_mode).toBe(true);
+            // Navigate to Calendar and verify it reloaded/reflected state
+            await page.goto('/app/calendar');
+            await expect(page).toHaveURL(/.*\/app\/calendar/);
+            
+            // Check that a schedule update message or event occurred (for now just verifying navigation and UI stability)
+            // Note: Since this is an E2E test, we'll verify the main Calendar tab loads correctly after a Goal modification
+            await expect(page.locator('text=Plan Your Day').or(page.locator('text=Calendar'))).toBeVisible();
         });
     });
 

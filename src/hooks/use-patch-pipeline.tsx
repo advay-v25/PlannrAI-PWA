@@ -2,6 +2,7 @@
 import React, { useState, useCallback } from 'react';
 import { PatchPreviewModal } from '@/components/calendar/patch-preview-modal';
 import { useToast } from '@/components/ui/toast';
+import { apiClient } from '@/lib/api-client';
 
 export function usePatchPipeline() {
     const [isOpen, setIsOpen] = useState(false);
@@ -18,24 +19,13 @@ export function usePatchPipeline() {
         setPendingRange(range);
 
         try {
-            const res = await fetch('/api/calendar/preview-patch', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ patch, range })
-            });
+            const res = await apiClient.post<any>('/api/calendar/preview-patch', { patch, range });
 
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.message || 'Preview failed');
-            }
-
-            const data = await res.json();
-
-            if (data.success || data.ok) {
-                setPreviewData(data.data || data);
+            if (res.success) {
+                setPreviewData(res.data);
                 setIsOpen(true);
             } else {
-                throw new Error(data.error || 'Preview failed');
+                throw new Error(res.error?.message || 'Preview failed');
             }
 
         } catch (err: any) {
@@ -50,40 +40,24 @@ export function usePatchPipeline() {
         setIsApplying(true);
 
         try {
-            const res = await fetch('/api/patch/apply', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ patch: pendingPatch, range: pendingRange })
-            });
+            const res = await apiClient.post<any>('/api/patch/apply', { patch: pendingPatch, range: pendingRange });
 
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.message || 'Apply failed');
-            }
-
-            const data = await res.json();
-            const successData = data.data || data;
-
-            if (data.success || data.ok) {
+            if (res.success) {
                 setIsOpen(false);
-                const versionId = successData.version_id;
+                const versionId = res.data.version_id;
 
-                const summary = successData.diff_summary || {};
+                const summary = res.data.diff_summary || {};
                 const total = (summary.created || 0) + (summary.updated || 0) + (summary.moved || 0) + (summary.deleted || 0);
 
                 showSuccess(`Schedule updated (${total} changes)`, async () => {
                     // Undo Action
                     try {
-                        const undoRes = await fetch('/api/calendar/undo', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ version_id: versionId, range: pendingRange })
-                        });
+                        const undoRes = await apiClient.post<any>('/api/calendar/undo', { version_id: versionId, range: pendingRange });
                         if (undoRes.ok) {
                             showSuccess('Undone successfully. Refreshing...');
                             window.location.reload();
                         } else {
-                            showError('Undo failed');
+                            showError('Undo failed: ' + (undoRes.error?.message || 'Unknown error'));
                         }
                     } catch (e: any) {
                         showError('Undo failed: ' + e.message);
@@ -91,7 +65,7 @@ export function usePatchPipeline() {
                 });
 
             } else {
-                throw new Error(data.error);
+                throw new Error(res.error?.message || 'Apply failed');
             }
         } catch (err: any) {
             showError(`Failed to apply changes: ${err.message}`);

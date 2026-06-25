@@ -1,28 +1,27 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { CalendarEngine } from '@/lib/calendar/calendar-engine';
+import { z } from 'zod';
 
-export async function POST(req: Request) {
+const inboxSchema = z.object({
+    title: z.string().min(1, 'Missing title'),
+    estimated_minutes: z.number().int().positive().optional()
+});
+
+export const POST = secureApiRoute(async (context, rawBody) => {
+    const { supabase, user } = context;
+
+    const parsed = inboxSchema.safeParse(rawBody);
+    if (!parsed.success) {
+        return apiError(parsed.error.issues[0].message, 400, 'VALIDATION_ERROR');
+    }
+
+    const { title, estimated_minutes } = parsed.data;
+
     try {
-        const supabase = await createClient();
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-        if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const body = await req.json();
-        const { title, estimated_minutes } = body;
-
-        if (!title) {
-            return NextResponse.json({ error: 'Missing title' }, { status: 400 });
-        }
-
         const result = await CalendarEngine.addInboxItem(user.id, title, estimated_minutes, supabase);
-
-        return NextResponse.json({ success: true, data: result });
+        return apiSuccess({ success: true, data: result });
     } catch (e: any) {
         console.error('[inbox API] Error:', e);
-        return NextResponse.json({ error: e.message }, { status: 500 });
+        return apiError(e.message, 500, 'INBOX_ERROR');
     }
-}
+}, { requireAuth: true, requireCsrf: true, rateLimit: 'userStrict', auditAction: 'calendar_inbox_add' });

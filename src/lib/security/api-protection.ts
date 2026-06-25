@@ -45,6 +45,9 @@ export interface SecureApiOptions {
     // Audit log action name
     auditAction?: string;
 
+    // Require CSRF token (Double Submit Cookie) for mutations
+    requireCsrf?: boolean;
+
     // Skip rate limiting (not recommended)
     skipRateLimit?: boolean;
 }
@@ -60,6 +63,7 @@ export function secureApiRoute(
         requireAuth = true,
         rateLimit = 'user',
         auditAction,
+        requireCsrf = true,
         skipRateLimit = false,
     } = options;
 
@@ -132,16 +136,23 @@ export function secureApiRoute(
                         errorMsg = `Daily AI limit reached. Refreshes in ${timeStr.join(' ')}.`;
                     }
 
-                    return new NextResponse(
-                        JSON.stringify({ error: errorMsg, retryAfter, resetAt: rateLimitResult.resetAt.toISOString() }),
-                        {
-                            status: 429,
-                            headers: {
-                                'Content-Type': 'application/json',
-                                ...Object.fromEntries(headers.entries()),
-                            },
-                        }
+                    return apiError(
+                        errorMsg,
+                        429,
+                        'RATE_LIMITED',
+                        { retryAfter, resetAt: rateLimitResult.resetAt.toISOString() },
+                        headers
                     );
+                }
+            }
+            
+            // 2.5 CSRF Check
+            if (requireCsrf && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(request.method)) {
+                const csrfHeader = request.headers.get('x-csrf-token');
+                const csrfCookie = request.cookies.get('csrf_token')?.value;
+                if (!csrfHeader || !csrfCookie || csrfHeader !== csrfCookie) {
+                    await logSuspiciousActivity(user?.id, 'CSRF validation failed', request, { endpoint: request.url });
+                    return apiError('Invalid or missing CSRF token', 403, 'CSRF_FAILED');
                 }
             }
 
@@ -149,6 +160,10 @@ export function secureApiRoute(
             let body: unknown = null;
 
             if (request.method !== 'GET' && request.method !== 'HEAD') {
+                const contentLength = Number(request.headers.get('content-length') || 0);
+                if (contentLength > 2 * 1024 * 1024) { // 2MB limit
+                    return apiError('Request entity too large', 413, 'PAYLOAD_TOO_LARGE');
+                }
                 try {
                     const text = await request.text();
                     if (text) {

@@ -1,6 +1,9 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { WeeklyReviewAI } from '@/lib/ai/WeeklyReviewAI';
 
+export const maxDuration = 60;
+
+
 export const POST = secureApiRoute(
     async (context, bodyData) => {
         const { userId, supabase } = context;

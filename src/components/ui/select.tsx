@@ -81,24 +81,30 @@ export const SelectContent = ({ children, className }: { children: React.ReactNo
     }, [context]);
 
     return (
-        <AnimatePresence>
-            {context?.open && (
-                <motion.div
-                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                    transition={{ duration: 0.15, ease: "easeOut" }}
-                    className={cn(
-                        "absolute z-50 mt-2 min-w-[8rem] w-full overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--color-bg-secondary)] backdrop-blur-2xl shadow-[var(--shadow-lg)] p-1",
-                        className
-                    )}
-                >
-                    <div className="max-h-[300px] overflow-y-auto scrollbar-thin">
-                        {children}
-                    </div>
-                </motion.div>
-            )}
-        </AnimatePresence>
+        <>
+            {/* Always render children hidden to ensure SelectItem registers its label with the context on mount */}
+            <div style={{ display: 'none' }} aria-hidden="true">
+                {children}
+            </div>
+            <AnimatePresence>
+                {context?.open && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        className={cn(
+                            "absolute z-50 mt-2 min-w-full w-max overflow-hidden rounded-xl border border-[var(--glass-border)] bg-[var(--color-bg-secondary)] backdrop-blur-2xl shadow-[var(--shadow-lg)] p-1",
+                            className
+                        )}
+                    >
+                        <div className="max-h-[300px] overflow-y-auto scrollbar-thin">
+                            {children}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </>
     );
 };
 

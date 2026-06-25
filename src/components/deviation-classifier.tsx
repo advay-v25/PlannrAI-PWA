@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
+import { apiClient } from '@/lib/api-client';
 import {
     AlertTriangle,
     Calendar,
@@ -95,22 +96,16 @@ export function DeviationClassifier({
         setIsProcessing(true);
 
         try {
-            const response = await fetch('/api/deviation', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    block_id: blockId,
-                    reason: reason.trim(),
-                    use_ai: true,
-                }),
+            const result = await apiClient.post<any>('/api/deviation', {
+                block_id: blockId,
+                reason: reason.trim(),
+                use_ai: true,
             });
 
-            const result = await response.json();
-
-            if (result.data?.classification) {
-                setClassification(result.data.classification);
+            if (result.classification) {
+                setClassification(result.classification);
                 setStep('result');
-                onClassified?.(result.data.classification);
+                onClassified?.(result.classification);
             } else {
                 // Fallback to manual selection
                 setStep('manual');
@@ -128,22 +123,17 @@ export function DeviationClassifier({
         setIsProcessing(true);
 
         try {
-            const response = await fetch('/api/deviation', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    block_id: blockId,
-                    reason: reason || `Manual selection: ${type}`,
-                    use_ai: false,
-                }),
+            const result = await apiClient.post<any>('/api/deviation', {
+                block_id: blockId,
+                reason: 'Auto-resolved via UI',
+                use_ai: false,
+                override_classification: type
             });
 
-            const result = await response.json();
-
-            if (result.data?.classification) {
-                setClassification(result.data.classification);
+            if (result.classification) {
+                setClassification(result.classification);
                 setStep('result');
-                onClassified?.(result.data.classification);
+                onClassified?.(result.classification);
             }
         } catch (error) {
             console.error('Failed to log deviation:', error);

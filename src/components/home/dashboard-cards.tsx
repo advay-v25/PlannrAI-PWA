@@ -1,9 +1,8 @@
 'use client';
 
 import { GlassCard } from '@/components/ui/glass-card';
-import { Target, Sparkles, Crosshair, Brain } from 'lucide-react';
+import { Target, Sparkles, Brain, Layers } from 'lucide-react';
 import Link from 'next/link';
-import { HabitStackTile } from '@/components/habit-stacks/habit-stack-tile';
 
 interface DashboardCardsProps {
     goals: Array<{ id: string; title: string; progress?: number; minutes_per_day?: number; importance?: string }>;
@@ -22,7 +21,7 @@ export function DashboardCards({ goals, insight, topTask, isPreview = false }: D
     const displayFocus = topTask?.title || "No pending tasks. You're all caught up!";
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             
             {/* Quick Capture Tile */}
             <Link href="/app/tasks" className="block outline-none focus:ring-2 focus:ring-[var(--color-primary)] rounded-2xl transition-transform hover:scale-[1.02] group">
@@ -53,8 +52,7 @@ export function DashboardCards({ goals, insight, topTask, isPreview = false }: D
                 </GlassCard>
             </Link>
 
-            {/* Habit Stacks */}
-            <HabitStackTile isPreview={isPreview} />
+
 
             {/* Active Goals Card */}
             <Link href="/app/goals" className="block outline-none focus:ring-2 focus:ring-[var(--color-primary)] rounded-2xl transition-transform hover:scale-[1.02]">
@@ -85,6 +83,20 @@ export function DashboardCards({ goals, insight, topTask, isPreview = false }: D
                     )}
                 </GlassCard>
             </Link>
+
+            {/* Habit Stacks Coming Soon */}
+            <div className="block rounded-2xl opacity-60">
+                <GlassCard className="p-6 h-full border border-dashed border-white/20 bg-transparent flex flex-col justify-center relative overflow-hidden" padding="none">
+                    <div className="flex items-center gap-2 mb-3">
+                        <Layers className="w-5 h-5 text-indigo-400" />
+                        <h3 className="font-semibold text-sm text-[var(--text-secondary)]">Habit Stacks</h3>
+                    </div>
+                    <div className="w-full bg-black/20 border border-white/5 rounded-xl py-3 px-4 flex flex-col items-start gap-1">
+                        <span className="text-indigo-300 text-xs font-bold tracking-wider uppercase">Coming Soon</span>
+                        <span className="text-white/40 text-xs">Chain behaviors for effortless routines.</span>
+                    </div>
+                </GlassCard>
+            </div>
         </div>
     );
 }

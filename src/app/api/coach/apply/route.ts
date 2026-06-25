@@ -121,63 +121,6 @@ export async function POST(request: NextRequest) {
 
         let finalPatch = patch;
 
-        if (body.option_text) {
-            console.log(`[Coach Apply] Generating precise execution ops for option via Groq`);
-            const coachContext = await buildCoachContext(user.id, supabase, new Date().toISOString(), 'UTC');
-            const systemPrompt = `You are an expert AI productivity execution agent. The user has selected a specific scheduling option. 
-Your task is to translate this selected option into precise database operations (PatchService).
-You will read the selected option text and the user's current schedule context.
-Then, you must decide exactly which blocks to move, compress, or delete to apply this option flawlessly.
-Only output a strict JSON object matching this schema:
-{
-  "ops": [
-    // Array of operation objects. Available operations:
-    // { "type": "move_block", "block_id": "...", "new_start": "HH:mm", "new_end": "HH:mm", "new_date": "YYYY-MM-DD" }
-    // { "type": "delete_block", "block_id": "...", "title": "..." }
-    // { "type": "compress_block", "block_id": "...", "new_start": "HH:mm", "new_end": "HH:mm" }
-  ]
-}
-DO NOT output any markdown blocks or explanations, just the raw JSON object.
-Make sure you use the exact block IDs from the provided calendar context.
-If a block is being shortened, use compress_block. If it's being shifted, use move_block. If replacing, use delete_block.`;
-
-            const userPrompt = `Selected Option:
-${body.option_text}
-
-User Calendar Context:
-${JSON.stringify({
-    schedule: (coachContext.schedule.this_week || []).map((b: any) => ({
-        id: b.id,
-        title: b.title || b.context,
-        date: b.date,
-        start_time: b.start_time,
-        end_time: b.end_time
-    })),
-    goals: coachContext.goals
-}, null, 2)}`;
-
-            try {
-                const aiRes = await callAI({
-                    prompt: userPrompt,
-                    systemPrompt: systemPrompt,
-                    model: 'smart',
-                    temperature: 0.1,
-                    requireJSON: true,
-                    groqOnly: true,
-                    timeout: 55000
-                });
-                
-                if (aiRes.success && aiRes.data && Array.isArray(aiRes.data.ops)) {
-                    finalPatch = { operations: aiRes.data.ops };
-                    console.log(`[Coach Apply] Groq generated ops:`, aiRes.data.ops);
-                } else {
-                    console.warn(`[Coach Apply] Groq failed to generate ops array, falling back to original patch. Error:`, aiRes.error);
-                }
-            } catch (e) {
-                console.error(`[Coach Apply] Groq execution failed, falling back:`, e);
-            }
-        }
-
         // Normalize the Coach's SchedulePatch format to CalendarPatch format for PatchService
         const normalizedPatch = normalizePatchForService(finalPatch);
 

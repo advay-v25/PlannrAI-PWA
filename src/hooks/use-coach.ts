@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { apiClient } from '@/lib/api-client';
+import { dispatchAppEvent } from '@/lib/events';
 import type { CoachResponse, ProposedOption, MutationLedger, ProactiveSuggestion } from '@/types/coach-v4';
 
 export interface CoachMessage {
@@ -42,7 +43,7 @@ interface CoachState extends PersistentCoachData {
   abortController: AbortController | null;
   
   sendMessage: (text: string) => Promise<{ success: boolean; error?: string }>;
-  stopGenerating: () => string;
+  stopGenerating: () => Promise<string>;
   applyOption: (messageId: string, optionId: string) => Promise<ProposedOption | boolean>;
   undo: () => Promise<boolean>;
   clearError: () => void;
@@ -356,10 +357,7 @@ export const useCoach = create<CoachState>()(
         }));
 
         try {
-          const batchRes = await fetch('/api/coach/apply', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+          const batchData = await apiClient.post<any>('/api/coach/apply', {
               conversation_id: get().conversationId,
               option_id: optionId,
               patch: { operations: option.ledger?.ops || [] },
@@ -369,13 +367,15 @@ export const useCoach = create<CoachState>()(
                 impact: option.impact,
                 ledger: option.ledger
               })
-            })
           });
 
-          const batchData = await batchRes.json();
-
-          if (!batchRes.ok) {
-            throw new Error(batchData?.error || "Failed to apply option");
+          if (!batchData?.success) {
+            const errorMessage =
+              batchData?.error?.message ||
+              batchData?.error ||
+              batchData?.message ||
+              "Failed to apply option";
+            throw new Error(errorMessage);
           }
 
           const partialWarning = batchData.partial
@@ -426,7 +426,7 @@ export const useCoach = create<CoachState>()(
           }));
 
           if (typeof window !== 'undefined') {
-            window.dispatchEvent(new Event('calendar-refresh'));
+            dispatchAppEvent({ type: 'calendar-refresh' });
           }
 
           return option;
@@ -451,13 +451,12 @@ export const useCoach = create<CoachState>()(
         if (!lastUndoToken) return false;
 
         try {
-          const res = await fetch('/api/coach/undo', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ undo_token: lastUndoToken })
-          });
+          const res = await apiClient.post<any>('/api/coach/undo', { undo_token: lastUndoToken });
 
-          if (!res.ok) throw new Error('Undo failed');
+          if (res?.success === false || res?.ok === false) {
+            throw new Error(res?.error?.message || res?.error || 'Undo failed');
+          }
+
           set(state => ({ 
             canUndo: false, 
             lastUndoToken: null,
@@ -467,7 +466,7 @@ export const useCoach = create<CoachState>()(
                 id: crypto.randomUUID(),
                 role: 'assistant',
                 content: 'Change reverted',
-                timestamp: new Date().toISOString()
+                timestamp: Date.now()
               }
             ]
           }));

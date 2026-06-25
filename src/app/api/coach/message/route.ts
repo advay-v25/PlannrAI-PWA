@@ -260,7 +260,7 @@ export const POST = secureApiRoute(
         let retryCount = 0;
         let valid = false;
         
-        while (!valid && retryCount < 0) {
+        while (!valid && retryCount < 2) {
             let conflictErrors: string[] = [];
             
             if (response.executed_ledger && response.executed_ledger.ops) {

@@ -7,6 +7,9 @@ import { logAIRequest } from '@/lib/security/audit-logger';
 import { subDays, format } from 'date-fns';
 import { z } from 'zod';
 
+export const maxDuration = 60;
+
+
 const OptimizeHabitsOutputSchema = z.object({
     optimizations: z.array(z.object({
         habit: z.string(),

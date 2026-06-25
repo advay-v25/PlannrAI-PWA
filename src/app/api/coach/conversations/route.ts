@@ -1,116 +1,49 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 
-export async function GET(request: NextRequest) {
-    try {
-        const cookieStore = await cookies();
-        const supabase = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            {
-                cookies: {
-                    get(name: string) {
-                        return cookieStore.get(name)?.value;
-                    },
-                },
-            }
-        );
+export const GET = secureApiRoute(async (context) => {
+    const { supabase, user } = context;
 
-        const { data: { user } } = await supabase.auth.getUser();
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-        if (!user) {
-            return NextResponse.json(
-                { success: false, error: 'Unauthorized' },
-                { status: 401 }
-            );
-        }
+    const { data: conversations, error } = await supabase
+        .from('coach_conversations')
+        .select('id, primary_topic, last_message_at, created_at, status')
+        .eq('user_id', user.id)
+        .gte('last_message_at', sevenDaysAgo.toISOString())
+        .order('last_message_at', { ascending: false })
+        .limit(20);
 
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-        const { data: conversations, error } = await supabase
-            .from('coach_conversations')
-            .select('id, primary_topic, last_message_at, created_at, status')
-            .eq('user_id', user.id)
-            .gte('last_message_at', sevenDaysAgo.toISOString())
-            .order('last_message_at', { ascending: false })
-            .limit(20);
-
-        if (error) {
-            console.error('[Coach Conversations] DB Error:', error);
-            throw error;
-        }
-
-        return NextResponse.json({
-            success: true,
-            conversations: conversations || [],
-        });
-
-    } catch (error) {
-        console.error('[Coach Conversations] Error:', error);
-
-        return NextResponse.json({
-            success: false,
-            error: 'Failed to fetch conversations',
-        }, { status: 500 });
+    if (error) {
+        console.error('[Coach Conversations] DB Error:', error);
+        throw error;
     }
-}
 
-export async function DELETE(request: NextRequest) {
-    try {
-        const searchParams = request.nextUrl.searchParams;
-        const id = searchParams.get('id');
+    return apiSuccess({
+        conversations: conversations || [],
+    });
+}, { requireAuth: true, rateLimit: 'userStrict', auditAction: 'fetch_coach_conversations' });
 
-        if (!id) {
-            return NextResponse.json(
-                { success: false, error: 'Missing conversation ID' },
-                { status: 400 }
-            );
-        }
+export const DELETE = secureApiRoute(async (context) => {
+    const { supabase, user, request } = context;
+    const searchParams = request.nextUrl.searchParams;
+    const id = searchParams.get('id');
 
-        const cookieStore = await cookies();
-        const supabase = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            {
-                cookies: {
-                    get(name: string) {
-                        return cookieStore.get(name)?.value;
-                    },
-                },
-            }
-        );
-
-        const { data: { user } } = await supabase.auth.getUser();
-
-        if (!user) {
-            return NextResponse.json(
-                { success: false, error: 'Unauthorized' },
-                { status: 401 }
-            );
-        }
-
-        // Delete the conversation (will cascade to messages if foreign keys are set up, 
-        // otherwise we might need to delete messages first, but let's assume Supabase handles cascade)
-        const { error } = await supabase
-            .from('coach_conversations')
-            .delete()
-            .eq('id', id)
-            .eq('user_id', user.id); // Ensure user owns the conversation
-
-        if (error) {
-            console.error('[Coach Conversations] Delete Error:', error);
-            throw error;
-        }
-
-        return NextResponse.json({ success: true });
-
-    } catch (error) {
-        console.error('[Coach Conversations] Error deleting:', error);
-        return NextResponse.json({
-            success: false,
-            error: 'Failed to delete conversation',
-        }, { status: 500 });
+    if (!id) {
+        return apiError('Missing conversation ID', 400, 'MISSING_ID');
     }
-}
+
+    // Delete the conversation
+    const { error } = await supabase
+        .from('coach_conversations')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id);
+
+    if (error) {
+        console.error('[Coach Conversations] Delete Error:', error);
+        throw error;
+    }
+
+    return apiSuccess({ deleted: true });
+}, { requireAuth: true, requireCsrf: true, rateLimit: 'userStrict', auditAction: 'delete_coach_conversation' });

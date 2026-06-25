@@ -27,13 +27,25 @@ export default function LoginPage() {
         setError('');
 
         try {
+            // Check rate limits before proceeding
+            const rateLimitRes = await fetch('/api/auth/rate-limit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: mode === 'login' ? 'login' : 'signup', email }),
+            });
+            
+            if (!rateLimitRes.ok) {
+                const errorData = await rateLimitRes.json();
+                throw new Error(errorData.error || 'Too many requests. Please try again later.');
+            }
+
             if (mode === 'login') {
                 const { error } = await supabase.auth.signInWithPassword({
                     email,
                     password,
                 });
                 if (error) throw error;
-                router.push('/app');
+                window.location.href = '/app';
             } else {
                 const { error } = await supabase.auth.signUp({
                     email,
@@ -47,11 +59,11 @@ export default function LoginPage() {
                 // If "Confirm Email" is disabled in Supabase, this will log them in immediately.
                 const { data: { session } } = await supabase.auth.getSession();
                 if (session) {
-                    router.push('/onboarding');
+                    window.location.href = '/onboarding';
                 } else {
                     // If email verification is on, Supabase will return an empty session.
                     // Direct users to check inbox.
-                    router.push('/verify-email');
+                    window.location.href = '/verify-email';
                 }
             }
         } catch (err: any) {
@@ -60,7 +72,7 @@ export default function LoginPage() {
             // If they are trying to log in but haven't confirmed email
             const errorMsg = err.message || '';
             if (errorMsg.toLowerCase().includes('email not confirmed') || errorMsg.toLowerCase().includes('verify your email')) {
-                 router.push('/verify-email');
+                 window.location.href = '/verify-email';
                  return;
             }
 
@@ -75,17 +87,31 @@ export default function LoginPage() {
         setError('');
 
         try {
-            const { data, error } = await supabase.auth.signInWithOAuth({
+            // Check rate limits before proceeding
+            const rateLimitRes = await fetch('/api/auth/rate-limit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'oauth' }),
+            });
+            
+            if (!rateLimitRes.ok) {
+                const errorData = await rateLimitRes.json();
+                throw new Error(errorData.error || 'Too many requests. Please try again later.');
+            }
+
+            const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
                     redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/auth/callback`,
+                    queryParams: {
+                        access_type: 'offline',
+                        prompt: 'consent',
+                    }
                 },
             });
 
             if (error) throw error;
-            if (data?.url) {
-                window.location.assign(data.url);
-            }
+            // Removed manual window.location.assign to fix the double-redirect bug
         } catch (err: any) {
             console.error('[Auth Error - Google OAuth]:', err);
             setError(err.message || 'Failed to sign in with Google');
@@ -94,17 +120,8 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-4 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-950/40 via-neutral-950 to-neutral-950 overflow-hidden relative">
-            {/* Background Orbs */}
-            <div className="absolute top-1/4 -left-20 w-[500px] h-[500px] bg-orange-500/10 rounded-full blur-[150px]" />
-            <div className="absolute bottom-1/4 -right-20 w-[500px] h-[500px] bg-orange-600/5 rounded-full blur-[150px]" />
-
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-                className="w-full max-w-md relative z-10"
-            >
+        <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-[#1a0a00] via-neutral-950 to-neutral-950 overflow-hidden relative">
+            <div className="w-full max-w-md relative z-10">
                 <GlassCard variant="glow" padding="lg" className="border-white/10 shadow-2xl">
                     <div className="relative z-10">
                         {/* Logo & Title */}
@@ -240,7 +257,7 @@ export default function LoginPage() {
                         </div>
                     </div>
                 </GlassCard>
-            </motion.div>
+            </div>
         </div>
     );
 }

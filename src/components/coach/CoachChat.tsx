@@ -130,7 +130,7 @@ function InlineOptionCard({
                                         content = option.description + "\n\n";
                                     }
                                     
-                                    const ops = option.ledger?.ops || option.operations || option.ops || [];
+                                    const ops = option.ledger?.ops || (option as any).operations || (option as any).ops || [];
                                     const moveOp = ops.find((o: any) => o.type === 'move_block' || o.type === 'move');
                                     const deleteOp = ops.find((o: any) => o.type === 'delete_block' || o.type === 'delete');
                                     const compressOp = ops.find((o: any) => o.type === 'compress_block' || o.type === 'compress');
@@ -214,8 +214,8 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
         (async () => {
             try {
                 setIsLoadingHistoryList(true);
-                const res = await apiClient.get('/api/coach/conversations') as any;
-                if (res?.success) setPastConversations(res.conversations || []);
+                const res = await apiClient.get<any>('/api/coach/conversations');
+                if (res) setPastConversations(res.conversations || []);
             } catch (err) {
                 console.error('Failed to fetch conversations', err);
             } finally {
@@ -253,8 +253,8 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
     const handleDeleteChat = async (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
         try {
-            const res = await apiClient.delete(`/api/coach/conversations?id=${id}`) as any;
-            if (res?.success) {
+            const res = await apiClient.delete<any>(`/api/coach/conversations?id=${id}`);
+            if (res) {
                 setPastConversations(prev => prev.filter(c => c.id !== id));
                 showToast('Chat deleted', 'success');
             }
@@ -302,15 +302,15 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
         const _clientTime = _now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }); // "HH:MM" in local 24h
         const _clientTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-        const raw = await apiClient.post('/api/coach/quick-action', {
+        const raw = await apiClient.post<any>('/api/coach/quick-action', {
             action,
             clientDate: _clientDate,
             clientTime: _clientTime,
             clientTimezone: _clientTimezone,
-        }) as any;
+        });
 
-            if (!raw.success) {
-                showToast(raw.error || 'Something went wrong', 'error');
+            if (!raw) {
+                showToast('Something went wrong', 'error');
                 return;
             }
 
@@ -386,13 +386,13 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
 
         if (isSynthetic) {
             try {
-                const result = await apiClient.post('/api/coach/apply', {
+                const result = await apiClient.post<any>('/api/coach/apply', {
                     conversation_id: null,
                     option_id: option.id,
                     patch: option.ledger,
-                }) as any;
+                });
 
-                if (result.success || result.applied_operations > 0) {
+                if (result.applied_operations > 0 || result.undo_token) {
                     setSyntheticMessages(prev => prev.map(m =>
                         m.id === parentMessageId
                             ? { ...m, selected_option_id: option.id, undoToken: result.undo_token }
@@ -773,8 +773,8 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                             {isLoading ? (
                                 <button
                                     type="button"
-                                    onClick={() => {
-                                        const returnedContent = stopGenerating();
+                                    onClick={async () => {
+                                        const returnedContent = await stopGenerating();
                                         if (returnedContent) setInput(returnedContent);
                                     }}
                                     className="w-12 h-12 bg-red-500/10 hover:bg-red-500/20 rounded-[1.1rem] flex items-center justify-center transition-all text-red-400 border border-red-500/20 relative z-10 group"

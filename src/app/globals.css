@@ -394,6 +394,13 @@ body::after {
   color: var(--text-tertiary);
 }
 
+/* Global placeholder styling for all inputs — subtle ghost text */
+input::placeholder,
+textarea::placeholder {
+  color: rgba(255, 255, 255, 0.15) !important;
+  opacity: 1 !important;
+}
+
 .input:hover {
   border-color: var(--glass-border-hover);
 }

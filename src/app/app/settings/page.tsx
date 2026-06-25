@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import {
     User, LogOut, Trash2, AlertTriangle, Loader2,
-    Clock, Brain, Shield, Save, ChevronRight, Calendar, Download, Bell, Sparkles, Moon, Sun, Monitor, Type
+    Clock, Brain, Shield, Save, ChevronRight, Calendar, Download, Bell, Sparkles, Moon, Sun, Monitor, Type, Lock
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { createClient } from '@/lib/supabase/client';
@@ -16,6 +16,8 @@ import CoreConstraints from './_components/core-constraints';
 import AIControls from './_components/ai-controls';
 import CommitmentsManager from './_components/commitments-manager';
 import { ProfilePreferences } from '@/lib/types/settings';
+import { dispatchAppEvent } from '@/lib/events';
+import { UnifiedWorkspaceSkeleton } from '@/components/ui/skeletons/unified-workspace-skeleton';
 
 // ── Section types ──────────────────────────────────────────────────
 
@@ -72,7 +74,7 @@ export default function SettingsPage() {
             setUnsavedChanges({});
             toast.success('Settings saved');
             if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('calendar-refresh'));
+                dispatchAppEvent({ type: 'calendar-refresh' });
             }
         } catch {
             toast.error('Failed to save settings');
@@ -86,8 +88,8 @@ export default function SettingsPage() {
     const handleSignOut = async () => {
         setIsSigningOut(true);
         try {
+            await apiClient.post('/api/auth/logout', {});
             await supabase.auth.signOut();
-            await fetch('/api/auth/logout', { method: 'POST' });
             window.location.href = '/login';
         } catch (err) {
             toast.error('Failed to sign out');
@@ -96,12 +98,7 @@ export default function SettingsPage() {
     };
 
     if (loading) {
-        return (
-            <div className="flex w-full h-[60vh] items-center justify-center gap-3 text-[var(--text-tertiary)] bg-[var(--color-bg-primary)]">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span className="text-sm font-medium tracking-wide">Loading Neural OS settings...</span>
-            </div>
-        );
+        return <UnifiedWorkspaceSkeleton />;
     }
 
     return (
@@ -228,6 +225,25 @@ function AccountSection({
                 <InfoRow label="Data" value="Supabase (encrypted)" icon={<Shield className="w-3 h-3 text-[var(--color-success)]" />} />
             </div>
 
+            {/* Set Password (for Google-only users) */}
+            {profile?.providers && !profile.providers.includes('email') && (
+                <Link
+                    href="/set-password?next=/app/settings"
+                    className="flex items-center justify-between p-4 rounded-2xl bg-[var(--color-primary)]/5 border border-[var(--color-primary)]/20 hover:bg-[var(--color-primary)]/10 transition-all group"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-[var(--color-primary)]/10 flex items-center justify-center">
+                            <Lock className="w-4 h-4 text-[var(--color-primary)]" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-semibold text-[var(--text-primary)]">Set Password</p>
+                            <p className="text-xs text-[var(--text-tertiary)]">Enable login with email & password</p>
+                        </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-colors" />
+                </Link>
+            )}
+
             {/* Sign out */}
             <button
                 onClick={onSignOut}
@@ -328,7 +344,7 @@ function DangerZone() {
             await apiClient.post('/api/settings/update', { reset_schedule: true });
             toast.success('Schedule cleared. Regenerate it from the Calendar.');
             if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('calendar-refresh'));
+                dispatchAppEvent({ type: 'calendar-refresh' });
             }
         } catch {
             toast.error('Failed to clear schedule');
@@ -345,15 +361,7 @@ function DangerZone() {
         }
         setIsLoading(true);
         try {
-            const res = await fetch('/api/auth/delete-account', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ confirm: 'delete' }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to delete account');
+            await apiClient.post('/api/auth/delete-account', { confirm: 'delete' });
 
             toast.success('Account deleted. Goodbye!');
             // Sign out client and redirect

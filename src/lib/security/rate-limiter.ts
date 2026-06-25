@@ -40,6 +40,10 @@ const LIMITS = {
     
     // Default user strict for generic supbase DB writes/reads
     userStrict: { windowMs: 60 * 1000, maxRequests: 100 },
+
+    // Auth specific limits
+    authLogin: { windowMs: 15 * 60 * 1000, maxRequests: 5 }, // 5 login attempts per 15 mins
+    authEmail: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 2 }, // 2 reset/signup emails per 24 hours
 } as const;
 
 export type RateLimitType = keyof typeof LIMITS;
@@ -63,6 +67,10 @@ export async function checkRateLimit(
 
     const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
     const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+    
+    if (process.env.NODE_ENV === 'production' && (!upstashUrl || !upstashToken)) {
+        console.error('CRITICAL WARNING: Upstash Redis is missing in production. Missing UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN. Falling back to in-memory store (ineffective in serverless).');
+    }
     
     if (upstashUrl && upstashToken) {
         try {
@@ -196,7 +204,7 @@ export async function checkMultipleRateLimits(
 
     // Check endpoint-specific limit
     if (endpoint && endpointType) {
-        const endpointKey = createRateLimitKey('endpoint', ip, endpoint);
+        const endpointKey = createRateLimitKey('endpoint', userId || ip, endpoint);
         const endpointResult = await checkRateLimit(endpointKey, endpointType);
         if (!endpointResult.allowed) {
             return endpointResult;

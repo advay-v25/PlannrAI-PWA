@@ -1,44 +1,38 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { startOfDay, startOfMonth } from 'date-fns';
 
-export async function GET(request: NextRequest) {
-    try {
-        const supabase = await createClient();
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
+export const maxDuration = 60;
 
-        if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+export const GET = secureApiRoute(async (context) => {
+    const { supabase, user } = context;
 
-        const now = new Date();
-        const dayStart = startOfDay(now).toISOString();
-        const monthStart = startOfMonth(now).toISOString();
+    const now = new Date();
+    const dayStart = startOfDay(now).toISOString();
+    const monthStart = startOfMonth(now).toISOString();
 
-        // Count for today
-        const { count: dailyCount } = await supabase
-            .from('security_audit_log')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', user.id)
-            .eq('action', 'ai_execute')
-            .gte('created_at', dayStart);
+    // Count for today
+    const { count: dailyCount, error: dailyError } = await supabase
+        .from('security_audit_log')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('action', 'ai_execute')
+        .gte('created_at', dayStart);
 
-        // Count for this month
-        const { count: monthlyCount } = await supabase
-            .from('security_audit_log')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', user.id)
-            .eq('action', 'ai_execute')
-            .gte('created_at', monthStart);
+    // Count for this month
+    const { count: monthlyCount, error: monthlyError } = await supabase
+        .from('security_audit_log')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('action', 'ai_execute')
+        .gte('created_at', monthStart);
 
-        return NextResponse.json({
-            daily: dailyCount || 0,
-            monthly: monthlyCount || 0,
-            limit: 14400 // Daily limit (Groq free tier)
-        });
-
-    } catch (error) {
-        console.error('Error fetching AI usage stats:', error);
-        return NextResponse.json({ error: 'Failed to fetch usage stats' }, { status: 500 });
+    if (dailyError || monthlyError) {
+        throw new Error('Failed to fetch stats');
     }
-}
+
+    return apiSuccess({
+        daily: dailyCount || 0,
+        monthly: monthlyCount || 0,
+        limit: 14400 // Daily limit (Groq free tier)
+    });
+}, { requireAuth: true, rateLimit: 'userStrict', auditAction: 'fetch_ai_usage' });

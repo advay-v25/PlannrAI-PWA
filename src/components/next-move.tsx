@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
+import { apiClient } from '@/lib/api-client';
 import {
     Brain,
     Sparkles,
@@ -83,11 +84,10 @@ export function NextMoveCard({ onSelect, onDismiss }: NextMoveCardProps) {
         setError(null);
 
         try {
-            const response = await fetch('/api/next-move');
-            const result = await response.json();
+            const result = await apiClient.get<any>('/api/next-move');
 
-            if (result.data?.guidance) {
-                setGuidance(result.data.guidance);
+            if (result.guidance) {
+                setGuidance(result.guidance);
             } else {
                 setError('Could not get suggestions');
             }
@@ -107,14 +107,10 @@ export function NextMoveCard({ onSelect, onDismiss }: NextMoveCardProps) {
         setSelectedId(option.id);
 
         try {
-            await fetch('/api/next-move', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'selected',
-                    option_id: option.id,
-                    option_type: option.type,
-                }),
+            await apiClient.post('/api/next-move', {
+                action: 'selected',
+                option_id: option.id,
+                option_type: option.type,
             });
         } catch (err) {
             console.error('Failed to record action:', err);
@@ -128,11 +124,7 @@ export function NextMoveCard({ onSelect, onDismiss }: NextMoveCardProps) {
 
     const handleDismiss = async () => {
         try {
-            await fetch('/api/next-move', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'dismissed' }),
-            });
+            await apiClient.post('/api/next-move', { action: 'dismissed' });
         } catch (err) {
             console.error('Failed to record dismiss:', err);
         }
