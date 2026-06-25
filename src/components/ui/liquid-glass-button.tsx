@@ -108,8 +108,8 @@ export function LiquidGlassButton({
           background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.12) 50%, transparent 100%)',
           skewX: -12,
         }}
-        animate={{ x: isHovered ? '200%' : '-100%' }}
-        transition={{ duration: 1.2, ease: 'easeInOut' }}
+        animate={{ x: ['-100%', '200%'] }}
+        transition={{ duration: 3, ease: 'linear', repeat: Infinity, repeatDelay: 2 }}
       />
 
       {/* Content */}
@@ -121,17 +121,17 @@ export function LiquidGlassButton({
 
   if (href && !disabled) {
     return (
-      <Link href={href} title={title} onClick={onClick as any} className={innerProps.className}>
-        <motion.span
+      <Link href={href} title={title} onClick={onClick as any} passHref legacyBehavior>
+        <motion.a
           onHoverStart={innerProps.onHoverStart}
           onHoverEnd={innerProps.onHoverEnd}
           whileHover={innerProps.whileHover}
           whileTap={innerProps.whileTap}
           transition={innerProps.transition}
-          className="relative w-full h-full flex items-center justify-center"
+          className={innerProps.className}
         >
           {content}
-        </motion.span>
+        </motion.a>
       </Link>
     );
   }
