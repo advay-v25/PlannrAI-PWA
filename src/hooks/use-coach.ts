@@ -517,7 +517,7 @@ export const useCoach = create<CoachState>()(
         try {
           const url = conversationId ? `/api/coach/history?id=${conversationId}` : '/api/coach/history';
           const res = await apiClient.get(url) as any;
-          if (res?.success && res?.messages && res.messages.length > 0) {
+          if (res && res.messages && res.messages.length > 0) {
             let mapped = res.messages.map((m: any) => ({
               id: m.id,
               role: m.role,
