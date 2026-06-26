@@ -203,6 +203,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
         loadHistory,
         clearConversation,
         stopGenerating,
+        conversationId,
     } = useCoach();
 
     // Always open to a fresh blank chat when the user lands on Coach Hub.
@@ -252,10 +253,19 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
 
     const handleDeleteChat = async (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
+        
+        if (!window.confirm("Are you sure you want to delete this chat? This action is irreversible.")) {
+            return;
+        }
+
         try {
             const res = await apiClient.delete<any>(`/api/coach/conversations?id=${id}`);
             if (res) {
                 setPastConversations(prev => prev.filter(c => c.id !== id));
+                if (conversationId === id) {
+                    clearConversation();
+                    setSyntheticMessages([]);
+                }
                 showToast('Chat deleted', 'success');
             }
         } catch (err) {
