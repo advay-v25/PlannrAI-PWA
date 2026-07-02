@@ -36,7 +36,7 @@ export default function LandingPage() {
               href="/login"
               className="group relative inline-flex items-center justify-center px-7 py-3.5 text-base font-bold tracking-wide text-white rounded-2xl bg-gradient-to-r from-orange-500 to-orange-600 border border-orange-400/60 shadow-[0_0_40px_rgba(249,115,22,0.5),0_8px_32px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.25)] transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_0_60px_rgba(249,115,22,0.7),0_12px_40px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.35)] hover:from-orange-400 hover:to-orange-500"
             >
-              Get Started
+              Get Started Free
               <ArrowRight className="w-5 h-5 ml-2 opacity-90 transition-transform group-hover:translate-x-1" />
             </Link>
           </div>
