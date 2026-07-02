@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { useOnboardingStore, FailureMode } from '@/stores';
-import { AlertTriangle, Info } from 'lucide-react';
+import { Info } from 'lucide-react';
 
 const FAILURE_MODES: { id: FailureMode; label: string; description: string }[] = [
     { id: 'unexpected_meetings', label: 'Unexpected meetings or calls', description: 'Your calendar fills up with last-minute requests.' },
@@ -42,8 +42,8 @@ export function Step5FailureModes() {
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-3 text-center"
             >
-                <h2 className="text-3xl font-bold tracking-tight text-[var(--text-primary)] font-mono uppercase">
-                    PROTECTIVE <span className="text-[var(--color-primary)]">LAYERS</span>
+                <h2 className="text-4xl font-bold tracking-tight text-[var(--text-primary)] font-mono">
+                    Protective <span className="text-[var(--color-primary)]">Layers</span>
                 </h2>
                 <p className="text-[var(--color-text-secondary)] text-sm tracking-wide">
                     What usually derails your ideal schedule?
