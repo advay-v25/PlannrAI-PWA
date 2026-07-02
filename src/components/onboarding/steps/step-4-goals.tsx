@@ -68,7 +68,7 @@ export function Step4Goals() {
     return (
         <div className="flex flex-col items-center justify-start space-y-8 w-full max-w-xl mx-auto pb-32">
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center space-y-2">
-                <h2 className="text-3xl font-bold tracking-tight text-[var(--text-primary)] font-mono uppercase">
+                <h2 className="text-4xl font-bold tracking-tight text-[var(--text-primary)] font-mono">
                     Goal <span className="text-[var(--color-primary)]">Discovery</span>
                 </h2>
                 <p className="text-[var(--text-primary)]/60 tracking-wide text-sm">
@@ -83,7 +83,7 @@ export function Step4Goals() {
                     {PILLARS.map(p => (
                         <button
                             key={p.id}
-                            onClick={() => { setActivePillar(p.id as any); setEditingGoalIndex(null); }}
+                            onClick={() => { setActivePillar(p.id as 'mind' | 'body' | 'craft'); setEditingGoalIndex(null); }}
                             className={`flex-1 flex flex-col items-center gap-3 p-5 rounded-2xl transition-all duration-300 border backdrop-blur-md shadow-lg ${
                                 activePillar === p.id 
                                     ? `${p.bg} ${p.border} ${p.color} scale-[1.03] shadow-[0_0_20px_rgba(255,255,255,0.05)]` 
@@ -267,7 +267,7 @@ export function Step4Goals() {
                                                         <label className="text-[10px] font-black tracking-widest text-[var(--text-primary)]/40 uppercase ml-1">Pillar</label>
                                                         <select
                                                             value={goal.pillar}
-                                                            onChange={e => updateGoal(i, { pillar: e.target.value as any })}
+                                                            onChange={e => updateGoal(i, { pillar: e.target.value as 'mind' | 'body' | 'craft' })}
                                                             className="w-full bg-[var(--glass-bg-active)] border border-[var(--glass-border)] focus:border-[var(--glass-border)] text-[var(--text-primary)] px-4 py-2.5 rounded-2xl transition-colors text-xs font-bold appearance-none outline-none"
                                                         >
                                                             <option value="mind">Mind 🧠</option>
@@ -279,7 +279,7 @@ export function Step4Goals() {
                                                         <label className="text-[10px] font-black tracking-widest text-[var(--text-primary)]/40 uppercase ml-1">Preferred Time</label>
                                                         <select
                                                             value={goal.preferred_time_of_day}
-                                                            onChange={e => updateGoal(i, { preferred_time_of_day: e.target.value as any })}
+                                                            onChange={e => updateGoal(i, { preferred_time_of_day: e.target.value as 'morning' | 'afternoon' | 'evening' | 'flexible' })}
                                                             className="w-full bg-[var(--glass-bg-active)] border border-[var(--glass-border)] focus:border-[var(--glass-border)] text-[var(--text-primary)] px-4 py-2.5 rounded-2xl transition-colors text-xs font-bold appearance-none outline-none"
                                                         >
                                                             <option value="morning">Morning 🌅</option>
