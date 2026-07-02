@@ -111,7 +111,7 @@ export default function OnboardingPage() {
             <div className="relative z-10 w-full max-w-3xl flex flex-col items-center min-h-[700px] py-10">
 
                 {/* Premium Minimalist Progress Header */}
-                <div className="w-full flex justify-center px-2 mb-6">
+                <div className={`w-full flex justify-center px-2 ${currentStepDef.id !== 'generate' ? 'mb-6' : 'mb-16'}`}>
                     <div className="flex flex-col items-center w-full max-w-md">
                         <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-purple-400/80 mb-4">
                             Step {currentStep + 1} of {STEPS.length}
@@ -131,6 +131,12 @@ export default function OnboardingPage() {
                                 />
                             ))}
                         </div>
+
+                        {currentStepDef.id === 'generate' && (
+                            <h2 className="text-2xl md:text-3xl font-light tracking-tight text-white/90">
+                                {currentStepDef.title}
+                            </h2>
+                        )}
                     </div>
                 </div>
 
