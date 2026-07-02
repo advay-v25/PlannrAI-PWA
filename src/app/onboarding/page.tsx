@@ -202,7 +202,7 @@ export default function OnboardingPage() {
                                 <span className="text-base font-bold">Setting up...</span>
                             </div>
                         ) : isLastStep ? (
-                            <span className="relative z-10 px-3 text-base font-bold">Go to Dashboard</span>
+                            <span className="relative z-10 px-3 text-base font-bold">Plan Week</span>
                         ) : (
                             <span className="flex items-center justify-center gap-2 relative z-10 w-[90px]">
                                 <span className="font-bold tracking-wide text-base">Next</span>
