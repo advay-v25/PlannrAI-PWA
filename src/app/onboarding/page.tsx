@@ -73,6 +73,7 @@ export default function OnboardingPage() {
 
     const validateStep = () => {
         if (currentStepDef.id === 'identity' && !data.full_name) return false;
+        if (currentStepDef.id === 'rhythm' && data.meals_per_day === 2 && !data.two_meals_selection) return false;
         if (currentStepDef.id === 'goals' && (!data.goals || data.goals.length === 0)) return false;
         // Other steps are optional or have defaults
         return true;
