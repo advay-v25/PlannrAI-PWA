@@ -15,7 +15,6 @@ import { Step3Anchors } from '@/components/onboarding/steps/step-3-anchors';
 import { Step4Goals } from '@/components/onboarding/steps/step-4-goals';
 import { Step5FailureModes } from '@/components/onboarding/steps/step-5-failure-modes';
 import { Step6Generate } from '@/components/onboarding/steps/step-6-generate';
-import { DynamicBackground } from '@/components/ui/DynamicBackground';
 
 const STEPS = [
     { id: 'identity', title: 'Identity', component: Step1Identity },
@@ -46,9 +45,7 @@ export default function OnboardingPage() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error('Not authenticated');
 
-            const completeRes = await apiClient.post<any>('/api/onboarding/complete', data);
-
-            // If it succeeds, completeRes contains the data directly. Error throws automatically.
+            await apiClient.post<unknown>('/api/onboarding/complete', data);
 
             // Mark session as complete client-side too
             await supabase.auth.updateUser({ data: { onboarding_complete: true } });
@@ -56,7 +53,7 @@ export default function OnboardingPage() {
             // Generate initial schedule if not skipped
             if (data.selected_variant_id !== 'skip') {
                 try {
-                    await apiClient.post<any>('/api/onboarding/generate-initial', { selected_variant_id: data.selected_variant_id });
+                    await apiClient.post<unknown>('/api/onboarding/generate-initial', { selected_variant_id: data.selected_variant_id });
                 } catch (genErr) {
                     console.error('Initial schedule generation failed, but onboarding is complete', genErr);
                     // We don't throw here, let them go to the calendar and retry generating later if needed
@@ -65,9 +62,10 @@ export default function OnboardingPage() {
             router.push('/app/calendar?setup=complete');
             setTimeout(() => reset(), 2000);
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('Onboarding finalization failed:', err);
-            setError(err.message || 'Failed to initialize account');
+            const errorMessage = err instanceof Error ? err.message : 'Failed to initialize account';
+            setError(errorMessage);
         } finally {
             setIsSaving(false);
         }
@@ -105,7 +103,7 @@ export default function OnboardingPage() {
             <div className="relative z-10 w-full max-w-3xl flex flex-col items-center min-h-[700px] py-10">
 
                 {/* Premium Minimalist Progress Header */}
-                <div className="w-full flex justify-center mb-16 px-2">
+                <div className={`w-full flex justify-center px-2 ${currentStepDef.id === 'identity' ? 'mb-6' : 'mb-16'}`}>
                     <div className="flex flex-col items-center w-full max-w-md">
                         <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-purple-400/80 mb-4">
                             Step {currentStep + 1} of {STEPS.length}
@@ -126,9 +124,11 @@ export default function OnboardingPage() {
                             ))}
                         </div>
 
-                        <h2 className="text-2xl md:text-3xl font-light tracking-tight text-white/90">
-                            {currentStepDef.title}
-                        </h2>
+                        {currentStepDef.id !== 'identity' && (
+                            <h2 className="text-2xl md:text-3xl font-light tracking-tight text-white/90">
+                                {currentStepDef.title}
+                            </h2>
+                        )}
                     </div>
                 </div>
 
@@ -183,23 +183,23 @@ export default function OnboardingPage() {
                     <button
                         onClick={handleNext}
                         disabled={isSaving}
-                        className="group relative px-10 py-4 md:py-5 rounded-full text-sm font-semibold tracking-wide text-black bg-white hover:scale-105 active:scale-95 transition-all duration-300 shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-[0_0_40px_rgba(255,255,255,0.4)] disabled:opacity-50 disabled:pointer-events-none overflow-hidden"
+                        className="group relative px-7 py-3 md:py-3.5 rounded-full text-base font-bold tracking-wide text-black bg-white hover:scale-105 active:scale-95 transition-all duration-300 shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:shadow-[0_0_30px_rgba(255,255,255,0.3)] disabled:opacity-50 disabled:pointer-events-none overflow-hidden"
                     >
                         {/* Shimmer effect */}
                         <div className="absolute inset-0 block w-full h-full transform -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/50 to-transparent" />
                         
                         {isSaving ? (
-                            <div className="flex items-center justify-center gap-3 relative z-10 w-[140px]">
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                                <span className="text-sm font-medium">Setting up account...</span>
+                            <div className="flex items-center justify-center gap-2 relative z-10 w-[110px]">
+                                <Loader2 className="w-4.5 h-4.5 animate-spin" />
+                                <span className="text-base font-bold">Setting up...</span>
                             </div>
                         ) : isLastStep ? (
-                            <span className="relative z-10 px-4">Go to Dashboard</span>
+                            <span className="relative z-10 px-3 text-base font-bold">Go to Dashboard</span>
                         ) : (
-                            <span className="flex items-center justify-center gap-3 relative z-10 w-[140px]">
-                                <span className="font-medium tracking-wide text-sm">Next</span>
+                            <span className="flex items-center justify-center gap-2 relative z-10 w-[90px]">
+                                <span className="font-bold tracking-wide text-base">Next</span>
                                 <div className="bg-black/10 rounded-full p-1 transition-transform duration-300 group-hover:translate-x-1">
-                                    <ArrowRight className="w-4 h-4 ml-0.5" />
+                                    <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
                                 </div>
                             </span>
                         )}
