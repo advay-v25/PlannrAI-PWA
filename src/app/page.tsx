@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Sparkles, ArrowRight, Shield, Heart, Brain, Target, Calendar, BarChart3, Zap } from 'lucide-react';
+import { Sparkles, ArrowRight, Shield, Heart, Target, Calendar, BarChart3, Zap } from 'lucide-react';
 import { SciFiEarthBackground } from '@/components/ui/SciFiEarthBackground';
 import { OrbitalScheduleEngine } from '@/components/ui/orbital-schedule-engine';
 import { LiquidGlassButton } from '@/components/ui/liquid-glass-button';
@@ -31,14 +31,11 @@ export default function LandingPage() {
           </div>
 
           {/* Get Started — bottom CTA */}
-          <div className="flex justify-center w-full max-w-md mx-auto shrink-0 mt-6 md:mt-8 relative z-30">
-            <Link
-              href="/login"
-              className="group relative inline-flex items-center justify-center px-7 py-3.5 text-base font-bold tracking-wide text-white rounded-2xl bg-gradient-to-r from-orange-500 to-orange-600 border border-orange-400/60 shadow-[0_0_40px_rgba(249,115,22,0.5),0_8px_32px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.25)] transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_0_60px_rgba(249,115,22,0.7),0_12px_40px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.35)] hover:from-orange-400 hover:to-orange-500"
-            >
+          <div className="flex justify-center w-full max-w-md mx-auto shrink-0 mt-12 md:mt-20 relative z-30">
+            <LiquidGlassButton href="/login" size="lg" className="w-full text-lg font-bold text-white tracking-wide">
               Get Started Free
               <ArrowRight className="w-5 h-5 ml-2 opacity-90 transition-transform group-hover:translate-x-1" />
-            </Link>
+            </LiquidGlassButton>
           </div>
         </div>
         
