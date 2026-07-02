@@ -17,11 +17,7 @@ export function Step1Identity() {
             >
                 <div className="space-y-4">
                     <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-[var(--text-primary)] font-mono">
-<<<<<<< Updated upstream
-                        INITIALIZE <span className="text-[var(--color-primary)]">Personal OS</span>
-=======
-                        Initialize <span className="text-[var(--color-primary)]">Personal OS</span>
->>>>>>> Stashed changes
+                        Initialize <br /> <span className="text-[var(--color-primary)]">Personal OS</span>
                     </h1>
                     <p className="text-[var(--text-primary)]/60 tracking-wider text-lg">
                         Your life deserves an operating system.
@@ -49,7 +45,7 @@ export function Step1Identity() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
-                className="w-full space-y-6 max-w-md bg-[var(--glass-bg)] border border-[var(--glass-border)] p-8 rounded-3xl backdrop-blur-lg shadow-xl"
+                className="w-full space-y-5 max-w-sm bg-[var(--glass-bg)] border border-[var(--glass-border)] p-6 rounded-2xl backdrop-blur-lg shadow-xl"
             >
                 <div className="space-y-3 text-left">
                     <label className="text-[10px] font-bold text-[var(--text-primary)]/50 uppercase tracking-widest pl-1">
@@ -60,7 +56,7 @@ export function Step1Identity() {
                         placeholder="Full Name"
                         value={data.full_name}
                         onChange={(e) => updateData({ full_name: e.target.value })}
-                        className="bg-[var(--glass-bg-active)] border-[var(--glass-border)] text-[var(--text-primary)] text-lg py-7 rounded-2xl hover:border-[var(--glass-border)] focus:border-white focus:ring-1 focus:ring-white placeholder:text-[var(--text-primary)]/20 transition-all font-bold tracking-wide shadow-inner"
+                        className="bg-[var(--glass-bg-active)] border-[var(--glass-border)] text-[var(--text-primary)] text-base py-5 rounded-xl hover:border-[var(--glass-border)] focus:border-white focus:ring-1 focus:ring-white placeholder:text-[var(--text-primary)]/20 transition-all font-bold tracking-wide shadow-inner"
                         autoFocus
                     />
                 </div>
@@ -74,7 +70,7 @@ export function Step1Identity() {
                         type="text"
                         value={data.timezone}
                         onChange={(e) => updateData({ timezone: e.target.value })}
-                        className="bg-[var(--glass-bg-active)] border-[var(--glass-border)] text-[var(--text-primary)]/50 text-lg py-7 rounded-2xl focus:border-[var(--glass-border)] font-mono tracking-wider shadow-inner"
+                        className="bg-[var(--glass-bg-active)] border-[var(--glass-border)] text-[var(--text-primary)] text-base py-5 rounded-xl focus:border-[var(--glass-border)] font-bold tracking-wide shadow-inner"
                     />
                 </div>
             </motion.div>
