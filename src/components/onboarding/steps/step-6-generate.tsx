@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOnboardingStore } from '@/stores';
-import { Check, Loader2, Sparkles, TrendingUp, Zap, ShieldAlert } from 'lucide-react';
+import { Check, Sparkles } from 'lucide-react';
 
 interface ScheduleOption {
     id: string;
@@ -18,20 +18,20 @@ interface ScheduleOption {
     recommended?: boolean;
 }
 
+const STATUSES = [
+    "Protecting sleep windows...",
+    "Locking fixed commitments...",
+    "Distributing goals across pillars...",
+    "Calculating optimal buffer paths...",
+    "Optimizing for energy patterns...",
+    "Finalizing week structure..."
+];
+
 export function Step6Generate() {
     const { data, updateData } = useOnboardingStore();
     const [phase, setPhase] = useState<'generating' | 'options'>('generating');
     const [progress, setProgress] = useState(0);
     const [status, setStatus] = useState('Initializing PersonalOS...');
-
-    const statuses = [
-        "Protecting sleep windows...",
-        "Locking fixed commitments...",
-        "Distributing goals across pillars...",
-        "Calculating optimal buffer paths...",
-        "Optimizing for energy patterns...",
-        "Finalizing week structure..."
-    ];
 
     useEffect(() => {
         if (phase === 'generating') {
@@ -42,8 +42,8 @@ export function Step6Generate() {
                         return 100;
                     }
                     const next = prev + 1;
-                    const statusIdx = Math.floor((next / 100) * statuses.length);
-                    if (statuses[statusIdx]) setStatus(statuses[statusIdx]);
+                    const statusIdx = Math.floor((next / 100) * STATUSES.length);
+                    if (STATUSES[statusIdx]) setStatus(STATUSES[statusIdx]);
                     return next;
                 });
             }, 50); // Mocks a 5s generation
@@ -123,7 +123,9 @@ export function Step6Generate() {
                         className="space-y-8 w-full pb-10"
                     >
                         <div className="text-center space-y-3 mb-10">
-                            <h2 className="text-3xl font-bold text-[var(--text-primary)] tracking-tight">Your Options</h2>
+                            <h2 className="text-4xl font-bold tracking-tight text-[var(--text-primary)] font-mono">
+                                Your <span className="text-[var(--color-primary)]">Options</span>
+                            </h2>
                             <p className="text-[var(--text-primary)]/60 text-sm">Choose your preferred approach for your first week.</p>
                         </div>
 
@@ -134,38 +136,52 @@ export function Step6Generate() {
                                     onClick={() => updateData({ selected_variant_id: opt.id })}
                                     className={`w-full p-6 text-left relative group transition-all duration-500 rounded-3xl backdrop-blur-md shadow-xl ${
                                         selectedOption === opt.id
-                                            ? 'bg-[var(--glass-bg)] border border-[var(--glass-border)] shadow-[0_0_40px_rgba(255,255,255,0.1)] scale-[1.03]'
-                                            : 'bg-[var(--glass-bg)] border border-[var(--glass-border)] hover:border-[var(--glass-border)] hover:bg-[var(--glass-bg)] hover:scale-[1.01]'
+                                            ? 'scale-[1.03]'
+                                            : 'hover:scale-[1.01]'
                                     }`}
                                 >
+                                    {/* Liquid glass background with shimmer sweep effect */}
+                                    <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none z-0">
+                                        {selectedOption === opt.id && (
+                                            <div className="absolute -inset-10 bg-[radial-gradient(circle_at_center,rgba(249,115,22,0.22)_0%,transparent_65%)] blur-xl pointer-events-none animate-pulse" />
+                                        )}
+                                        <div className={`absolute inset-0 transition-all duration-500 border ${
+                                            selectedOption === opt.id
+                                                ? 'bg-white/[0.08] border-transparent shadow-[0_0_25px_rgba(255,255,255,0.05)] animate-shimmer'
+                                                : 'bg-[var(--glass-bg)] border-[var(--glass-border)] group-hover:bg-[var(--glass-bg-hover)]'
+                                        }`} />
+                                    </div>
+
                                     {opt.recommended && (
-                                        <div className="absolute -top-3 left-6 bg-white text-black text-[10px] font-bold px-3 py-1 rounded-full tracking-wide shadow-lg">
+                                        <div className="absolute -top-3 left-6 bg-white text-black text-[10px] font-bold px-3 py-1 rounded-full tracking-wide shadow-lg z-10">
                                             Recommended
                                         </div>
                                     )}
 
-                                    <div className="flex justify-between items-start mb-6">
-                                        <div>
-                                        <div className={`text-xl font-semibold tracking-tight transition-colors duration-300 ${selectedOption === opt.id ? 'text-[var(--color-primary)]' : 'text-[var(--text-primary)]'}`}>
-                                            {opt.label}
+                                    <div className="relative z-10 w-full flex flex-col">
+                                        <div className="flex justify-between items-start mb-6">
+                                            <div>
+                                                <div className={`text-xl font-semibold tracking-tight transition-colors duration-300 ${selectedOption === opt.id ? 'text-[var(--color-primary)]' : 'text-[var(--text-primary)]'}`}>
+                                                    {opt.label}
+                                                </div>
+                                                <p className="text-sm text-[var(--text-primary)]/70 mt-2 leading-relaxed font-medium pr-8">{opt.summary}</p>
+                                            </div>
+                                            {selectedOption === opt.id && (
+                                                <div className="bg-white text-black p-1.5 rounded-full shadow-lg scale-110 ml-4 flex-shrink-0">
+                                                    <Check className="w-5 h-5 stroke-[3]" />
+                                                </div>
+                                            )}
                                         </div>
-                                        <p className="text-sm text-[var(--text-primary)]/70 mt-2 leading-relaxed font-medium pr-8">{opt.summary}</p>
-                                    </div>
-                                    {selectedOption === opt.id && (
-                                        <div className="bg-white text-black p-1.5 rounded-full shadow-lg scale-110 ml-4 flex-shrink-0">
-                                            <Check className="w-5 h-5 stroke-[3]" />
-                                        </div>
-                                    )}
-                                </div>
 
-                                {opt.id !== 'skip' && (
-                                    <div className="grid grid-cols-4 gap-3 p-4 rounded-2xl bg-[var(--glass-bg-active)] border border-[var(--glass-border)] shadow-inner">
-                                        <Metric label="Blocks" value={opt.metrics.total_blocks} active={selectedOption === opt.id} />
-                                        <Metric label="Buffer" value={`${opt.metrics.buffer_percentage}%`} active={selectedOption === opt.id} />
-                                        <Metric label="Intensity" value={`${opt.metrics.intensity}/10`} active={selectedOption === opt.id} />
-                                        <Metric label="Hrs/Day" value={Math.round(opt.metrics.goal_minutes/7/60 * 10)/10} active={selectedOption === opt.id} />
+                                        {opt.id !== 'skip' && (
+                                            <div className="grid grid-cols-4 gap-3 p-4 rounded-2xl bg-[var(--glass-bg-active)] border border-[var(--glass-border)] shadow-inner">
+                                                <Metric label="Blocks" value={opt.metrics.total_blocks} active={selectedOption === opt.id} />
+                                                <Metric label="Buffer" value={`${opt.metrics.buffer_percentage}%`} active={selectedOption === opt.id} />
+                                                <Metric label="Intensity" value={`${opt.metrics.intensity}/10`} active={selectedOption === opt.id} />
+                                                <Metric label="Hrs/Day" value={Math.round(opt.metrics.goal_minutes/7/60 * 10)/10} active={selectedOption === opt.id} />
+                                            </div>
+                                        )}
                                     </div>
-                                )}
                                 </button>
                             ))}
                         </div>
