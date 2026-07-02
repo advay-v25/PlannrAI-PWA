@@ -7,8 +7,8 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
-  title: "PlannrAI - Build how you want to, adapt when you need to",
-  description: "Build how you want to, adapt when you need to",
+  title: "PlannrAI - Build when you want, adapt when you need",
+  description: "Build when you want, adapt when you need",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "PlannrAI",
-    description: "Build how you want to, adapt when you need to",
+    description: "Build when you want, adapt when you need",
     type: "website",
   },
 };
