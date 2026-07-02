@@ -17,7 +17,7 @@ export function Step1Identity() {
             >
                 <div className="space-y-4">
                     <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-[var(--text-primary)] font-mono">
-                        INITIALIZE <span className="text-[var(--color-primary)]">PERSONALOS</span>
+                        INITIALIZE <span className="text-[var(--color-primary)]">Personal OS</span>
                     </h1>
                     <p className="text-[var(--text-primary)]/60 tracking-wider text-lg">
                         Your life deserves an operating system.
