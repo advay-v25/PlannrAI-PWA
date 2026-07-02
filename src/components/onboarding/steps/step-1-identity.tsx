@@ -70,7 +70,7 @@ export function Step1Identity() {
                         type="text"
                         value={data.timezone}
                         onChange={(e) => updateData({ timezone: e.target.value })}
-                        className="bg-[var(--glass-bg-active)] border-[var(--glass-border)] text-[var(--text-primary)] text-base py-5 rounded-xl focus:border-[var(--glass-border)] font-bold tracking-wide shadow-inner"
+                        className="bg-[var(--glass-bg-active)] border-[var(--glass-border)] text-[var(--text-primary)]/50 text-base py-5 rounded-xl focus:border-[var(--glass-border)] font-bold tracking-wide shadow-inner"
                     />
                 </div>
             </motion.div>

@@ -104,7 +104,7 @@ export default function OnboardingPage() {
             <div className="relative z-10 w-full max-w-3xl flex flex-col items-center min-h-[700px] py-10">
 
                 {/* Premium Minimalist Progress Header */}
-                <div className={`w-full flex justify-center px-2 ${(currentStepDef.id === 'identity' || currentStepDef.id === 'rhythm') ? 'mb-6' : 'mb-16'}`}>
+                <div className={`w-full flex justify-center px-2 ${currentStepDef.id === 'identity' ? 'mb-6' : 'mb-16'}`}>
                     <div className="flex flex-col items-center w-full max-w-md">
                         <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-purple-400/80 mb-4">
                             Step {currentStep + 1} of {STEPS.length}
@@ -125,7 +125,7 @@ export default function OnboardingPage() {
                             ))}
                         </div>
 
-                        {currentStepDef.id !== 'identity' && currentStepDef.id !== 'rhythm' && (
+                        {currentStepDef.id !== 'identity' && (
                             <h2 className="text-2xl md:text-3xl font-light tracking-tight text-white/90">
                                 {currentStepDef.title}
                             </h2>
@@ -184,23 +184,23 @@ export default function OnboardingPage() {
                     <button
                         onClick={handleNext}
                         disabled={isSaving}
-                        className="group relative px-7 py-3 md:py-3.5 rounded-full text-base font-bold tracking-wide text-black bg-white hover:scale-105 active:scale-95 transition-all duration-300 shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-[0_0_40px_rgba(255,255,255,0.4)] disabled:opacity-50 disabled:pointer-events-none overflow-hidden"
+                        className="group relative px-7 py-3 md:py-3.5 rounded-full text-base font-bold tracking-wide text-black bg-white hover:scale-105 active:scale-95 transition-all duration-300 shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:shadow-[0_0_30px_rgba(255,255,255,0.3)] disabled:opacity-50 disabled:pointer-events-none overflow-hidden"
                     >
                         {/* Shimmer effect */}
                         <div className="absolute inset-0 block w-full h-full transform -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/50 to-transparent" />
                         
                         {isSaving ? (
-                            <div className="flex items-center justify-center gap-3 relative z-10 w-[110px]">
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                <span className="text-xs font-bold">Saving...</span>
+                            <div className="flex items-center justify-center gap-2 relative z-10 w-[110px]">
+                                <Loader2 className="w-4.5 h-4.5 animate-spin" />
+                                <span className="text-base font-bold">Setting up...</span>
                             </div>
                         ) : isLastStep ? (
-                            <span className="relative z-10 px-4">Go to Dashboard</span>
+                            <span className="relative z-10 px-3 text-base font-bold">Go to Dashboard</span>
                         ) : (
-                            <span className="flex items-center justify-center gap-3 relative z-10 w-[90px]">
+                            <span className="flex items-center justify-center gap-2 relative z-10 w-[90px]">
                                 <span className="font-bold tracking-wide text-base">Next</span>
                                 <div className="bg-black/10 rounded-full p-1 transition-transform duration-300 group-hover:translate-x-1">
-                                    <ArrowRight className="w-3 h-3 ml-0.5" />
+                                    <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
                                 </div>
                             </span>
                         )}
