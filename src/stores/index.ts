@@ -44,7 +44,7 @@ export interface OnboardingData {
     wind_down_mins: number;
     morning_routine_mins: number;
     meals_per_day: number;
-    two_meals_selection: 'breakfast_lunch' | 'lunch_dinner' | 'breakfast_dinner';
+    two_meals_selection: 'breakfast_lunch' | 'lunch_dinner' | 'breakfast_dinner' | null;
     custom_meal_times: {
         breakfast?: string;
         lunch?: string;
@@ -136,7 +136,7 @@ const defaultOnboardingData: OnboardingData = {
     wind_down_mins: 30,
     morning_routine_mins: 0,
     meals_per_day: 3,
-    two_meals_selection: 'lunch_dinner',
+    two_meals_selection: null,
     custom_meal_times: {
         breakfast: '08:00',
         lunch: '13:00',
