@@ -17,7 +17,11 @@ export function Step1Identity() {
             >
                 <div className="space-y-4">
                     <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-[var(--text-primary)] font-mono">
+<<<<<<< Updated upstream
                         INITIALIZE <span className="text-[var(--color-primary)]">Personal OS</span>
+=======
+                        Initialize <span className="text-[var(--color-primary)]">Personal OS</span>
+>>>>>>> Stashed changes
                     </h1>
                     <p className="text-[var(--text-primary)]/60 tracking-wider text-lg">
                         Your life deserves an operating system.
