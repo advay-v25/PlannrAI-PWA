@@ -28,9 +28,11 @@ const STEPS = [
 export default function OnboardingPage() {
     const router = useRouter();
     const supabase = createClient();
-    const { currentStep, data, nextStep, prevStep, reset } = useOnboardingStore();
+    const { currentStep, data, nextStep, prevStep, reset, updateData } = useOnboardingStore();
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState('');
+    const [showMealSelectionPopup, setShowMealSelectionPopup] = useState(false);
+    const [popupSelectedMeals, setPopupSelectedMeals] = useState<('breakfast' | 'lunch' | 'dinner')[]>([]);
 
     const CurrentStepComponent = STEPS[currentStep]?.component;
     const isFirstStep = currentStep === 0;
@@ -80,6 +82,11 @@ export default function OnboardingPage() {
     };
 
     const handleNext = () => {
+        if (currentStepDef.id === 'rhythm' && data.meals_per_day === 2 && !data.two_meals_selection) {
+            setShowMealSelectionPopup(true);
+            return;
+        }
+
         if (!validateStep()) {
             setError('PLEASE COMPLETE THIS SEQUENCE BEFORE PROCEEDING.');
             setTimeout(() => setError(''), 3000);
@@ -207,6 +214,108 @@ export default function OnboardingPage() {
                     </button>
                 </div>
             </div>
+
+            <AnimatePresence>
+                {showMealSelectionPopup && (
+                    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md">
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                            className="bg-[var(--glass-bg)] border border-[var(--glass-border)] p-6 max-w-sm w-full mx-4 space-y-5 rounded-3xl shadow-2xl text-center backdrop-blur-xl"
+                        >
+                            <div className="space-y-2">
+                                <h3 className="text-lg font-bold text-white font-mono uppercase tracking-wide">
+                                    Select Your 2 Meals
+                                </h3>
+                                <p className="text-xs text-[var(--text-primary)]/70 leading-relaxed">
+                                    Please select the two meals you would like to schedule before proceeding.
+                                </p>
+                            </div>
+
+                            <div className="flex gap-2.5">
+                                {[
+                                    { id: 'breakfast', label: 'Breakfast' },
+                                    { id: 'lunch', label: 'Lunch' },
+                                    { id: 'dinner', label: 'Dinner' }
+                                ].map((opt) => {
+                                    const isSelected = popupSelectedMeals.includes(opt.id as 'breakfast' | 'lunch' | 'dinner');
+                                    return (
+                                        <button
+                                            type="button"
+                                            key={opt.id}
+                                            onClick={() => {
+                                                if (isSelected) {
+                                                    setPopupSelectedMeals(prev => prev.filter(m => m !== opt.id));
+                                                } else {
+                                                    if (popupSelectedMeals.length < 2) {
+                                                        setPopupSelectedMeals(prev => [...prev, opt.id as 'breakfast' | 'lunch' | 'dinner']);
+                                                    } else {
+                                                        setPopupSelectedMeals(prev => [prev[0], opt.id as 'breakfast' | 'lunch' | 'dinner']);
+                                                    }
+                                                }
+                                            }}
+                                            className={`py-3 rounded-2xl text-xs font-bold transition-all duration-300 flex-1 border tracking-wide ${
+                                                isSelected
+                                                    ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)] scale-[1.03] border-transparent'
+                                                    : 'bg-[var(--glass-bg-active)] text-[var(--text-primary)]/50 border-[var(--glass-border)] hover:bg-[var(--glass-bg)] hover:text-[var(--text-primary)] hover:scale-[1.02]'
+                                            }`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowMealSelectionPopup(false);
+                                        setPopupSelectedMeals([]);
+                                    }}
+                                    className="flex-1 py-2.5 rounded-xl border border-[var(--glass-border)] text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--glass-bg-active)] transition-colors duration-300"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={popupSelectedMeals.length !== 2}
+                                    onClick={() => {
+                                        const sorted = [...popupSelectedMeals].sort();
+                                        let val: 'breakfast_lunch' | 'lunch_dinner' | 'breakfast_dinner' = 'lunch_dinner';
+                                        if (sorted[0] === 'breakfast' && sorted[1] === 'lunch') val = 'breakfast_lunch';
+                                        else if (sorted[0] === 'lunch' && sorted[1] === 'dinner') val = 'lunch_dinner';
+                                        else if (sorted[0] === 'breakfast' && sorted[1] === 'dinner') val = 'breakfast_dinner';
+
+                                        updateData({ two_meals_selection: val });
+                                        setShowMealSelectionPopup(false);
+                                        setPopupSelectedMeals([]);
+                                        nextStep();
+                                    }}
+                                    className="flex-1 py-2.5 rounded-xl bg-[var(--color-primary)] hover:shadow-[0_0_15px_rgba(251,146,60,0.4)] text-xs font-bold text-white transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                                >
+                                    Confirm & Next
+                                </button>
+                            </div>
+                            <div className="flex justify-center pt-1">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        updateData({ two_meals_selection: null });
+                                        setShowMealSelectionPopup(false);
+                                        setPopupSelectedMeals([]);
+                                        nextStep();
+                                    }}
+                                    className="text-xs text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]/80 transition-colors duration-300 font-medium tracking-wide underline"
+                                >
+                                    Select Later
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
