@@ -152,13 +152,10 @@ export function Step2Rhythm() {
                             {[2, 3].map((num) => (
                                 <button
                                     key={num}
-                                    onClick={() => {
-                                        updateData({ 
-                                            meals_per_day: num as 2 | 3,
-                                            ...(num === 2 ? { two_meals_selection: null } : {})
-                                        });
-                                        setSelected([]);
-                                    }}
+                                    onClick={() => updateData({ 
+                                        meals_per_day: num as 2 | 3,
+                                        ...(num === 2 ? { two_meals_selection: null } : {})
+                                    })}
                                     className={`py-5 rounded-3xl text-sm font-bold tracking-wide transition-all duration-300 flex-1 flex flex-col items-center justify-center gap-2 border ${
                                         data.meals_per_day === num 
                                             ? 'bg-white text-black shadow-[0_0_25px_rgba(255,255,255,0.4)] scale-[1.02] border-transparent' 
