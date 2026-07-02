@@ -3,6 +3,7 @@
 import { forwardRef, InputHTMLAttributes, TextareaHTMLAttributes, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { Eye, EyeOff } from 'lucide-react';
 
 interface GlassInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'onDrag' | 'onDragEnd' | 'onDragStart' | 'onAnimationStart' | 'onAnimationEnd'> {
     label?: string;
@@ -13,6 +14,10 @@ interface GlassInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'o
 export const GlassInput = forwardRef<HTMLInputElement, GlassInputProps>(
     ({ className, label, error, hint, type = 'text', onFocus, onBlur, ...props }, ref) => {
         const [isFocused, setIsFocused] = useState(false);
+        const [showPassword, setShowPassword] = useState(false);
+
+        const isPassword = type === 'password';
+        const inputType = isPassword ? (showPassword ? 'text' : 'password') : type;
 
         return (
             <div className="space-y-1.5">
@@ -24,9 +29,10 @@ export const GlassInput = forwardRef<HTMLInputElement, GlassInputProps>(
                 <div className="relative">
                     <input
                         ref={ref}
-                        type={type}
+                        type={inputType}
                         className={cn(
-                            'w-full px-4 py-3 rounded-xl',
+                            'w-full pl-4 py-3 rounded-xl',
+                            isPassword ? 'pr-12' : 'pr-4',
                             'bg-[var(--glass-bg)] backdrop-blur-xl',
                             'border border-[var(--glass-border)]',
                             'text-[var(--color-text-primary)] placeholder:text-white/20',
@@ -45,6 +51,20 @@ export const GlassInput = forwardRef<HTMLInputElement, GlassInputProps>(
                         }}
                         {...props}
                     />
+                    {isPassword && (
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition-colors p-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-500/50 z-20"
+                            aria-label={showPassword ? "Hide password" : "Show password"}
+                        >
+                            {showPassword ? (
+                                <EyeOff className="w-4 h-4" />
+                            ) : (
+                                <Eye className="w-4 h-4" />
+                            )}
+                        </button>
+                    )}
                     {/* Focus glow effect */}
                     <AnimatePresence>
                         {isFocused && (
