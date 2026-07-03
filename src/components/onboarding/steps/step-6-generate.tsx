@@ -33,6 +33,86 @@ export function Step6Generate() {
     const [progress, setProgress] = useState(0);
     const [status, setStatus] = useState('Initializing PersonalOS...');
 
+    const commitments = data.commitments || [];
+    
+    // Average sleep time is 8 hours (480 mins)
+    const sleepMins = 480;
+
+    // Average fixed commitment mins per day
+    const averageFixedMins = commitments.reduce((acc, c) => {
+        const [sh, sm] = c.start_time.split(':').map(Number);
+        const [eh, em] = c.end_time.split(':').map(Number);
+        const duration = (eh * 60 + em) - (sh * 60 + sm);
+        const activeDaysCount = c.days_of_week.length;
+        return acc + (duration * activeDaysCount) / 7;
+    }, 0);
+
+    const goals = data.goals || [];
+    const userTotalGoalMins = goals.reduce((acc, g) => acc + (g.target_minutes_per_day * (g.days_per_week || 7)), 0);
+    
+    // Fallback default in case they have no goals selected
+    const baseGoalMins = userTotalGoalMins > 0 ? userTotalGoalMins : 1800; 
+
+    // Calculate dynamic values for each plan:
+    const planMetrics = {
+        balanced: {
+            goal_minutes: baseGoalMins,
+            total_blocks: Math.round((baseGoalMins / 45) * 1.1), // average 45 min blocks + buffer multiplier
+            buffer_percentage: 15,
+            intensity: 7
+        },
+        recovery: {
+            goal_minutes: Math.round(baseGoalMins * 0.6),
+            total_blocks: Math.round((baseGoalMins * 0.6 / 45) * 1.1),
+            buffer_percentage: 25,
+            intensity: 4
+        },
+        intense: {
+            goal_minutes: Math.round(baseGoalMins * 1.3),
+            total_blocks: Math.round((baseGoalMins * 1.3 / 45) * 1.1),
+            buffer_percentage: 8,
+            intensity: 9
+        },
+        skip: {
+            goal_minutes: 0,
+            total_blocks: 0,
+            buffer_percentage: 0,
+            intensity: 0
+        }
+    };
+
+    const getPlanSegments = (optId: string) => {
+        let goalMins = 0;
+        if (optId === 'balanced') goalMins = planMetrics.balanced.goal_minutes / 7;
+        else if (optId === 'recovery') goalMins = planMetrics.recovery.goal_minutes / 7;
+        else if (optId === 'intense') goalMins = planMetrics.intense.goal_minutes / 7;
+
+        // Routine / Winddown
+        const routineMins = (data.wind_down_mins || 30) + (data.morning_routine_mins || 0);
+
+        // Sleep segment
+        const sleepHours = Math.round((sleepMins / 60) * 10) / 10;
+        // Fixed segment
+        const fixedHours = Math.round((averageFixedMins / 60) * 10) / 10;
+        // Goals segment
+        const goalHours = Math.round((goalMins / 60) * 10) / 10;
+        // Routine segment
+        const routineHours = Math.round((routineMins / 60) * 10) / 10;
+        // Buffer / Free Time segment (remaining hours out of 24)
+        const bufferHours = Math.max(0, Math.round((24 - sleepHours - fixedHours - goalHours - routineHours) * 10) / 10);
+
+        const totalHours = sleepHours + fixedHours + goalHours + routineHours + bufferHours;
+
+        const segments = [
+            { label: 'Sleep 💤', hours: sleepHours, percentage: (sleepHours / totalHours) * 100, bgClass: 'bg-indigo-400' },
+            { label: 'Fixed Anchors 🔒', hours: fixedHours, percentage: (fixedHours / totalHours) * 100, bgClass: 'bg-emerald-400' },
+            { label: 'Growth Goals 🎯', hours: goalHours, percentage: (goalHours / totalHours) * 100, bgClass: 'bg-[var(--color-primary)]' },
+            { label: 'Routine & Buffer 🍃', hours: Math.round((routineHours + bufferHours) * 10) / 10, percentage: ((routineHours + bufferHours) / totalHours) * 100, bgClass: 'bg-purple-400' }
+        ];
+
+        return segments.filter(s => s.hours > 0);
+    };
+
     useEffect(() => {
         if (phase === 'generating') {
             const interval = setInterval(() => {
@@ -57,25 +137,25 @@ export function Step6Generate() {
             label: 'Balanced Week',
             summary: 'Sustainable pace, moderate intensity, even goal distribution.',
             recommended: true,
-            metrics: { total_blocks: 42, goal_minutes: 1800, buffer_percentage: 15, intensity: 7 }
+            metrics: planMetrics.balanced
         },
         {
             id: 'recovery',
             label: 'Recovery Mode',
             summary: 'Lighter load, maximum flexibility, gentle start.',
-            metrics: { total_blocks: 32, goal_minutes: 1200, buffer_percentage: 25, intensity: 4 }
+            metrics: planMetrics.recovery
         },
         {
             id: 'intense',
             label: 'Intense Mode',
             summary: 'Maximum productivity, tight scheduling, ambitious progress.',
-            metrics: { total_blocks: 54, goal_minutes: 2400, buffer_percentage: 8, intensity: 9 }
+            metrics: planMetrics.intense
         },
         {
             id: 'skip',
             label: 'Skip for Now',
             summary: 'Go straight to your dashboard. You can generate a plan later.',
-            metrics: { total_blocks: 0, goal_minutes: 0, buffer_percentage: 0, intensity: 0 }
+            metrics: planMetrics.skip
         }
     ];
 
@@ -180,6 +260,60 @@ export function Step6Generate() {
                                                 <Metric label="Intensity" value={`${opt.metrics.intensity}/10`} active={selectedOption === opt.id} />
                                                 <Metric label="Hrs/Day" value={Math.round(opt.metrics.goal_minutes/7/60 * 10)/10} active={selectedOption === opt.id} />
                                             </div>
+                                        )}
+
+                                        {selectedOption === opt.id && (
+                                            <motion.div
+                                                initial={{ opacity: 0, height: 0 }}
+                                                animate={{ opacity: 1, height: 'auto' }}
+                                                exit={{ opacity: 0, height: 0 }}
+                                                className="mt-6 pt-5 border-t border-[var(--glass-border)] space-y-4 text-xs overflow-hidden"
+                                            >
+                                                <p className="font-bold text-[10px] text-[var(--color-primary)] tracking-widest uppercase">
+                                                    Estimated Daily Time Distribution
+                                                </p>
+
+                                                {/* Visual Multi-segment Progress Bar */}
+                                                <div className="h-2 w-full rounded-full bg-white/5 flex overflow-hidden">
+                                                    {getPlanSegments(opt.id).map((seg, idx) => (
+                                                        <div
+                                                            key={idx}
+                                                            style={{ width: `${seg.percentage}%` }}
+                                                            className={`${seg.bgClass} h-full transition-all duration-500`}
+                                                            title={`${seg.label}: ${seg.hours}h`}
+                                                        />
+                                                    ))}
+                                                </div>
+
+                                                {/* Legend */}
+                                                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[10px] font-medium text-[var(--text-primary)]/60">
+                                                    {getPlanSegments(opt.id).map((seg, idx) => (
+                                                        <div key={idx} className="flex items-center gap-2">
+                                                            <span className={`w-2.5 h-2.5 rounded-full ${seg.bgClass}`} />
+                                                            <span className="flex-1 text-[11px]">{seg.label}</span>
+                                                            <span className="font-mono font-bold text-white text-[11px]">{seg.hours}h</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                {/* Short Text Overview Description */}
+                                                <div className="bg-white/[0.03] border border-white/[0.04] p-3 rounded-2xl text-[11px] text-[var(--text-primary)]/75 leading-relaxed">
+                                                    {opt.id === 'balanced' && (
+                                                        "Expect a steady rhythm where goals are tackled in solid, manageable blocks. Ideal for keeping progress consistent without feeling overwhelmed."
+                                                    )}
+                                                    {opt.id === 'recovery' && (
+                                                        "A gentle flow designed to prioritize rest and breathing room. Perfect if you need to recharge your batteries while maintaining a light baseline of progress."
+                                                    )}
+                                                    {opt.id === 'intense' && (
+                                                        <span>
+                                                            A packed, highly productive schedule designed for rapid acceleration. <strong className="text-[var(--color-primary)] font-bold">Please note:</strong> This mode scales up your target times, assigning <strong className="text-[var(--color-primary)] font-bold">30% more time</strong> to your growth goals than you originally allocated. Requires high discipline.
+                                                        </span>
+                                                    )}
+                                                    {opt.id === 'skip' && (
+                                                        "Your weekly schedule will be blank, giving you complete freedom to build your blocks from scratch directly on the calendar interface."
+                                                    )}
+                                                </div>
+                                            </motion.div>
                                         )}
                                     </div>
                                 </button>
