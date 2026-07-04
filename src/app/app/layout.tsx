@@ -169,15 +169,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </motion.aside>
 
             {/* Content Area */}
-            <div className="flex-1 relative">
+            <div className="flex-1 relative min-w-0">
                 {/* Main Content */}
-                <main className="relative flex flex-col h-full overflow-hidden">
+                <main className="relative flex flex-col h-full overflow-hidden min-w-0 max-w-full">
                     {/* Top System Bar */}
                     <header className="h-14 flex items-center justify-between px-6 border-b border-[var(--glass-border)] bg-[var(--color-bg-secondary)]/50 backdrop-blur-md z-20 md:hidden">
                         {/* Mobile Header Content */}
                         <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-[var(--color-primary)] animate-pulse-slow" />
-                            <span className="text-xs font-mono text-[var(--text-tertiary)] uppercase tracking-widest">Neural OS</span>
+                            <Image src="/logo.png" alt="PlannrAI" width={24} height={24} className="rounded-md" />
+                            <span className="font-bold text-sm tracking-tight bg-gradient-to-r from-[var(--text-primary)] to-[var(--text-secondary)] bg-clip-text text-transparent">
+                                PlannrAI
+                            </span>
                         </div>
                         <button
                             onClick={() => window.dispatchEvent(new Event('open-command-menu'))}
@@ -188,12 +190,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     </header>
 
                     {/* Scrollable Page Content */}
-                    <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-[var(--glass-border)] pb-28 md:pb-0">
+                    <div className="flex-1 overflow-y-auto overflow-x-clip scrollbar-thin scrollbar-track-transparent scrollbar-thumb-[var(--glass-border)] pb-28 md:pb-0">
                         {children}
                     </div>
 
                     {/* Bottom Navigation Dock (Mobile Only) */}
-                    <nav className="md:hidden absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 right-4 h-16 glass-panel rounded-full flex items-center justify-around px-2 z-30">
+                    <nav className="md:hidden fixed inset-x-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] max-w-md mx-auto h-16 glass-panel rounded-full flex items-center justify-around px-2 z-50">
                         {navItems.filter(item => item.label !== 'Review').map((item) => {
                             const isActive = pathname === item.href;
                             return (
