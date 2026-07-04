@@ -19,10 +19,10 @@ interface BlockInspectorProps {
 }
 
 const PILLAR_COLORS: Record<string, { accent: string; bg: string; border: string }> = {
-    mind: { accent: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
-    body: { accent: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
-    craft: { accent: 'text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/20' },
-    soul: { accent: 'text-rose-400', bg: 'bg-rose-500/10', border: 'border-rose-500/20' },
+    mind: { accent: 'text-purple-600 dark:text-indigo-400', bg: 'bg-purple-600 dark:bg-indigo-500/10', border: 'border-purple-500 dark:border-indigo-500/20' },
+    body: { accent: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-600 dark:bg-emerald-500/10', border: 'border-emerald-500 dark:border-emerald-500/20' },
+    craft: { accent: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-600 dark:bg-amber-500/10', border: 'border-amber-500 dark:border-amber-500/20' },
+    soul: { accent: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-600 dark:bg-rose-500/10', border: 'border-rose-500 dark:border-rose-500/20' },
 };
 
 const BLOCK_TYPE_META: Record<string, { label: string; icon: string; color: string }> = {
@@ -124,9 +124,9 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
             {/* Header — accent colored */}
             <div className={cn(
                 "px-5 py-4 flex items-start justify-between",
-                'bg-gradient-to-br from-white/[0.06] to-white/[0.02] backdrop-blur-2xl',
-                "border-b",
-                'border-white/[0.08]'
+                pillarStyle.bg,
+                pillarStyle.border,
+                "border-b"
             )}>
                 <div className="flex-1 min-w-0">
                     {/* Block type tag */}
@@ -146,11 +146,11 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                                 value={editTitle}
                                 onChange={e => setEditTitle(e.target.value)}
                                 onKeyDown={e => e.key === 'Enter' && saveTitleEdit()}
-                                className="flex-1 bg-black/30 border border-white/20 rounded-lg px-3 py-1.5 text-white
+                                className="flex-1 bg-[var(--glass-bg)] border border-white/20 rounded-lg px-3 py-1.5 text-[var(--text-primary)]
                                     text-base font-bold focus:outline-none focus:border-white/40"
                                 autoFocus
                             />
-                            <button onClick={saveTitleEdit} className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white">
+                            <button onClick={saveTitleEdit} className="p-1.5 rounded-lg bg-[var(--glass-bg)] hover:bg-white/20 text-[var(--text-primary)]">
                                 <Save className="w-4 h-4" />
                             </button>
                         </div>
@@ -161,8 +161,8 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                             </h2>
                             {!isAnchor && (
                                 <button onClick={startEditingTitle}
-                                    className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1 rounded hover:bg-white/10 transition-all shrink-0">
-                                    <Pencil className="w-3.5 h-3.5 text-white/40" />
+                                    className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1 rounded hover:bg-[var(--glass-bg)] transition-all shrink-0">
+                                    <Pencil className="w-3.5 h-3.5 text-[var(--text-tertiary)]" />
                                 </button>
                             )}
                         </div>
@@ -170,7 +170,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
 
                     {/* Goal link */}
                     {block.goal && (
-                        <div className="mt-1.5 flex items-center gap-1.5 text-xs text-white/40">
+                        <div className="mt-1.5 flex items-center gap-1.5 text-xs text-[var(--text-tertiary)]">
                             <span>🎯</span>
                             <span>{block.goal.title}</span>
                         </div>
@@ -185,7 +185,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                 </div>
 
                 <button onClick={onClose}
-                    className="p-1.5 rounded-lg hover:bg-black/20 text-white/40 hover:text-white transition-colors shrink-0 ml-2">
+                    className="p-1.5 rounded-lg hover:bg-[var(--glass-bg)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors shrink-0 ml-2">
                     <X className="w-4 h-4" />
                 </button>
             </div>
@@ -197,7 +197,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                     {/* Time — clean card */}
                     <div className="p-4 rounded-xl glass-panel">
                         <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2 text-white/50">
+                            <div className="flex items-center gap-2 text-[var(--text-secondary)]">
                                 <Clock className="w-3.5 h-3.5" />
                                 <span className="text-[10px] font-bold uppercase tracking-widest">Time</span>
                             </div>
@@ -212,21 +212,21 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                         {isEditingTime ? (
                             <div className="flex items-center gap-2">
                                 <input type="time" value={editStart} onChange={e => setEditStart(e.target.value)}
-                                    className="flex-1 px-3 py-2 rounded-lg bg-black/30 border border-white/10 text-sm text-white [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-purple-500/30" />
-                                <span className="text-white/30 text-sm">→</span>
+                                    className="flex-1 px-3 py-2 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)] text-sm text-[var(--text-primary)] [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-purple-500/30" />
+                                <span className="text-[var(--text-tertiary)] text-sm">→</span>
                                 <input type="time" value={editEnd} onChange={e => setEditEnd(e.target.value)}
-                                    className="flex-1 px-3 py-2 rounded-lg bg-black/30 border border-white/10 text-sm text-white [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-purple-500/30" />
+                                    className="flex-1 px-3 py-2 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)] text-sm text-[var(--text-primary)] [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-purple-500/30" />
                             </div>
                         ) : (
                             <div className="flex items-baseline gap-3">
-                                <span className="text-xl font-bold text-white font-mono tracking-tight">
+                                <span className="text-xl font-bold text-[var(--text-primary)] font-mono tracking-tight">
                                     {block.start_time?.slice(0, 5)}
                                 </span>
-                                <span className="text-white/20">→</span>
-                                <span className="text-xl font-bold text-white font-mono tracking-tight">
+                                <span className="text-[var(--text-tertiary)]">→</span>
+                                <span className="text-xl font-bold text-[var(--text-primary)] font-mono tracking-tight">
                                     {block.end_time?.slice(0, 5)}
                                 </span>
-                                <span className="text-xs text-white/30 font-mono ml-auto">
+                                <span className="text-xs text-[var(--text-tertiary)] font-mono ml-auto">
                                     {durationMins}min
                                 </span>
                             </div>
@@ -243,7 +243,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                                 </span>
                             </div>
                             <div className="p-4 space-y-3">
-                                <p className="text-sm font-bold text-white leading-tight">
+                                <p className="text-sm font-bold text-[var(--text-primary)] leading-tight">
                                     "{block.goal.ai_strategy.strategy_one_liner}"
                                 </p>
                                 {block.goal.ai_strategy.routine?.steps && (
@@ -264,14 +264,14 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                     {hasSubTasks && (
                         <div className="rounded-xl glass-panel overflow-hidden">
                             <div className="px-4 py-3 flex items-center justify-between border-b border-white/5">
-                                <div className="flex items-center gap-2 text-white/50">
+                                <div className="flex items-center gap-2 text-[var(--text-secondary)]">
                                     <ListTodo className="w-3.5 h-3.5" />
                                     <span className="text-[10px] font-bold uppercase tracking-widest">
                                         Action Steps
                                     </span>
                                 </div>
                                 {checklist.length > 0 && (
-                                    <span className="text-[10px] font-mono text-white/30">
+                                    <span className="text-[10px] font-mono text-[var(--text-tertiary)]">
                                         {checklistDone}/{checklist.length}
                                     </span>
                                 )}
@@ -290,16 +290,16 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                                                 onAction('update', { checklist: newChecklist });
                                             }}
                                             className="w-full flex items-start gap-2.5 px-3 py-2.5 rounded-lg
-                                                hover:bg-white/5 transition-colors text-left"
+                                                hover:bg-[var(--glass-bg)] transition-colors text-left"
                                         >
                                             {item.completed ? (
                                                 <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                                             ) : (
-                                                <Circle className="w-4 h-4 text-white/20 shrink-0 mt-0.5" />
+                                                <Circle className="w-4 h-4 text-[var(--text-tertiary)] shrink-0 mt-0.5" />
                                             )}
                                             <span className={cn(
                                                 "text-sm leading-tight",
-                                                item.completed ? "text-white/30 line-through" : "text-white/80"
+                                                item.completed ? "text-[var(--text-tertiary)] line-through" : "text-white/80"
                                             )}>
                                                 {item.text}
                                             </span>
@@ -325,7 +325,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                                                 <Circle className="w-4 h-4 text-violet-400/50 shrink-0 mt-0.5" />
                                             )}
                                             <div className={cn("flex flex-col", isCompleted && "opacity-40 line-through")}>
-                                                <span className="text-sm text-white">{stack.action_habit}</span>
+                                                <span className="text-sm text-[var(--text-primary)]">{stack.action_habit}</span>
                                                 <span className="text-[10px] text-violet-400/60">{stack.action_duration_mins}m • Habit Stack</span>
                                             </div>
                                         </button>
@@ -354,7 +354,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
             </div>
 
             {/* Actions — bottom pinned */}
-            <div className="shrink-0 border-t border-white/5 bg-black/40 backdrop-blur-2xl p-4 space-y-2">
+            <div className="shrink-0 border-t border-white/5 bg-[var(--glass-bg)] backdrop-blur-2xl p-4 space-y-2">
                 {/* Status actions */}
                 {!isAnchor && (
                     <div className="flex gap-2">

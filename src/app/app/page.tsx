@@ -162,7 +162,7 @@ export default function HomePage() {
 
     if (loading) {
         return (
-            <div className="h-screen h-dvh bg-[#020202] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden font-mono">
+            <div className="h-screen h-dvh bg-[var(--color-bg-primary)] text-[var(--text-primary)] flex flex-col items-center justify-center p-6 relative overflow-hidden font-mono">
                 {/* Immersive background glow */}
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(168,85,247,0.08)_0%,transparent_60%)]" />
                 
@@ -174,24 +174,24 @@ export default function HomePage() {
                         <div className="absolute inset-2 border-[1px] border-orange-500/30 rounded-full opacity-60 animate-ping" style={{ animationDuration: '3s' }} />
                         <div className="absolute inset-6 border-[2px] border-l-orange-500 border-r-purple-500 border-t-transparent border-b-transparent rounded-full animate-spin" style={{ animationDuration: '2s' }} />
                         <div className="absolute inset-10 border-[1px] border-purple-500/50 border-t-transparent rounded-full animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }} />
-                        <div className="w-4 h-4 bg-white rounded-full shadow-[0_0_20px_rgba(255,255,255,1)] animate-pulse" />
+                        <div className="w-4 h-4 bg-[var(--text-primary)] rounded-full shadow-[0_0_20px_rgba(255,255,255,0.5)] dark:shadow-[0_0_20px_rgba(255,255,255,1)] animate-pulse" />
                     </div>
                     
                     {/* Boot Logs */}
-                    <div className="w-full bg-black/40 backdrop-blur-md border border-white/[0.05] p-5 rounded-lg shadow-2xl relative">
+                    <div className="w-full bg-[var(--glass-bg)] backdrop-blur-md border border-[var(--glass-border)] p-5 rounded-lg shadow-2xl relative">
                         <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-orange-500/50 to-transparent" />
                         
-                        <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/[0.05]">
-                            <h2 className="text-sm font-bold tracking-[0.2em] text-white/80">
+                        <div className="flex items-center justify-between mb-4 pb-2 border-b border-[var(--glass-border)]">
+                            <h2 className="text-sm font-bold tracking-[0.2em] text-[var(--text-secondary)]">
                                 PLANNRAI <span className="text-orange-500">OS</span>
                             </h2>
                             <span className="text-[10px] text-orange-500/70 animate-pulse">V2.5.0</span>
                         </div>
                         
-                        <div className="space-y-2 text-[11px] text-white/50 tracking-wider h-[80px]">
+                        <div className="space-y-2 text-[11px] text-[var(--text-secondary)] tracking-wider h-[80px]">
                             <div className="flex items-center gap-2">
                                 <span className="text-purple-400">SYS</span>
-                                <span className="animate-fade-in text-white/70">Establishing neural link...</span>
+                                <span className="animate-fade-in text-[var(--text-secondary)]">Establishing neural link...</span>
                             </div>
                             <div className="flex items-center gap-2" style={{ animationDelay: '0.4s' }}>
                                 <span className="text-orange-400">SYNC</span>
@@ -204,7 +204,7 @@ export default function HomePage() {
                         </div>
 
                         {/* Progress Bar */}
-                        <div className="mt-4 h-[2px] w-full bg-white/5 rounded-full overflow-hidden">
+                        <div className="mt-4 h-[2px] w-full bg-[var(--glass-bg)] rounded-full overflow-hidden">
                             <motion.div 
                                 className="h-full bg-gradient-to-r from-purple-500 to-orange-500"
                                 initial={{ width: 0 }}
@@ -244,24 +244,24 @@ export default function HomePage() {
         <div className="flex items-center justify-between">
             <div>
                 <div className="flex items-center gap-3">
-                    <h1 className="text-4xl font-bold text-white tracking-tight">Today</h1>
+                    <h1 className="text-4xl font-bold text-[var(--text-primary)] tracking-tight">Today</h1>
                     <span className="w-2 h-2 rounded-full bg-orange-500 animate-scifi-blink mt-2" />
                 </div>
-                <p className="text-sm text-white/40 font-mono mt-1">
+                <p className="text-sm text-[var(--text-tertiary)] font-mono mt-1">
                     {format(new Date(), 'EEEE, MMMM do')}
                 </p>
             </div>
             <div className="flex items-center gap-4">
                 <div className="hidden md:block text-right">
-                    <div className="text-xs font-bold text-white/60">
+                    <div className="text-xs font-bold text-[var(--text-secondary)]">
                         {Math.round(effectiveData.metrics.completed_min / 60)}<span className="lowercase">h</span> {Math.round(effectiveData.metrics.completed_min % 60)}<span className="lowercase">m</span> <span className="uppercase">DONE</span>
                     </div>
-                    <div className="text-[10px] text-white/30 tracking-widest">
+                    <div className="text-[10px] text-[var(--text-tertiary)] tracking-widest">
                         {Math.round(effectiveData.metrics.planned_min / 60)}<span className="lowercase">h</span> {Math.round(effectiveData.metrics.planned_min % 60)}<span className="lowercase">m</span> <span className="uppercase">PLANNED</span>
                     </div>
                 </div>
                 <Link href="/app/settings">
-                    <button className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-colors">
+                    <button className="p-2 rounded-full bg-[var(--glass-bg)] hover:bg-[var(--glass-bg)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
                         <Settings className="w-5 h-5" />
                     </button>
                 </Link>
@@ -325,7 +325,7 @@ export default function HomePage() {
                     <div className="flex items-center gap-2">
                         <button
                             onClick={clearMode}
-                            className="text-[10px] text-white/30 hover:text-white/60 transition-colors"
+                            className="text-[10px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
                         >Dismiss</button>
                         <button
                             onClick={handleReoptimize}
@@ -380,7 +380,7 @@ export default function HomePage() {
                                     await apiClient.post('/api/coach/dismiss', { suggestion_id: proactiveSuggestion.dismiss_uid }).catch(console.error);
                                 }
                             }}
-                            className="flex-1 md:flex-none px-4 py-2 bg-white/5 text-white/60 text-xs font-bold rounded-lg hover:bg-white/10 transition-colors"
+                            className="flex-1 md:flex-none px-4 py-2 bg-[var(--glass-bg)] text-[var(--text-secondary)] text-xs font-bold rounded-lg hover:bg-[var(--glass-bg)] transition-colors"
                         >
                             Dismiss
                         </button>
@@ -392,7 +392,7 @@ export default function HomePage() {
                                     router.push(`/app/coach?mode=strategic&prompt=${encodeURIComponent(proactiveSuggestion.query || proactiveSuggestion.message)}`);
                                 }
                             }}
-                            className="flex-1 md:flex-none px-4 py-2 bg-[var(--color-primary)] text-white text-xs font-bold rounded-lg hover:brightness-110 shadow-lg shadow-[var(--color-primary)]/20 transition-all"
+                            className="flex-1 md:flex-none px-4 py-2 bg-[var(--color-primary)] text-[var(--text-primary)] text-xs font-bold rounded-lg hover:brightness-110 shadow-lg shadow-[var(--color-primary)]/20 transition-all"
                         >
                             {proactiveSuggestion.action_label || 'Resolve'}
                         </button>
@@ -415,7 +415,7 @@ export default function HomePage() {
                     </div>
                     <button
                         onClick={handleDismissManualFeedback}
-                        className="px-4 py-2 bg-white/5 text-white/60 text-xs font-bold rounded-lg hover:bg-white/10 transition-colors shrink-0"
+                        className="px-4 py-2 bg-[var(--glass-bg)] text-[var(--text-secondary)] text-xs font-bold rounded-lg hover:bg-[var(--glass-bg)] transition-colors shrink-0"
                     >
                         Dismiss
                     </button>
