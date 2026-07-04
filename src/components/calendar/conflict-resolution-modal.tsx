@@ -41,7 +41,7 @@ export function ConflictResolutionModal({ options, onSelect, onCancel }: Conflic
                             >
                                 <div className="flex items-center justify-between mb-1">
                                     <span className="font-bold text-sm">{opt.label}</span>
-                                    <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    <ArrowRight className="w-4 h-4 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity" />
                                 </div>
                                 <p className="text-xs text-[var(--text-tertiary)]">{opt.description}</p>
                                 {opt.tags && opt.tags.length > 0 && (

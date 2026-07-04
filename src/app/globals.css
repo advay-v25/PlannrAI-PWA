@@ -192,7 +192,7 @@ body {
   letter-spacing: var(--tracking-normal);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  min-height: 100dvh;
+  min-height: 100vh;
   overflow-x: hidden;
 }
 
@@ -966,6 +966,13 @@ textarea::placeholder {
 
 .animate-crossfade-in {
   animation: text-crossfade-in 0.3s ease-out both;
+}
+
+/* Prevent iOS Safari zoom on input focus */
+@media screen and (max-width: 768px) {
+  input[type="text"], input[type="email"], input[type="password"], input[type="number"], input[type="tel"], input[type="url"], input[type="date"], input[type="time"], select, textarea {
+    font-size: 16px !important;
+  }
 }
 
 /* Visible scrollbar thumb helper inside editing areas */

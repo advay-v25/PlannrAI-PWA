@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { Sparkles, ArrowRight, Shield, Heart, Target, Calendar, BarChart3, Zap } from 'lucide-react';
+import Image from 'next/image';
+import { Sparkles, ArrowRight, Shield, Heart, Brain, Target, Calendar, BarChart3, Zap } from 'lucide-react';
 import { SciFiEarthBackground } from '@/components/ui/SciFiEarthBackground';
 import { OrbitalScheduleEngine } from '@/components/ui/orbital-schedule-engine';
 import { LiquidGlassButton } from '@/components/ui/liquid-glass-button';
@@ -11,10 +12,10 @@ export default function LandingPage() {
       <SciFiEarthBackground />
 
       {/* Hero Section */}
-      <section className="relative px-4 pt-12 md:pt-16 pb-24 md:pb-28 overflow-hidden flex flex-col min-h-[100dvh]">
+      <section className="relative px-4 pt-12 md:pt-16 pb-16 md:pb-28 overflow-hidden flex flex-col min-h-[100dvh]">
         <div className="max-w-5xl mx-auto w-full flex flex-col flex-1 relative z-10">
           {/* Logo + tagline — above the solar system */}
-          <header className="text-center shrink-0 mb-6 md:mb-8">
+          <header className="text-center shrink-0 mb-6 md:mb-8 mt-2 md:mt-0">
             <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold mb-3 md:mb-4 tracking-tighter leading-[1.1]">
               <span className="text-transparent bg-clip-text bg-gradient-to-b from-white via-white/90 to-white/30 drop-shadow-[0_0_40px_rgba(255,255,255,0.1)]">
                 PlannrAI
@@ -26,12 +27,12 @@ export default function LandingPage() {
           </header>
 
           {/* Solar system centerpiece */}
-          <div className="relative flex-1 flex items-center justify-center min-h-[320px] sm:min-h-[380px] md:min-h-[440px] z-20">
-            <OrbitalScheduleEngine className="absolute w-[min(100vw,800px)] h-[min(100vw,800px)] md:w-[1000px] md:h-[1000px]" />
+          <div className="relative flex-1 flex items-center justify-center min-h-[250px] sm:min-h-[380px] md:min-h-[440px] z-20">
+            <OrbitalScheduleEngine className="absolute w-[min(120vw,800px)] h-[min(120vw,800px)] md:w-[1000px] md:h-[1000px]" />
           </div>
 
           {/* Get Started — bottom CTA */}
-          <div className="flex justify-center w-full max-w-md mx-auto shrink-0 mt-12 md:mt-20 relative z-30">
+          <div className="flex justify-center w-full max-w-md mx-auto shrink-0 mt-8 md:mt-20 relative z-30">
             <LiquidGlassButton href="/login" size="lg" className="w-full text-lg font-bold text-white tracking-wide">
               Get Started Free
               <ArrowRight className="w-5 h-5 ml-2 opacity-90 transition-transform group-hover:translate-x-1" />
@@ -40,14 +41,14 @@ export default function LandingPage() {
         </div>
         
         {/* Subtle scroll indicator */}
-        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center text-white/30 opacity-50 hover:opacity-100 transition-opacity">
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 hidden sm:flex flex-col items-center text-white/30 opacity-50 hover:opacity-100 transition-opacity">
           <span className="text-[10px] tracking-[0.3em] uppercase font-semibold mb-4">Discover</span>
           <div className="w-px h-16 bg-gradient-to-b from-white/40 to-transparent" />
         </div>
       </section>
 
       {/* Core Promise - Premium Banner */}
-      <section className="relative px-4 py-32 overflow-hidden border-y border-white/[0.02] bg-white/[0.01]">
+      <section className="relative px-4 py-16 md:py-32 overflow-hidden border-y border-white/[0.02] bg-white/[0.01]">
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-purple-900/5 to-transparent backdrop-blur-[2px]" />
         <div className="max-w-4xl mx-auto text-center relative z-10">
           <p className="text-3xl md:text-5xl font-light leading-tight tracking-tight text-white/90">
@@ -62,7 +63,7 @@ export default function LandingPage() {
       </section>
 
       {/* Features Grid */}
-      <section id="features" className="px-4 py-32 relative">
+      <section id="features" className="px-4 py-16 md:py-32 relative">
         <div className="max-w-6xl mx-auto relative z-10">
           <div className="text-center mb-24">
             <h2 className="text-4xl md:text-5xl lg:text-6xl font-extrabold mb-6 tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-white/60">
@@ -116,7 +117,7 @@ export default function LandingPage() {
       </section>
 
       {/* Guarantees */}
-      <section className="px-4 py-32 relative overflow-hidden">
+      <section className="px-4 py-16 md:py-32 relative overflow-hidden">
         <div className="absolute inset-0 bg-white/[0.01] backdrop-blur-3xl border-t border-white/[0.02]" />
         <div className="max-w-6xl mx-auto relative z-10">
           <h2 className="text-4xl md:text-5xl font-extrabold text-center mb-20 tracking-tighter text-white/90">
@@ -135,7 +136,7 @@ export default function LandingPage() {
       </section>
 
       {/* CTA */}
-      <section className="px-4 py-40 relative">
+      <section className="px-4 py-16 md:py-40 relative">
         {/* Glow behind CTA - Removed expensive blur-[120px] filter in favor of hardware-friendly radial gradient */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] h-[80vw] max-w-[600px] max-h-[600px] bg-[radial-gradient(circle,rgba(147,51,234,0.15)_0%,transparent_60%)] rounded-full pointer-events-none" />
         
@@ -160,7 +161,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex flex-col items-center md:items-start gap-2">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-orange-400" />
+              <Image src="/logo.png" alt="PlannrAI" width={28} height={28} className="rounded-lg shrink-0" />
               <span className="font-bold tracking-wide text-white">PlannrAI</span>
             </div>
             <p className="text-sm text-white/40">

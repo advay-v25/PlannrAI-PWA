@@ -115,7 +115,7 @@ export function TimelineStrip({ blocks, anchors = [], onStatusChange }: Timeline
                                             {block.block_type === 'anchor' ? (
                                                 <Lock className="w-3.5 h-3.5 text-[var(--text-secondary)] shrink-0" />
                                             ) : onStatusChange ? (
-                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();

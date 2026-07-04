@@ -143,7 +143,7 @@ export default function SettingsPage() {
                             initial={{ y: 80, opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
                             exit={{ y: 80, opacity: 0 }}
-                            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50
+                            className="fixed bottom-6 mb-24 md:mb-0 left-1/2 -translate-x-1/2 z-50
                                 bg-[var(--glass-bg)] border border-[var(--glass-border)]
                                 shadow-2xl backdrop-blur-xl rounded-2xl p-3.5
                                 flex items-center gap-3 w-[90%] max-w-sm"

@@ -32,7 +32,7 @@ export default function ProPlanPage() {
     ];
 
     return (
-        <div className="min-h-screen relative flex flex-col items-center p-4 overflow-hidden bg-[#020104] text-white selection:bg-[var(--color-primary)]/30 selection:text-white font-[family-name:var(--font-geist-sans)] z-50">
+        <div className="min-h-screen min-h-dvh relative flex flex-col items-center p-4 overflow-hidden bg-[#020104] text-white selection:bg-[var(--color-primary)]/30 selection:text-white font-[family-name:var(--font-geist-sans)] z-50">
             {/* Dynamic Ambient Background */}
             <div className="fixed inset-0 pointer-events-none z-0 opacity-80 mix-blend-screen">
                  <DynamicBackground variant="onboarding" />
@@ -49,7 +49,7 @@ export default function ProPlanPage() {
                 </button>
             </div>
 
-            <div className="relative z-10 w-full max-w-6xl flex flex-col items-center justify-center min-h-[90vh] py-10 px-4 mt-12 md:mt-0">
+            <div className="relative z-10 w-full max-w-6xl flex flex-col items-center justify-center min-h-0 md:min-h-[90vh] pt-4 pb-10 md:py-10 px-4 mt-0">
                 
                 {/* Hero Section */}
                 <motion.div 

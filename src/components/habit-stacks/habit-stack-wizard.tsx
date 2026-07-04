@@ -272,7 +272,7 @@ export function HabitStackWizard({ isOpen, onClose, onSuccess }: HabitStackWizar
                                                     <span className="font-bold text-sm block">{opt.label}</span>
                                                     <span className="text-xs text-[var(--text-tertiary)]">Add to calendar</span>
                                                 </div>
-                                                <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
+                                                <ArrowRight className="w-4 h-4 opacity-100 md:opacity-0 md:group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
                                             </button>
                                         ))}
                                         <button

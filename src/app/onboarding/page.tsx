@@ -108,7 +108,7 @@ export default function OnboardingPage() {
             <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-purple-900/10 rounded-full blur-[150px] pointer-events-none" />
             <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-fuchsia-900/10 rounded-full blur-[150px] pointer-events-none" />
 
-            <div className="relative z-10 w-full max-w-3xl flex flex-col items-center min-h-[700px] py-10">
+            <div className="relative z-10 w-full max-w-3xl flex flex-col items-center min-h-0 md:min-h-[700px] py-10">
 
                 {/* Premium Minimalist Progress Header */}
                 <div className={`w-full flex justify-center px-2 ${currentStepDef.id !== 'generate' ? 'mb-6' : 'mb-16'}`}>

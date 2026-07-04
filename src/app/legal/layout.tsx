@@ -3,7 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 
 export default function LegalLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-orange-500/30">
+    <div className="min-h-screen min-h-dvh bg-black text-white selection:bg-orange-500/30">
       {/* Subtle background glow */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-orange-500/5 rounded-full blur-[120px]" />

@@ -749,7 +749,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
 
                 {/* Changes in progress toast */}
                 {isApplyingChanges && (
-                    <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-50 bg-[var(--color-primary)] text-white px-6 py-3 rounded-full shadow-[0_0_20px_rgba(var(--color-primary-rgb),0.5)] flex items-center gap-3 animate-fade-in">
+                    <div className="absolute bottom-32 md:bottom-24 left-1/2 -translate-x-1/2 z-50 bg-[var(--color-primary)] text-white px-6 py-3 rounded-full shadow-[0_0_20px_rgba(var(--color-primary-rgb),0.5)] flex items-center gap-3 animate-fade-in">
                         <div className="w-2.5 h-2.5 bg-white rounded-full animate-pulse" />
                         <span className="font-bold tracking-wide text-sm uppercase">Applying Changes</span>
                     </div>
@@ -757,7 +757,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
 
                 {/* Undo strip */}
                 {canUndo && !isLoading && (
-                    <div className="z-10 px-8 py-3 border-t border-white/[0.05] bg-black/20 backdrop-blur-sm flex justify-center shrink-0">
+                    <div className="z-10 px-4 md:px-8 py-3 border-t border-white/[0.05] bg-black/20 backdrop-blur-sm flex justify-center shrink-0">
                         <button
                             onClick={handleUndo}
                             className="text-[10px] font-bold text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] uppercase tracking-widest flex items-center gap-2"
@@ -768,7 +768,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                 )}
 
                 {/* Input bar */}
-                <div className="z-10 border-t border-white/[0.05] bg-[#0a0a0b]/80 backdrop-blur-3xl pb-2 shrink-0">
+                <div className="z-10 border-t border-white/[0.05] bg-[#0a0a0b]/80 backdrop-blur-3xl pb-28 md:pb-2 shrink-0">
                     <form onSubmit={handleSubmit} className="px-5 py-3">
                         <div className="flex items-center gap-3 bg-black/40 border border-white/10 rounded-[1.5rem] p-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all focus-within:border-orange-500/50 focus-within:bg-[#0a0a0b] focus-within:shadow-[0_0_40px_rgba(249,115,22,0.15)] group relative overflow-hidden">
                             <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 to-amber-500/5 opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none" />

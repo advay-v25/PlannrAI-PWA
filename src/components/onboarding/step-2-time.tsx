@@ -106,7 +106,7 @@ function TimeCard({ icon, label, sublabel, value, onChange, delay, gradient }: a
                         className="w-full bg-transparent text-4xl font-mono text-white focus:outline-none cursor-pointer relative z-10"
                     />
                     {/* Glow effect under text */}
-                    <div className="absolute inset-0 bg-[var(--color-primary)]/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="absolute inset-0 bg-[var(--color-primary)]/20 blur-xl opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity" />
                 </div>
             </div>
         </motion.div>

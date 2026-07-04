@@ -26,7 +26,7 @@ export function DashboardCards({ goals, insight, topTask, isPreview = false }: D
             {/* Quick Capture Tile */}
             <Link href="/app/tasks" className="block outline-none focus:ring-2 focus:ring-[var(--color-primary)] rounded-2xl transition-transform hover:scale-[1.02] group">
                 <GlassCard className="p-6 h-full border-white/10 hover:border-teal-500/30 hover:shadow-[0_0_15px_rgba(45,212,191,0.15)] hover:bg-[var(--glass-bg-hover)] transition-all flex flex-col justify-center relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-teal-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="absolute inset-0 bg-gradient-to-br from-teal-500/5 to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity" />
                     <div className="relative">
                         <div className="flex items-center gap-2 mb-4">
                             <Brain className="w-5 h-5 text-teal-400" />

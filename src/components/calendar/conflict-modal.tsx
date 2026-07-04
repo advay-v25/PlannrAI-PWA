@@ -71,7 +71,7 @@ export function ConflictModal({ error, onClose, onConfirmOption }: ConflictModal
                                         <div className="font-bold text-white text-sm">
                                             {opt.label}
                                         </div>
-                                        <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                             <ArrowRight className="w-3 h-3 text-white" />
                                         </div>
                                     </div>

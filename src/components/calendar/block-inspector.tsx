@@ -161,7 +161,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                             </h2>
                             {!isAnchor && (
                                 <button onClick={startEditingTitle}
-                                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white/10 transition-all shrink-0">
+                                    className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1 rounded hover:bg-white/10 transition-all shrink-0">
                                     <Pencil className="w-3.5 h-3.5 text-white/40" />
                                 </button>
                             )}

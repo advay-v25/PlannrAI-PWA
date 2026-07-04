@@ -162,7 +162,7 @@ export default function HomePage() {
 
     if (loading) {
         return (
-            <div className="h-screen bg-[#020202] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden font-mono">
+            <div className="h-screen h-dvh bg-[#020202] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden font-mono">
                 {/* Immersive background glow */}
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(168,85,247,0.08)_0%,transparent_60%)]" />
                 

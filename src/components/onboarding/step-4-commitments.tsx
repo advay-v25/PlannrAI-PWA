@@ -55,7 +55,7 @@ export function Step4Commitments() {
                             </div>
                             <button
                                 onClick={() => removeCommitment(i)}
-                                className="p-2 hover:bg-white/10 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+                                className="p-2 hover:bg-white/10 rounded-full transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
                             >
                                 <X className="w-4 h-4 text-red-400" />
                             </button>
