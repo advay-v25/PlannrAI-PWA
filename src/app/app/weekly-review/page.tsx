@@ -156,7 +156,7 @@ export default function WeeklyReviewPage() {
         <div className="w-full min-h-screen relative overflow-x-hidden">
             {/* SVG organic ribbon flows — purple palette */}
             <div className="absolute inset-0 pointer-events-none z-[-1]">
-              <div aria-hidden style={{ position: 'sticky', top: 0, height: '100dvh', width: '100%', overflow: 'hidden' }}>
+              <div aria-hidden style={{ position: 'sticky', top: 0, height: '100vh', width: '100%', overflow: 'hidden' }}>
                 <div style={{
                   position: 'absolute', top: 0, left: 0, right: 0, height: '1px',
                   background: 'linear-gradient(to right, transparent, hsla(270,82%,62%,0.55) 40%, hsla(290,80%,65%,0.42) 65%, transparent)',

@@ -75,7 +75,7 @@ export function HomeTodos() {
         className="relative rounded-[2.5rem] border border-[var(--glass-border)] bg-[var(--color-bg-tertiary)]/40 p-6 backdrop-blur-xl hover:bg-[var(--glass-bg-hover)] transition-all cursor-pointer group overflow-hidden"
       >
         {/* Ambient glow effect */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[var(--color-primary)]/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        <div className="absolute inset-0 bg-gradient-to-br from-[var(--color-primary)]/5 via-transparent to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300" />
         
         <div className="relative z-10">
           {/* Header with status */}

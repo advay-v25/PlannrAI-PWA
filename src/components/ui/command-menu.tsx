@@ -14,7 +14,7 @@ export function CommandMenu() {
     const [loading, setLoading] = React.useState(false);
     const router = useRouter();
 
-    // Toggle with Cmd+K
+    // Toggle with Cmd+K and custom event
     React.useEffect(() => {
         const down = (e: KeyboardEvent) => {
             if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
@@ -22,8 +22,13 @@ export function CommandMenu() {
                 setOpen((open) => !open);
             }
         };
+        const customOpen = () => setOpen(true);
         document.addEventListener('keydown', down);
-        return () => document.removeEventListener('keydown', down);
+        window.addEventListener('open-command-menu', customOpen);
+        return () => {
+            document.removeEventListener('keydown', down);
+            window.removeEventListener('open-command-menu', customOpen);
+        };
     }, []);
 
     const runCommand = React.useCallback((command: () => void) => {

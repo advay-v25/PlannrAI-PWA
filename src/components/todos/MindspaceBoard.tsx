@@ -422,14 +422,14 @@ export function MindspaceBoard() {
                                                         const newDesc = todo.description?.replace(/\[archived:true\]/g, '').trim() || '';
                                                         updateTodo(todo.id, { description: newDesc, isCompleted: false });
                                                     }}
-                                                    className="p-2 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                                                    className="p-2 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white rounded-lg opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all shrink-0"
                                                     title="Unvault note"
                                                 >
                                                     <RotateCcw className="w-4 h-4" />
                                                 </button>
                                                 <button 
                                                     onClick={() => deleteTodo(todo.id)}
-                                                    className="p-2 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                                                    className="p-2 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white rounded-lg opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all shrink-0"
                                                     title="Delete note"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
@@ -590,7 +590,7 @@ function MindspaceCard({ todo, updateTodo, deleteTodo, handleDragStart, isDragge
                         onClick={togglePin}
                         className={cn(
                             "p-1.5 rounded-full transition-colors shrink-0 -mt-1 -mr-1",
-                            isPinned ? "text-white bg-white/20" : "text-white/20 hover:bg-white/10 opacity-0 group-hover:opacity-100"
+                            isPinned ? "text-white bg-white/20" : "text-white/20 hover:bg-white/10 opacity-100 md:opacity-0 md:group-hover:opacity-100"
                         )}
                     >
                         {isPinned ? <Pin className="w-3.5 h-3.5 fill-current" /> : <Pin className="w-3.5 h-3.5" />}
@@ -607,7 +607,7 @@ function MindspaceCard({ todo, updateTodo, deleteTodo, handleDragStart, isDragge
                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/[0.05]">
                     <span className="text-[10px] font-medium text-white/30 uppercase tracking-wider">{timeAgo}</span>
                     
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                         <button 
                             onClick={(e) => { 
                                 e.stopPropagation(); 

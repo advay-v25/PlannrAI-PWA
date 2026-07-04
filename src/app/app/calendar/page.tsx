@@ -610,20 +610,45 @@ function CalendarPageInner() {
                 {/* ── Right Sidebar (Inspector Only) ─────────────── */}
                 <AnimatePresence>
                     {selectedBlock && (
-                        <motion.aside
-                            initial={{ width: 0, opacity: 0 }}
-                            animate={{ width: 320, opacity: 1 }}
-                            exit={{ width: 0, opacity: 0 }}
-                            className="hidden lg:flex flex-col shrink-0 border-l border-white/[0.06] bg-black/40 overflow-y-auto no-scrollbar"
-                        >
-                            <div className="w-[320px] h-full">
+                        <>
+                            {/* Desktop Inspector */}
+                            <motion.aside
+                                initial={{ width: 0, opacity: 0 }}
+                                animate={{ width: 320, opacity: 1 }}
+                                exit={{ width: 0, opacity: 0 }}
+                                className="hidden lg:flex flex-col shrink-0 border-l border-white/[0.06] bg-black/40 overflow-y-auto no-scrollbar"
+                            >
+                                <div className="w-[320px] h-full">
+                                    <BlockInspector
+                                        block={selectedBlock}
+                                        onClose={() => setSelectedBlock(null)}
+                                        onAction={handleBlockAction}
+                                    />
+                                </div>
+                            </motion.aside>
+
+                            {/* Mobile Inspector Bottom Sheet */}
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+                                onClick={() => setSelectedBlock(null)}
+                            />
+                            <motion.div
+                                initial={{ y: "100%" }}
+                                animate={{ y: 0 }}
+                                exit={{ y: "100%" }}
+                                transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                                className="fixed inset-x-0 bottom-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-2xl lg:hidden bg-zinc-950 border-t border-white/[0.08]"
+                            >
                                 <BlockInspector
                                     block={selectedBlock}
                                     onClose={() => setSelectedBlock(null)}
                                     onAction={handleBlockAction}
                                 />
-                            </div>
-                        </motion.aside>
+                            </motion.div>
+                        </>
                     )}
                 </AnimatePresence>
             </div>

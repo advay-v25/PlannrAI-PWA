@@ -8,7 +8,7 @@ export default function TasksPage() {
         <div className="w-full h-full relative overflow-hidden flex flex-col">
             {/* SVG organic ribbon flows — folded fabric effect */}
             <div className="absolute inset-0 pointer-events-none z-[-1]">
-              <div aria-hidden style={{ position: 'sticky', top: 0, height: '100dvh', width: '100%', overflow: 'hidden' }}>
+              <div aria-hidden style={{ position: 'sticky', top: 0, height: '100vh', width: '100%', overflow: 'hidden' }}>
                 {/* Top shimmer line */}
                 <div style={{
                   position: 'absolute', top: 0, left: 0, right: 0, height: '1px',

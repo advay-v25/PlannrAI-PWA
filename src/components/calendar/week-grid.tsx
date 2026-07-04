@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { format, addDays, startOfWeek, isSameDay, differenceInMinutes } from 'date-fns';
-import { DndContext, useDraggable, useDroppable, DragEndEvent, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
+import { DndContext, useDraggable, useDroppable, DragEndEvent, useSensor, useSensors, PointerSensor, TouchSensor } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
 import { Lock, Check, Plus } from 'lucide-react';
 import { calculateLayout, LayoutBlock } from '@/lib/calendar-layout';
@@ -113,7 +113,8 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
     };
 
     const sensors = useSensors(
-        useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+        useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+        useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } })
     );
 
     return (
@@ -254,7 +255,7 @@ function DroppableHour({ dayIndex, hour, onClick }: { dayIndex: number; hour: nu
             )}
             style={{ height: CELL_HEIGHT }}
         >
-            <div className="opacity-0 group-hover:opacity-100 flex items-center justify-center h-full transition-opacity">
+            <div className="opacity-100 md:opacity-0 md:group-hover:opacity-100 flex items-center justify-center h-full transition-opacity">
                 <Plus className="w-3 h-3 text-white/20" />
             </div>
         </div>
@@ -315,7 +316,7 @@ function BlockCard({ block, layout, onClick, isDayView, index = 0 }: { block: an
             {...attributes}
             onClick={() => { if (!isDragging) onClick(); }}
             className={cn(
-                "absolute rounded-xl overflow-hidden cursor-pointer flex flex-col",
+                "absolute rounded-xl overflow-hidden cursor-pointer flex flex-col touch-manipulation",
                 "transition-all duration-300 hover:scale-[1.03] hover:z-20 group border backdrop-blur-xl shadow-lg",
                 isDragging ? "opacity-60 z-50 shadow-[0_20px_40px_rgba(249,115,22,0.4)] ring-2 ring-orange-400/80 scale-[1.05]" : "shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]",
                 colors.bg, colors.border, colors.glow,

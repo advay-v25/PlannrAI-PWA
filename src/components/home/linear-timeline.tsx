@@ -75,7 +75,7 @@ export function LinearTimeline({ blocks, onStatusChange }: LinearTimelineProps) 
                                     
                                     {/* Actions */}
                                     {block.status === 'planned' && onStatusChange && (
-                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                                        <div className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center gap-1">
                                             <button 
                                                 onClick={() => onStatusChange(block.id, 'done')}
                                                 className="p-1 text-[var(--text-tertiary)] hover:text-emerald-400 transition-colors"

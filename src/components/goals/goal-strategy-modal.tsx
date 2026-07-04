@@ -331,7 +331,7 @@ export function GoalStrategyModal({
                                                 className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.05] hover:border-white/10 transition-all group"
                                             >
                                                 <div className="w-5 h-5 rounded-md border-2 border-white/10 flex items-center justify-center group-hover:border-[var(--color-primary)]/50 transition-colors">
-                                                    <div className="w-2 h-2 bg-[var(--color-primary)] rounded-sm opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                    <div className="w-2 h-2 bg-[var(--color-primary)] rounded-sm opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity" />
                                                 </div>
                                                 <span className="text-sm text-white/70 group-hover:text-white transition-colors">{item.text}</span>
                                             </motion.div>

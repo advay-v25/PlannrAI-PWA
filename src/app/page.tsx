@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { Sparkles, ArrowRight, Shield, Heart, Brain, Target, Calendar, BarChart3, Zap } from 'lucide-react';
 import { SciFiEarthBackground } from '@/components/ui/SciFiEarthBackground';
 import { OrbitalScheduleEngine } from '@/components/ui/orbital-schedule-engine';
@@ -162,7 +163,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex flex-col items-center md:items-start gap-2">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-orange-400" />
+              <Image src="/logo.png" alt="PlannrAI" width={28} height={28} className="rounded-lg shrink-0" />
               <span className="font-bold tracking-wide text-white">PlannrAI</span>
             </div>
             <p className="text-sm text-white/40">

@@ -5,7 +5,8 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Calendar, Brain, Activity, User, Sparkles, Target, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Calendar, Brain, Activity, User, Sparkles, Target, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import Image from 'next/image';
 import { CommandMenu } from '@/components/ui/command-menu';
 import { cn } from '@/lib/utils';
 import { useUserStore } from '@/stores';
@@ -46,7 +47,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     return (
         <ErrorBoundary>
-            <div className="flex h-dvh w-full overflow-hidden text-[var(--text-primary)]">
+            <div className="flex h-screen w-full overflow-hidden text-[var(--text-primary)]">
                 <RealtimeSync />
             <CommandMenu />
 
@@ -75,6 +76,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                 exit={{ opacity: 0, x: -10 }}
                                 className="flex items-center gap-2 flex-shrink-0"
                             >
+                                <Image src="/logo.png" alt="PlannrAI" width={28} height={28} className="rounded-lg shrink-0" />
                                 <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-[var(--text-primary)] to-[var(--text-secondary)] bg-clip-text text-transparent">
                                     PlannrAI
                                 </span>
@@ -84,9 +86,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                className="w-6 h-6 rounded-lg bg-gradient-to-br from-[var(--color-primary)] to-orange-500 flex items-center justify-center mx-auto shadow-[0_0_10px_var(--color-primary-glow)] flex-shrink-0"
+                                className="flex-shrink-0"
                             >
-                                <span className="text-white text-xs font-bold">P</span>
+                                <Image src="/logo.png" alt="PlannrAI" width={28} height={28} className="rounded-lg shrink-0" />
                             </motion.div>
                         )}
                     </AnimatePresence>
@@ -177,16 +179,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                             <div className="w-2 h-2 rounded-full bg-[var(--color-primary)] animate-pulse-slow" />
                             <span className="text-xs font-mono text-[var(--text-tertiary)] uppercase tracking-widest">Neural OS</span>
                         </div>
+                        <button
+                            onClick={() => window.dispatchEvent(new Event('open-command-menu'))}
+                            className="w-8 h-8 flex items-center justify-center rounded-full bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                        >
+                            <Search className="w-4 h-4" />
+                        </button>
                     </header>
 
                     {/* Scrollable Page Content */}
-                    <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-[var(--glass-border)]">
+                    <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-[var(--glass-border)] pb-28 md:pb-0">
                         {children}
                     </div>
 
                     {/* Bottom Navigation Dock (Mobile Only) */}
-                    <nav className="md:hidden absolute bottom-6 left-4 right-4 h-16 glass-panel rounded-full flex items-center justify-around px-2 z-30">
-                        {navItems.map((item) => {
+                    <nav className="md:hidden absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 right-4 h-16 glass-panel rounded-full flex items-center justify-around px-2 z-30">
+                        {navItems.filter(item => item.label !== 'Review').map((item) => {
                             const isActive = pathname === item.href;
                             return (
                                 <Link
@@ -194,7 +202,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                     href={item.href}
                                     onClick={(e) => item.disabled && e.preventDefault()}
                                     className={cn(
-                                        "flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all",
+                                        "flex flex-col items-center justify-center flex-1 max-w-12 h-12 rounded-full transition-all",
                                         isActive ? "text-[var(--color-primary)] bg-[var(--color-primary)]/10" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]",
                                         item.disabled && "opacity-50 cursor-not-allowed"
                                     )}
@@ -207,7 +215,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         <Link
                             href="/app/settings"
                             className={cn(
-                                "flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all",
+                                "flex flex-col items-center justify-center flex-1 max-w-12 h-12 rounded-full transition-all",
                                 pathname === '/app/settings' ? "text-[var(--color-primary)] bg-[var(--color-primary)]/10" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
                             )}
                         >
