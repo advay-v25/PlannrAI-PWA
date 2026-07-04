@@ -296,6 +296,7 @@ export function MindspaceBoard() {
                                                     <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-white/40 pointer-events-none" />
                                                 </div>
                                             </div>
+                                            </div>
                                             <div className="flex gap-3 shrink-0 ml-auto w-full sm:w-auto justify-end mt-2 sm:mt-0">
                                                 <button 
                                                     type="button" 
