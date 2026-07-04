@@ -14,9 +14,16 @@ interface RichTextEditorProps {
     onChange: (content: string) => void;
     placeholder?: string;
     minHeight?: string;
+    maxHeight?: string;
 }
 
-export function RichTextEditor({ content, onChange, placeholder = 'Take a note...', minHeight = '120px' }: RichTextEditorProps) {
+export function RichTextEditor({ 
+    content, 
+    onChange, 
+    placeholder = 'Take a note...', 
+    minHeight = '120px',
+    maxHeight = '250px'
+}: RichTextEditorProps) {
     const editor = useEditor({
         immediatelyRender: false,
         extensions: [
@@ -115,7 +122,7 @@ export function RichTextEditor({ content, onChange, placeholder = 'Take a note..
             </div>
             
             {/* Editor Content */}
-            <div className={`p-4 overflow-y-auto`} style={{ minHeight }}>
+            <div className="p-4 overflow-auto relative scrollbar-visible" style={{ minHeight, maxHeight }}>
                 {content === '' && editor.isEmpty && (
                     <div className="absolute text-white/30 pointer-events-none">
                         {placeholder}

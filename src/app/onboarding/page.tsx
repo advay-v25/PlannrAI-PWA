@@ -15,7 +15,6 @@ import { Step3Anchors } from '@/components/onboarding/steps/step-3-anchors';
 import { Step4Goals } from '@/components/onboarding/steps/step-4-goals';
 import { Step5FailureModes } from '@/components/onboarding/steps/step-5-failure-modes';
 import { Step6Generate } from '@/components/onboarding/steps/step-6-generate';
-import { DynamicBackground } from '@/components/ui/DynamicBackground';
 
 const STEPS = [
     { id: 'identity', title: 'Identity', component: Step1Identity },
@@ -29,9 +28,11 @@ const STEPS = [
 export default function OnboardingPage() {
     const router = useRouter();
     const supabase = createClient();
-    const { currentStep, data, nextStep, prevStep, reset } = useOnboardingStore();
+    const { currentStep, data, nextStep, prevStep, reset, updateData } = useOnboardingStore();
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState('');
+    const [showMealSelectionPopup, setShowMealSelectionPopup] = useState(false);
+    const [popupSelectedMeals, setPopupSelectedMeals] = useState<('breakfast' | 'lunch' | 'dinner')[]>([]);
 
     const CurrentStepComponent = STEPS[currentStep]?.component;
     const isFirstStep = currentStep === 0;
@@ -46,9 +47,7 @@ export default function OnboardingPage() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error('Not authenticated');
 
-            const completeRes = await apiClient.post<any>('/api/onboarding/complete', data);
-
-            // If it succeeds, completeRes contains the data directly. Error throws automatically.
+            await apiClient.post<unknown>('/api/onboarding/complete', data);
 
             // Mark session as complete client-side too
             await supabase.auth.updateUser({ data: { onboarding_complete: true } });
@@ -56,7 +55,7 @@ export default function OnboardingPage() {
             // Generate initial schedule if not skipped
             if (data.selected_variant_id !== 'skip') {
                 try {
-                    await apiClient.post<any>('/api/onboarding/generate-initial', { selected_variant_id: data.selected_variant_id });
+                    await apiClient.post<unknown>('/api/onboarding/generate-initial', { selected_variant_id: data.selected_variant_id });
                 } catch (genErr) {
                     console.error('Initial schedule generation failed, but onboarding is complete', genErr);
                     // We don't throw here, let them go to the calendar and retry generating later if needed
@@ -65,9 +64,10 @@ export default function OnboardingPage() {
             router.push('/app/calendar?setup=complete');
             setTimeout(() => reset(), 2000);
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('Onboarding finalization failed:', err);
-            setError(err.message || 'Failed to initialize account');
+            const errorMessage = err instanceof Error ? err.message : 'Failed to initialize account';
+            setError(errorMessage);
         } finally {
             setIsSaving(false);
         }
@@ -75,12 +75,18 @@ export default function OnboardingPage() {
 
     const validateStep = () => {
         if (currentStepDef.id === 'identity' && !data.full_name) return false;
+        if (currentStepDef.id === 'rhythm' && data.meals_per_day === 2 && !data.two_meals_selection) return false;
         if (currentStepDef.id === 'goals' && (!data.goals || data.goals.length === 0)) return false;
         // Other steps are optional or have defaults
         return true;
     };
 
     const handleNext = () => {
+        if (currentStepDef.id === 'rhythm' && data.meals_per_day === 2 && !data.two_meals_selection) {
+            setShowMealSelectionPopup(true);
+            return;
+        }
+
         if (!validateStep()) {
             setError('PLEASE COMPLETE THIS SEQUENCE BEFORE PROCEEDING.');
             setTimeout(() => setError(''), 3000);
@@ -105,7 +111,7 @@ export default function OnboardingPage() {
             <div className="relative z-10 w-full max-w-3xl flex flex-col items-center min-h-0 md:min-h-[700px] py-10">
 
                 {/* Premium Minimalist Progress Header */}
-                <div className="w-full flex justify-center mb-16 px-2">
+                <div className={`w-full flex justify-center px-2 ${currentStepDef.id !== 'generate' ? 'mb-6' : 'mb-16'}`}>
                     <div className="flex flex-col items-center w-full max-w-md">
                         <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-purple-400/80 mb-4">
                             Step {currentStep + 1} of {STEPS.length}
@@ -126,9 +132,11 @@ export default function OnboardingPage() {
                             ))}
                         </div>
 
-                        <h2 className="text-2xl md:text-3xl font-light tracking-tight text-white/90">
-                            {currentStepDef.title}
-                        </h2>
+                        {currentStepDef.id === 'generate' && (
+                            <h2 className="text-2xl md:text-3xl font-light tracking-tight text-white/90">
+                                {currentStepDef.title}
+                            </h2>
+                        )}
                     </div>
                 </div>
 
@@ -183,29 +191,131 @@ export default function OnboardingPage() {
                     <button
                         onClick={handleNext}
                         disabled={isSaving}
-                        className="group relative px-10 py-4 md:py-5 rounded-full text-sm font-semibold tracking-wide text-black bg-white hover:scale-105 active:scale-95 transition-all duration-300 shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-[0_0_40px_rgba(255,255,255,0.4)] disabled:opacity-50 disabled:pointer-events-none overflow-hidden"
+                        className="group relative px-7 py-3 md:py-3.5 rounded-full text-base font-bold tracking-wide text-black bg-white hover:scale-105 active:scale-95 transition-all duration-300 shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:shadow-[0_0_30px_rgba(255,255,255,0.3)] disabled:opacity-50 disabled:pointer-events-none overflow-hidden"
                     >
                         {/* Shimmer effect */}
                         <div className="absolute inset-0 block w-full h-full transform -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/50 to-transparent" />
                         
                         {isSaving ? (
-                            <div className="flex items-center justify-center gap-3 relative z-10 w-[140px]">
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                                <span className="text-sm font-medium">Setting up account...</span>
+                            <div className="flex items-center justify-center gap-2 relative z-10 w-[110px]">
+                                <Loader2 className="w-4.5 h-4.5 animate-spin" />
+                                <span className="text-base font-bold">Setting up...</span>
                             </div>
                         ) : isLastStep ? (
-                            <span className="relative z-10 px-4">Go to Dashboard</span>
+                            <span className="relative z-10 px-3 text-base font-bold">Plan Week</span>
                         ) : (
-                            <span className="flex items-center justify-center gap-3 relative z-10 w-[140px]">
-                                <span className="font-medium tracking-wide text-sm">Next</span>
+                            <span className="flex items-center justify-center gap-2 relative z-10 w-[90px]">
+                                <span className="font-bold tracking-wide text-base">Next</span>
                                 <div className="bg-black/10 rounded-full p-1 transition-transform duration-300 group-hover:translate-x-1">
-                                    <ArrowRight className="w-4 h-4 ml-0.5" />
+                                    <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
                                 </div>
                             </span>
                         )}
                     </button>
                 </div>
             </div>
+
+            <AnimatePresence>
+                {showMealSelectionPopup && (
+                    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md">
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                            className="bg-[var(--glass-bg)] border border-[var(--glass-border)] p-6 max-w-sm w-full mx-4 space-y-5 rounded-3xl shadow-2xl text-center backdrop-blur-xl"
+                        >
+                            <div className="space-y-2">
+                                <h3 className="text-lg font-bold text-white font-mono uppercase tracking-wide">
+                                    Select Your 2 Meals
+                                </h3>
+                                <p className="text-xs text-[var(--text-primary)]/70 leading-relaxed">
+                                    Please select the two meals you would like to schedule before proceeding.
+                                </p>
+                            </div>
+
+                            <div className="flex gap-2.5">
+                                {[
+                                    { id: 'breakfast', label: 'Breakfast' },
+                                    { id: 'lunch', label: 'Lunch' },
+                                    { id: 'dinner', label: 'Dinner' }
+                                ].map((opt) => {
+                                    const isSelected = popupSelectedMeals.includes(opt.id as 'breakfast' | 'lunch' | 'dinner');
+                                    return (
+                                        <button
+                                            type="button"
+                                            key={opt.id}
+                                            onClick={() => {
+                                                if (isSelected) {
+                                                    setPopupSelectedMeals(prev => prev.filter(m => m !== opt.id));
+                                                } else {
+                                                    if (popupSelectedMeals.length < 2) {
+                                                        setPopupSelectedMeals(prev => [...prev, opt.id as 'breakfast' | 'lunch' | 'dinner']);
+                                                    } else {
+                                                        setPopupSelectedMeals(prev => [prev[0], opt.id as 'breakfast' | 'lunch' | 'dinner']);
+                                                    }
+                                                }
+                                            }}
+                                            className={`py-3 rounded-2xl text-xs font-bold transition-all duration-300 flex-1 border tracking-wide ${
+                                                isSelected
+                                                    ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)] scale-[1.03] border-transparent'
+                                                    : 'bg-[var(--glass-bg-active)] text-[var(--text-primary)]/50 border-[var(--glass-border)] hover:bg-[var(--glass-bg)] hover:text-[var(--text-primary)] hover:scale-[1.02]'
+                                            }`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowMealSelectionPopup(false);
+                                        setPopupSelectedMeals([]);
+                                    }}
+                                    className="flex-1 py-2.5 rounded-xl border border-[var(--glass-border)] text-xs font-bold text-[var(--text-primary)] hover:bg-[var(--glass-bg-active)] transition-colors duration-300"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={popupSelectedMeals.length !== 2}
+                                    onClick={() => {
+                                        const sorted = [...popupSelectedMeals].sort();
+                                        let val: 'breakfast_lunch' | 'lunch_dinner' | 'breakfast_dinner' = 'lunch_dinner';
+                                        if (sorted[0] === 'breakfast' && sorted[1] === 'lunch') val = 'breakfast_lunch';
+                                        else if (sorted[0] === 'lunch' && sorted[1] === 'dinner') val = 'lunch_dinner';
+                                        else if (sorted[0] === 'breakfast' && sorted[1] === 'dinner') val = 'breakfast_dinner';
+
+                                        updateData({ two_meals_selection: val });
+                                        setShowMealSelectionPopup(false);
+                                        setPopupSelectedMeals([]);
+                                        nextStep();
+                                    }}
+                                    className="flex-1 py-2.5 rounded-xl bg-[var(--color-primary)] hover:shadow-[0_0_15px_rgba(251,146,60,0.4)] text-xs font-bold text-white transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                                >
+                                    Confirm & Next
+                                </button>
+                            </div>
+                            <div className="flex justify-center pt-1">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        updateData({ two_meals_selection: null });
+                                        setShowMealSelectionPopup(false);
+                                        setPopupSelectedMeals([]);
+                                        nextStep();
+                                    }}
+                                    className="text-xs text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]/80 transition-colors duration-300 font-medium tracking-wide underline"
+                                >
+                                    Select Later
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

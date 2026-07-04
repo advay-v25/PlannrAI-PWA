@@ -4,7 +4,7 @@ import { validateWithZod } from '@/lib/security/zod-validator';
 import sanitizeHtml from 'sanitize-html';
 
 const SANITIZE_OPTIONS = {
-    allowedTags: ['p', 'b', 'i', 'em', 'strong', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'br', 'blockquote', 'code'],
+    allowedTags: ['p', 'b', 'i', 'em', 'strong', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'br', 'blockquote', 'code', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
     allowedAttributes: {
         'a': ['href']
     }
@@ -38,7 +38,7 @@ export const GET = secureApiRoute(
 const CreateTodoSchema = z.object({
     action: z.literal('create_todo'),
     title: z.string().min(1, 'Title is required').max(200, 'Title cannot exceed 200 characters'),
-    description: z.string().max(2000, 'Description cannot exceed 2000 characters').nullable().optional(),
+    description: z.string().max(25000, 'Description cannot exceed 25000 characters').nullable().optional(),
     dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)').nullable().optional(),
     priority: z.enum(['low', 'medium', 'high']).optional().default('medium'),
     orderIndex: z.number().int().optional().default(0),
@@ -54,7 +54,7 @@ const UpdateTodoSchema = z.object({
     action: z.literal('update_todo'),
     todoId: z.string().uuid('Invalid Todo ID'),
     title: z.string().min(1, 'Title is required').max(200).optional(),
-    description: z.string().max(2000).nullable().optional(),
+    description: z.string().max(25000).nullable().optional(),
     dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)').nullable().optional(),
     priority: z.enum(['low', 'medium', 'high']).optional(),
     isCompleted: z.boolean().optional(),

@@ -91,12 +91,12 @@ export async function middleware(request: NextRequest) {
             const isOnboarded = profile?.onboarding_complete === true;
 
             // Redirect configured users away from onboarding
-            if (isOnboarded && isOnboardingRoute) {
-                const redirectUrl = request.nextUrl.clone();
-                // Optional: send to /app instead
-                redirectUrl.pathname = '/app';
-                return NextResponse.redirect(redirectUrl);
-            }
+            // if (isOnboarded && isOnboardingRoute) {
+            //     const redirectUrl = request.nextUrl.clone();
+            //     // Optional: send to /app instead
+            //     redirectUrl.pathname = '/app';
+            //     return NextResponse.redirect(redirectUrl);
+            // }
 
             // Redirect un-onboarded users to onboarding
             if (!isOnboarded && isAppRoute) {

@@ -305,7 +305,7 @@ export function MindspaceBoard() {
                                                 </button>
                                                 <button 
                                                     type="submit"
-                                                    disabled={!title.trim() && !description.replace(/<[^>]*>?/gm, '').trim()}
+                                                    disabled={!title.trim() && !description.replace(/<[^>]*>?/gm, '').trim() && !description.includes('<table>') && !description.includes('<ul>') && !description.includes('<ol>')}
                                                     className="px-6 py-2 bg-[var(--text-primary)] text-[var(--color-bg-primary)] text-xs font-bold rounded-full disabled:opacity-30 hover:opacity-90 transition-all"
                                                 >
                                                     Save
@@ -649,7 +649,7 @@ function MindspaceCard({ todo, updateTodo, deleteTodo, handleDragStart, isDragge
                             style={{ maxHeight: '85vh' }}
                         >
                             {/* Modal Header */}
-                            <div className="flex items-center justify-between p-4 md:p-6 border-b border-white/5">
+                            <div className="flex items-center justify-between p-4 md:p-6 border-b border-white/5 bg-black/10">
                                 <input 
                                     autoFocus
                                     value={editTitle}
@@ -672,12 +672,13 @@ function MindspaceCard({ todo, updateTodo, deleteTodo, handleDragStart, isDragge
                             </div>
                             
                             {/* Modal Body: Editor */}
-                            <div className="flex-1 overflow-hidden flex flex-col p-4 md:p-6 bg-black/20">
+                            <div className="flex-1 overflow-hidden flex flex-col p-4 md:p-6 bg-black/20 min-h-0 min-w-0 max-w-full">
                                 <RichTextEditor 
                                     content={editDesc} 
                                     onChange={setEditDesc} 
                                     placeholder="Write your note here... Use the toolbar above for formatting, lists, and tables." 
                                     minHeight="300px"
+                                    maxHeight="45vh"
                                 />
                             </div>
 

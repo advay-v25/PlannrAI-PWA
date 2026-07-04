@@ -12,32 +12,30 @@ export default function LandingPage() {
       <SciFiEarthBackground />
 
       {/* Hero Section */}
-      <section className="relative px-4 pt-20 pb-16 md:pt-32 md:pb-32 overflow-hidden flex flex-col items-center justify-center min-h-[100dvh]">
-        <div className="max-w-5xl mx-auto text-center relative z-10 flex flex-col items-center mt-0">
-          {/* Tactical Orbital Schedule Engine Centerpiece */}
-          <div className="relative w-full h-[32dvh] max-h-[280px] md:h-[500px] md:max-h-none mb-4 md:mb-16 z-20 flex justify-center items-center">
-            <OrbitalScheduleEngine className="absolute w-[150vw] h-[150vw] max-w-[500px] max-h-[500px] md:w-[1000px] md:h-[1000px] md:max-w-none md:max-h-none" />
+      <section className="relative px-4 pt-12 md:pt-16 pb-16 md:pb-28 overflow-hidden flex flex-col min-h-[100dvh]">
+        <div className="max-w-5xl mx-auto w-full flex flex-col flex-1 relative z-10">
+          {/* Logo + tagline — above the solar system */}
+          <header className="text-center shrink-0 mb-6 md:mb-8 mt-2 md:mt-0">
+            <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold mb-3 md:mb-4 tracking-tighter leading-[1.1]">
+              <span className="text-transparent bg-clip-text bg-gradient-to-b from-white via-white/90 to-white/30 drop-shadow-[0_0_40px_rgba(255,255,255,0.1)]">
+                PlannrAI
+              </span>
+            </h1>
+            <p className="text-lg sm:text-xl md:text-2xl text-white/75 font-medium max-w-2xl mx-auto tracking-tight">
+              Build when you want, adapt when you need
+            </p>
+          </header>
+
+          {/* Solar system centerpiece */}
+          <div className="relative flex-1 flex items-center justify-center min-h-[250px] sm:min-h-[380px] md:min-h-[440px] z-20">
+            <OrbitalScheduleEngine className="absolute w-[min(120vw,800px)] h-[min(120vw,800px)] md:w-[1000px] md:h-[1000px]" />
           </div>
 
-          <h1 className="text-5xl sm:text-6xl md:text-8xl lg:text-[7.5rem] font-extrabold mb-8 tracking-tighter leading-[1.1] relative z-10">
-            <span className="text-transparent bg-clip-text bg-gradient-to-b from-white via-white/90 to-white/30 drop-shadow-[0_0_40px_rgba(255,255,255,0.1)]">
-              PlannrAI
-            </span>
-          </h1>
-
-          <p className="text-2xl md:text-4xl text-white/80 font-medium mb-6 md:mb-8 max-w-3xl mx-auto tracking-tight">
-            Build how you want to, adapt when you need to.
-          </p>
-
-          <p className="text-lg md:text-xl text-white/50 mb-8 md:mb-12 max-w-2xl mx-auto leading-relaxed tracking-wide font-light">
-            Absorb mental chaos. See what matters today. Adapt to low-energy days.
-            Protect your long-term goals without pressure or judgment.
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-5 justify-center w-full max-w-md">
-            <LiquidGlassButton href="/login" size="lg" className="w-full text-lg tracking-wide">
+          {/* Get Started — bottom CTA */}
+          <div className="flex justify-center w-full max-w-md mx-auto shrink-0 mt-8 md:mt-20 relative z-30">
+            <LiquidGlassButton href="/login" size="lg" className="w-full text-lg font-bold text-white tracking-wide">
               Get Started Free
-              <ArrowRight className="w-5 h-5 ml-2 opacity-70 group-hover:translate-x-1 transition-transform" />
+              <ArrowRight className="w-5 h-5 ml-2 opacity-90 transition-transform group-hover:translate-x-1" />
             </LiquidGlassButton>
           </div>
         </div>
