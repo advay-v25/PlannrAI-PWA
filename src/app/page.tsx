@@ -12,24 +12,24 @@ export default function LandingPage() {
       <SciFiEarthBackground />
 
       {/* Hero Section */}
-      <section className="relative px-4 pt-32 pb-32 overflow-hidden flex flex-col items-center justify-center min-h-[100vh]">
-        <div className="max-w-5xl mx-auto text-center relative z-10 flex flex-col items-center mt-10 md:mt-0">
+      <section className="relative px-4 pt-20 pb-16 md:pt-32 md:pb-32 overflow-hidden flex flex-col items-center justify-center min-h-[100dvh]">
+        <div className="max-w-5xl mx-auto text-center relative z-10 flex flex-col items-center mt-0">
           {/* Tactical Orbital Schedule Engine Centerpiece */}
-          <div className="relative w-full h-[500px] mb-8 md:mb-16 z-20 flex justify-center items-center">
-            <OrbitalScheduleEngine className="absolute w-[800px] h-[800px] md:w-[1000px] md:h-[1000px]" />
+          <div className="relative w-full h-[32dvh] max-h-[280px] md:h-[500px] md:max-h-none mb-4 md:mb-16 z-20 flex justify-center items-center">
+            <OrbitalScheduleEngine className="absolute w-[150vw] h-[150vw] max-w-[500px] max-h-[500px] md:w-[1000px] md:h-[1000px] md:max-w-none md:max-h-none" />
           </div>
 
-          <h1 className="text-6xl sm:text-7xl md:text-8xl lg:text-[7.5rem] font-extrabold mb-8 tracking-tighter leading-[1.1] relative z-10">
+          <h1 className="text-5xl sm:text-6xl md:text-8xl lg:text-[7.5rem] font-extrabold mb-8 tracking-tighter leading-[1.1] relative z-10">
             <span className="text-transparent bg-clip-text bg-gradient-to-b from-white via-white/90 to-white/30 drop-shadow-[0_0_40px_rgba(255,255,255,0.1)]">
               PlannrAI
             </span>
           </h1>
 
-          <p className="text-2xl md:text-4xl text-white/80 font-medium mb-8 max-w-3xl mx-auto tracking-tight">
+          <p className="text-2xl md:text-4xl text-white/80 font-medium mb-6 md:mb-8 max-w-3xl mx-auto tracking-tight">
             Build how you want to, adapt when you need to.
           </p>
 
-          <p className="text-lg md:text-xl text-white/50 mb-12 max-w-2xl mx-auto leading-relaxed tracking-wide font-light">
+          <p className="text-lg md:text-xl text-white/50 mb-8 md:mb-12 max-w-2xl mx-auto leading-relaxed tracking-wide font-light">
             Absorb mental chaos. See what matters today. Adapt to low-energy days.
             Protect your long-term goals without pressure or judgment.
           </p>
@@ -43,14 +43,14 @@ export default function LandingPage() {
         </div>
         
         {/* Subtle scroll indicator */}
-        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center text-white/30 opacity-50 hover:opacity-100 transition-opacity">
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 hidden sm:flex flex-col items-center text-white/30 opacity-50 hover:opacity-100 transition-opacity">
           <span className="text-[10px] tracking-[0.3em] uppercase font-semibold mb-4">Discover</span>
           <div className="w-px h-16 bg-gradient-to-b from-white/40 to-transparent" />
         </div>
       </section>
 
       {/* Core Promise - Premium Banner */}
-      <section className="relative px-4 py-32 overflow-hidden border-y border-white/[0.02] bg-white/[0.01]">
+      <section className="relative px-4 py-16 md:py-32 overflow-hidden border-y border-white/[0.02] bg-white/[0.01]">
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-purple-900/5 to-transparent backdrop-blur-[2px]" />
         <div className="max-w-4xl mx-auto text-center relative z-10">
           <p className="text-3xl md:text-5xl font-light leading-tight tracking-tight text-white/90">
@@ -65,7 +65,7 @@ export default function LandingPage() {
       </section>
 
       {/* Features Grid */}
-      <section id="features" className="px-4 py-32 relative">
+      <section id="features" className="px-4 py-16 md:py-32 relative">
         <div className="max-w-6xl mx-auto relative z-10">
           <div className="text-center mb-24">
             <h2 className="text-4xl md:text-5xl lg:text-6xl font-extrabold mb-6 tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-white/60">
@@ -119,7 +119,7 @@ export default function LandingPage() {
       </section>
 
       {/* Guarantees */}
-      <section className="px-4 py-32 relative overflow-hidden">
+      <section className="px-4 py-16 md:py-32 relative overflow-hidden">
         <div className="absolute inset-0 bg-white/[0.01] backdrop-blur-3xl border-t border-white/[0.02]" />
         <div className="max-w-6xl mx-auto relative z-10">
           <h2 className="text-4xl md:text-5xl font-extrabold text-center mb-20 tracking-tighter text-white/90">
@@ -138,7 +138,7 @@ export default function LandingPage() {
       </section>
 
       {/* CTA */}
-      <section className="px-4 py-40 relative">
+      <section className="px-4 py-16 md:py-40 relative">
         {/* Glow behind CTA - Removed expensive blur-[120px] filter in favor of hardware-friendly radial gradient */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] h-[80vw] max-w-[600px] max-h-[600px] bg-[radial-gradient(circle,rgba(147,51,234,0.15)_0%,transparent_60%)] rounded-full pointer-events-none" />
         

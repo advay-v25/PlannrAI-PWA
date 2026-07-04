@@ -153,7 +153,7 @@ export default function WeeklyReviewPage() {
     };
 
     return (
-        <div className="w-full min-h-screen relative overflow-x-hidden">
+        <div className="w-full min-h-screen min-h-dvh relative overflow-x-hidden">
             {/* SVG organic ribbon flows — purple palette */}
             <div className="absolute inset-0 pointer-events-none z-[-1]">
               <div aria-hidden style={{ position: 'sticky', top: 0, height: '100vh', width: '100%', overflow: 'hidden' }}>
@@ -226,7 +226,7 @@ export default function WeeklyReviewPage() {
                             initial={{ opacity: 0, scale: 0.98, filter: 'blur(10px)' }} 
                             animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }} 
                             exit={{ opacity: 0, scale: 0.98, filter: 'blur(10px)' }} 
-                            className="w-full flex-1 flex flex-col items-center justify-center py-20 relative"
+                            className="w-full flex-1 flex flex-col items-center justify-center py-10 md:py-20 relative"
                         >
                             {/* The Premium Thick Heartbeat Path extending across the screen */}
                             <div className="relative z-10 w-full h-72 mb-16 flex items-center justify-center pointer-events-none">
@@ -504,7 +504,7 @@ export default function WeeklyReviewPage() {
                     )}
 
                     {!isLoading && view === 'done' && (
-                        <motion.div key="done" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex flex-col items-center justify-center py-20 text-center space-y-6">
+                        <motion.div key="done" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex flex-col items-center justify-center py-10 md:py-20 text-center space-y-6">
                             <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center">
                                 <CheckCircle2 className="w-10 h-10 text-emerald-500" />
                             </div>

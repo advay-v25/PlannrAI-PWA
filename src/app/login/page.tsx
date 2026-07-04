@@ -120,7 +120,7 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-[#1a0a00] via-neutral-950 to-neutral-950 overflow-hidden relative">
+        <div className="min-h-screen min-h-dvh flex items-center justify-center p-4 bg-gradient-to-b from-[#1a0a00] via-neutral-950 to-neutral-950 overflow-hidden relative">
             <div className="w-full max-w-md relative z-10">
                 <GlassCard variant="glow" padding="lg" className="border-white/10 shadow-2xl">
                     <div className="relative z-10">

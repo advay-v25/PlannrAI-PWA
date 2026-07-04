@@ -234,7 +234,7 @@ export default function GoalsPage() {
 
             {/* Empty State */}
             {goals.length === 0 && (
-                <div className="text-center py-20 flex flex-col items-center justify-center space-y-4">
+                <div className="text-center py-10 md:py-20 flex flex-col items-center justify-center space-y-4">
                     <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-2 shadow-inner">
                         <Anchor className="w-8 h-8 text-white/40" />
                     </div>

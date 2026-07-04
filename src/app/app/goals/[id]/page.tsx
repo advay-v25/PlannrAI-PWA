@@ -44,7 +44,7 @@ export default function GoalDetailPage() {
     }, [params.id, goals]);
 
     if (!goal) return (
-        <div className="flex justify-center items-center py-20">
+        <div className="flex justify-center items-center py-10 md:py-20">
             <div className="animate-pulse flex items-center gap-2 text-[var(--text-tertiary)]">
                 <Target className="w-5 h-5" />
                 <span>Loading Goal Physics...</span>

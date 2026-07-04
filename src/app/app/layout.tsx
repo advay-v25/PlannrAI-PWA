@@ -47,7 +47,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     return (
         <ErrorBoundary>
-            <div className="flex h-screen w-full overflow-hidden text-[var(--text-primary)]">
+            <div className="flex h-screen h-dvh w-full overflow-hidden text-[var(--text-primary)]">
                 <RealtimeSync />
             <CommandMenu />
 
