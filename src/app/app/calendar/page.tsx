@@ -44,21 +44,21 @@ function MiniCalendar({ selectedDate, onSelectDate }: { selectedDate: Date; onSe
     return (
         <div className="select-none">
             <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-bold text-white/90">{format(viewMonth, 'MMMM yyyy')}</span>
+                <span className="text-sm font-bold text-[var(--text-primary)]">{format(viewMonth, 'MMMM yyyy')}</span>
                 <div className="flex gap-1">
                     <button onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1))}
-                        className="p-1 rounded hover:bg-white/10 text-white/40 hover:text-white transition-colors">
+                        className="p-1 rounded hover:bg-[var(--glass-bg)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
                         <ChevronLeft className="w-3.5 h-3.5" />
                     </button>
                     <button onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1))}
-                        className="p-1 rounded hover:bg-white/10 text-white/40 hover:text-white transition-colors">
+                        className="p-1 rounded hover:bg-[var(--glass-bg)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
                         <ChevronRight className="w-3.5 h-3.5" />
                     </button>
                 </div>
             </div>
             <div className="grid grid-cols-7 gap-0.5 text-center">
                 {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
-                    <div key={d} className="text-[10px] font-bold text-white/30 py-1">{d}</div>
+                    <div key={d} className="text-[10px] font-bold text-[var(--text-tertiary)] py-1">{d}</div>
                 ))}
                 {cells.map((date, i) => {
                     if (!date) return <div key={`empty-${i}`} />;
@@ -71,8 +71,8 @@ function MiniCalendar({ selectedDate, onSelectDate }: { selectedDate: Date; onSe
                             className={cn(
                                 "w-7 h-7 rounded-full text-xs font-medium transition-all flex items-center justify-center mx-auto",
                                 isSelected ? "bg-orange-500 text-black font-bold" :
-                                isToday ? "bg-white/10 text-white font-bold ring-1 ring-orange-500/50" :
-                                "text-white/50 hover:bg-white/10 hover:text-white"
+                                isToday ? "bg-[var(--glass-bg)] text-[var(--text-primary)] font-bold ring-1 ring-orange-500/50" :
+                                "text-[var(--text-secondary)] hover:bg-[var(--glass-bg)] hover:text-[var(--text-primary)]"
                             )}
                         >
                             {date.getDate()}
@@ -105,7 +105,7 @@ function DailyGoalRing({ pct }: { pct: number }) {
                 </defs>
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-black text-white">{pct}%</span>
+                <span className="text-2xl font-black text-[var(--text-primary)]">{pct}%</span>
             </div>
         </div>
     );
@@ -130,15 +130,15 @@ function WeeklyProgressBar({ blocks, weekStart }: { blocks: any[]; weekStart: Da
         <motion.div
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
-            className="hidden lg:flex flex-col items-center gap-3 w-11 shrink-0 border-r border-white/[0.04] py-8"
+            className="hidden lg:flex flex-col items-center gap-3 w-11 shrink-0 border-r border-[var(--glass-border)] py-8"
         >
             <span
-                className="text-[9px] font-bold text-white/30 uppercase tracking-widest"
+                className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest"
                 style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}
             >
                 Week
             </span>
-            <div className="flex-1 w-1.5 bg-white/[0.04] rounded-full overflow-hidden relative min-h-[100px]">
+            <div className="flex-1 w-1.5 bg-[var(--glass-bg)] rounded-full overflow-hidden relative min-h-[100px]">
                 <motion.div
                     initial={{ height: 0 }}
                     animate={{ height: `${weekStats.pct}%` }}
@@ -148,8 +148,8 @@ function WeeklyProgressBar({ blocks, weekStart }: { blocks: any[]; weekStart: Da
                 />
             </div>
             <div className="flex flex-col items-center gap-0.5">
-                <span className="text-xs font-bold text-white/70">{weekStats.pct}%</span>
-                <span className="text-[8px] text-white/25 font-medium">{weekStats.done}/{weekStats.total}</span>
+                <span className="text-xs font-bold text-[var(--text-secondary)]">{weekStats.pct}%</span>
+                <span className="text-[8px] text-[var(--text-tertiary)] font-medium">{weekStats.done}/{weekStats.total}</span>
             </div>
         </motion.div>
     );
@@ -176,12 +176,12 @@ function TaskCategories({ blocks }: { blocks: any[] }) {
 
     return (
         <div className="space-y-2">
-            <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider">Tasks</h4>
+            <h4 className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider">Tasks</h4>
             {categories.map(([type, { count, color }]) => (
                 <div key={type} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <div className={cn("w-2.5 h-2.5 rounded-sm", color)} />
-                        <span className="text-xs text-white/60 capitalize">{type.replace('_', ' ')}</span>
+                        <span className="text-xs text-[var(--text-secondary)] capitalize">{type.replace('_', ' ')}</span>
                     </div>
                     <span className="text-xs font-bold text-white/80">{count}</span>
                 </div>
@@ -398,34 +398,34 @@ function CalendarPageInner() {
         ? `${format(weekStart, 'MMM d')} – ${format(addDays(weekStart, 6), 'MMM d, yyyy')}`
         : format(selectedDate, 'MMMM d, yyyy');
     return (
-        <div className="h-full w-full bg-transparent text-white overflow-hidden flex flex-col relative">
+        <div className="h-full w-full bg-transparent text-[var(--text-primary)] overflow-hidden flex flex-col relative">
             {/* Base gradient to ensure legibility while letting PageBackground shine through */}
             <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/80 to-[#050508] pointer-events-none -z-10" />
             <PageBackground color="teal" variant="horizon" intensity="medium" />
 
             {/* ── Top Header ────────────────────────────────────── */}
-            <div className="shrink-0 px-6 py-3 border-b border-white/[0.08] bg-black/40 backdrop-blur-xl">
+            <div className="shrink-0 px-6 py-3 border-b border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-xl">
                 <div className="flex items-center justify-between">
                     {/* Left: Nav + Date */}
                     <div className="flex items-center gap-3">
                         <div className="flex items-center gap-0.5">
                             <button onClick={() => navigateDate(-1)}
-                                className="p-1.5 rounded-lg hover:bg-white/10 text-white/30 hover:text-white transition-colors">
+                                className="p-1.5 rounded-lg hover:bg-[var(--glass-bg)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
                                 <ChevronLeft className="w-4 h-4" />
                             </button>
                             <button onClick={() => setSelectedDate(new Date())}
-                                className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-white/40 hover:text-white hover:bg-white/8 transition-colors uppercase tracking-wider">
+                                className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-white/8 transition-colors uppercase tracking-wider">
                                 Today
                             </button>
                             <button onClick={() => navigateDate(1)}
-                                className="p-1.5 rounded-lg hover:bg-white/10 text-white/30 hover:text-white transition-colors">
+                                className="p-1.5 rounded-lg hover:bg-[var(--glass-bg)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors">
                                 <ChevronRight className="w-4 h-4" />
                             </button>
                         </div>
                         <div className="relative">
                             <button 
                                 onClick={() => setShowMiniCalendar(!showMiniCalendar)} 
-                                className="text-sm font-semibold text-white/80 tracking-tight hover:text-white transition-colors cursor-pointer select-none"
+                                className="text-sm font-semibold text-[var(--text-secondary)] tracking-tight hover:text-[var(--text-primary)] transition-colors cursor-pointer select-none"
                             >
                                 {dateTitle}
                             </button>
@@ -454,15 +454,15 @@ function CalendarPageInner() {
                     {/* Right: Compact Actions */}
                     <div className="flex items-center gap-1.5">
                         {/* View Toggle */}
-                        <div className="flex bg-white/[0.04] rounded-lg p-0.5 mr-1">
+                        <div className="flex bg-[var(--glass-bg)] rounded-lg p-0.5 mr-1">
                             <button onClick={() => setViewMode('day')}
                                 className={cn("px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
-                                    viewMode === 'day' ? "bg-orange-500 text-black" : "text-white/40 hover:text-white")}>
+                                    viewMode === 'day' ? "bg-orange-500 text-black" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]")}>
                                 Day
                             </button>
                             <button onClick={() => setViewMode('week')}
                                 className={cn("px-2.5 py-1 rounded-md text-[11px] font-bold transition-all",
-                                    viewMode === 'week' ? "bg-orange-500 text-black" : "text-white/40 hover:text-white")}>
+                                    viewMode === 'week' ? "bg-orange-500 text-black" : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]")}>
                                 Week
                             </button>
                         </div>
@@ -514,12 +514,12 @@ function CalendarPageInner() {
                                 window.open(`/api/calendar/export-ics?date=${dateStr}`, '_blank');
                             }}
                             title="Export to Apple/Google Calendar"
-                            className="p-2 rounded-lg text-white/40
-                            hover:bg-white/[0.06] hover:text-orange-400 transition-all">
+                            className="p-2 rounded-lg text-[var(--text-tertiary)]
+                            hover:bg-[var(--glass-bg)] hover:text-orange-400 transition-all">
                             <Download className="w-4 h-4" />
                         </button>
 
-                        <div className="w-px h-5 bg-white/[0.06] mx-1" />
+                        <div className="w-px h-5 bg-[var(--glass-bg)] mx-1" />
 
 
 
@@ -535,20 +535,20 @@ function CalendarPageInner() {
                 {/* Minimal Stats Strip */}
                 {viewDayBlocks.length > 0 && (
                     <div className="flex items-center gap-3 mt-2 pt-2 border-t border-white/[0.03]">
-                        <span className="text-[10px] text-white/25 font-medium">
+                        <span className="text-[10px] text-[var(--text-tertiary)] font-medium">
                             {dayStats.total} blocks · {dayStats.hours}h
                         </span>
-                        <div className="flex-1 h-0.5 bg-white/[0.03] rounded-full overflow-hidden max-w-[160px]">
+                        <div className="flex-1 h-0.5 bg-[var(--glass-bg)] rounded-full overflow-hidden max-w-[160px]">
                             <motion.div
                                 initial={{ width: 0 }}
                                 animate={{ width: `${dayStats.pct}%` }}
                                 className={cn("h-full rounded-full transition-all duration-700",
-                                    dayStats.pct >= 70 ? 'bg-emerald-500/70' : dayStats.pct >= 30 ? 'bg-orange-500/70' : 'bg-white/10'
+                                    dayStats.pct >= 70 ? 'bg-emerald-500/70' : dayStats.pct >= 30 ? 'bg-orange-500/70' : 'bg-[var(--glass-bg)]'
                                 )}
                             />
                         </div>
                         <span className={cn("text-[10px] font-bold",
-                            dayStats.pct >= 70 ? 'text-emerald-400/70' : dayStats.pct >= 30 ? 'text-orange-400/70' : 'text-white/25'
+                            dayStats.pct >= 70 ? 'text-emerald-400/70' : dayStats.pct >= 30 ? 'text-orange-400/70' : 'text-[var(--text-tertiary)]'
                         )}>{dayStats.pct}%</span>
                     </div>
                 )}
@@ -569,13 +569,13 @@ function CalendarPageInner() {
                             animate={{ opacity: 1, y: 0 }}
                             className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"
                         >
-                            <div className="pointer-events-auto text-center p-8 rounded-2xl bg-zinc-900/90 border border-white/[0.08]
+                            <div className="pointer-events-auto text-center p-8 rounded-2xl bg-[var(--glass-bg)] border border-[var(--glass-border)]
                                 backdrop-blur-xl max-w-sm shadow-2xl">
                                 <div className="w-14 h-14 rounded-2xl bg-orange-500/10 flex items-center justify-center mx-auto mb-4">
                                     <Calendar className="w-7 h-7 text-orange-400" />
                                 </div>
-                                <h3 className="text-white font-bold text-lg mb-2">No schedule for {viewDateStr === todayStr ? 'today' : 'this day'}</h3>
-                                <p className="text-white/40 text-sm mb-5">
+                                <h3 className="text-[var(--text-primary)] font-bold text-lg mb-2">No schedule for {viewDateStr === todayStr ? 'today' : 'this day'}</h3>
+                                <p className="text-[var(--text-tertiary)] text-sm mb-5">
                                     Let AI plan your entire day based on your goals, energy, and commitments.
                                 </p>
                                 <LiquidGlassButton
@@ -616,7 +616,7 @@ function CalendarPageInner() {
                                 initial={{ width: 0, opacity: 0 }}
                                 animate={{ width: 320, opacity: 1 }}
                                 exit={{ width: 0, opacity: 0 }}
-                                className="hidden lg:flex flex-col shrink-0 border-l border-white/[0.06] bg-black/40 overflow-y-auto no-scrollbar"
+                                className="hidden lg:flex flex-col shrink-0 border-l border-[var(--glass-border)] bg-[var(--glass-bg)] overflow-y-auto no-scrollbar"
                             >
                                 <div className="w-[320px] h-full">
                                     <BlockInspector
@@ -632,7 +632,7 @@ function CalendarPageInner() {
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+                                className="fixed inset-0 z-40 bg-[var(--glass-bg)] backdrop-blur-sm lg:hidden"
                                 onClick={() => setSelectedBlock(null)}
                             />
                             <motion.div
@@ -640,7 +640,7 @@ function CalendarPageInner() {
                                 animate={{ y: 0 }}
                                 exit={{ y: "100%" }}
                                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                                className="fixed inset-x-0 bottom-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-2xl lg:hidden bg-zinc-950 border-t border-white/[0.08]"
+                                className="fixed inset-x-0 bottom-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-2xl lg:hidden bg-[var(--color-bg-primary)] border-t border-[var(--glass-border)]"
                             >
                                 <BlockInspector
                                     block={selectedBlock}
@@ -750,13 +750,13 @@ function AddBlockModal({ defaults, goals, onSubmit, onClose }: {
                 exit={{ scale: 0.95, opacity: 0 }}
                 onClick={e => e.stopPropagation()}
                 onSubmit={handleSubmit}
-                className="bg-zinc-900 border border-white/[0.08] rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4"
+                className="bg-[var(--color-bg-primary)] border border-[var(--glass-border)] rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4"
             >
                 <div className="flex items-center justify-between">
-                    <h2 className="text-white font-bold text-lg">Add to Schedule</h2>
+                    <h2 className="text-[var(--text-primary)] font-bold text-lg">Add to Schedule</h2>
                     <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-2 bg-white/[0.06] px-3 py-1.5 rounded-lg">
-                            <span className="text-xs font-bold text-white/50">Recur Weekly?</span>
+                        <div className="flex items-center gap-2 bg-[var(--glass-bg)] px-3 py-1.5 rounded-lg">
+                            <span className="text-xs font-bold text-[var(--text-secondary)]">Recur Weekly?</span>
                             <button type="button" onClick={() => setIsAnchor(!isAnchor)}
                                 className={cn("w-8 h-4 rounded-full transition-colors relative", isAnchor ? "bg-orange-500" : "bg-white/20")}>
                                 <div className={cn("w-3 h-3 bg-white rounded-full absolute top-0.5 transition-all",
@@ -764,8 +764,8 @@ function AddBlockModal({ defaults, goals, onSubmit, onClose }: {
                             </button>
                         </div>
                         {!isAnchor && (
-                            <div className="flex items-center gap-2 bg-white/[0.06] px-3 py-1.5 rounded-lg">
-                                <span className="text-xs font-bold text-white/50">Locked?</span>
+                            <div className="flex items-center gap-2 bg-[var(--glass-bg)] px-3 py-1.5 rounded-lg">
+                                <span className="text-xs font-bold text-[var(--text-secondary)]">Locked?</span>
                                 <button type="button" onClick={() => setIsLocked(!isLocked)}
                                     className={cn("w-8 h-4 rounded-full transition-colors relative", isLocked ? "bg-orange-500" : "bg-white/20")}>
                                     <div className={cn("w-3 h-3 bg-white rounded-full absolute top-0.5 transition-all",
@@ -780,37 +780,37 @@ function AddBlockModal({ defaults, goals, onSubmit, onClose }: {
                     value={title}
                     onChange={e => setTitle(e.target.value)}
                     placeholder={isAnchor ? "Anchor title (e.g. Gym, Work)" : "Block title..."}
-                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-white text-sm
-                        placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+                    className="w-full bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-xl px-4 py-3 text-[var(--text-primary)] text-sm
+                        placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-orange-500/30"
                     autoFocus
                 />
 
                 <div className="grid grid-cols-3 gap-3">
                     <div>
-                        <label className="text-[10px] uppercase text-white/30 font-bold">Date</label>
+                        <label className="text-[10px] uppercase text-[var(--text-tertiary)] font-bold">Date</label>
                         <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-white text-sm" />
+                            className="w-full bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-lg px-3 py-2 text-[var(--text-primary)] text-sm" />
                     </div>
                     <div>
-                        <label className="text-[10px] uppercase text-white/30 font-bold">Start</label>
+                        <label className="text-[10px] uppercase text-[var(--text-tertiary)] font-bold">Start</label>
                         <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
-                            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-white text-sm" />
+                            className="w-full bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-lg px-3 py-2 text-[var(--text-primary)] text-sm" />
                     </div>
                     <div>
-                        <label className="text-[10px] uppercase text-white/30 font-bold">End</label>
+                        <label className="text-[10px] uppercase text-[var(--text-tertiary)] font-bold">End</label>
                         <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)}
-                            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2 text-white text-sm" />
+                            className="w-full bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-lg px-3 py-2 text-[var(--text-primary)] text-sm" />
                     </div>
                 </div>
 
                 {goals.length > 0 && !title && (
                     <div className="space-y-1.5">
-                        <span className="text-[10px] uppercase text-white/30 font-bold">Quick add from goals:</span>
+                        <span className="text-[10px] uppercase text-[var(--text-tertiary)] font-bold">Quick add from goals:</span>
                         <div className="flex flex-wrap gap-1.5">
                             {goals.slice(0, 5).map((g: any) => (
                                 <button key={g.id} type="button" onClick={() => setTitle(g.title)}
                                     className="px-2.5 py-1 rounded-lg text-[11px] font-medium
-                                        bg-white/[0.06] hover:bg-orange-500/20 text-white/60 hover:text-orange-300 transition-colors">
+                                        bg-[var(--glass-bg)] hover:bg-orange-500/20 text-[var(--text-secondary)] hover:text-orange-300 transition-colors">
                                     {g.title}
                                 </button>
                             ))}
@@ -820,7 +820,7 @@ function AddBlockModal({ defaults, goals, onSubmit, onClose }: {
 
                 <div className="flex gap-2 pt-2">
                     <button type="button" onClick={onClose}
-                        className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white/40 hover:text-white hover:bg-white/[0.06] transition-all">
+                        className="flex-1 py-2.5 rounded-xl text-sm font-bold text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--glass-bg)] transition-all">
                         Cancel
                     </button>
                     <button type="submit" disabled={!title.trim()}

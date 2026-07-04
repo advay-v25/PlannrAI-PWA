@@ -45,7 +45,7 @@ export function ProactiveBanner({
             <div className="mt-4 flex space-x-3">
                 <button
                     onClick={onAct}
-                    className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-medium rounded-lg hover:brightness-110 active:scale-95 transition-all shadow-lg"
+                    className="px-4 py-2 bg-[var(--color-primary)] text-[var(--text-primary)] text-sm font-medium rounded-lg hover:brightness-110 active:scale-95 transition-all shadow-lg"
                 >
                     {suggestion.action}
                 </button>

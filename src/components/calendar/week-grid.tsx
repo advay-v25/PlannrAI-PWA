@@ -22,15 +22,15 @@ const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 6am - 11pm
 const CELL_HEIGHT = 120;
 
 // Premium pastel colors matching reference images (black/orange theme)
-const PILLAR_COLORS: Record<string, { bg: string; border: string; text: string; dot: string; glow: string }> = {
-    mind:    { bg: 'bg-gradient-to-br from-purple-500/15 to-indigo-600/10', border: 'border-purple-400/20', text: 'text-purple-100', dot: 'bg-purple-400', glow: 'block-glow-mind' },
-    body:    { bg: 'bg-gradient-to-br from-emerald-400/15 to-teal-600/10', border: 'border-emerald-400/20', text: 'text-emerald-100', dot: 'bg-emerald-400', glow: 'block-glow-body' },
-    craft:   { bg: 'bg-gradient-to-br from-amber-400/15 to-orange-600/10', border: 'border-amber-400/20', text: 'text-amber-100', dot: 'bg-amber-400', glow: 'block-glow-craft' },
-    anchor:  { bg: 'bg-zinc-700/30', border: 'border-zinc-500/15', text: 'text-zinc-300', dot: 'bg-zinc-500', glow: 'block-glow-anchor' },
-    meal:    { bg: 'bg-gradient-to-br from-orange-300/12 to-rose-500/8', border: 'border-orange-400/15', text: 'text-orange-200', dot: 'bg-orange-400', glow: 'block-glow-routine' },
-    sleep:   { bg: 'bg-black/30', border: 'border-white/[0.05]', text: 'text-white/30', dot: 'bg-white/10', glow: '' },
-    break:   { bg: 'bg-transparent', border: 'border-white/[0.04]', text: 'text-white/40', dot: 'bg-white/20', glow: '' },
-    default: { bg: 'bg-gradient-to-br from-violet-400/15 to-purple-600/10', border: 'border-violet-400/20', text: 'text-violet-200', dot: 'bg-violet-400', glow: 'block-glow-routine' },
+const PILLAR_COLORS: Record<string, { bg: string; border: string; text: string; metaText: string; dot: string; glow: string }> = {
+    mind:    { bg: 'bg-purple-600 dark:bg-gradient-to-br dark:from-purple-500/15 dark:to-indigo-600/10', border: 'border-purple-500 dark:border-purple-400/20', text: 'text-white dark:text-purple-100', metaText: 'text-white/80 dark:text-purple-100/70', dot: 'bg-white dark:bg-purple-400', glow: 'dark:block-glow-mind' },
+    body:    { bg: 'bg-emerald-600 dark:bg-gradient-to-br dark:from-emerald-400/15 dark:to-teal-600/10', border: 'border-emerald-500 dark:border-emerald-400/20', text: 'text-white dark:text-emerald-100', metaText: 'text-white/80 dark:text-emerald-100/70', dot: 'bg-white dark:bg-emerald-400', glow: 'dark:block-glow-body' },
+    craft:   { bg: 'bg-amber-600 dark:bg-gradient-to-br dark:from-amber-400/15 dark:to-orange-600/10', border: 'border-amber-500 dark:border-amber-400/20', text: 'text-white dark:text-amber-100', metaText: 'text-white/80 dark:text-amber-100/70', dot: 'bg-white dark:bg-amber-400', glow: 'dark:block-glow-craft' },
+    anchor:  { bg: 'bg-zinc-700 dark:bg-zinc-700/30', border: 'border-zinc-600 dark:border-zinc-500/15', text: 'text-white dark:text-zinc-300', metaText: 'text-white/80 dark:text-zinc-400', dot: 'bg-white dark:bg-zinc-500', glow: 'dark:block-glow-anchor' },
+    meal:    { bg: 'bg-orange-600 dark:bg-gradient-to-br dark:from-orange-300/12 dark:to-rose-500/8', border: 'border-orange-500 dark:border-orange-400/15', text: 'text-white dark:text-orange-200', metaText: 'text-white/80 dark:text-orange-200/70', dot: 'bg-white dark:bg-orange-400', glow: 'dark:block-glow-routine' },
+    sleep:   { bg: 'bg-slate-300 dark:bg-[var(--glass-bg)]', border: 'border-slate-400 dark:border-[var(--glass-border)]', text: 'text-slate-700 dark:text-[var(--text-tertiary)]', metaText: 'text-slate-600 dark:text-[var(--text-tertiary)]', dot: 'bg-slate-500 dark:bg-[var(--glass-bg)]', glow: '' },
+    break:   { bg: 'bg-zinc-200 dark:bg-transparent', border: 'border-[var(--glass-border)]', text: 'text-zinc-700 dark:text-[var(--text-tertiary)]', metaText: 'text-zinc-600 dark:text-[var(--text-tertiary)]', dot: 'bg-zinc-400 dark:bg-white/20', glow: '' },
+    default: { bg: 'bg-violet-600 dark:bg-gradient-to-br dark:from-violet-400/15 dark:to-purple-600/10', border: 'border-violet-500 dark:border-violet-400/20', text: 'text-white dark:text-violet-200', metaText: 'text-white/80 dark:text-violet-200/70', dot: 'bg-white dark:bg-violet-400', glow: 'dark:block-glow-routine' },
 };
 
 function getBlockColors(block: any) {
@@ -129,8 +129,8 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                 <div className="calendar-galaxy-bg" />
 
                 {/* Day Headers */}
-                <div className="sticky top-0 z-20 flex border-b border-white/[0.08] bg-black/40 backdrop-blur-xl shadow-lg">
-                    <div className="w-14 shrink-0 sticky left-0 z-30 bg-[#0a0a0c] border-r border-white/[0.04]" />
+                <div className="sticky top-0 z-20 flex border-b border-[var(--glass-border)] bg-[var(--color-bg-primary)] shadow-lg">
+                    <div className="w-14 shrink-0 sticky left-0 z-30 bg-[var(--color-bg-primary)] border-r border-[var(--glass-border)]" />
                     {days.map((day, i) => {
                         const isToday = isSameDay(day, new Date());
                         const dayStr = format(day, 'yyyy-MM-dd');
@@ -138,24 +138,24 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                         const done = dayBlocks.filter(b => b.status === 'done').length;
                         return (
                             <div key={i} className={cn(
-                                "flex-1 text-center py-3 border-r border-white/[0.04] last:border-r-0 transition-colors relative",
+                                "flex-1 text-center py-3 border-r border-[var(--glass-border)] last:border-r-0 transition-colors relative",
                                 viewMode === 'day' ? 'min-w-0 max-w-full' : 'min-w-[110px]'
                             )}>
                                 <div className="flex flex-col items-center gap-1">
                                     <div className={cn(
                                         "text-[10px] uppercase font-bold tracking-widest",
-                                        isToday ? "text-orange-400" : "text-white/40"
+                                        isToday ? "text-orange-400" : "text-[var(--text-tertiary)]"
                                     )}>
                                         {format(day, 'EEE')}
                                     </div>
                                     <div className={cn(
                                         "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all shadow-inner",
-                                        isToday ? "bg-gradient-to-tr from-orange-500/80 to-purple-500/80 text-white backdrop-blur-md border border-white/30 shadow-[0_0_15px_rgba(249,115,22,0.4)]" : "text-white/70 hover:bg-white/5"
+                                        isToday ? "bg-gradient-to-tr from-orange-500/80 to-purple-500/80 text-[var(--text-primary)] backdrop-blur-md border border-white/30 shadow-[0_0_15px_rgba(249,115,22,0.4)]" : "text-[var(--text-secondary)] hover:bg-[var(--glass-bg)]"
                                     )}>
                                         {format(day, 'd')}
                                     </div>
                                     {dayBlocks.length > 0 && (
-                                        <div className="text-[9px] text-white/40 font-mono">
+                                        <div className="text-[9px] text-[var(--text-tertiary)] font-mono">
                                             <span className={done === dayBlocks.length ? "text-emerald-400/80 drop-shadow-[0_0_5px_rgba(52,211,153,0.5)]" : ""}>
                                                 {done}/{dayBlocks.length}
                                             </span>
@@ -171,9 +171,9 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                 <div className="flex relative" style={{ minHeight: HOURS.length * CELL_HEIGHT }}>
 
                     {/* Time Column */}
-                    <div className="w-14 shrink-0 sticky left-0 z-10 bg-[#0a0a0c] border-r border-white/[0.04]">
+                    <div className="w-14 shrink-0 sticky left-0 z-10 bg-[var(--color-bg-primary)] border-r border-[var(--glass-border)]">
                         {HOURS.map(h => (
-                            <div key={h} className="border-b border-dashed border-white/[0.04] text-[10px] text-white/30 text-right pr-2 pt-1 font-mono"
+                            <div key={h} className="border-b border-dashed border-[var(--glass-border)] text-[10px] text-[var(--text-tertiary)] text-right pr-2 pt-1 font-mono"
                                 style={{ height: CELL_HEIGHT }}>
                                 {h === 0 ? '12a' : h < 12 ? `${h}a` : h === 12 ? '12p' : `${h - 12}p`}
                             </div>
@@ -190,10 +190,10 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
 
                         return (
                             <div key={dayIndex} className={cn(
-                                "flex-1 border-r border-white/[0.04] last:border-r-0 relative transition-colors",
+                                "flex-1 border-r border-[var(--glass-border)] last:border-r-0 relative transition-colors",
                                 viewMode === 'day' ? 'min-w-0 max-w-full' : 'min-w-[110px]',
-                                isToday && "bg-white/[0.02]",
-                                isPast && "bg-black/40 opacity-80"
+                                isToday && "bg-[var(--glass-bg)]",
+                                isPast && "bg-[var(--glass-bg)] opacity-80"
                             )}>
                                 {/* Hour Droppables */}
                                 {HOURS.map(h => (
@@ -257,12 +257,12 @@ function DroppableHour({ dayIndex, hour, onClick }: { dayIndex: number; hour: nu
             onClick={onClick}
             className={cn(
                 "border-b border-dashed border-white/[0.03] transition-colors cursor-pointer group",
-                isOver ? "bg-purple-500/20 border-l-2 border-purple-400/60 shadow-[inset_0_0_20px_rgba(168,85,247,0.15)]" : "hover:bg-white/[0.03]"
+                isOver ? "bg-purple-500/20 border-l-2 border-purple-400/60 shadow-[inset_0_0_20px_rgba(168,85,247,0.15)]" : "hover:bg-[var(--glass-bg)]"
             )}
             style={{ height: CELL_HEIGHT }}
         >
             <div className="opacity-100 md:opacity-0 md:group-hover:opacity-100 flex items-center justify-center h-full transition-opacity">
-                <Plus className="w-3 h-3 text-white/20" />
+                <Plus className="w-3 h-3 text-[var(--text-tertiary)]" />
             </div>
         </div>
     );
@@ -340,7 +340,7 @@ function BlockCard({ block, layout, onClick, isDayView, index = 0 }: { block: an
                         {block.title || block.context || 'Untitled'}
                     </span>
                     {isDone && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
-                    {(block.block_type === 'anchor' || block.block_type === 'meal') && <Lock className="w-3 h-3 text-white/30 shrink-0" />}
+                    {(block.block_type === 'anchor' || block.block_type === 'meal') && <Lock className={cn("w-3 h-3 shrink-0", colors.metaText)} />}
                 </div>
 
                 {/* Time display — always show in day view, or when block is tall enough */}
@@ -351,8 +351,8 @@ function BlockCard({ block, layout, onClick, isDayView, index = 0 }: { block: an
                 )}
 
                 {layout.height > 60 && (
-                    <div className="mt-auto pt-1 flex items-center justify-between border-t border-white/[0.04]">
-                        <div className={cn("text-[9px] font-bold uppercase tracking-wider truncate", colors.text, "opacity-50")}>
+                    <div className="mt-auto pt-1 flex items-center justify-between border-t border-[var(--glass-border)]">
+                        <div className={cn("text-[9px] font-bold uppercase tracking-wider truncate", colors.metaText)}>
                             {block.goal?.category || block.goal?.pillar || block.pillar || block.block_type || 'general'}
                         </div>
                         {isDone && (

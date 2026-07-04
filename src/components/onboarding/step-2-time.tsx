@@ -9,7 +9,7 @@ export function Step2Time() {
     const { data, updateData } = useOnboardingStore();
 
     return (
-        <div className="h-full flex flex-col items-center justify-center space-y-12">
+        <div className="h-full flex flex-col items-center justify-center space-y-8 md:space-y-12">
             <div className="text-center space-y-2">
                 <motion.h2
                     initial={{ opacity: 0, y: -20 }}
@@ -52,29 +52,52 @@ export function Step2Time() {
                 />
             </div>
 
-            {/* Wind Down Input */}
-            <div className="w-full max-w-2xl px-6 py-4 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                    <span className="text-2xl">🌬️</span>
-                    <div>
-                        <p className="font-bold text-sm">Wind-down Protocol</p>
-                        <p className="text-xs text-[var(--text-secondary)]">Disconnect before sleep</p>
+            <div className="w-full max-w-2xl flex flex-col gap-3">
+                {/* Morning Buffer Input */}
+                <div className="px-6 py-4 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <span className="text-2xl">🌅</span>
+                        <div>
+                            <p className="font-bold text-sm">Morning Buffer</p>
+                            <p className="text-xs text-[var(--text-secondary)]">Ease into your day</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-4 flex-1 justify-end">
+                        <input
+                            type="range"
+                            min={0} max={120} step={5}
+                            value={data.morning_routine_mins || 0}
+                            onChange={(e) => updateData({ morning_routine_mins: Number(e.target.value) })}
+                            className="w-24 md:w-32 accent-amber-400"
+                        />
+                        <span className="font-mono font-bold w-12 text-right">{data.morning_routine_mins || 0}m</span>
                     </div>
                 </div>
-                <div className="flex items-center gap-4 flex-1 justify-end">
-                    <input
-                        type="range"
-                        min={15} max={120} step={15}
-                        value={data.wind_down_mins || 45}
-                        onChange={(e) => updateData({ wind_down_mins: Number(e.target.value) })}
-                        className="w-32 accent-indigo-400"
-                    />
-                    <span className="font-mono font-bold w-12 text-right">{data.wind_down_mins || 45}m</span>
+
+                {/* Wind Down Input */}
+                <div className="px-6 py-4 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <span className="text-2xl">🌬️</span>
+                        <div>
+                            <p className="font-bold text-sm">Wind-down Protocol</p>
+                            <p className="text-xs text-[var(--text-secondary)]">Disconnect before sleep</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-4 flex-1 justify-end">
+                        <input
+                            type="range"
+                            min={15} max={120} step={15}
+                            value={data.wind_down_mins || 45}
+                            onChange={(e) => updateData({ wind_down_mins: Number(e.target.value) })}
+                            className="w-24 md:w-32 accent-indigo-400"
+                        />
+                        <span className="font-mono font-bold w-12 text-right">{data.wind_down_mins || 45}m</span>
+                    </div>
                 </div>
             </div>
 
             {/* Visualizer (Concrete Day Frame) */}
-            <DayFrameVisualizer sleepStart={data.sleep_start} sleepEnd={data.sleep_end} windDown={data.wind_down_mins || 45} />
+            <DayFrameVisualizer sleepStart={data.sleep_start} sleepEnd={data.sleep_end} windDown={data.wind_down_mins || 45} morningBuffer={data.morning_routine_mins || 0} />
         </div>
     );
 }
@@ -113,7 +136,7 @@ function TimeCard({ icon, label, sublabel, value, onChange, delay, gradient }: a
     );
 }
 
-function DayFrameVisualizer({ sleepStart, sleepEnd, windDown }: { sleepStart: string, sleepEnd: string, windDown: number }) {
+function DayFrameVisualizer({ sleepStart, sleepEnd, windDown, morningBuffer }: { sleepStart: string, sleepEnd: string, windDown: number, morningBuffer: number }) {
     // Simple visual representation of the 24h cycle
     // We assume standard day for visualization: 00:00 to 24:00
     // But since it's a cycle, we can just show a bar: Sleep -> Wake -> [Active] -> WindDown -> Sleep
@@ -126,14 +149,17 @@ function DayFrameVisualizer({ sleepStart, sleepEnd, windDown }: { sleepStart: st
         >
             <div className="flex justify-between text-xs text-[var(--text-tertiary)] font-mono uppercase">
                 <span>{sleepEnd} Wake</span>
-                <span className="text-indigo-300">-{windDown}m Wind Down</span>
+                <span className="text-indigo-300 hidden md:inline">-{windDown}m / +{morningBuffer}m</span>
                 <span>{sleepStart} Sleep</span>
             </div>
             <div className="h-4 w-full bg-[var(--glass-border)] rounded-full overflow-hidden flex">
-                {/* This matches a "Linear" day from Wake to Sleep for simplicity in this context */}
-                {/* Actually, let's just show a simple static bar representing "Energy Capacity" */}
+                {morningBuffer > 0 && (
+                    <div className="h-full bg-amber-900 w-[10%] opacity-50 border-r border-white/10" title="Morning Buffer" />
+                )}
                 <div className="h-full bg-gradient-to-r from-amber-500 via-orange-400 to-indigo-400 flex-1 opacity-80" />
-                <div className="h-full bg-indigo-900 w-[10%] opacity-50 border-l border-white/10" title="Wind Down" />
+                {windDown > 0 && (
+                    <div className="h-full bg-indigo-900 w-[10%] opacity-50 border-l border-white/10" title="Wind Down" />
+                )}
             </div>
             <p className="text-center text-xs text-[var(--text-tertiary)] pt-2">
                 Your calibration creates a human day frame.

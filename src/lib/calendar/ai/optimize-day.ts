@@ -165,9 +165,9 @@ CRITICAL RULES:
 11. OPTION DIVERGENCE (CRITICAL): Option 1 and Option 2 MUST propose completely different operations. If Option 1 moves a block to 2:00 PM, Option 2 MUST move it somewhere else, or delete it, or leave it alone. Do NOT generate identical \`ops\` arrays for both options.
 
 🚫 IMMUTABLE BLOCKS (ABSOLUTE — NEVER VIOLATE):
-- NEVER move, delete, modify, or reschedule blocks of type: sleep, meal, wind_down, anchor.
+- NEVER move, delete, modify, or reschedule blocks of type: sleep, meal, wind_down, anchor, routine.
 - These are biological necessities and fixed commitments. They are SACRED.
-- To free up time, you MUST work around goal blocks, buffer blocks, routine blocks, or flex blocks ONLY.
+- To free up time, you MUST work around goal blocks, buffer blocks, or flex blocks ONLY.
 - If the user asks to skip sleep or meals, REFUSE and explain why it's harmful.
 - If all remaining blocks are immutable, tell the user there's nothing to optimize — their schedule is locked.
 
@@ -309,9 +309,9 @@ OUTPUT FORMAT (strict JSON):
 // ── Fallback ─────────────────────────────────────────────────────
 
 function generateFallbackOptimization(ctx: CalendarContext, blocks: ScheduleBlock[]): OptimizeDayResult {
-    const PROTECTED_TYPES = ['sleep', 'meal', 'wind_down', 'anchor', 'buffer'];
+    const PROTECTED_TYPES = ['sleep', 'meal', 'wind_down', 'anchor', 'buffer', 'routine'];
     const health = blocks.length > 6 ? 'overloaded' : blocks.length > 0 ? 'manageable' : 'light';
-    // Only goal, flex, and routine blocks are movable — NEVER touch sleep, meal, anchor, buffer, wind_down
+    // Only goal and flex blocks are movable — NEVER touch sleep, meal, anchor, buffer, wind_down, routine
     const movable = blocks.filter(b => !b.is_fixed && !b.commitment_id && !PROTECTED_TYPES.includes(b.block_type));
 
     const options: DayOptimization[] = [

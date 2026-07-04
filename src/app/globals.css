@@ -805,9 +805,10 @@ textarea::placeholder {
   overflow: hidden;
   z-index: 0;
   pointer-events: none;
+  background: var(--color-bg-secondary);
 }
 
-.calendar-galaxy-bg::before {
+.dark .calendar-galaxy-bg::before {
   content: '';
   position: absolute;
   inset: -50% -10%;
@@ -837,7 +838,7 @@ textarea::placeholder {
   animation: galaxy-drift 120s linear infinite;
 }
 
-.calendar-galaxy-bg::after {
+.dark .calendar-galaxy-bg::after {
   content: '';
   position: absolute;
   inset: 0;

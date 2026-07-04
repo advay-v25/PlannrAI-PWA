@@ -70,6 +70,7 @@ export function LiquidGlassButton({
   title,
 }: LiquidGlassButtonProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const router = useRouter();
 
   const innerProps = {
     className: cn(
@@ -121,18 +122,23 @@ export function LiquidGlassButton({
 
   if (href && !disabled) {
     return (
-      <Link href={href} title={title} onClick={onClick as any} passHref legacyBehavior>
-        <motion.a
-          onHoverStart={innerProps.onHoverStart}
-          onHoverEnd={innerProps.onHoverEnd}
-          whileHover={innerProps.whileHover}
-          whileTap={innerProps.whileTap}
-          transition={innerProps.transition}
-          className={innerProps.className}
-        >
-          {content}
-        </motion.a>
-      </Link>
+      <motion.a
+        href={href}
+        title={title}
+        onClick={(e) => {
+          e.preventDefault();
+          if (onClick) onClick(e);
+          router.push(href);
+        }}
+        onHoverStart={innerProps.onHoverStart}
+        onHoverEnd={innerProps.onHoverEnd}
+        whileHover={innerProps.whileHover}
+        whileTap={innerProps.whileTap}
+        transition={innerProps.transition}
+        className={innerProps.className}
+      >
+        {content}
+      </motion.a>
     );
   }
 

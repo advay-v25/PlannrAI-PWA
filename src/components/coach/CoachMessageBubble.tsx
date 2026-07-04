@@ -84,7 +84,7 @@ function renderInline(text: string): React.ReactNode[] {
         } else if (match[4]) {
             // `code`
             parts.push(
-                <code key={match.index} className="text-[10px] px-1 py-0.5 rounded bg-white/10 text-primary font-mono">
+                <code key={match.index} className="text-[10px] px-1 py-0.5 rounded bg-[var(--glass-bg)] text-primary font-mono">
                     {match[4]}
                 </code>
             );
@@ -153,7 +153,7 @@ export function CoachMessageBubble({ message }: CoachMessageBubbleProps) {
             <div
                 className={`max-w-[85%] md:max-w-[70%] px-6 py-5 rounded-[2rem] shadow-sm relative group ${isUser
                         ? 'bg-gradient-to-b from-[#2A1608] to-[#1A0D04] text-orange-50 ml-12 rounded-tr-md shadow-lg border border-orange-500/20 backdrop-blur-md'
-                        : 'bg-white/[0.04] backdrop-blur-3xl border border-white/[0.08] text-white mr-12 rounded-tl-md shadow-2xl'
+                        : 'bg-[var(--glass-bg)] backdrop-blur-3xl border border-[var(--glass-border)] text-[var(--text-primary)] mr-12 rounded-tl-md shadow-2xl'
                     }`}
             >
                 {/* Subtle inner reflection */}
@@ -163,14 +163,14 @@ export function CoachMessageBubble({ message }: CoachMessageBubbleProps) {
                     {!isUser && (
                         <div className="flex items-center gap-2 mb-2">
                             <div className="w-5 h-5 rounded-full bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-[0_0_10px_rgba(249,115,22,0.4)]">
-                                <span className="text-white text-[10px]">⚡</span>
+                                <span className="text-[var(--text-primary)] text-[10px]">⚡</span>
                             </div>
                             <span className="text-[10px] font-black uppercase tracking-widest text-orange-400">
                                 Donna
                             </span>
                         </div>
                     )}
-                    <div className={cn("text-sm leading-relaxed", isUser ? "font-medium" : "text-white/90")}>
+                    <div className={cn("text-sm leading-relaxed", isUser ? "font-medium" : "text-[var(--text-primary)]")}>
                         {isUser ? message.content : renderMarkdown(sanitizeContent(message.content))}
                     </div>
 
@@ -207,7 +207,7 @@ export function CoachMessageBubble({ message }: CoachMessageBubbleProps) {
                             {message.contextUsed.map((ctx, i) => (
                                 <span
                                     key={i}
-                                    className="text-[8px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-white/[0.03] text-foreground/30 border border-white/5"
+                                    className="text-[8px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-[var(--glass-bg)] text-foreground/30 border border-white/5"
                                 >
                                     {ctx}
                                 </span>
