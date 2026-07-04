@@ -182,19 +182,18 @@ export async function generateWeekPlan(
         }
     }
 
-    // Morning routine: invisible scheduling constraint — no calendar block, just blocks the time after wake
+    // Morning routine: block generated identically to Wind Down
     const morningRoutineMins = (context.user as any).morning_routine_mins || 0;
     if (morningRoutineMins > 0) {
         const wakeTimeMins = timeToMinutes(context.user.sleep_end || '07:00');
         const morningRoutineEnd = wakeTimeMins + morningRoutineMins;
-        for (let d = 1; d <= 7; d++) {
-            commitmentsByDay.get(d)!.push({
-                start: wakeTimeMins,
-                end: morningRoutineEnd,
-                title: 'Morning Routine',
-                type: 'morning_routine'
-            });
-        }
+        
+        bioTemplates.push({
+            title: 'Morning Routine',
+            block_type: 'routine',
+            start: minutesToTime(wakeTimeMins),
+            end: minutesToTime(morningRoutineEnd)
+        });
     }
 
     // NEW: Load existing schedule blocks (fixed or done) into exclusion zones to prevent overwrites

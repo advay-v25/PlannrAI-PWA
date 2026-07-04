@@ -211,7 +211,7 @@ export default function GoalsPage() {
                     return (
                         <section key={pillar.id} className="space-y-6 pt-4">
                             <div className="flex items-center gap-4 px-1">
-                                <h2 className="text-3xl font-bold capitalize text-white">{pillar.label}</h2>
+                                <h2 className="text-3xl font-bold capitalize text-[var(--text-primary)]">{pillar.label}</h2>
                                 <div className="h-px flex-1 bg-white/20" />
                             </div>
 
@@ -235,12 +235,12 @@ export default function GoalsPage() {
             {/* Empty State */}
             {goals.length === 0 && (
                 <div className="text-center py-10 md:py-20 flex flex-col items-center justify-center space-y-4">
-                    <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-2 shadow-inner">
-                        <Anchor className="w-8 h-8 text-white/40" />
+                    <div className="w-16 h-16 rounded-full bg-[var(--glass-bg)] border border-[var(--glass-border)] flex items-center justify-center mb-2 shadow-inner">
+                        <Anchor className="w-8 h-8 text-[var(--text-tertiary)]" />
                     </div>
                     <div>
                         <h3 className="text-xl font-bold text-white/80">No goals set yet</h3>
-                        <p className="text-sm text-white/50 max-w-sm mt-2">
+                        <p className="text-sm text-[var(--text-secondary)] max-w-sm mt-2">
                             Start by designing your ideal life. Set your first goal across Mind, Body, or Craft to establish your baseline.
                         </p>
                     </div>

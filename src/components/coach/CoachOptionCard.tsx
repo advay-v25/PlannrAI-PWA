@@ -44,7 +44,7 @@ export function CoachOptionCard({
     if (minimalMode) {
         return (
             <div
-                className={`glass-card glass-interactive group p-3 transition-all w-full flex items-center justify-between gap-4 border-white/5 bg-white/5 ${disabled ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
+                className={`glass-card glass-interactive group p-3 transition-all w-full flex items-center justify-between gap-4 border-white/5 bg-[var(--glass-bg)] ${disabled ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
                 onClick={() => !disabled && onSelect()}
             >
                 <div className="flex flex-col">
@@ -61,7 +61,7 @@ export function CoachOptionCard({
                     )}
                 </div>
                 <button
-                    className="shrink-0 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest bg-white/10 text-white/90 hover:bg-orange-500/20 hover:text-orange-500 transition-colors"
+                    className="shrink-0 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest bg-[var(--glass-bg)] text-[var(--text-primary)] hover:bg-orange-500/20 hover:text-orange-500 transition-colors"
                     onClick={(e) => {
                         e.stopPropagation();
                         if (!disabled) onSelect();
@@ -76,9 +76,9 @@ export function CoachOptionCard({
 
     return (
         <div
-            className={`glass-card glass-interactive group p-5 transition-all w-full relative ${option.recommended
-                    ? 'border-orange-500/40 bg-orange-500/5'
-                    : 'border-white/5 bg-white/5'
+            className={`glass-card glass-interactive group p-5 transition-all w-full relative border ${option.recommended
+                    ? 'border-orange-500/50 bg-orange-500/20'
+                    : 'border-[var(--color-primary)]/30 bg-[var(--color-primary)]/10 hover:bg-[var(--color-primary)]/20'
                 } ${disabled ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
             onClick={() => !disabled && onSelect()}
         >
@@ -103,14 +103,14 @@ export function CoachOptionCard({
                                 </span>
                             )}
                         </div>
-                        <h4 className="text-lg font-bold text-foreground leading-tight tracking-tight group-hover:text-orange-500 transition-colors">
+                        <h4 className="text-lg font-bold text-[var(--color-primary)] leading-tight tracking-tight group-hover:text-orange-500 transition-colors">
                             {option.title}
                         </h4>
                     </div>
                 </div>
 
                 {/* Description */}
-                <p className="text-sm text-foreground/80 leading-relaxed italic">
+                <p className="text-sm text-[var(--text-secondary)] leading-relaxed italic">
                     &quot;{option.description}&quot;
                 </p>
 
@@ -130,8 +130,8 @@ export function CoachOptionCard({
                 <div className="flex items-center gap-3 pt-2">
                     <button
                         className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-[0.15em] transition-all flex items-center justify-center space-x-2 ${option.recommended
-                                ? 'bg-orange-500 text-white shadow-[0_0_15px_rgba(249,115,22,0.4)] hover:bg-orange-400'
-                                : 'bg-white/15 text-white/90 hover:bg-white/25 hover:text-white'
+                                ? 'bg-orange-500 text-[var(--text-primary)] shadow-[0_0_15px_rgba(249,115,22,0.4)] hover:bg-orange-400'
+                                : 'bg-white/15 text-[var(--text-primary)] hover:bg-white/25 hover:text-[var(--text-primary)]'
                             }`}
                         onClick={(e) => {
                             e.stopPropagation();
@@ -148,7 +148,7 @@ export function CoachOptionCard({
                                 e.stopPropagation();
                                 setIsExpanded(!isExpanded);
                             }}
-                            className="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest bg-white/5 text-foreground/60 hover:bg-white/10 hover:text-foreground transition-colors"
+                            className="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest bg-[var(--glass-bg)] text-foreground/60 hover:bg-[var(--glass-bg)] hover:text-foreground transition-colors"
                         >
                             {isExpanded ? 'Hide' : 'See Why'}
                         </button>
@@ -157,7 +157,7 @@ export function CoachOptionCard({
 
                 {/* Scenario Analysis Toggle Content */}
                 {option.scenario_analysis && isExpanded && (
-                    <div className="mt-2 text-xs text-foreground/80 p-4 bg-white/[0.02] rounded-xl border border-white/5 leading-relaxed">
+                    <div className="mt-2 text-xs text-foreground/80 p-4 bg-[var(--glass-bg)] rounded-xl border border-white/5 leading-relaxed">
                         {option.scenario_analysis}
                     </div>
                 )}

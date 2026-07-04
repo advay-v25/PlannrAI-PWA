@@ -279,14 +279,26 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
             let summary: string;
             let philosophy: string;
 
+            // Generate Morning Routine block programmatically
+            const morningRoutineBlock = morningRoutineBufferMins > 0 ? {
+                start_time: wakeTime,
+                end_time: effectiveWakeTime,
+                title: 'Morning Routine',
+                block_type: 'routine',
+                checklist: [{text: "Hydrate and ease into your day"}]
+            } : null;
+
             if (response.success && response.data?.blocks?.length) {
                 blocks = response.data.blocks;
                 summary = response.data.summary || 'AI-generated day schedule';
                 philosophy = response.data.philosophy || 'Flow-state optimized approach';
+                if (morningRoutineBlock) {
+                    blocks.unshift(morningRoutineBlock);
+                }
             } else {
                 // Fallback: generate flow-state-aware deterministic schedule
                 console.warn('[GenerateToday] AI failed, using fallback:', response.error);
-                const fb = generateFlowStateFallback(ctx, targetDate, effectiveWakeTime, windDownTime, phases, scheduleMode.strategy);
+                const fb = generateFlowStateFallback(ctx, targetDate, effectiveWakeTime, windDownTime, phases, scheduleMode.strategy, morningRoutineBufferMins, wakeTime);
                 blocks = fb.blocks;
                 summary = fb.summary;
                 philosophy = fb.philosophy;
@@ -312,6 +324,14 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
                     end: timeToMinutes(c.end_time) + 30,
                     title: c.title,
                 }));
+            
+            if (morningRoutineBufferMins > 0) {
+                commitmentZones.push({
+                    start: timeToMinutes(wakeTime) - 30, // Treat as anchor
+                    end: timeToMinutes(effectiveWakeTime) + 30,
+                    title: 'Morning Routine'
+                });
+            }
 
             // Map AI block_types to DB-allowed values
             const normalizeBlockType = (type: string): string => {
@@ -540,7 +560,9 @@ function generateFlowStateFallback(
     wakeTime: string,
     windDownTime: string,
     phases: ReturnType<typeof computeDayPhases>,
-    strategy: string = 'balanced'
+    strategy: string = 'balanced',
+    morningRoutineMins: number = 0,
+    originalWakeTime: string = wakeTime
 ) {
     const timeToMinutes = (t: string) => {
         const [h, m] = t.split(':').map(Number);
@@ -672,7 +694,21 @@ function generateFlowStateFallback(
             morningChecklist.push({ text: `${h.action_habit} (${h.action_duration_mins}min)` });
         });
     }
-    placeBlock('Morning Routine', 'routine', 30, { checklist: morningChecklist });
+    
+    // Add programmatic morning routine if buffer exists
+    if (morningRoutineMins > 0) {
+        blocks.push({
+            date,
+            start_time: originalWakeTime,
+            end_time: wakeTime, // This is effectiveWakeTime in fallback context
+            title: 'Morning Routine',
+            block_type: 'routine',
+            status: 'planned',
+            checklist: morningChecklist,
+        });
+    } else {
+        placeBlock('Morning Routine', 'routine', 30, { checklist: morningChecklist });
+    }
 
     // Breakfast — placed within user-defined breakfast window
     placeMealBlock('Breakfast', 'breakfast', 30);
