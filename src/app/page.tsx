@@ -12,10 +12,11 @@ export default function LandingPage() {
       <SciFiEarthBackground />
 
       {/* Hero Section */}
-      <section className="relative px-4 pt-12 md:pt-16 pb-16 md:pb-28 overflow-hidden flex flex-col min-h-[100dvh]">
+      <section className="relative px-4 pt-6 md:pt-12 pb-16 md:pb-28 overflow-hidden flex flex-col min-h-[100dvh]">
         <div className="max-w-5xl mx-auto w-full flex flex-col flex-1 relative z-10">
           {/* Logo + tagline — above the solar system */}
-          <header className="text-center shrink-0 mb-6 md:mb-8 mt-2 md:mt-0">
+          <header className="text-center shrink-0 mb-6 md:mb-8 mt-2 md:mt-0 flex flex-col items-center">
+            <Image src="/logo.png" alt="PlannrAI Logo" width={56} height={56} className="rounded-2xl mb-5 shadow-lg shadow-purple-500/20" />
             <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold mb-3 md:mb-4 tracking-tighter leading-[1.1]">
               <span className="text-transparent bg-clip-text bg-gradient-to-b from-white via-white/90 to-white/30 drop-shadow-[0_0_40px_rgba(255,255,255,0.1)]">
                 PlannrAI

@@ -484,7 +484,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
         <div className="flex h-full relative overflow-hidden bg-transparent">
 
             {/* ── LEFT SIDEBAR — Past Chats ── */}
-            <div className="w-56 shrink-0 flex flex-col border-r border-white/[0.06] bg-[#080809]">
+            <div className="w-56 shrink-0 hidden md:flex flex-col border-r border-white/[0.06] bg-[#080809]">
                 {/* Sidebar header */}
                 <div className="px-4 py-4 flex items-center justify-between border-b border-white/[0.05] shrink-0">
                     <span className="text-[10px] font-black uppercase tracking-[0.18em] text-white/30">Coach Hub</span>
@@ -559,7 +559,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
             </div>
 
             {/* ── RIGHT — Chat area ── */}
-            <div className="flex flex-col flex-1 min-w-0 relative overflow-hidden">
+            <div className="w-full min-w-0 flex flex-col h-full relative overflow-hidden">
 
                 {/* ── Header ── */}
                 <div className="z-20 px-5 py-4 flex justify-between items-center border-b border-white/[0.06] bg-[#0a0a0b]/80 backdrop-blur-md shrink-0">
@@ -599,7 +599,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                 )}
 
                 {/* ── Messages ── */}
-                <div className="z-10 flex-1 overflow-y-auto px-4 py-6 space-y-6 scrollbar-hide">
+                <div className="z-10 flex-1 overflow-y-auto overscroll-contain px-4 md:px-8 py-6 space-y-6 scrollbar-hide">
 
                     {/* Empty state — 2 quick-action bubbles */}
                     {allMessages.length === 0 && !showLoadingIndicator && (
@@ -768,8 +768,8 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                 )}
 
                 {/* Input bar */}
-                <div className="z-10 border-t border-white/[0.05] bg-[#0a0a0b]/80 backdrop-blur-3xl pb-28 md:pb-2 shrink-0">
-                    <form onSubmit={handleSubmit} className="px-5 py-3">
+                <div className="z-10 w-full border-t border-white/[0.05] bg-[#0a0a0b]/80 backdrop-blur-3xl pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-4 shrink-0">
+                    <form onSubmit={handleSubmit} className="px-4 md:px-8 py-3">
                         <div className="flex items-center gap-3 bg-black/40 border border-white/10 rounded-[1.5rem] p-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all focus-within:border-orange-500/50 focus-within:bg-[#0a0a0b] focus-within:shadow-[0_0_40px_rgba(249,115,22,0.15)] group relative overflow-hidden">
                             <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 to-amber-500/5 opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
                             <input

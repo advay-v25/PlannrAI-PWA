@@ -151,7 +151,7 @@ export function CoachMessageBubble({ message }: CoachMessageBubbleProps) {
             className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
         >
             <div
-                className={`max-w-[85%] px-6 py-5 rounded-[2rem] shadow-sm relative group ${isUser
+                className={`max-w-[85%] md:max-w-[70%] px-6 py-5 rounded-[2rem] shadow-sm relative group ${isUser
                         ? 'bg-gradient-to-b from-[#2A1608] to-[#1A0D04] text-orange-50 ml-12 rounded-tr-md shadow-lg border border-orange-500/20 backdrop-blur-md'
                         : 'bg-white/[0.04] backdrop-blur-3xl border border-white/[0.08] text-white mr-12 rounded-tl-md shadow-2xl'
                     }`}

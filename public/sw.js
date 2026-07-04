@@ -1,12 +1,10 @@
 // PlannrAI Consolidated Service Worker
 // Handles caching for offline PWA support AND Web Push notifications
 
-const CACHE_NAME = 'plannrai-offline-cache-v1';
+const CACHE_NAME = 'plannrai-offline-cache-v2';
 
 // Assets to precache on install
 const PRECACHE_ASSETS = [
-    '/',
-    '/app',
     '/manifest.json',
     '/icons/icon-192.png',
     '/icons/icon-512.png',
@@ -48,6 +46,25 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
+    // Network-first for HTML pages (navigation)
+    if (event.request.mode === 'navigate') {
+        event.respondWith(
+            fetch(event.request).then((networkResponse) => {
+                const responseToCache = networkResponse.clone();
+                caches.open(CACHE_NAME).then((cache) => {
+                    cache.put(event.request, responseToCache);
+                });
+                return networkResponse;
+            }).catch(() => {
+                return caches.match(event.request).then((cachedResponse) => {
+                    return cachedResponse;
+                });
+            })
+        );
+        return;
+    }
+
+    // Cache-first for other assets
     event.respondWith(
         caches.match(event.request).then((cachedResponse) => {
             if (cachedResponse) {
@@ -64,10 +81,7 @@ self.addEventListener('fetch', (event) => {
                 }
                 return networkResponse;
             }).catch(() => {
-                // If offline and request fails, try to return the offline fallback
-                if (event.request.mode === 'navigate') {
-                    return caches.match('/app');
-                }
+                // Asset not cached and network failed
             });
         })
     );

@@ -209,10 +209,10 @@ export function MindspaceBoard() {
     }
 
     return (
-        <div className="flex flex-col h-full w-full bg-transparent overflow-hidden">
+        <div className="flex flex-col h-full w-full min-w-0 bg-transparent overflow-hidden">
             
             {/* HERO CAPTURE AREA */}
-            <div className="shrink-0 pt-10 pb-6 px-8 flex flex-col items-center justify-center relative z-20 border-b border-white/[0.05]">
+            <div className="shrink-0 pt-6 px-4 md:pt-10 md:px-8 pb-6 flex flex-col items-center justify-center relative z-20 border-b border-white/[0.05]">
                 <div className="max-w-2xl w-full flex flex-col gap-4">
                     <form onSubmit={handleAdd} className="w-full relative">
                         <div className={cn(
@@ -245,8 +245,9 @@ export function MindspaceBoard() {
                                                 placeholder="Dump ideas, notes, or thoughts here..." 
                                             />
                                         </div>
-                                        <div className="flex flex-wrap items-center justify-between p-4 border-t border-white/[0.04] bg-white/[0.02] gap-y-4">
-                                            <div className="flex flex-wrap gap-2 items-center">
+                                        <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center justify-between p-4 border-t border-white/[0.04] bg-white/[0.02] gap-4">
+                                            <div className="flex flex-col sm:flex-row flex-wrap gap-2 items-start sm:items-center w-full sm:w-auto">
+                                                <div className="flex flex-wrap gap-2 items-center w-full sm:w-auto">
                                                 {(Object.keys(DEFAULT_LABELS) as Array<keyof typeof DEFAULT_LABELS>).map(c => (
                                                     <button 
                                                         key={c}
@@ -265,24 +266,24 @@ export function MindspaceBoard() {
                                                 <div className="w-px h-6 bg-white/10 mx-2 hidden sm:block" />
 
                                                 {/* Date Picker */}
-                                                <div className="relative group/date">
+                                                <div className="relative group/date w-full sm:w-auto">
                                                     <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40 pointer-events-none group-focus-within/date:text-[var(--color-primary)] transition-colors z-10" />
                                                     <input 
                                                         type="date"
                                                         value={dueDate}
                                                         onChange={(e) => setDueDate(e.target.value)}
-                                                        className="pl-8 pr-3 py-1.5 rounded-full bg-[#0a0a0c] border border-white/10 text-xs font-semibold text-white/80 hover:border-white/20 focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-all outline-none [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-50 hover:[&::-webkit-calendar-picker-indicator]:opacity-100 cursor-pointer"
+                                                        className="pl-8 pr-3 py-1.5 rounded-full bg-[#0a0a0c] border border-white/10 text-xs font-semibold text-white/80 hover:border-white/20 focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-all outline-none [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-50 hover:[&::-webkit-calendar-picker-indicator]:opacity-100 cursor-pointer w-full sm:w-auto"
                                                     />
                                                 </div>
 
                                                 {/* Priority Dropdown */}
-                                                <div className="relative group/priority">
+                                                <div className="relative group/priority w-full sm:w-auto">
                                                     <AlertCircle className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40 pointer-events-none group-focus-within/priority:text-orange-400 transition-colors z-10" />
                                                     <select
                                                         value={priority}
                                                         onChange={(e) => setPriority(e.target.value as any)}
                                                         className={cn(
-                                                            "pl-8 pr-7 py-1.5 rounded-full border text-xs font-bold transition-all outline-none appearance-none cursor-pointer",
+                                                            "pl-8 pr-7 py-1.5 rounded-full border text-xs font-bold transition-all outline-none appearance-none cursor-pointer w-full sm:w-auto",
                                                             priority === 'high' ? "bg-red-500/10 border-red-500/20 text-red-400" :
                                                             priority === 'low' ? "bg-blue-500/10 border-blue-500/20 text-blue-400" :
                                                             "bg-[#0a0a0c] border-white/10 text-white/80 hover:border-white/20"
@@ -295,7 +296,7 @@ export function MindspaceBoard() {
                                                     <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-white/40 pointer-events-none" />
                                                 </div>
                                             </div>
-                                            <div className="flex gap-3 shrink-0 ml-auto">
+                                            <div className="flex gap-3 shrink-0 ml-auto w-full sm:w-auto justify-end mt-2 sm:mt-0">
                                                 <button 
                                                     type="button" 
                                                     onClick={() => { setIsExpanded(false); setTitle(''); setDescription(''); setDueDate(''); setPriority('medium'); }}
@@ -343,7 +344,7 @@ export function MindspaceBoard() {
             </div>
 
             {/* KANBAN BOARD AREA */}
-            <div className="flex-1 overflow-x-auto overflow-y-hidden">
+            <div className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden snap-x snap-mandatory md:snap-none">
                 {activeTodos.length === 0 && !searchQuery ? (
                     <div className="h-full flex flex-col items-center justify-center opacity-40 pointer-events-none pb-20">
                         <div className="w-20 h-20 rounded-3xl border border-dashed border-white/20 flex items-center justify-center mb-6 bg-white/5">
@@ -353,7 +354,7 @@ export function MindspaceBoard() {
                         <p className="text-sm font-medium tracking-wide mt-2">Capture ideas, notes, tasks and thoughts above.</p>
                     </div>
                 ) : (
-                    <div className="h-full flex gap-4 px-8 pb-8 items-start pt-6">
+                    <div className="h-full flex w-max gap-4 px-4 md:px-8 pb-8 items-start pt-6">
                         {columns.map(col => (
                             <KanbanColumn 
                                 key={col.color}
@@ -460,7 +461,7 @@ function KanbanColumn({ color, label, todos, onUpdateLabel, onDragOver, onDrop, 
 
     return (
         <div 
-            className="flex flex-col gap-4 flex-1 min-w-[200px] h-full shrink-0"
+            className="flex flex-col gap-4 h-full w-[85vw] shrink-0 snap-center md:w-auto md:flex-1 md:min-w-[200px]"
             onDragOver={onDragOver}
             onDrop={(e) => onDrop(e, color)}
         >

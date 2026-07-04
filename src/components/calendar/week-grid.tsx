@@ -72,12 +72,18 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
         return () => clearInterval(interval);
     }, [days]);
 
-    // Auto-scroll to current time on mount
+    // Auto-scroll to current time and today's column on mount
+    const scrolledRef = useRef(false);
     useEffect(() => {
-        if (gridRef.current && nowTop > 0) {
-            gridRef.current.scrollTo({ top: Math.max(0, nowTop - 200), behavior: 'smooth' });
+        if (gridRef.current && nowTop > 0 && nowDayIndex >= 0 && !scrolledRef.current) {
+            let left = 0;
+            if (viewMode === 'week' && nowDayIndex > 0) {
+                 left = Math.max(0, 56 + (nowDayIndex * 110) - 60);
+            }
+            gridRef.current.scrollTo({ top: Math.max(0, nowTop - 200), left, behavior: 'smooth' });
+            scrolledRef.current = true;
         }
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [nowTop, nowDayIndex, viewMode]);
 
     // Pre-compute layout per day
     const dayLayouts = useMemo(() => {
@@ -119,12 +125,12 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
 
     return (
         <DndContext onDragEnd={handleDragEnd} sensors={sensors}>
-            <div className="h-full overflow-auto relative no-scrollbar" ref={gridRef}>
+            <div className={cn("h-full relative no-scrollbar overscroll-contain [-webkit-overflow-scrolling:touch] [touch-action:pan-x_pan-y]", viewMode === 'day' ? "overflow-y-auto overflow-x-hidden" : "overflow-auto")} ref={gridRef}>
                 <div className="calendar-galaxy-bg" />
 
                 {/* Day Headers */}
                 <div className="sticky top-0 z-20 flex border-b border-white/[0.08] bg-black/40 backdrop-blur-xl shadow-lg">
-                    <div className="w-14 shrink-0 border-r border-white/[0.04]" />
+                    <div className="w-14 shrink-0 sticky left-0 z-30 bg-[#0a0a0c] border-r border-white/[0.04]" />
                     {days.map((day, i) => {
                         const isToday = isSameDay(day, new Date());
                         const dayStr = format(day, 'yyyy-MM-dd');
@@ -133,7 +139,7 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                         return (
                             <div key={i} className={cn(
                                 "flex-1 text-center py-3 border-r border-white/[0.04] last:border-r-0 transition-colors relative",
-                                viewMode === 'day' ? 'min-w-0' : 'min-w-[110px]'
+                                viewMode === 'day' ? 'min-w-0 max-w-full' : 'min-w-[110px]'
                             )}>
                                 <div className="flex flex-col items-center gap-1">
                                     <div className={cn(
@@ -165,7 +171,7 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                 <div className="flex relative" style={{ minHeight: HOURS.length * CELL_HEIGHT }}>
 
                     {/* Time Column */}
-                    <div className="w-14 shrink-0 border-r border-white/[0.04] bg-black/20">
+                    <div className="w-14 shrink-0 sticky left-0 z-10 bg-[#0a0a0c] border-r border-white/[0.04]">
                         {HOURS.map(h => (
                             <div key={h} className="border-b border-dashed border-white/[0.04] text-[10px] text-white/30 text-right pr-2 pt-1 font-mono"
                                 style={{ height: CELL_HEIGHT }}>
@@ -185,7 +191,7 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                         return (
                             <div key={dayIndex} className={cn(
                                 "flex-1 border-r border-white/[0.04] last:border-r-0 relative transition-colors",
-                                viewMode === 'day' ? 'min-w-0' : 'min-w-[110px]',
+                                viewMode === 'day' ? 'min-w-0 max-w-full' : 'min-w-[110px]',
                                 isToday && "bg-white/[0.02]",
                                 isPast && "bg-black/40 opacity-80"
                             )}>
