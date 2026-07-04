@@ -1,7 +1,7 @@
 // PlannrAI Consolidated Service Worker
 // Handles caching for offline PWA support AND Web Push notifications
 
-const CACHE_NAME = 'plannrai-offline-cache-v3';
+const CACHE_NAME = 'plannrai-offline-cache-v4';
 
 // Assets to precache on install
 const PRECACHE_ASSETS = [
