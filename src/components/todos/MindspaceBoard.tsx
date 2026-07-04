@@ -305,7 +305,7 @@ export function MindspaceBoard() {
                                                 </button>
                                                 <button 
                                                     type="submit"
-                                                    disabled={!title.trim() && !description.replace(/<[^>]*>?/gm, '').trim()}
+                                                    disabled={!title.trim() && !description.replace(/<[^>]*>?/gm, '').trim() && !description.includes('<table>') && !description.includes('<ul>') && !description.includes('<ol>')}
                                                     className="px-6 py-2 bg-[var(--text-primary)] text-[var(--color-bg-primary)] text-xs font-bold rounded-full disabled:opacity-30 hover:opacity-90 transition-all"
                                                 >
                                                     Save
@@ -678,6 +678,7 @@ function MindspaceCard({ todo, updateTodo, deleteTodo, handleDragStart, isDragge
                                     onChange={setEditDesc} 
                                     placeholder="Write your note here... Use the toolbar above for formatting, lists, and tables." 
                                     minHeight="300px"
+                                    maxHeight="45vh"
                                 />
                             </div>
 
