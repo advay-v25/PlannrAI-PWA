@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import Image from 'next/image';
+
 import { Sparkles, ArrowRight, Shield, Heart, Brain, Target, Calendar, BarChart3, Zap } from 'lucide-react';
 import { SciFiEarthBackground } from '@/components/ui/SciFiEarthBackground';
 import { OrbitalScheduleEngine } from '@/components/ui/orbital-schedule-engine';
@@ -15,8 +15,7 @@ export default function LandingPage() {
       <section className="relative px-4 pt-6 md:pt-12 pb-16 md:pb-28 overflow-hidden flex flex-col min-h-[100dvh]">
         <div className="max-w-5xl mx-auto w-full flex flex-col flex-1 relative z-10">
           {/* Logo + tagline — above the solar system */}
-          <header className="text-center shrink-0 mb-6 md:mb-8 mt-2 md:mt-0 flex flex-col items-center">
-            <Image src="/logo.png" alt="PlannrAI Logo" width={56} height={56} className="rounded-2xl mb-5 shadow-lg shadow-purple-500/20" />
+          <header className="text-center shrink-0 mb-4 md:mb-6 mt-0 flex flex-col items-center">
             <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold mb-3 md:mb-4 tracking-tighter leading-[1.1]">
               <span className="text-transparent bg-clip-text bg-gradient-to-b from-white via-white/90 to-white/30 drop-shadow-[0_0_40px_rgba(255,255,255,0.1)]">
                 PlannrAI
@@ -33,7 +32,7 @@ export default function LandingPage() {
           </div>
 
           {/* Get Started — bottom CTA */}
-          <div className="flex justify-center w-full max-w-md mx-auto shrink-0 mt-8 md:mt-20 relative z-30">
+          <div className="flex justify-center w-full max-w-md mx-auto shrink-0 mt-6 md:mt-10 relative z-30">
             <LiquidGlassButton href="/login" size="lg" className="w-full text-lg font-bold text-white tracking-wide">
               Get Started Free
               <ArrowRight className="w-5 h-5 ml-2 opacity-90 transition-transform group-hover:translate-x-1" />
@@ -162,7 +161,6 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex flex-col items-center md:items-start gap-2">
             <div className="flex items-center gap-2">
-              <Image src="/logo.png" alt="PlannrAI" width={28} height={28} className="rounded-lg shrink-0" />
               <span className="font-bold tracking-wide text-white">PlannrAI</span>
             </div>
             <p className="text-sm text-white/40">
