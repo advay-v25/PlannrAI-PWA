@@ -19,10 +19,10 @@ interface BlockInspectorProps {
 }
 
 const PILLAR_COLORS: Record<string, { accent: string; bg: string; border: string }> = {
-    mind: { accent: 'text-purple-600 dark:text-indigo-400', bg: 'bg-purple-600 dark:bg-indigo-500/10', border: 'border-purple-500 dark:border-indigo-500/20' },
-    body: { accent: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-600 dark:bg-emerald-500/10', border: 'border-emerald-500 dark:border-emerald-500/20' },
-    craft: { accent: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-600 dark:bg-amber-500/10', border: 'border-amber-500 dark:border-amber-500/20' },
-    soul: { accent: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-600 dark:bg-rose-500/10', border: 'border-rose-500 dark:border-rose-500/20' },
+    mind: { accent: 'text-purple-700 dark:text-indigo-400', bg: 'bg-gradient-to-br from-purple-500/20 to-indigo-500/10 dark:bg-indigo-500/10', border: 'border-purple-500/30 dark:border-indigo-500/20' },
+    body: { accent: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-gradient-to-br from-emerald-500/20 to-teal-500/10 dark:bg-emerald-500/10', border: 'border-emerald-500/30 dark:border-emerald-500/20' },
+    craft: { accent: 'text-amber-700 dark:text-amber-400', bg: 'bg-gradient-to-br from-amber-500/20 to-orange-500/10 dark:bg-amber-500/10', border: 'border-amber-500/30 dark:border-amber-500/20' },
+    soul: { accent: 'text-rose-700 dark:text-rose-400', bg: 'bg-gradient-to-br from-rose-400/20 to-rose-400/10 dark:bg-rose-500/10', border: 'border-rose-500/30 dark:border-rose-500/20' },
 };
 
 const BLOCK_TYPE_META: Record<string, { label: string; icon: string; color: string }> = {
@@ -156,7 +156,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                         </div>
                     ) : (
                         <div className="flex items-start gap-2 group">
-                            <h2 className="text-lg font-bold text-white leading-tight truncate">
+                            <h2 className="text-lg font-bold text-[var(--text-primary)] leading-tight truncate">
                                 {block.title || block.context || 'Untitled Block'}
                             </h2>
                             {!isAnchor && (
