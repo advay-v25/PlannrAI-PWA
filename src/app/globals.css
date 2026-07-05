@@ -939,11 +939,17 @@ textarea::placeholder {
 }
 
 /* Calendar block hover glow per pillar */
-.block-glow-mind:hover { box-shadow: 0 0 20px rgba(249, 115, 22, 0.25), inset 0 1px 0 rgba(249, 115, 22, 0.15); }
-.block-glow-body:hover { box-shadow: 0 0 20px rgba(249, 115, 22, 0.25), inset 0 1px 0 rgba(249, 115, 22, 0.15); }
-.block-glow-craft:hover { box-shadow: 0 0 20px rgba(249, 115, 22, 0.25), inset 0 1px 0 rgba(249, 115, 22, 0.15); }
-.block-glow-anchor:hover { box-shadow: 0 0 20px rgba(249, 115, 22, 0.25), inset 0 1px 0 rgba(249, 115, 22, 0.15); }
-.block-glow-routine:hover { box-shadow: 0 0 20px rgba(249, 115, 22, 0.25), inset 0 1px 0 rgba(249, 115, 22, 0.15); }
+.block-glow-mind:hover { box-shadow: 0 4px 16px rgba(168, 85, 247, 0.15), inset 0 1px 0 rgba(168, 85, 247, 0.05); }
+.block-glow-body:hover { box-shadow: 0 4px 16px rgba(16, 185, 129, 0.15), inset 0 1px 0 rgba(16, 185, 129, 0.05); }
+.block-glow-craft:hover { box-shadow: 0 4px 16px rgba(245, 158, 11, 0.15), inset 0 1px 0 rgba(245, 158, 11, 0.05); }
+.block-glow-anchor:hover { box-shadow: 0 4px 16px rgba(113, 113, 122, 0.15), inset 0 1px 0 rgba(113, 113, 122, 0.05); }
+.block-glow-routine:hover { box-shadow: 0 4px 16px rgba(249, 115, 22, 0.15), inset 0 1px 0 rgba(249, 115, 22, 0.05); }
+
+.dark .block-glow-mind:hover { box-shadow: 0 0 20px rgba(249, 115, 22, 0.25), inset 0 1px 0 rgba(249, 115, 22, 0.15); }
+.dark .block-glow-body:hover { box-shadow: 0 0 20px rgba(249, 115, 22, 0.25), inset 0 1px 0 rgba(249, 115, 22, 0.15); }
+.dark .block-glow-craft:hover { box-shadow: 0 0 20px rgba(249, 115, 22, 0.25), inset 0 1px 0 rgba(249, 115, 22, 0.15); }
+.dark .block-glow-anchor:hover { box-shadow: 0 0 20px rgba(249, 115, 22, 0.25), inset 0 1px 0 rgba(249, 115, 22, 0.15); }
+.dark .block-glow-routine:hover { box-shadow: 0 0 20px rgba(249, 115, 22, 0.25), inset 0 1px 0 rgba(249, 115, 22, 0.15); }
 
 /* Current hour row highlight */
 @keyframes current-hour-pulse {

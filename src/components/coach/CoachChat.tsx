@@ -484,10 +484,10 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
         <div className="flex h-full relative overflow-hidden bg-transparent">
 
             {/* ── LEFT SIDEBAR — Past Chats ── */}
-            <div className="w-56 shrink-0 hidden md:flex flex-col border-r border-[var(--glass-border)] bg-[var(--color-bg-primary)] dark:bg-[#080809]">
+            <div className="w-56 shrink-0 hidden md:flex flex-col border-r border-[var(--glass-border)] bg-[#F6F1E7] dark:bg-[#080809]">
                 {/* Sidebar header */}
                 <div className="px-4 py-4 flex items-center justify-between border-b border-[var(--glass-border)] shrink-0">
-                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-tertiary)]">Coach Hub</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500 dark:text-[var(--text-tertiary)]">Coach Hub</span>
                     <button
                         onClick={handleNewChat}
                         title="New conversation"
@@ -512,7 +512,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
 
                 {/* Recents label */}
                 <div className="px-4 pt-2 pb-1 shrink-0">
-                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Recents</span>
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500 dark:text-[var(--text-tertiary)]">Recents</span>
                 </div>
 
                 {/* Conversation list */}
@@ -534,10 +534,10 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                     }}
                                     className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[var(--glass-bg)] border border-transparent hover:border-[var(--glass-border)] transition-all flex flex-col gap-0.5 pr-8"
                                 >
-                                    <span className="text-[12px] font-medium text-[var(--text-primary)] dark:text-white/65 hover:text-orange-400 dark:hover:text-orange-300 transition-colors truncate leading-snug">
+                                    <span className="text-[12px] font-medium text-zinc-900 dark:text-white/65 hover:text-orange-500 dark:hover:text-orange-300 transition-colors truncate leading-snug">
                                         {conv.primary_topic || 'Strategy Session'}
                                     </span>
-                                    <span className="text-[10px] text-[var(--text-tertiary)]">
+                                    <span className="text-[10px] text-zinc-500 dark:text-[var(--text-tertiary)]">
                                         {conv.last_message_at
                                             ? formatDistanceToNow(new Date(conv.last_message_at), { addSuffix: true })
                                             : '—'}
@@ -608,7 +608,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                 <span className="text-[var(--text-primary)] text-2xl">⚡️</span>
                             </div>
                             <p className="text-lg font-semibold text-[var(--text-primary)] mb-1">How shall we architect today?</p>
-                            <p className="text-xs text-white/35 italic mb-8">Or type anything below to start a conversation.</p>
+                            <p className="text-xs text-zinc-500 dark:text-white/35 italic mb-8">Or type anything below to start a conversation.</p>
 
                             <div className="flex flex-col sm:flex-row gap-4 w-full max-w-xl">
                                 {quickBubbles.map(bubble => (
@@ -616,7 +616,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                         key={bubble.action}
                                         onClick={() => handleQuickAction(bubble.action)}
                                         disabled={showLoadingIndicator}
-                                        className="flex-1 flex flex-col items-start gap-2 p-5 rounded-2xl bg-[var(--glass-bg)] border border-[var(--glass-border)] hover:border-orange-500/25 hover:bg-orange-500/10 transition-all duration-200 text-left disabled:opacity-50 disabled:pointer-events-none group"
+                                        className="flex-1 flex flex-col items-start gap-2 p-5 rounded-2xl bg-orange-500/5 dark:bg-[var(--glass-bg)] border border-orange-500/10 dark:border-[var(--glass-border)] hover:border-orange-500/25 hover:bg-orange-500/10 transition-all duration-200 text-left disabled:opacity-50 disabled:pointer-events-none group"
                                     >
                                         <span className="text-2xl">{bubble.emoji}</span>
                                         <span className="font-semibold text-[var(--text-primary)] text-[15px] group-hover:text-orange-300 transition-colors">{bubble.label}</span>
@@ -770,7 +770,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                 {/* Input bar */}
                 <div className="z-10 w-full border-t border-[var(--glass-border)] bg-[var(--color-bg-primary)] dark:bg-[#0a0a0b]/80 backdrop-blur-3xl pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-4 shrink-0">
                     <form onSubmit={handleSubmit} className="px-4 md:px-8 py-3">
-                        <div className="flex items-center gap-3 bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-[1.5rem] p-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all focus-within:border-orange-500/50 dark:focus-within:bg-[#0a0a0b] focus-within:shadow-[0_0_40px_rgba(249,115,22,0.15)] group relative overflow-hidden">
+                        <div className="flex items-center gap-3 bg-zinc-100 dark:bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-[1.5rem] p-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all focus-within:border-orange-500/50 dark:focus-within:bg-[#0a0a0b] focus-within:shadow-[0_0_40px_rgba(249,115,22,0.15)] group relative overflow-hidden">
                             <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 to-amber-500/5 opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
                             <input
                                 type="text"
@@ -778,7 +778,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                 onChange={e => setInput(e.target.value)}
                                 placeholder={allMessages.length > 0 ? 'Message Donna…' : 'Or type anything to start a conversation…'}
                                 disabled={showLoadingIndicator}
-                                className="flex-1 bg-transparent px-4 py-3.5 text-[15px] focus:outline-none placeholder:text-[var(--text-tertiary)] text-[var(--text-primary)] font-medium relative z-10"
+                                className="flex-1 bg-transparent px-4 py-3.5 text-[15px] focus:outline-none placeholder:text-zinc-400 dark:placeholder:text-[var(--text-tertiary)] text-[var(--text-primary)] font-medium relative z-10"
                             />
                             {isLoading ? (
                                 <button
@@ -796,7 +796,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                 <button
                                     type="submit"
                                     disabled={isQuickActionLoading || !input.trim()}
-                                    className="w-12 h-12 bg-[var(--glass-bg)] hover:bg-gradient-to-tr hover:from-orange-500 hover:to-amber-500 rounded-[1.1rem] flex items-center justify-center transition-all text-[var(--text-tertiary)] hover:text-[var(--text-primary)] disabled:opacity-30 disabled:hover:bg-[var(--glass-bg)] relative z-10"
+                                    className="w-12 h-12 bg-orange-500 text-white dark:bg-[var(--glass-bg)] hover:bg-orange-600 dark:hover:bg-gradient-to-tr dark:hover:from-orange-500 dark:hover:to-amber-500 rounded-[1.1rem] flex items-center justify-center transition-all dark:text-[var(--text-tertiary)] dark:hover:text-[var(--text-primary)] disabled:opacity-30 disabled:hover:bg-orange-500 dark:disabled:hover:bg-[var(--glass-bg)] relative z-10"
                                 >
                                     <svg className="w-5 h-5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
