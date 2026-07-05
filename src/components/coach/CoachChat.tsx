@@ -484,7 +484,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
         <div className="flex h-full relative overflow-hidden bg-transparent">
 
             {/* ── LEFT SIDEBAR — Past Chats ── */}
-            <div className="w-56 shrink-0 hidden md:flex flex-col border-r border-[var(--glass-border)] bg-[#F6F1E7] dark:bg-[#080809]">
+            <div className="w-56 shrink-0 hidden md:flex flex-col border-r border-[var(--glass-border)] bg-[var(--color-bg-primary)] dark:bg-[#080809]">
                 {/* Sidebar header */}
                 <div className="px-4 py-4 flex items-center justify-between border-b border-[var(--glass-border)] shrink-0">
                     <span className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500 dark:text-[var(--text-tertiary)]">Coach Hub</span>
@@ -534,7 +534,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                     }}
                                     className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[var(--glass-bg)] border border-transparent hover:border-[var(--glass-border)] transition-all flex flex-col gap-0.5 pr-8"
                                 >
-                                    <span className="text-[12px] font-medium text-zinc-900 dark:text-white/65 hover:text-orange-500 dark:hover:text-orange-300 transition-colors truncate leading-snug">
+                                    <span className="text-[12px] font-medium text-zinc-900 dark:text-white/65 group-hover:text-orange-500 dark:hover:text-orange-300 transition-colors truncate leading-snug">
                                         {conv.primary_topic || 'Strategy Session'}
                                     </span>
                                     <span className="text-[10px] text-zinc-500 dark:text-[var(--text-tertiary)]">
@@ -568,11 +568,11 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                             <span className="text-[var(--text-primary)] text-sm">⚡</span>
                         </div>
                         <div>
-                            <span className="text-sm font-bold text-[var(--text-primary)] tracking-tight flex items-center gap-1.5">
+                            <span className="text-sm font-bold text-zinc-900 dark:text-[var(--text-primary)] tracking-tight flex items-center gap-1.5">
                                 Donna
                                 <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-scifi-blink" />
                             </span>
-                            <span className="text-[10px] text-[var(--text-secondary)] dark:text-white/35 uppercase tracking-wider block">
+                            <span className="text-[10px] text-zinc-500 dark:text-white/35 uppercase tracking-wider block">
                                 Strategic Mode · Calendar · Goals · Tasks
                             </span>
                         </div>
@@ -778,7 +778,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                 onChange={e => setInput(e.target.value)}
                                 placeholder={allMessages.length > 0 ? 'Message Donna…' : 'Or type anything to start a conversation…'}
                                 disabled={showLoadingIndicator}
-                                className="flex-1 bg-transparent px-4 py-3.5 text-[15px] focus:outline-none placeholder:text-zinc-400 dark:placeholder:text-[var(--text-tertiary)] text-[var(--text-primary)] font-medium relative z-10"
+                                className="flex-1 bg-transparent px-4 py-3.5 text-[15px] focus:outline-none placeholder:text-zinc-400 dark:placeholder:text-[var(--text-tertiary)] text-zinc-900 dark:text-[var(--text-primary)] font-medium relative z-10"
                             />
                             {isLoading ? (
                                 <button
