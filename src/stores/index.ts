@@ -201,6 +201,11 @@ export const useOnboardingStore = create<OnboardingState>()(
         }),
         {
             name: 'plannrai-onboarding',
+            merge: (persisted: any, current) => ({
+                ...current,
+                ...persisted,
+                data: { ...defaultOnboardingData, ...(persisted?.data ?? {}) },
+            }),
         }
     )
 );
