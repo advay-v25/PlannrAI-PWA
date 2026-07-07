@@ -23,14 +23,14 @@ const CELL_HEIGHT = 120;
 
 // Premium pastel colors matching reference images (black/orange theme)
 const PILLAR_COLORS: Record<string, { bg: string; border: string; text: string; metaText: string; dot: string; glow: string }> = {
-    mind:    { bg: 'bg-gradient-to-br from-purple-500/20 to-indigo-500/10 dark:from-purple-500/15 dark:to-indigo-600/10', border: 'border-purple-500/30 dark:border-purple-400/20', text: 'text-purple-950 dark:text-purple-100', metaText: 'text-purple-700 dark:text-purple-100/70', dot: 'bg-purple-500 dark:bg-purple-400', glow: 'block-glow-mind dark:block-glow-mind' },
-    body:    { bg: 'bg-gradient-to-br from-emerald-500/20 to-teal-500/10 dark:from-emerald-400/15 dark:to-teal-600/10', border: 'border-emerald-500/30 dark:border-emerald-400/20', text: 'text-emerald-950 dark:text-emerald-100', metaText: 'text-emerald-700 dark:text-emerald-100/70', dot: 'bg-emerald-500 dark:bg-emerald-400', glow: 'block-glow-body dark:block-glow-body' },
-    craft:   { bg: 'bg-gradient-to-br from-amber-500/20 to-orange-500/10 dark:from-amber-400/15 dark:to-orange-600/10', border: 'border-amber-500/30 dark:border-amber-400/20', text: 'text-amber-950 dark:text-amber-100', metaText: 'text-amber-700 dark:text-amber-100/70', dot: 'bg-amber-500 dark:bg-amber-400', glow: 'block-glow-craft dark:block-glow-craft' },
-    anchor:  { bg: 'bg-zinc-400/20 dark:bg-zinc-700/30', border: 'border-zinc-500/30 dark:border-zinc-500/15', text: 'text-zinc-900 dark:text-zinc-300', metaText: 'text-zinc-700 dark:text-zinc-400', dot: 'bg-zinc-500 dark:bg-zinc-500', glow: 'block-glow-anchor dark:block-glow-anchor' },
-    meal:    { bg: 'bg-gradient-to-br from-orange-400/20 to-rose-400/15 dark:from-orange-300/12 dark:to-rose-500/8', border: 'border-orange-500/30 dark:border-orange-400/15', text: 'text-orange-950 dark:text-orange-200', metaText: 'text-orange-700 dark:text-orange-200/70', dot: 'bg-orange-500 dark:bg-orange-400', glow: 'block-glow-routine dark:block-glow-routine' },
-    sleep:   { bg: 'bg-slate-300/30 dark:bg-[var(--glass-bg)]', border: 'border-slate-400/30 dark:border-[var(--glass-border)]', text: 'text-slate-900 dark:text-[var(--text-tertiary)]', metaText: 'text-slate-700 dark:text-[var(--text-tertiary)]', dot: 'bg-slate-500 dark:bg-[var(--glass-bg)]', glow: '' },
-    break:   { bg: 'bg-transparent dark:bg-transparent', border: 'border-[var(--glass-border)]', text: 'text-[var(--text-secondary)] dark:text-[var(--text-tertiary)]', metaText: 'text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]', dot: 'bg-zinc-400 dark:bg-white/20', glow: '' },
-    default: { bg: 'bg-gradient-to-br from-violet-500/20 to-purple-500/10 dark:from-violet-400/15 dark:to-purple-600/10', border: 'border-violet-500/30 dark:border-violet-400/20', text: 'text-violet-950 dark:text-violet-200', metaText: 'text-violet-700 dark:text-violet-200/70', dot: 'bg-violet-500 dark:bg-violet-400', glow: 'block-glow-routine dark:block-glow-routine' },
+    mind:    { bg: 'bg-gradient-to-br from-purple-400/40 to-indigo-400/25 dark:from-purple-500/15 dark:to-indigo-600/10', border: 'border-purple-500/40 dark:border-purple-400/20', text: 'text-zinc-900 dark:text-purple-100', metaText: 'text-zinc-700 dark:text-purple-100/70', dot: 'bg-purple-500 dark:bg-purple-400', glow: 'block-glow-mind dark:block-glow-mind' },
+    body:    { bg: 'bg-gradient-to-br from-emerald-400/40 to-teal-400/25 dark:from-emerald-400/15 dark:to-teal-600/10', border: 'border-emerald-500/40 dark:border-emerald-400/20', text: 'text-zinc-900 dark:text-emerald-100', metaText: 'text-zinc-700 dark:text-emerald-100/70', dot: 'bg-emerald-500 dark:bg-emerald-400', glow: 'block-glow-body dark:block-glow-body' },
+    craft:   { bg: 'bg-gradient-to-br from-amber-400/45 to-orange-400/30 dark:from-amber-400/15 dark:to-orange-600/10', border: 'border-amber-500/40 dark:border-amber-400/20', text: 'text-zinc-900 dark:text-amber-100', metaText: 'text-zinc-700 dark:text-amber-100/70', dot: 'bg-amber-500 dark:bg-amber-400', glow: 'block-glow-craft dark:block-glow-craft' },
+    anchor:  { bg: 'bg-zinc-400/35 dark:bg-zinc-700/30', border: 'border-zinc-500/40 dark:border-zinc-500/15', text: 'text-zinc-900 dark:text-zinc-300', metaText: 'text-zinc-700 dark:text-zinc-400', dot: 'bg-zinc-500 dark:bg-zinc-500', glow: 'block-glow-anchor dark:block-glow-anchor' },
+    meal:    { bg: 'bg-gradient-to-br from-orange-300/45 to-rose-300/30 dark:from-orange-300/12 dark:to-rose-500/8', border: 'border-orange-500/40 dark:border-orange-400/15', text: 'text-zinc-900 dark:text-orange-200', metaText: 'text-zinc-700 dark:text-orange-200/70', dot: 'bg-orange-500 dark:bg-orange-400', glow: 'block-glow-routine dark:block-glow-routine' },
+    sleep:   { bg: 'bg-slate-400/35 dark:bg-[var(--glass-bg)]', border: 'border-slate-400/40 dark:border-[var(--glass-border)]', text: 'text-zinc-900 dark:text-[var(--text-tertiary)]', metaText: 'text-zinc-700 dark:text-[var(--text-tertiary)]', dot: 'bg-slate-500 dark:bg-[var(--glass-bg)]', glow: '' },
+    break:   { bg: 'bg-transparent dark:bg-transparent', border: 'border-[var(--glass-border)]', text: 'text-zinc-700 dark:text-[var(--text-tertiary)]', metaText: 'text-zinc-500 dark:text-[var(--text-tertiary)]', dot: 'bg-zinc-400 dark:bg-white/20', glow: '' },
+    default: { bg: 'bg-gradient-to-br from-violet-400/40 to-purple-400/25 dark:from-violet-400/15 dark:to-purple-600/10', border: 'border-violet-500/40 dark:border-violet-400/20', text: 'text-zinc-900 dark:text-violet-200', metaText: 'text-zinc-700 dark:text-violet-200/70', dot: 'bg-violet-500 dark:bg-violet-400', glow: 'block-glow-routine dark:block-glow-routine' },
 };
 
 function getBlockColors(block: any) {
@@ -231,12 +231,12 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                                         className="absolute left-[-56px] right-0 z-30 pointer-events-none flex items-center"
                                         style={{ top: nowTop - 6 }}
                                     >
-                                        <div className="w-14 text-[10px] text-orange-400 font-bold text-right pr-2 shrink-0 drop-shadow-[0_0_8px_rgba(251,146,60,0.8)]">
+                                        <div className="w-14 text-[10px] text-orange-600 dark:text-orange-400 font-bold text-right pr-2 shrink-0 drop-shadow-[0_0_8px_rgba(251,146,60,0.8)]">
                                             {format(new Date(), 'HH:mm')}
                                         </div>
                                         <div className="flex-1 relative flex items-center">
-                                            <div className="w-3 h-3 rounded-full bg-orange-400 animate-pulse shadow-[0_0_15px_rgba(251,146,60,0.8)] -ml-1.5 shrink-0" />
-                                            <div className="flex-1 h-[2px] bg-gradient-to-r from-orange-500 via-[#d90479] to-purple-500 shadow-[0_0_15px_rgba(249,115,22,0.5)]" />
+                                            <div className="w-3 h-3 rounded-full bg-orange-500 dark:bg-orange-400 animate-pulse shadow-[0_0_15px_rgba(251,146,60,0.8)] -ml-1.5 shrink-0" />
+                                            <div className="flex-1 h-[2px] bg-gradient-to-r from-orange-600 dark:from-orange-500 via-[#d90479] to-purple-500 shadow-[0_0_15px_rgba(249,115,22,0.5)]" />
                                         </div>
                                     </div>
                                 )}
