@@ -271,7 +271,7 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
                 temperature: 0.6,
                 maxTokens: 4000,
                 requireJSON: true,
-                timeout: 55000,
+                timeout: 40000,
                 useNvidia: true,
             });
 
@@ -464,6 +464,7 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
 
             // --- Post-processing: Filter out commitment-overlapping blocks ---
             const filteredBlocks = cleanBlocks.filter((b: any) => {
+                if (b.title === 'Morning Routine') return true;
                 const bStart = timeToMinutes(b.start_time);
                 const bEnd = timeToMinutes(b.end_time);
                 for (const zone of commitmentZones) {

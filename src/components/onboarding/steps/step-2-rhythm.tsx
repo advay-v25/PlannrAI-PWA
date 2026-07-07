@@ -212,8 +212,8 @@ export function Step2Rhythm() {
                                     <label className="text-[10px] font-bold text-[var(--text-primary)]/50 uppercase ml-1 block">Breakfast</label>
                                     <input
                                         type="time"
-                                        value={data.custom_meal_times.breakfast || '08:00'}
-                                        onChange={(e) => updateData({ custom_meal_times: { ...data.custom_meal_times, breakfast: e.target.value } })}
+                                        value={data.custom_meal_times?.breakfast || '08:00'}
+                                        onChange={(e) => updateData({ custom_meal_times: { ...(data.custom_meal_times || {}), breakfast: e.target.value } })}
                                         className="w-full bg-[var(--glass-bg-active)] border border-[var(--glass-border)] hover:border-[var(--glass-border)] rounded-xl p-3 text-[var(--text-primary)] focus:outline-none focus:border-white transition-all font-mono text-sm text-center shadow-inner"
                                     />
                                 </div>
@@ -223,8 +223,8 @@ export function Step2Rhythm() {
                                     <label className="text-[10px] font-bold text-[var(--text-primary)]/50 uppercase ml-1 block">Lunch</label>
                                     <input
                                         type="time"
-                                        value={data.custom_meal_times.lunch || '13:00'}
-                                        onChange={(e) => updateData({ custom_meal_times: { ...data.custom_meal_times, lunch: e.target.value } })}
+                                        value={data.custom_meal_times?.lunch || '13:00'}
+                                        onChange={(e) => updateData({ custom_meal_times: { ...(data.custom_meal_times || {}), lunch: e.target.value } })}
                                         className="w-full bg-[var(--glass-bg-active)] border border-[var(--glass-border)] hover:border-[var(--glass-border)] rounded-xl p-3 text-[var(--text-primary)] focus:outline-none focus:border-white transition-all font-mono text-sm text-center shadow-inner"
                                     />
                                 </div>
@@ -234,8 +234,8 @@ export function Step2Rhythm() {
                                     <label className="text-[10px] font-bold text-[var(--text-primary)]/50 uppercase ml-1 block">Dinner</label>
                                     <input
                                         type="time"
-                                        value={data.custom_meal_times.dinner || '19:30'}
-                                        onChange={(e) => updateData({ custom_meal_times: { ...data.custom_meal_times, dinner: e.target.value } })}
+                                        value={data.custom_meal_times?.dinner || '19:30'}
+                                        onChange={(e) => updateData({ custom_meal_times: { ...(data.custom_meal_times || {}), dinner: e.target.value } })}
                                         className="w-full bg-[var(--glass-bg-active)] border border-[var(--glass-border)] hover:border-[var(--glass-border)] rounded-xl p-3 text-[var(--text-primary)] focus:outline-none focus:border-white transition-all font-mono text-sm text-center shadow-inner"
                                     />
                                 </div>

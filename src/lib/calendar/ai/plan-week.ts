@@ -170,18 +170,6 @@ export async function generateWeekPlan(
         }
     }
 
-    // Load bio blocks into exclusion zones
-    for (let d = 1; d <= 7; d++) {
-        for (const bio of bioTemplates) {
-            commitmentsByDay.get(d)!.push({
-                start: timeToMinutes(bio.start),
-                end: timeToMinutes(bio.end) + (bio.block_type === 'meal' ? 15 : 0), // 15m after meals
-                title: bio.title,
-                type: bio.block_type
-            });
-        }
-    }
-
     // Morning routine: block generated identically to Wind Down
     const morningRoutineMins = (context.user as any).morning_routine_mins || 0;
     if (morningRoutineMins > 0) {
@@ -194,6 +182,18 @@ export async function generateWeekPlan(
             start: minutesToTime(wakeTimeMins),
             end: minutesToTime(morningRoutineEnd)
         });
+    }
+
+    // Load bio blocks into exclusion zones
+    for (let d = 1; d <= 7; d++) {
+        for (const bio of bioTemplates) {
+            commitmentsByDay.get(d)!.push({
+                start: timeToMinutes(bio.start),
+                end: timeToMinutes(bio.end) + (bio.block_type === 'meal' ? 15 : 0), // 15m after meals
+                title: bio.title,
+                type: bio.block_type
+            });
+        }
     }
 
     // NEW: Load existing schedule blocks (fixed or done) into exclusion zones to prevent overwrites

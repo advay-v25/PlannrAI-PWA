@@ -126,19 +126,19 @@ function getProviderChain(options: AICallOptions): ProviderConfig[] {
         case 'smart':
         case 'creative': {
             const chain: ProviderConfig[] = [];
-            if (useOpenRouter) chain.push(getOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'));
             chain.push(getGroqConfig('llama-3.3-70b-versatile'));
+            if (useOpenRouter) chain.push(getOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'));
             chain.push(getNvidiaConfig('meta/llama-3.1-70b-instruct', process.env.CALENDAR_NVIDIA_API_KEY));
             if (useTertiary) chain.push(getNvidiaConfig('meta/llama-3.1-70b-instruct', process.env.NVIDIA_API_KEY_TERTIARY));
-            if (useGemini) chain.push(getGeminiConfig('gemini-2.0-flash'));
+            if (useGemini) chain.push(getGeminiConfig('gemini-2.5-flash'));
             return chain;
         }
         case 'fast':
         default: {
             const chain: ProviderConfig[] = [];
-            if (useOpenRouter) chain.push(getOpenRouterConfig('openai/gpt-4o-mini'));
             chain.push(getGroqConfig('llama-3.1-8b-instant'));
-            if (useGemini) chain.push(getGeminiConfig('gemini-2.0-flash'));
+            if (useOpenRouter) chain.push(getOpenRouterConfig('openai/gpt-4o-mini'));
+            if (useGemini) chain.push(getGeminiConfig('gemini-2.5-flash'));
             if (useTertiary) chain.push(getNvidiaConfig('meta/llama-3.1-8b-instruct', process.env.NVIDIA_API_KEY_TERTIARY));
             return chain;
         }
@@ -406,7 +406,7 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
     const MAX_TOTAL_TIME = options.timeout ?? 55000;
     const MAX_PROVIDER_TIME = 15000; // Strict 15s limit per provider to prevent Vercel 504 timeouts
 
-    const getRemainingTime = () => Math.max(5000, MAX_TOTAL_TIME - (Date.now() - totalStartTime));
+    const getRemainingTime = () => Math.max(0, MAX_TOTAL_TIME - (Date.now() - totalStartTime));
 
     // ── GROQ-ONLY MODE ───────────────────────────────────────────────
     // Strictly Groq Llama 3.3 70B, given the FULL remaining budget so a long
@@ -442,28 +442,22 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
             nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.CALENDAR_NVIDIA_API_KEY));
             if (useTertiary) nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.NVIDIA_API_KEY_TERTIARY));
         } else {
-            if (useOpenRouter && !options.skipOpenRouter) nvidiaChain.push(getOpenRouterConfig(
-                tier === 'fast' ? 'openai/gpt-4o-mini' : 'meta-llama/llama-3.3-70b-instruct'
-            ));
-
-            // Prioritize Groq's high-speed inference when OpenRouter is skipped to prevent 55s NVIDIA timeouts on complex JSON
-            if (options.skipOpenRouter) {
-                nvidiaChain.push(getGroqConfig(tier === 'fast' ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile'));
-                nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.CALENDAR_NVIDIA_API_KEY));
-            } else {
-                nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.CALENDAR_NVIDIA_API_KEY));
-                nvidiaChain.push(getGroqConfig(tier === 'fast' ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile'));
+            nvidiaChain.push(getGroqConfig(tier === 'fast' ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile'));
+            if (useOpenRouter && !options.skipOpenRouter) {
+                nvidiaChain.push(getOpenRouterConfig(
+                    tier === 'fast' ? 'openai/gpt-4o-mini' : 'meta-llama/llama-3.3-70b-instruct'
+                ));
             }
+            nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.CALENDAR_NVIDIA_API_KEY));
             if (useTertiary) nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.NVIDIA_API_KEY_TERTIARY));
-            if (useGemini) nvidiaChain.push(getGeminiConfig('gemini-2.0-flash'));
+            if (useGemini) nvidiaChain.push(getGeminiConfig('gemini-2.5-flash'));
         }
 
         for (const provider of nvidiaChain) {
             const remaining = getRemainingTime();
-            if (remaining < 5000) break;
+            if (remaining < 3000) break;
             console.log(`\x1b[36m[AI ✨]\x1b[0m Coach engine trying ${provider.name}/${provider.model}...`);
-            const baseTimeout = options.timeout ? options.timeout : MAX_PROVIDER_TIME;
-            const providerTimeout = options.strictNvidia ? remaining : Math.min(baseTimeout, remaining);
+            const providerTimeout = options.strictNvidia ? remaining : Math.min(MAX_PROVIDER_TIME, remaining);
             const result = await callProvider<T>(provider, { ...options, timeout: providerTimeout });
             if (result.success) return result;
         }
@@ -476,10 +470,9 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
 
     for (const provider of chain) {
         const remaining = getRemainingTime();
-        if (remaining < 5000) break;
+        if (remaining < 3000) break;
         console.log(`\x1b[33m[AI →]\x1b[0m Trying ${provider.name}/${provider.model}...`);
-        const baseTimeout = options.timeout ? options.timeout : MAX_PROVIDER_TIME;
-        const providerTimeout = Math.min(baseTimeout, remaining);
+        const providerTimeout = Math.min(MAX_PROVIDER_TIME, remaining);
         const result = await callProvider<T>(provider, { ...options, timeout: providerTimeout });
         lastResult = result;
         if (result.success) return result;

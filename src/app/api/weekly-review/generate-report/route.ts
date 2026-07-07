@@ -143,7 +143,7 @@ If no changes are needed, leave proposed_goal_changes empty.`;
             prompt: systemPrompt,
             requireJSON: true,
             useNvidia: true,
-            timeout: 85000 // 85 seconds to prevent 55s abort, matching frontend 90s max
+            timeout: 40000 // 40 seconds to prevent 60s maxDuration Vercel 504
         });
 
         if (!aiRes.success) {
