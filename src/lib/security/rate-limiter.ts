@@ -231,6 +231,12 @@ function cleanupExpiredEntries(): void {
  * Get client IP from request headers
  */
 export function getClientIP(request: Request): string {
+    // Check Vercel's trusted IP header first
+    const vercelForwarded = request.headers.get('x-vercel-forwarded-for');
+    if (vercelForwarded) {
+        return vercelForwarded.split(',')[0].trim();
+    }
+
     // Check common headers for proxied requests
     const forwarded = request.headers.get('x-forwarded-for');
     if (forwarded) {
@@ -242,8 +248,8 @@ export function getClientIP(request: Request): string {
         return realIp;
     }
 
-    // Fallback (may not work in all environments)
-    return '127.0.0.1';
+    // Fallback to avoid collapsing all unknown IPs into a single bucket
+    return `unknown-ip-${Math.random().toString(36).substring(2)}`;
 }
 
 /**

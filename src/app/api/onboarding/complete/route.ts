@@ -12,6 +12,7 @@ const onboardingSchema = z.object({
     meals_per_day: z.number().optional().default(3),
     meal_timing: z.string().optional(),
     default_buffer_duration: z.number().optional().default(10),
+    two_meals_selection: z.string().nullable().optional(),
     custom_meal_times: z.record(z.string(), z.string()).optional(),
     commitments: z.array(z.any()).optional().default([]),
     goals: z.array(z.any()).optional().default([]),

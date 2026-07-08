@@ -114,6 +114,8 @@ function getGeminiConfig(model: string): ProviderConfig {
     };
 }
 
+
+
 // Smart = complex reasoning (coach, goals, weekly review)
 // Fast  = quick extraction / reschedule options
 function getProviderChain(options: AICallOptions): ProviderConfig[] {
@@ -121,6 +123,7 @@ function getProviderChain(options: AICallOptions): ProviderConfig[] {
     const useOpenRouter = !!process.env.OPENROUTER_API_KEY;
     const useGemini    = !!process.env.GEMINI_API_KEY;
     const useTertiary  = !!process.env.NVIDIA_API_KEY_TERTIARY;
+    const useCerebras  = !!process.env.CEREBRAS_API_KEY;
 
     switch (tier) {
         case 'smart':
@@ -128,6 +131,7 @@ function getProviderChain(options: AICallOptions): ProviderConfig[] {
             const chain: ProviderConfig[] = [];
             chain.push(getGroqConfig('llama-3.3-70b-versatile'));
             if (useOpenRouter) chain.push(getOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'));
+            if (useCerebras) chain.push(getCerebrasConfig('llama3.1-70b'));
             chain.push(getNvidiaConfig('meta/llama-3.1-70b-instruct', process.env.CALENDAR_NVIDIA_API_KEY));
             if (useTertiary) chain.push(getNvidiaConfig('meta/llama-3.1-70b-instruct', process.env.NVIDIA_API_KEY_TERTIARY));
             if (useGemini) chain.push(getGeminiConfig('gemini-2.5-flash'));
@@ -138,6 +142,7 @@ function getProviderChain(options: AICallOptions): ProviderConfig[] {
             const chain: ProviderConfig[] = [];
             chain.push(getGroqConfig('llama-3.1-8b-instant'));
             if (useOpenRouter) chain.push(getOpenRouterConfig('openai/gpt-4o-mini'));
+            if (useCerebras) chain.push(getCerebrasConfig('llama3.1-8b'));
             if (useGemini) chain.push(getGeminiConfig('gemini-2.5-flash'));
             if (useTertiary) chain.push(getNvidiaConfig('meta/llama-3.1-8b-instruct', process.env.NVIDIA_API_KEY_TERTIARY));
             return chain;

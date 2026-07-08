@@ -220,8 +220,8 @@ export function secureApiRoute(
 
             return response;
 
-        } catch (error) {
-            console.error('API error:', error);
+        } catch (error: any) {
+            console.error('API error details:', error, error.stack);
 
             // Log error
             await logSuspiciousActivity(undefined, 'API error', request, {
