@@ -206,29 +206,42 @@ export async function checkMultipleRateLimits(
     if (endpoint && endpointType) {
         let endpointKey = createRateLimitKey('endpoint', userId || ip, endpoint);
         
-        if (endpointType === 'aiPlanWeek' || endpointType === 'aiWeeklyReview') {
+        const isWeeklyReset = endpointType === 'aiPlanWeek' || endpointType === 'aiWeeklyReview';
+        const isDailyReset = endpointType === 'aiPlanDay' || endpointType === 'aiCoach' || endpointType === 'aiHabits' || endpointType === 'aiStrategy';
+
+        if (isWeeklyReset) {
             const now = new Date();
             const day = now.getUTCDay();
             const diff = now.getUTCDate() - day + (day === 0 ? -6 : 1);
             const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), diff));
             endpointKey = `${endpointKey}:${monday.toISOString().split('T')[0]}`;
+        } else if (isDailyReset) {
+            const now = new Date();
+            const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+            endpointKey = `${endpointKey}:${today.toISOString().split('T')[0]}`;
         }
         
         const endpointResult = await checkRateLimit(endpointKey, endpointType);
         
-        if (!endpointResult.allowed && (endpointType === 'aiPlanWeek' || endpointType === 'aiWeeklyReview')) {
-            const now = new Date();
-            const day = now.getUTCDay();
-            const daysUntilNextMonday = day === 0 ? 1 : 8 - day;
-            const nextMonday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysUntilNextMonday));
-            
-            endpointResult.resetAt = nextMonday;
-            endpointResult.retryAfter = Math.ceil((nextMonday.getTime() - Date.now()) / 1000);
-        }
-
         if (!endpointResult.allowed) {
+            if (isWeeklyReset) {
+                const now = new Date();
+                const day = now.getUTCDay();
+                const daysUntilNextMonday = day === 0 ? 1 : 8 - day;
+                const nextMonday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysUntilNextMonday));
+                
+                endpointResult.resetAt = nextMonday;
+                endpointResult.retryAfter = Math.ceil((nextMonday.getTime() - Date.now()) / 1000);
+            } else if (isDailyReset) {
+                const now = new Date();
+                const nextMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+                
+                endpointResult.resetAt = nextMidnight;
+                endpointResult.retryAfter = Math.ceil((nextMidnight.getTime() - Date.now()) / 1000);
+            }
             return endpointResult;
         }
+
         return endpointResult;
     }
 
