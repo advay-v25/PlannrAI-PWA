@@ -204,8 +204,28 @@ export async function checkMultipleRateLimits(
 
     // Check endpoint-specific limit
     if (endpoint && endpointType) {
-        const endpointKey = createRateLimitKey('endpoint', userId || ip, endpoint);
+        let endpointKey = createRateLimitKey('endpoint', userId || ip, endpoint);
+        
+        if (endpointType === 'aiPlanWeek') {
+            const now = new Date();
+            const day = now.getUTCDay();
+            const diff = now.getUTCDate() - day + (day === 0 ? -6 : 1);
+            const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), diff));
+            endpointKey = `${endpointKey}:${monday.toISOString().split('T')[0]}`;
+        }
+        
         const endpointResult = await checkRateLimit(endpointKey, endpointType);
+        
+        if (!endpointResult.allowed && endpointType === 'aiPlanWeek') {
+            const now = new Date();
+            const day = now.getUTCDay();
+            const daysUntilNextMonday = day === 0 ? 1 : 8 - day;
+            const nextMonday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysUntilNextMonday));
+            
+            endpointResult.resetAt = nextMonday;
+            endpointResult.retryAfter = Math.ceil((nextMonday.getTime() - Date.now()) / 1000);
+        }
+
         if (!endpointResult.allowed) {
             return endpointResult;
         }
@@ -248,8 +268,8 @@ export function getClientIP(request: Request): string {
         return realIp;
     }
 
-    // Fallback to avoid collapsing all unknown IPs into a single bucket
-    return `unknown-ip-${Math.random().toString(36).substring(2)}`;
+    // Fallback to local IP if no headers are present
+    return '127.0.0.1';
 }
 
 /**

@@ -1168,7 +1168,7 @@ export class PatchService {
                     await this.validateGoalConstraints(userId, existing.goal_id, newDate, newBlockMins, id, supabase, source);
                 }
 
-                const allowedEventFields = ['title', 'start_time', 'end_time', 'date', 'status', 'block_type', 'pillar', 'goal_id', 'checklist', 'habit_stack_id', 'is_locked', 'context', 'description'];
+                const allowedEventFields = ['title', 'start_time', 'end_time', 'date', 'status', 'block_type', 'pillar', 'goal_id', 'checklist', 'habit_stack_id', 'is_locked', 'context', 'description', 'is_fixed', 'commitment_id', 'deviation_reason', 'energy_cost', 'energy_level_required', 'meta', 'original_date', 'original_start_time', 'priority', 'source'];
                 const sanitizedFields: any = {};
                 for (const key of allowedEventFields) {
                     if (fields[key] !== undefined) {
@@ -1315,7 +1315,7 @@ export class PatchService {
                 const id = op.goal_id;
                 const fields = op.fields || op.payload;
                 if (!id) throw new Error('Update goal requires goal_id');
-                const allowedGoalFields = ['title', 'pillar', 'category', 'importance', 'days_per_week', 'minutes_per_day', 'energy_demand', 'weekly_target_minutes', 'status', 'is_active', 'priority', 'description'];
+                const allowedGoalFields = ['title', 'pillar', 'category', 'importance', 'days_per_week', 'minutes_per_day', 'energy_demand', 'weekly_target_minutes', 'status', 'is_active', 'priority', 'description', 'color', 'emoji', 'is_archived', 'start_date', 'target_date'];
                 const sanitizedFields: any = {};
                 for (const key of allowedGoalFields) {
                     if (fields[key] !== undefined) {
@@ -1429,7 +1429,7 @@ export class PatchService {
                 const id = op.todo_id;
                 const fields = op.fields || op.payload;
                 if (!id) throw new Error('Update todo requires todo_id');
-                const allowedTodoFields = ['title', 'description', 'is_completed', 'due_date', 'priority', 'category', 'block_id', 'goal_id', 'status', 'is_active'];
+                const allowedTodoFields = ['title', 'description', 'is_completed', 'due_date', 'priority', 'category', 'block_id', 'goal_id', 'status', 'is_active', 'completed_at'];
                 const sanitizedFields: any = {};
                 for (const key of allowedTodoFields) {
                     if (fields[key] !== undefined) {
