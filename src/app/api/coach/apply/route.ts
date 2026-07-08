@@ -1,10 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
+import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
 import { PatchService } from '@/lib/services/patch-service';
 import { buildCoachContext } from '@/lib/coach/context-builder';
 import { callAI } from '@/lib/ai/unified-client';
+import { secureApiRoute } from '@/lib/security/api-protection';
 
 export const maxDuration = 60;
 
@@ -15,57 +14,11 @@ interface ApplyRequest {
     option_text?: string;
 }
 
-export async function POST(request: NextRequest) {
-    try {
-        const cookieStore = await cookies();
-        const supabase = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            {
-                cookies: {
-                    get(name: string) {
-                        return cookieStore.get(name)?.value;
-                    },
-                },
-            }
-        );
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return new NextResponse("Unauthorized", { status: 401 });
-
-        const { checkMultipleRateLimits, getClientIP, createRateLimitHeaders } = await import('@/lib/security/rate-limiter');
-        const ip = getClientIP(request);
-        const rateLimitResult = await checkMultipleRateLimits(ip, user.id, request.nextUrl.pathname, 'aiCoach');
-        if (!rateLimitResult.allowed) {
-            const retryAfter = rateLimitResult.retryAfter || 0;
-            let errorMsg = 'Too many requests. Please slow down.';
-            if (retryAfter > 0) {
-                const days = Math.floor(retryAfter / (24 * 3600));
-                const hours = Math.floor((retryAfter % (24 * 3600)) / 3600);
-                const mins = Math.floor((retryAfter % 3600) / 60);
-                const timeStr = [];
-                if (days > 0) timeStr.push(`${days}d`);
-                if (hours > 0) timeStr.push(`${hours}h`);
-                if (mins > 0 || timeStr.length === 0) timeStr.push(`${mins}m`);
-                errorMsg = `Daily Coach limit reached. Refreshes in ${timeStr.join(' ')}.`;
-            }
-            const headers = createRateLimitHeaders(rateLimitResult);
-            return new NextResponse(
-                JSON.stringify({ error: { message: errorMsg }, retryAfter, resetAt: rateLimitResult.resetAt.toISOString() }),
-                {
-                    status: 429,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...Object.fromEntries(headers.entries()),
-                    },
-                }
-            );
-        }
-
-
-
-        const body: ApplyRequest = await request.json();
-        const { conversation_id, option_id, patch } = body;
+export const POST = secureApiRoute(
+    async (context, body: any) => {
+        try {
+            const { user, supabase } = context;
+            const { conversation_id, option_id, patch } = body as ApplyRequest;
 
         if (!option_id || !patch) {
             console.log(`[Coach Apply] Missing required fields. option_id: ${option_id}, patch: ${!!patch}`);
@@ -154,11 +107,7 @@ export async function POST(request: NextRequest) {
         );
 
         // Graceful degradation: if SOME ops succeeded but others failed, still return success
-        const supabaseAdmin = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!
-        );
-
+        // Use user's client instead of service role key since it's just updating their own conversation
         if (result.changes > 0 && result.errors.length > 0) {
             console.warn('[Coach Apply] Partial success:', result.changes, 'applied,', result.errors.length, 'failed:', result.errors);
             
@@ -168,7 +117,7 @@ export async function POST(request: NextRequest) {
                     conversation_id,
                     option_id,
                     result.undo_token,
-                    supabaseAdmin
+                    supabase
                 );
             }
 
@@ -198,7 +147,7 @@ export async function POST(request: NextRequest) {
                 conversation_id,
                 option_id,
                 result.undo_token,
-                supabaseAdmin
+                supabase
             );
         }
 
@@ -229,7 +178,9 @@ export async function POST(request: NextRequest) {
             error: error instanceof Error ? error.message : 'Failed to apply changes',
         }, { status: 500 });
     }
-}
+},
+{ requireAuth: true, requireCsrf: true, rateLimit: 'aiCoach' }
+);
 
 /**
  * Normalize Coach SchedulePatch format to PatchService Patch format.

@@ -11,10 +11,7 @@ export const POST = secureApiRoute(
             return apiError('energy_level and emotional_state required', 400);
         }
 
-        const adminDb = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_ROLE_KEY!
-        );
+        const adminDb = supabase;
 
         const { data: existing } = await adminDb
             .from('user_states')

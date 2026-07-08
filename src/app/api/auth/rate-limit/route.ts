@@ -35,7 +35,10 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: true, allowed: true });
     } catch (error) {
         console.error('[Rate Limit API Error]:', error);
-        // Fail open if rate limiter fails
-        return NextResponse.json({ success: true, allowed: true });
+        // Fail closed for auth endpoints on rate limiter error
+        return NextResponse.json(
+            { success: false, allowed: false, error: 'Rate limiter error' },
+            { status: 429 }
+        );
     }
 }

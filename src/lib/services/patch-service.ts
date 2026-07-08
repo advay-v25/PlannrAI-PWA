@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import sanitizeHtml from 'sanitize-html';
 import { CalendarEngine } from '@/lib/calendar/calendar-engine';
 import { buildCalendarContext } from '@/lib/calendar/context-builder';
 import { generateWeekPlan } from '@/lib/calendar/ai/plan-week';
@@ -1167,9 +1168,26 @@ export class PatchService {
                     await this.validateGoalConstraints(userId, existing.goal_id, newDate, newBlockMins, id, supabase, source);
                 }
 
+                const allowedEventFields = ['title', 'start_time', 'end_time', 'date', 'status', 'block_type', 'pillar', 'goal_id', 'checklist', 'habit_stack_id', 'is_locked', 'context', 'description'];
+                const sanitizedFields: any = {};
+                for (const key of allowedEventFields) {
+                    if (fields[key] !== undefined) {
+                        if (key === 'description' && typeof fields[key] === 'string') {
+                            sanitizedFields[key] = sanitizeHtml(fields[key]);
+                        } else {
+                            sanitizedFields[key] = fields[key];
+                        }
+                    }
+                }
+                
+                // Ensure specific time fields from logic above are retained
+                if (sTime) sanitizedFields.start_time = sTime;
+                if (eTime) sanitizedFields.end_time = eTime;
+                if (fields.date) sanitizedFields.date = fields.date;
+
                 const { error } = await supabase
                     .from('schedule_blocks')
-                    .update(fields)
+                    .update(sanitizedFields)
                     .eq('id', id)
                     .eq('user_id', userId);
                 if (error) throw new Error(`Update failed: ${error.message}`);
@@ -1297,9 +1315,21 @@ export class PatchService {
                 const id = op.goal_id;
                 const fields = op.fields || op.payload;
                 if (!id) throw new Error('Update goal requires goal_id');
+                const allowedGoalFields = ['title', 'pillar', 'category', 'importance', 'days_per_week', 'minutes_per_day', 'energy_demand', 'weekly_target_minutes', 'status', 'is_active', 'priority', 'description'];
+                const sanitizedFields: any = {};
+                for (const key of allowedGoalFields) {
+                    if (fields[key] !== undefined) {
+                        if (key === 'description' && typeof fields[key] === 'string') {
+                            sanitizedFields[key] = sanitizeHtml(fields[key]);
+                        } else {
+                            sanitizedFields[key] = fields[key];
+                        }
+                    }
+                }
+
                 const { error } = await supabase
                     .from('goals')
-                    .update(fields)
+                    .update(sanitizedFields)
                     .eq('id', id)
                     .eq('user_id', userId);
                 if (error) throw new Error(`Update goal failed: ${error.message}`);
@@ -1399,9 +1429,21 @@ export class PatchService {
                 const id = op.todo_id;
                 const fields = op.fields || op.payload;
                 if (!id) throw new Error('Update todo requires todo_id');
+                const allowedTodoFields = ['title', 'description', 'is_completed', 'due_date', 'priority', 'category', 'block_id', 'goal_id', 'status', 'is_active'];
+                const sanitizedFields: any = {};
+                for (const key of allowedTodoFields) {
+                    if (fields[key] !== undefined) {
+                        if (key === 'description' && typeof fields[key] === 'string') {
+                            sanitizedFields[key] = sanitizeHtml(fields[key]);
+                        } else {
+                            sanitizedFields[key] = fields[key];
+                        }
+                    }
+                }
+
                 const { error } = await supabase
                     .from('todos')
-                    .update(fields)
+                    .update(sanitizedFields)
                     .eq('id', id)
                     .eq('user_id', userId);
                 if (error) throw new Error(`Update todo failed: ${error.message}`);

@@ -1,5 +1,7 @@
 'use client';
 
+import DOMPurify from 'dompurify';
+
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTodos, TodoItem } from '@/hooks/use-todos';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -415,7 +417,7 @@ export function MindspaceBoard() {
                                         <div key={todo.id} className="p-4 rounded-xl bg-white/5 border border-white/10 flex items-start justify-between gap-4 group hover:bg-white/10 transition-colors">
                                             <div>
                                                 <h4 className="font-bold text-sm text-white opacity-60 line-through">{todo.title || 'Untitled'}</h4>
-                                                <div className="text-xs text-white/40 mt-1 line-clamp-2" dangerouslySetInnerHTML={{ __html: todo.description?.replace(/\[.*?\]/g, '').trim() || '' }} />
+                                                <div className="text-xs text-white/40 mt-1 line-clamp-2" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(todo.description?.replace(/\[.*?\]/g, '').trim() || '') }} />
                                                 <p className="text-[10px] text-white/30 uppercase tracking-widest mt-3">Archived</p>
                                             </div>
                                             <div className="flex items-center gap-2">
@@ -602,7 +604,7 @@ function MindspaceCard({ todo, updateTodo, deleteTodo, handleDragStart, isDragge
                 {displayDescription && (
                     <div 
                         className="text-xs text-white/60 leading-relaxed [&_p]:m-0 [&_ul]:pl-4 [&_ul]:list-disc line-clamp-3"
-                        dangerouslySetInnerHTML={{ __html: displayDescription }}
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(displayDescription) }}
                     />
                 )}
 

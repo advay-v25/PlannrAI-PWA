@@ -1,64 +1,41 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
+import { secureApiRoute } from '@/lib/security/api-protection';
 import { PatchService } from '@/lib/services/patch-service';
 
+export const POST = secureApiRoute(
+    async (context, body: any) => {
+        try {
+            const { user, supabase } = context;
+            const { undo_token } = body;
 
-export async function POST(request: NextRequest) {
-    try {
-        const cookieStore = await cookies();
-        const supabase = createServerClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            {
-                cookies: {
-                    get(name: string) {
-                        return cookieStore.get(name)?.value;
-                    },
-                },
+            if (!undo_token) {
+                return NextResponse.json(
+                    { success: false, error: 'undo_token is required' },
+                    { status: 400 }
+                );
             }
-        );
 
-        const { data: { user } } = await supabase.auth.getUser();
+            const result = await PatchService.undoPatch(user.id, undo_token, supabase);
 
-        if (!user) {
-            return NextResponse.json(
-                { success: false, error: 'Unauthorized' },
-                { status: 401 }
-            );
-        }
+            if (!result.success) {
+                return NextResponse.json({
+                    success: false,
+                    error: 'Undo failed',
+                }, { status: 500 });
+            }
 
-        const body = await request.json();
-        const { undo_token } = body;
+            return NextResponse.json({
+                success: true,
+                message: 'Changes undone successfully',
+            });
+        } catch (error) {
+            console.error('[Coach Undo] Error:', error);
 
-        if (!undo_token) {
-            return NextResponse.json(
-                { success: false, error: 'undo_token is required' },
-                { status: 400 }
-            );
-        }
-
-        const result = await PatchService.undoPatch(user.id, undo_token, supabase);
-
-        if (!result.success) {
             return NextResponse.json({
                 success: false,
-                error: 'Undo failed',
+                error: 'Failed to undo changes',
             }, { status: 500 });
         }
-
-        return NextResponse.json({
-            success: true,
-            message: 'Changes undone successfully',
-        });
-
-
-    } catch (error) {
-        console.error('[Coach Undo] Error:', error);
-
-        return NextResponse.json({
-            success: false,
-            error: 'Failed to undo changes',
-        }, { status: 500 });
-    }
-}
+    },
+    { requireAuth: true, requireCsrf: true, rateLimit: 'aiCoach' }
+);

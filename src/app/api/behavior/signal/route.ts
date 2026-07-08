@@ -42,5 +42,5 @@ export const POST = secureApiRoute(
             return apiSuccess({ ok: false, ignored: true, error: error.message, requestId });
         }
     },
-    { requireAuth: false, auditAction: 'log_signal' } // Allow unauth for onboarding signals? User said "require auth ONLY if..."
+    { requireAuth: true, auditAction: 'log_signal' } 
 );
