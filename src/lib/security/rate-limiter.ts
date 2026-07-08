@@ -206,7 +206,7 @@ export async function checkMultipleRateLimits(
     if (endpoint && endpointType) {
         let endpointKey = createRateLimitKey('endpoint', userId || ip, endpoint);
         
-        if (endpointType === 'aiPlanWeek') {
+        if (endpointType === 'aiPlanWeek' || endpointType === 'aiWeeklyReview') {
             const now = new Date();
             const day = now.getUTCDay();
             const diff = now.getUTCDate() - day + (day === 0 ? -6 : 1);
@@ -216,7 +216,7 @@ export async function checkMultipleRateLimits(
         
         const endpointResult = await checkRateLimit(endpointKey, endpointType);
         
-        if (!endpointResult.allowed && endpointType === 'aiPlanWeek') {
+        if (!endpointResult.allowed && (endpointType === 'aiPlanWeek' || endpointType === 'aiWeeklyReview')) {
             const now = new Date();
             const day = now.getUTCDay();
             const daysUntilNextMonday = day === 0 ? 1 : 8 - day;
