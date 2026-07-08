@@ -139,7 +139,7 @@ export function secureApiRoute(
                         if (hours > 0) timeStr.push(`${hours}h`);
                         if (mins > 0 || timeStr.length === 0) timeStr.push(`${mins}m`);
                         
-                        errorMsg = `Daily AI limit reached. Refreshes in ${timeStr.join(' ')}.`;
+                        errorMsg = `AI limit reached. Refreshes in ${timeStr.join(' ')}.`;
                     }
 
                     return apiError(
