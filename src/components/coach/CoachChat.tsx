@@ -214,6 +214,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
     const {
         messages,
         isLoading,
+        isLoadingHistory,
         error,
         canUndo,
         sendMessage,
@@ -258,6 +259,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
     // the exchange as a coach conversation (so it appears in the sidebar and
     // reloads read-only like manual prompts); this holds the live-session copy.
     const [syntheticMessages, setSyntheticMessages] = useState<CoachMessage[]>([]);
+    const [loadingConvId, setLoadingConvId] = useState<string | null>(null);
     const [quickConversationId, setQuickConversationId] = useState<string | null>(null);
 
     // Auto-scroll when either message source updates
@@ -579,12 +581,14 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                             <div key={conv.id} className="relative group/item">
                                 <button
                                     onClick={() => {
+                                        if (isLoadingHistory) return;
+                                        setLoadingConvId(conv.id);
                                         clearConversation();
                                         setSyntheticMessages([]);
                                         setQuickConversationId(null);
-                                        loadHistory(conv.id);
+                                        loadHistory(conv.id).finally(() => setLoadingConvId(null));
                                     }}
-                                    className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[var(--glass-bg)] border border-transparent hover:border-[var(--glass-border)] transition-all flex flex-col gap-0.5 pr-8"
+                                    className={`w-full text-left px-3 py-2.5 rounded-xl hover:bg-[var(--glass-bg)] border border-transparent hover:border-[var(--glass-border)] transition-all flex flex-col gap-0.5 pr-8 ${loadingConvId === conv.id ? 'bg-[var(--glass-bg)] border-[var(--glass-border)]' : ''}`}
                                 >
                                     <span className="text-[12px] font-medium text-zinc-900 dark:text-white/65 group-hover:text-orange-500 dark:hover:text-orange-300 transition-colors truncate leading-snug">
                                         {conv.primary_topic || 'Strategy Session'}
@@ -653,8 +657,17 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                 {/* ── Messages ── */}
                 <div className="z-10 flex-1 overflow-y-auto overscroll-contain px-4 md:px-8 py-6 space-y-6 scrollbar-hide">
 
+                    {/* Skeleton loader for history */}
+                    {isLoadingHistory && allMessages.length === 0 && (
+                        <div className="flex flex-col space-y-6 mt-4 animate-fade-in w-full max-w-2xl mx-auto px-4 md:px-0">
+                            <div className="self-end w-2/3 md:w-1/2 h-20 rounded-2xl rounded-tr-sm bg-[var(--glass-bg)] border border-[var(--glass-border)] animate-pulse" />
+                            <div className="self-start w-3/4 md:w-2/3 h-24 rounded-2xl rounded-tl-sm bg-[var(--glass-bg)] border border-[var(--glass-border)] animate-pulse" />
+                            <div className="self-end w-1/2 md:w-1/3 h-16 rounded-2xl rounded-tr-sm bg-[var(--glass-bg)] border border-[var(--glass-border)] animate-pulse" />
+                        </div>
+                    )}
+
                     {/* Empty state — 2 quick-action bubbles */}
-                    {allMessages.length === 0 && !showLoadingIndicator && (
+                    {allMessages.length === 0 && !showLoadingIndicator && !isLoadingHistory && (
                         <div className="flex flex-col items-center mt-10 animate-fade-in">
                             <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500/50 mx-auto mb-5 flex items-center justify-center shadow-[0_0_30px_rgba(249,115,22,0.2)]">
                                 <span className="text-[var(--text-primary)] text-2xl">⚡️</span>
