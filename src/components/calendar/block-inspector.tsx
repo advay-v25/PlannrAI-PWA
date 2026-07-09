@@ -196,7 +196,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                 </div>
 
                 <button onClick={onClose}
-                    className="p-1.5 rounded-lg hover:bg-[var(--glass-bg)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors shrink-0 ml-2">
+                    className="p-1.5 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--glass-bg-hover)] transition-colors shrink-0 ml-2">
                     <X className="w-4 h-4" />
                 </button>
             </div>

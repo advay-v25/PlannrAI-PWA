@@ -92,17 +92,7 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                         {!isExpanded && (
                             <div className="mt-2 space-y-3">
                                 <div className="flex items-center gap-3 text-xs text-[var(--text-tertiary)]">
-                                    {goal.cycle_start_date && goal.cycle_end_date && (
-                                        <>
-                                            <span className="font-medium text-[var(--text-secondary)]">
-                                                {new Date(goal.cycle_start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} 
-                                                {' - '}
-                                                {new Date(goal.cycle_end_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                                            </span>
-                                            <span className="w-1 h-1 rounded-full bg-white/20" />
-                                        </>
-                                    )}
-                                    <span className="font-mono text-[var(--text-secondary)]">{goal.weekly_target_minutes || 0}m/wk</span>
+                                    <span className="font-mono text-[var(--text-secondary)]"><span style={{ color: pillarColor }}>{goal.weekly_target_minutes || 0}m</span>/wk</span>
                                 </div>
                                 {/* Weekly Progress Bar */}
                                 {(goal.weekly_target_minutes || 0) > 0 && (() => {
@@ -198,14 +188,14 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                                 </div>
                             </div>
 
-                            {/* Key Stats Sliders */}
-                            <div className="grid grid-cols-2 gap-6">
+                            {/* Sliders & Toggles */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Duration Sliders */}
                                 <div className="space-y-4">
                                     <div className="space-y-2">
                                         <div className="flex justify-between">
                                             <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Days / Week</label>
-                                            <span className="text-xs font-mono font-bold text-[var(--text-primary)]"><span style={{ color: pillarColor }}>{localDaysPerWeek}</span>d</span>
+                                            <span className="text-xs font-mono font-bold text-[var(--text-primary)]"><span style={{ color: pillarColor }}>{localDaysPerWeek}d</span></span>
                                         </div>
                                         <input
                                             type="range" min={1} max={7} step={1}
@@ -220,7 +210,7 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                                     <div className="space-y-2">
                                         <div className="flex justify-between">
                                             <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Daily Mins</label>
-                                            <span className="text-xs font-mono font-bold text-[var(--text-primary)]"><span style={{ color: pillarColor }}>{localMinsPerDay}</span>m</span>
+                                            <span className="text-xs font-mono font-bold text-[var(--text-primary)]"><span style={{ color: pillarColor }}>{localMinsPerDay}m</span></span>
                                         </div>
                                         <input
                                             type="range" min={5} max={180} step={5}
@@ -234,66 +224,44 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                                     </div>
                                 </div>
 
-                                {/* Date Range */}
+                                {/* Toggles (Energy & Priority) */}
                                 <div className="space-y-4">
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Start Date</label>
-                                        <input 
-                                            type="date"
-                                            value={goal.cycle_start_date ? goal.cycle_start_date.split('T')[0] : ''}
-                                            onChange={(e) => onUpdate(goal.id, { cycle_start_date: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                                            className="w-full h-9 px-3 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] focus:border-white/30 text-[var(--text-primary)] text-sm outline-none transition-colors"
-                                        />
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Energy Demand</label>
+                                        <div className="flex bg-[var(--glass-bg)] p-1 rounded-lg border border-[var(--glass-border)]">
+                                            {(['light', 'medium', 'heavy'] as const).map(e => (
+                                                <button
+                                                    key={e}
+                                                    onClick={() => onUpdate(goal.id, { energy_demand: e })}
+                                                    className={`flex-1 text-[10px] font-medium py-1.5 rounded-md transition-all ${goal.energy_demand === e
+                                                        ? 'shadow-sm'
+                                                        : 'text-[var(--text-secondary)] bg-[var(--glass-bg)] hover:text-[var(--text-primary)]'
+                                                        }`}
+                                                    style={goal.energy_demand === e ? { backgroundColor: pillarColor, color: 'white' } : {}}
+                                                >
+                                                    {e}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">End Date</label>
-                                        <input 
-                                            type="date"
-                                            value={goal.cycle_end_date ? goal.cycle_end_date.split('T')[0] : ''}
-                                            onChange={(e) => onUpdate(goal.id, { cycle_end_date: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                                            className="w-full h-9 px-3 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] focus:border-white/30 text-[var(--text-primary)] text-sm outline-none transition-colors"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
 
-                            {/* Toggles (Energy & Priority) */}
-                            <div className="grid grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Energy Demand</label>
-                                    <div className="flex bg-[var(--glass-bg)] p-1 rounded-lg border border-[var(--glass-border)]">
-                                        {(['light', 'medium', 'heavy'] as const).map(e => (
-                                            <button
-                                                key={e}
-                                                onClick={() => onUpdate(goal.id, { energy_demand: e })}
-                                                className={`flex-1 text-[10px] font-medium py-1.5 rounded-md transition-all ${goal.energy_demand === e
-                                                    ? 'shadow-sm'
-                                                    : 'text-[var(--text-secondary)] bg-[var(--glass-bg)] hover:text-[var(--text-primary)]'
-                                                    }`}
-                                                style={goal.energy_demand === e ? { backgroundColor: pillarColor, color: 'white' } : {}}
-                                            >
-                                                {e}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Priority</label>
-                                    <div className="flex bg-[var(--glass-bg)] p-1 rounded-lg border border-[var(--glass-border)]">
-                                        {(['low', 'medium', 'high'] as const).map(p => (
-                                            <button
-                                                key={p}
-                                                onClick={() => onUpdate(goal.id, { importance: p })}
-                                                className={`flex-1 text-[10px] font-medium py-1.5 rounded-md transition-all ${goal.importance === p
-                                                    ? 'shadow-sm'
-                                                    : 'text-[var(--text-secondary)] bg-[var(--glass-bg)] hover:text-[var(--text-primary)]'
-                                                    }`}
-                                                style={goal.importance === p ? { backgroundColor: pillarColor, color: 'white' } : {}}
-                                            >
-                                                {p}
-                                            </button>
-                                        ))}
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Priority</label>
+                                        <div className="flex bg-[var(--glass-bg)] p-1 rounded-lg border border-[var(--glass-border)]">
+                                            {(['low', 'medium', 'high'] as const).map(p => (
+                                                <button
+                                                    key={p}
+                                                    onClick={() => onUpdate(goal.id, { importance: p })}
+                                                    className={`flex-1 text-[10px] font-medium py-1.5 rounded-md transition-all ${goal.importance === p
+                                                        ? 'shadow-sm'
+                                                        : 'text-[var(--text-secondary)] bg-[var(--glass-bg)] hover:text-[var(--text-primary)]'
+                                                        }`}
+                                                    style={goal.importance === p ? { backgroundColor: pillarColor, color: 'white' } : {}}
+                                                >
+                                                    {p}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
