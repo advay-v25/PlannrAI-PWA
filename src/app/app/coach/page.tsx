@@ -17,9 +17,18 @@ function CoachPageInner() {
     const initialized = useRef(false);
 
     useEffect(() => {
-        if (context === 'calendar' && messages.length === 0 && !initialized.current) {
+        if (context === 'do_more_today' && messages.length === 0 && !initialized.current) {
+            initialized.current = true;
+            sendMessage("I have some extra time today. What should I tackle right now?");
+            const url = new URL(window.location.href);
+            url.searchParams.delete('context');
+            window.history.replaceState({}, '', url.toString());
+        } else if (context === 'calendar' && messages.length === 0 && !initialized.current) {
             initialized.current = true;
             sendMessage("I'm looking at my calendar and need some help.");
+            const url = new URL(window.location.href);
+            url.searchParams.delete('context');
+            window.history.replaceState({}, '', url.toString());
         }
     }, [context, messages.length, sendMessage]);
 

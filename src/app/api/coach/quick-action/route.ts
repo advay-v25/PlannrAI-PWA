@@ -134,7 +134,7 @@ export const POST = secureApiRoute(
             clientTimezone?: string; // IANA timezone string e.g. "Asia/Kolkata"
         };
 
-        if (!action || !['reduce_today_load', 'fix_today_schedule'].includes(action)) {
+        if (!action || !['reduce_today_load', 'fix_today_schedule', 'do_more_today'].includes(action)) {
             return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
         }
 

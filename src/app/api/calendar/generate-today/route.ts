@@ -549,6 +549,8 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
                 const bStart = timeToMinutes(b.start_time);
                 const bEnd = timeToMinutes(b.end_time);
                 for (const zone of commitmentZones) {
+                    // Morning Routine is treated as a commitment zone for other reasons, but don't drop blocks that overlap it
+                    if (zone.title === 'Morning Routine') continue;
                     // The breakfast block owns the 'Breakfast' zone — don't drop it against itself
                     if (isBreakfast && zone.title === 'Breakfast') continue;
                     if (bStart < zone.end && bEnd > zone.start) {

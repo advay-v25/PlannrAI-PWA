@@ -32,6 +32,7 @@ interface PersistentCoachData {
 
 interface CoachState extends PersistentCoachData {
   isLoading: boolean;
+  isLoadingHistory: boolean;
   error: string | null;
   minimalMode: boolean;
   canUndo: boolean;
@@ -97,6 +98,7 @@ export const useCoach = create<CoachState>()(
       messages: [],
       conversationId: null,
       isLoading: false,
+      isLoadingHistory: false,
       error: null,
       minimalMode: false,
       canUndo: false,
@@ -513,6 +515,7 @@ export const useCoach = create<CoachState>()(
       },
 
       loadHistory: async (conversationId?: string) => {
+        set({ isLoadingHistory: true });
         // Fetch from server to sync state
         try {
           const url = conversationId ? `/api/coach/history?id=${conversationId}` : '/api/coach/history';
@@ -540,6 +543,8 @@ export const useCoach = create<CoachState>()(
           }
         } catch (error) {
           console.error('[Coach] Failed to load server history:', error);
+        } finally {
+          set({ isLoadingHistory: false });
         }
       },
 
