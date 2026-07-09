@@ -357,7 +357,10 @@ export function useCalendar(initialDate: Date = new Date()) {
             const updateOps = ops.filter((o: any) => o.op === 'update_event' || o.op === 'move_event');
             const formattedUpdates = updateOps.map((o: any) => ({
                 id: o.event_id || o.block_id,
-                changes: o.fields || (o.to_start ? { start_time: o.to_start, end_time: o.to_end } : {})
+                changes: o.fields || {
+                    ...(o.to_start ? { start_time: o.to_start, end_time: o.to_end } : {}),
+                    ...((o.date || o.new_date) ? { date: o.date || o.new_date } : {}),
+                }
             }));
 
             const deleteOps = ops.filter((o: any) => o.op === 'delete_event' || o.op === 'delete');
@@ -378,8 +381,12 @@ export function useCalendar(initialDate: Date = new Date()) {
                 },
             };
 
-            // Force clear existing schedule when applying a full plan
-            if (body.action === 'plan_week' || body.action === 'optimize_day') {
+            // Force clear existing schedule when applying a FULL plan (generate-today /
+            // plan-week). Delta patches (patch.delta === true, e.g. Optimize Day) only
+            // apply their own ops — clearing the day would wipe meals, routines, and
+            // every block the option didn't recreate.
+            const isDelta = option.patch?.delta === true;
+            if (!isDelta && (body.action === 'plan_week' || body.action === 'optimize_day')) {
                 if (isSingleDay) {
                     body.clear_date = uniqueDates[0] || format(selectedDate, 'yyyy-MM-dd');
                 } else {

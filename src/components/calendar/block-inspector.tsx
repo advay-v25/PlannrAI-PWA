@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import {
     X, Check, SkipForward, Clock, Trash2, Edit3, Save, ListTodo,
-    Circle, CheckCircle2, Sparkles, Loader2, Pencil, Tag, AlertTriangle,
+    Circle, CheckCircle2, Sparkles, Loader2, Pencil, Tag,
     Lock, Unlock
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -36,7 +36,15 @@ const BLOCK_TYPE_META: Record<string, { label: string; icon: string; color: stri
     task: { label: 'Task', icon: '📋', color: 'text-blue-300' },
     anchor: { label: 'Anchor', icon: '📌', color: 'text-slate-400' },
     sleep: { label: 'Sleep', icon: '😴', color: 'text-gray-500' },
+    buffer: { label: 'Buffer', icon: '☕', color: 'text-blue-400' },
+    flex: { label: 'Flex', icon: '📋', color: 'text-amber-300' },
+    wind_down: { label: 'Wind Down', icon: '🌙', color: 'text-indigo-400' },
+    goal: { label: 'Goal', icon: '🎯', color: 'text-orange-400' },
 };
+
+// Fixed structural blocks are informational only: they show what the block is
+// and when it runs, with no actions.
+const READ_ONLY_TYPES = ['anchor', 'meal', 'routine', 'sleep', 'wind_down', 'buffer', 'break'];
 
 export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps) {
     const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -51,8 +59,11 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
     if (!block) return null;
 
     const isAnchor = block.block_type === 'anchor' || block.id?.startsWith('virt-cmt-');
+    const isReadOnly = isAnchor || READ_ONLY_TYPES.includes(block.block_type);
     const pillar = (block.pillar || block.goal?.pillar || '').toLowerCase();
-    const pillarStyle = PILLAR_COLORS[pillar];
+    // Blocks without a pillar (anchors, meals, routines…) have no PILLAR_COLORS
+    // entry — fall back to null and guard every usage so the panel never crashes.
+    const pillarStyle = PILLAR_COLORS[pillar] || null;
     const blockMeta = BLOCK_TYPE_META[block.block_type] || BLOCK_TYPE_META.task;
     const isDone = block.status === 'done';
     const isMissed = block.status === 'missed';
@@ -124,8 +135,8 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
             {/* Header — accent colored */}
             <div className={cn(
                 "px-5 py-4 flex items-start justify-between",
-                pillarStyle.bg,
-                pillarStyle.border,
+                pillarStyle?.bg,
+                pillarStyle?.border,
                 "border-b"
             )}>
                 <div className="flex-1 min-w-0">
@@ -140,7 +151,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                     </div>
 
                     {/* Title — editable */}
-                    {isEditingTitle ? (
+                    {isEditingTitle && !isReadOnly ? (
                         <div className="flex gap-2">
                             <input
                                 value={editTitle}
@@ -159,7 +170,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                             <h2 className="text-lg font-bold text-[var(--text-primary)] leading-tight truncate">
                                 {block.title || block.context || 'Untitled Block'}
                             </h2>
-                            {!isAnchor && (
+                            {!isReadOnly && (
                                 <button onClick={startEditingTitle}
                                     className="opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1 rounded hover:bg-[var(--glass-bg)] transition-all shrink-0">
                                     <Pencil className="w-3.5 h-3.5 text-[var(--text-tertiary)]" />
@@ -201,7 +212,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                                 <Clock className="w-3.5 h-3.5" />
                                 <span className="text-[10px] font-bold uppercase tracking-widest">Time</span>
                             </div>
-                            {!isAnchor && (
+                            {!isReadOnly && (
                                 <button onClick={isEditingTime ? saveTimeEdit : startEditingTime}
                                     className="flex items-center gap-1 text-[10px] font-bold text-violet-400 hover:text-violet-300 transition-colors">
                                     {isEditingTime ? <><Save className="w-3 h-3" /> Save</> : <><Edit3 className="w-3 h-3" /> Edit</>}
@@ -209,7 +220,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                             )}
                         </div>
 
-                        {isEditingTime ? (
+                        {isEditingTime && !isReadOnly ? (
                             <div className="flex items-center gap-2">
                                 <input type="time" value={editStart} onChange={e => setEditStart(e.target.value)}
                                     className="flex-1 px-3 py-2 rounded-lg bg-[var(--glass-bg)] border border-[var(--glass-border)] text-sm text-[var(--text-primary)] [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-purple-500/30" />
@@ -261,7 +272,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                     )}
 
                     {/* Checklist / Habit Stacks */}
-                    {hasSubTasks && (
+                    {hasSubTasks && !isReadOnly && (
                         <div className="rounded-xl glass-panel overflow-hidden">
                             <div className="px-4 py-3 flex items-center justify-between border-b border-white/5">
                                 <div className="flex items-center gap-2 text-[var(--text-secondary)]">
@@ -336,7 +347,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                     )}
 
                     {/* Generate Sub-tasks (when empty) */}
-                    {!hasSubTasks && block.block_type !== 'sleep' && block.block_type !== 'break' && block.block_type !== 'meal' && (
+                    {!hasSubTasks && !isReadOnly && block.block_type !== 'sleep' && block.block_type !== 'break' && block.block_type !== 'meal' && (
                         <LiquidGlassButton
                             onClick={generateSubtasks}
                             disabled={isGenerating}
@@ -353,7 +364,9 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                 </div>
             </div>
 
-            {/* Actions — bottom pinned */}
+            {/* Actions — bottom pinned. Read-only blocks (anchors, meals, routines,
+                sleep, wind-down, buffers) show no actions at all. */}
+            {!isReadOnly && (
             <div className="shrink-0 border-t border-white/5 bg-[var(--glass-bg)] backdrop-blur-2xl p-4 space-y-2">
                 {/* Status actions */}
                 {!isAnchor && (
@@ -414,16 +427,8 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                     }
                 </LiquidGlassButton>
 
-                {/* Anchor warning */}
-                {isAnchor && (
-                    <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-500/5 border border-amber-500/10">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500/60 shrink-0 mt-0.5" />
-                        <span className="text-[10px] text-amber-400/60 leading-tight">
-                            This is a fixed commitment. Deleting removes it from your entire schedule permanently.
-                        </span>
-                    </div>
-                )}
             </div>
+            )}
         </div>
     );
 }

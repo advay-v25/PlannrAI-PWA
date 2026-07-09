@@ -313,6 +313,11 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
                 const [h, m] = t.split(':').map(Number);
                 return (h || 0) * 60 + (m || 0);
             };
+            const minutesToTimeStr = (m: number) => {
+                const h = Math.floor(m / 60) % 24;
+                const mm = m % 60;
+                return `${h.toString().padStart(2, '0')}:${mm.toString().padStart(2, '0')}`;
+            };
 
             // Build commitment exclusion zones (commitment time ± 30 min buffer)
             // DB stores days_of_week with JS encoding: Sun=0, Mon=1...Sat=6
@@ -326,9 +331,11 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
                 }));
             
             if (morningRoutineBufferMins > 0) {
+                // Exact window (no buffer): breakfast is allowed to start immediately
+                // at the routine's end, and nothing may overlap the routine itself.
                 commitmentZones.push({
-                    start: timeToMinutes(wakeTime) - 30, // Treat as anchor
-                    end: timeToMinutes(effectiveWakeTime) + 30,
+                    start: timeToMinutes(wakeTime),
+                    end: timeToMinutes(effectiveWakeTime),
                     title: 'Morning Routine'
                 });
             }
@@ -462,12 +469,88 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
                     };
                 });
 
+            // --- Post-processing: Morning Routine priority + breakfast placement ---
+            // Rules:
+            // 1. The Morning Routine (when configured) is always the first block,
+            //    pinned exactly to wake → wake + routine minutes. Blocks clashing
+            //    with it are dropped — the routine always wins.
+            // 2. Breakfast goes at the user's onboarding-preferred time (breakfast
+            //    window start). If that time falls during the morning routine (or
+            //    before wake), breakfast moves to immediately after the routine.
+            // 3. If neither slot is free of commitments, breakfast is skipped.
+            // 4. The final breakfast slot becomes a protected zone so no other
+            //    generated block can clash with it.
+            const enforceMorningOrder = (list: any[]) => {
+                const wakeMin = timeToMinutes(wakeTime);
+                const effWakeMin = timeToMinutes(effectiveWakeTime); // === wakeMin when no routine
+                const hasRoutine = morningRoutineBufferMins > 0;
+
+                let routineBlock: any = null;
+                let breakfastBlock: any = null;
+                const rest: any[] = [];
+
+                for (const b of list) {
+                    if (hasRoutine && b.title === 'Morning Routine' && b.block_type === 'routine') {
+                        if (!routineBlock) routineBlock = { ...b, start_time: wakeTime, end_time: effectiveWakeTime };
+                        continue; // dedupe AI-emitted duplicates
+                    }
+                    const isBreakfast = b.block_type === 'meal' && /breakfast/i.test(b.title || '');
+                    if (isBreakfast) {
+                        if (!breakfastBlock) breakfastBlock = b;
+                        continue; // one breakfast max
+                    }
+                    const bStart = timeToMinutes(b.start_time);
+                    const bEnd = timeToMinutes(b.end_time);
+                    if (hasRoutine && bStart < effWakeMin && bEnd > wakeMin) continue; // routine has priority
+                    rest.push(b);
+                }
+
+                const out: any[] = [];
+                if (routineBlock) out.push(routineBlock);
+
+                if (breakfastBlock) {
+                    const dur = Math.max(15,
+                        timeToMinutes(breakfastBlock.end_time) - timeToMinutes(breakfastBlock.start_time));
+                    const preferredStr = (mealWindows as any)?.breakfast?.start;
+                    const preferred = preferredStr ? timeToMinutes(preferredStr) : null;
+
+                    const slotIsFree = (startMin: number) => !commitmentZones.some(z =>
+                        z.title !== 'Morning Routine' && startMin < z.end && startMin + dur > z.start
+                    );
+
+                    // Preferred onboarding time first; routine window pushes it to
+                    // right after the routine; commitments force the fallback or skip.
+                    const candidates: number[] = [];
+                    if (preferred !== null && preferred >= effWakeMin) candidates.push(preferred);
+                    candidates.push(effWakeMin);
+
+                    const chosen = candidates.find(slotIsFree);
+                    if (chosen !== undefined) {
+                        out.push({
+                            ...breakfastBlock,
+                            start_time: minutesToTimeStr(chosen),
+                            end_time: minutesToTimeStr(chosen + dur),
+                        });
+                        // Protect the breakfast slot from every other generated block
+                        commitmentZones.push({ start: chosen, end: chosen + dur, title: 'Breakfast' });
+                    }
+                    // no free slot → breakfast skipped for the day
+                }
+
+                out.push(...rest);
+                return out;
+            };
+            const morningOrderedBlocks = enforceMorningOrder(cleanBlocks);
+
             // --- Post-processing: Filter out commitment-overlapping blocks ---
-            const filteredBlocks = cleanBlocks.filter((b: any) => {
+            const filteredBlocks = morningOrderedBlocks.filter((b: any) => {
                 if (b.title === 'Morning Routine') return true;
+                const isBreakfast = b.block_type === 'meal' && /breakfast/i.test(b.title || '');
                 const bStart = timeToMinutes(b.start_time);
                 const bEnd = timeToMinutes(b.end_time);
                 for (const zone of commitmentZones) {
+                    // The breakfast block owns the 'Breakfast' zone — don't drop it against itself
+                    if (isBreakfast && zone.title === 'Breakfast') continue;
                     if (bStart < zone.end && bEnd > zone.start) {
                         console.log(`[GenerateToday] Removing block "${b.title}" (${b.start_time}-${b.end_time}) — overlaps commitment zone "${zone.title}"`);
                         return false;
@@ -663,8 +746,10 @@ function generateFlowStateFallback(
         const mealStart = Math.max(windowStart, wakeMins);
         const mealEnd = mealStart + durationMin;
 
-        // Only place if within waking hours and window
-        if (mealEnd <= windDownMins + 60 && mealStart < windowEnd) {
+        // Only place if within waking hours and window. Breakfast is exempt from
+        // the window-end check: the morning routine may push it past its window,
+        // and routine-then-breakfast ordering takes priority over the window.
+        if (mealEnd <= windDownMins + 60 && (mealKey === 'breakfast' || mealStart < windowEnd)) {
             blocks.push({
                 date,
                 start_time: minutesToTime(mealStart),

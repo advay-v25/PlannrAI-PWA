@@ -120,13 +120,19 @@ export async function generateWeekPlan(
         }
     }
 
+    // Morning routine occupies wake → wake + routine mins; breakfast must never clash with it
+    const morningRoutineMins = (context.user as any).morning_routine_mins || 0;
+
     if (mealsPerDay >= 1) {
-        let start = (mealWindows as any)?.breakfast?.start || '08:00';
-        // Ensure breakfast doesn't overlap with sleep
         const wakeTime = context.user.sleep_end || '07:00';
-        if (timeToMinutes(start) < timeToMinutes(wakeTime)) {
-            start = wakeTime;
-        }
+        const effWakeMins = timeToMinutes(wakeTime) + morningRoutineMins;
+        const windowStart = (mealWindows as any)?.breakfast?.start;
+        // Prefer the user's onboarding breakfast time. If it falls during the
+        // morning routine (or before wake), the routine wins and breakfast
+        // follows immediately after it.
+        const start = (windowStart && timeToMinutes(windowStart) >= effWakeMins)
+            ? windowStart
+            : minutesToTime(effWakeMins);
         bioTemplates.push({ title: 'Breakfast', block_type: 'meal', start, end: safeAddMins(start, 30) });
     }
     if (mealsPerDay >= 2) {
@@ -171,7 +177,6 @@ export async function generateWeekPlan(
     }
 
     // Morning routine: block generated identically to Wind Down
-    const morningRoutineMins = (context.user as any).morning_routine_mins || 0;
     if (morningRoutineMins > 0) {
         const wakeTimeMins = timeToMinutes(context.user.sleep_end || '07:00');
         const morningRoutineEnd = wakeTimeMins + morningRoutineMins;
@@ -260,13 +265,51 @@ function generateVariant(
     for (let i = 1; i <= 7; i++) workloadPerDay.set(i, 0);
 
     // 1. Add bio blocks directly to the schedule
+    const routineTmpl = bioTemplates.find(t => t.title === 'Morning Routine');
+    const effWakeMins = routineTmpl ? timeToMinutes(routineTmpl.end) : wakeMins;
+    // Per-day exclusion zones added at materialization time (e.g. a breakfast
+    // moved off its template time) — applied after the exclusions deep-copy.
+    const extraExclusions: Array<{ day: number; start: number; end: number }> = [];
+
     for (let day = 0; day < 7; day++) {
         const date = format(addDays(parseISO(weekStart), day), 'yyyy-MM-dd');
+        const jsDay = parseISO(date).getDay();
+        const dayNum = jsDay === 0 ? 7 : jsDay;
+        const hardZones = (baseExclusions.get(dayNum) || [])
+            .filter(x => x.type === 'anchor' || x.type === 'existing_block');
+        const overlapsHard = (s: number, e: number) => hardZones.some(x => s < x.end && e > x.start);
+
         for (const tmpl of bioTemplates) {
+            let start = tmpl.start;
+            let end = tmpl.end;
+
+            // The morning routine must never clash with anchors or fixed blocks —
+            // if one owns the wake slot on this day, skip the routine entirely.
+            if (tmpl.title === 'Morning Routine'
+                && overlapsHard(timeToMinutes(start), timeToMinutes(end))) {
+                continue;
+            }
+
+            // Breakfast: the user's preferred time first; if an anchor/fixed block
+            // occupies it, fall back to immediately after the morning routine;
+            // if that is blocked too, skip breakfast for this day.
+            if (tmpl.title === 'Breakfast') {
+                const dur = timeToMinutes(end) - timeToMinutes(start);
+                if (overlapsHard(timeToMinutes(start), timeToMinutes(end))) {
+                    const fbStart = effWakeMins;
+                    const fbEnd = effWakeMins + dur;
+                    if (overlapsHard(fbStart, fbEnd)) continue;
+                    start = minutesToTime(fbStart);
+                    end = minutesToTime(fbEnd);
+                    // Reserve the moved slot so goal blocks can't land on it
+                    extraExclusions.push({ day: dayNum, start: fbStart, end: fbEnd + 15 });
+                }
+            }
+
             blocks.push({
                 date,
-                start_time: tmpl.start,
-                end_time: tmpl.end,
+                start_time: start,
+                end_time: end,
                 title: tmpl.title,
                 block_type: tmpl.block_type
             });
@@ -281,6 +324,10 @@ function generateVariant(
 
     for (const [d, ex] of baseExclusions.entries()) {
         exclusions.set(d, ex.map(e => ({ ...e })));
+    }
+    // Reserve slots for breakfasts that were moved off their template time
+    for (const extra of extraExclusions) {
+        exclusions.get(extra.day)?.push({ start: extra.start, end: extra.end, title: 'Breakfast', type: 'meal' });
     }
 
     // Sort goals using a mathematical probability tree: Weekly Progress -> Importance -> Energy Demand -> Total Minutes

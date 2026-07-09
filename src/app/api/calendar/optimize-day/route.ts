@@ -16,7 +16,7 @@ export const POST = secureApiRoute(
             const calendarCtx = await buildCalendarContext(userId, supabase);
 
             // 2. Run optimization
-            const result = await optimizeDayAI(calendarCtx, focus);
+            const result = await optimizeDayAI(calendarCtx, focus, targetDate);
 
             // 3. Convert options to frontend format (add patch wrapper)
             // CRITICAL: inject target date into all create_event payloads
@@ -33,6 +33,9 @@ export const POST = secureApiRoute(
                         return op;
                     }),
                     undoable: true,
+                    // Delta patch: applies only these ops — the day must NOT be
+                    // cleared, so sleep/meals/anchors/routines are never wiped.
+                    delta: true,
                     reason: `Optimize Day: ${opt.label}`,
                 },
             }));

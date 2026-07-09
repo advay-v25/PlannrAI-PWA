@@ -13,7 +13,8 @@ interface CoachMessageBubbleProps {
  * Returns an array of React elements.
  */
 function renderMarkdown(text: string): React.ReactNode[] {
-    const lines = text.split('\n');
+    // Messages persisted with null content (e.g. AI returned no dialogue) must not crash the hub
+    const lines = (text || '').split('\n');
     const elements: React.ReactNode[] = [];
 
     lines.forEach((line, lineIdx) => {
@@ -171,7 +172,7 @@ export function CoachMessageBubble({ message }: CoachMessageBubbleProps) {
                         </div>
                     )}
                     <div className={cn("text-sm leading-relaxed", isUser ? "font-medium" : "text-[var(--text-primary)]")}>
-                        {isUser ? message.content : renderMarkdown(sanitizeContent(message.content))}
+                        {isUser ? message.content : renderMarkdown(sanitizeContent(message.content || ''))}
                     </div>
 
                     {/* Thinking Steps — Collapsed by default */}
