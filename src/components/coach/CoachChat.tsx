@@ -234,8 +234,11 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
     const [isApplyingChanges, setIsApplyingChanges] = useState(false);
     const [isQuickActionLoading, setIsQuickActionLoading] = useState(false);
 
-    // Synthetic messages from quick-action endpoint (no server conversation needed)
+    // Synthetic messages from quick-action endpoint. The endpoint also persists
+    // the exchange as a coach conversation (so it appears in the sidebar and
+    // reloads read-only like manual prompts); this holds the live-session copy.
     const [syntheticMessages, setSyntheticMessages] = useState<CoachMessage[]>([]);
+    const [quickConversationId, setQuickConversationId] = useState<string | null>(null);
 
     // Auto-scroll when either message source updates
     useEffect(() => {
@@ -262,9 +265,10 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
             const res = await apiClient.delete<any>(`/api/coach/conversations?id=${id}`);
             if (res) {
                 setPastConversations(prev => prev.filter(c => c.id !== id));
-                if (conversationId === id) {
+                if (conversationId === id || quickConversationId === id) {
                     clearConversation();
                     setSyntheticMessages([]);
+                    setQuickConversationId(null);
                 }
                 showToast('Chat deleted', 'success');
             }
@@ -327,8 +331,17 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
             const { summary, ops } = raw;
             const assistantId = `assistant_${Date.now()}`;
 
+            // The quick action is persisted server-side as a conversation — track it
+            // so applying the option records against it, and refresh the sidebar.
+            if (raw.conversation_id) {
+                setQuickConversationId(raw.conversation_id);
+                apiClient.get<any>('/api/coach/conversations')
+                    .then(res => { if (res) setPastConversations(res.conversations || []); })
+                    .catch(() => { /* sidebar refresh is best-effort */ });
+            }
+
             const option: ProposedOption = {
-                id: `opt_${Date.now()}`,
+                id: raw.option_id || `opt_${Date.now()}`,
                 title: labelMap[action],
                 description: summary,
                 impact: `${raw.meta?.moved || 0} block${(raw.meta?.moved || 0) !== 1 ? 's' : ''} rescheduled${raw.meta?.dropped ? `, ${raw.meta.dropped} dropped` : ''}`,
@@ -397,7 +410,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
         if (isSynthetic) {
             try {
                 const result = await apiClient.post<any>('/api/coach/apply', {
-                    conversation_id: null,
+                    conversation_id: quickConversationId,
                     option_id: option.id,
                     patch: option.ledger,
                 });
@@ -408,6 +421,11 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                             ? { ...m, selected_option_id: option.id, undoToken: result.undo_token }
                             : m
                     ));
+                    // Sync the shared coach store so the global Undo strip works
+                    // the same way it does for manual prompts
+                    if (result.undo_token) {
+                        useCoach.setState({ canUndo: true, lastUndoToken: result.undo_token });
+                    }
                     onCalendarUpdate?.();
                     import('@/stores').then(({ useSyncStore }) => {
                         useSyncStore.getState().incrementGraphVersion();
@@ -478,6 +496,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
     const handleNewChat = () => {
         clearConversation();
         setSyntheticMessages([]);
+        setQuickConversationId(null);
     };
 
     return (
@@ -530,6 +549,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                     onClick={() => {
                                         clearConversation();
                                         setSyntheticMessages([]);
+                                        setQuickConversationId(null);
                                         loadHistory(conv.id);
                                     }}
                                     className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[var(--glass-bg)] border border-transparent hover:border-[var(--glass-border)] transition-all flex flex-col gap-0.5 pr-8"

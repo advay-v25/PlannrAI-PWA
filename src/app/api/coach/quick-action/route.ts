@@ -63,7 +63,10 @@ function findFreeSlot(
 
     const windDownStart = ((sleepMins - windDownMins) + 1440) % 1440;
     const scheduleStart = wakeMins + morningRoutineMins;
-    const scheduleEnd = windDownStart === 0 ? 1440 : windDownStart;
+    // Sleep after midnight puts wind-down numerically before wake — cap the
+    // schedulable day at midnight instead of producing an empty window.
+    let scheduleEnd = windDownStart === 0 ? 1440 : windDownStart;
+    if (scheduleEnd <= scheduleStart) scheduleEnd = 1440;
 
     let cursor = scheduleStart;
     if (notBeforeTime) {
@@ -134,6 +137,77 @@ export const POST = secureApiRoute(
         if (!action || !['reduce_today_load', 'fix_today_schedule'].includes(action)) {
             return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
         }
+
+        const QUICK_ACTION_LABELS: Record<string, string> = {
+            reduce_today_load: "Reduce Today's Load",
+            fix_today_schedule: "Fix Today's Schedule",
+        };
+        const quickLabel = QUICK_ACTION_LABELS[action];
+
+        // Persist the quick action as a coach conversation so it shows up in the
+        // Coach Hub sidebar and reloads read-only — exactly like manual prompts.
+        const persistQuickChat = async (summary: string, ops: any[], impact: string): Promise<{ conversationId: string | null; optionId: string }> => {
+            const optionId = 'opt_quick_1';
+            try {
+                const nowIso = new Date().toISOString();
+                const { data: conv, error: convError } = await supabase
+                    .from('coach_conversations')
+                    .insert({
+                        user_id: user.id,
+                        status: 'active',
+                        started_at: nowIso,
+                        last_message_at: nowIso,
+                        primary_topic: quickLabel,
+                        total_messages: 2,
+                    })
+                    .select('id')
+                    .single();
+
+                if (convError || !conv) {
+                    console.warn('[QuickAction] Failed to create conversation:', convError);
+                    return { conversationId: null, optionId };
+                }
+
+                await supabase.from('coach_messages').insert({
+                    conversation_id: conv.id,
+                    user_id: user.id,
+                    role: 'user',
+                    content: quickLabel,
+                    created_at: nowIso,
+                });
+
+                const option = ops.length > 0 ? {
+                    id: optionId,
+                    title: quickLabel,
+                    description: summary,
+                    impact,
+                    recommended: true,
+                    ledger: {
+                        ops,
+                        operations: ops,
+                        undoable: true,
+                        scope: 'week',
+                        reason: quickLabel,
+                        requires_confirmation: false,
+                    },
+                } : null;
+
+                await supabase.from('coach_messages').insert({
+                    conversation_id: conv.id,
+                    user_id: user.id,
+                    role: 'assistant',
+                    content: summary,
+                    mode: option ? 'propose' : 'normal',
+                    options: option ? [option] : null,
+                    created_at: new Date(Date.now() + 1000).toISOString(),
+                });
+
+                return { conversationId: conv.id, optionId };
+            } catch (e) {
+                console.error('[QuickAction] Failed to persist conversation:', e);
+                return { conversationId: null, optionId };
+            }
+        };
 
         // ── Profile: timezone + sleep/routine settings ────────────────────────
         const { data: profile } = await supabase
@@ -279,10 +353,15 @@ export const POST = secureApiRoute(
                 if (droppedLines) summary += (movedLines ? '\n\n' : '') + `Removed (no space this week):\n${droppedLines}`;
             }
 
+            const impact = `${movedResults.length} block${movedResults.length !== 1 ? 's' : ''} rescheduled${droppedResults.length ? `, ${droppedResults.length} dropped` : ''}`;
+            const { conversationId, optionId } = await persistQuickChat(summary.trim(), ops, impact);
+
             return NextResponse.json({
                 success: true,
                 summary: summary.trim(),
                 ops,
+                conversation_id: conversationId,
+                option_id: optionId,
                 meta: { kept: highPriorityKept.length, moved: movedResults.length, dropped: droppedResults.length },
             });
         }
@@ -298,10 +377,14 @@ export const POST = secureApiRoute(
             );
 
             if (overdue.length === 0) {
+                const noOpSummary = `No overdue blocks found before ${fmt24(currentTime)}. Your remaining schedule looks good.`;
+                const { conversationId, optionId } = await persistQuickChat(noOpSummary, [], 'No changes needed');
                 return NextResponse.json({
                     success: true,
-                    summary: `No overdue blocks found before ${fmt24(currentTime)}. Your remaining schedule looks good.`,
+                    summary: noOpSummary,
                     ops: [],
+                    conversation_id: conversationId,
+                    option_id: optionId,
                     meta: { moved: 0, dropped: 0 },
                 });
             }
@@ -373,10 +456,15 @@ export const POST = secureApiRoute(
             if (movedLines) summary += `Rescheduling:\n${movedLines}`;
             if (droppedLines) summary += (movedLines ? '\n\n' : '') + `Could not reschedule:\n${droppedLines}`;
 
+            const impact = `${movedResults.length} block${movedResults.length !== 1 ? 's' : ''} rescheduled${droppedResults.length ? `, ${droppedResults.length} dropped` : ''}`;
+            const { conversationId, optionId } = await persistQuickChat(summary.trim(), ops, impact);
+
             return NextResponse.json({
                 success: true,
                 summary: summary.trim(),
                 ops,
+                conversation_id: conversationId,
+                option_id: optionId,
                 meta: { moved: movedResults.length, dropped: droppedResults.length },
             });
         }

@@ -131,6 +131,7 @@ export interface ScheduleBlock {
     is_fixed?: boolean;
     commitment_id?: string;
     pillar?: string;
+    is_locked?: boolean;
 }
 
 // ── Utilities ────────────────────────────────────────────────────
@@ -198,7 +199,7 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
 
         // 5. Today's Blocks
         db.from('schedule_blocks')
-            .select('id, date, start_time, end_time, title, status, block_type, goal_id, is_fixed, commitment_id, pillar')
+            .select('id, date, start_time, end_time, title, status, block_type, goal_id, is_fixed, commitment_id, pillar, is_locked')
             .eq('user_id', userId)
             .eq('date', todayStr)
             .neq('status', 'cancelled')
@@ -206,7 +207,7 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
 
         // 6. This Week's Blocks
         db.from('schedule_blocks')
-            .select('id, date, start_time, end_time, title, status, block_type, goal_id, is_fixed, commitment_id, pillar')
+            .select('id, date, start_time, end_time, title, status, block_type, goal_id, is_fixed, commitment_id, pillar, is_locked')
             .eq('user_id', userId)
             .gte('date', weekStartStr)
             .lte('date', weekEndStr)

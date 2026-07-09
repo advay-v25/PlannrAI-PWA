@@ -450,7 +450,7 @@ async function validateCoachOps(patch: any, userId: string, supabase: any): Prom
     if (!patch.ops || !Array.isArray(patch.ops)) return [];
 
     const errors: string[] = [];
-    const IMMUTABLE_TYPES = ['sleep', 'meal', 'wind_down', 'anchor'];
+    const IMMUTABLE_TYPES = ['sleep', 'meal', 'wind_down', 'anchor', 'routine'];
 
     // Collect all move/create target slots
     const targetSlots: Array<{ op: string; date: string; start: string; end: string; title: string; blockId?: string }> = [];

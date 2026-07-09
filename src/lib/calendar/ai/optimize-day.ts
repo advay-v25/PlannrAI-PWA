@@ -1,17 +1,20 @@
 /**
- * ⚡ PLANNRAI — OPTIMIZE DAY AI
- * Analyzes today's schedule and generates optimization options.
- * Uses energy level and time remaining to suggest adjustments.
+ * ⚡ PLANNRAI — OPTIMIZE DAY (deterministic)
+ * Analyzes the target day's schedule and generates optimization options.
+ *
+ * Strategies:
+ * - balanced: ensure every goal reaches its daily target with buffer time between blocks
+ * - momentum: fill every goal's daily target tightly, then pull mind/craft goal blocks
+ *   from later days this week into today's free slots (never body blocks)
+ * - recovery: push low-priority blocks to the next day; medium/high priority stay
+ *
+ * Hard rules:
+ * - NEVER moves, deletes, or overlaps sleep, meals, anchors, routines, or wind-down
+ *   blocks (or anything fixed/locked/commitment-backed)
+ * - Mind/craft goals may have multiple blocks on the same day; body goals may not
  */
 
-import { callAI } from '@/lib/ai/unified-client';
 import type { CalendarContext, ScheduleBlock } from '@/lib/calendar/context-builder';
-import {
-    computeDayPhases,
-    buildFlowPromptFragment,
-    buildBehaviorInsights,
-    buildGoalProgressFragment,
-} from '@/lib/calendar/flow-protocol';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -43,308 +46,393 @@ export interface OptimizeDayResult {
 
 // ── Utilities ────────────────────────────────────────────────────
 
+const PROTECTED_TYPES = ['sleep', 'meal', 'anchor', 'routine', 'wind_down'];
+
 function timeToMinutes(time: string): number {
     if (!time) return 0;
     const parts = time.split(':').map(Number);
     return (parts[0] || 0) * 60 + (parts[1] || 0);
 }
 
-function calculateWindDown(ctx: CalendarContext): string {
-    const sleepMins = timeToMinutes(ctx.user.sleep_start);
-    const windDownStart = sleepMins - (ctx.user.wind_down_mins || 30);
-    const h = Math.floor((windDownStart + 1440) % 1440 / 60);
-    const m = (windDownStart + 1440) % 1440 % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+function minutesToTime(mins: number): string {
+    const safe = ((Math.round(mins) % 1440) + 1440) % 1440;
+    return `${Math.floor(safe / 60).toString().padStart(2, '0')}:${(safe % 60).toString().padStart(2, '0')}`;
+}
+
+function addDaysISO(dateStr: string, n: number): string {
+    const d = new Date(dateStr + 'T12:00:00');
+    d.setDate(d.getDate() + n);
+    return d.toISOString().split('T')[0];
+}
+
+function isProtectedBlock(b: ScheduleBlock): boolean {
+    return PROTECTED_TYPES.includes(b.block_type)
+        || !!b.is_fixed
+        || !!b.commitment_id
+        || (b as any).is_locked === true;
+}
+
+type PriorityLevel = 'low' | 'medium' | 'high';
+
+function goalPriority(goal: any): PriorityLevel {
+    const p = goal?.importance ?? goal?.priority;
+    if (typeof p === 'string') {
+        if (p === 'high') return 'high';
+        if (p === 'low') return 'low';
+        return 'medium';
+    }
+    if (typeof p === 'number') {
+        if (p >= 7) return 'high';
+        if (p <= 3) return 'low';
+        return 'medium';
+    }
+    return 'medium';
+}
+
+// ── Slot allocator ───────────────────────────────────────────────
+// Tracks occupied intervals for one day and hands out free slots.
+
+interface Interval { start: number; end: number }
+
+class DayAllocator {
+    private occupied: Interval[] = [];
+    constructor(
+        private dayStart: number,
+        private dayEnd: number,
+    ) { }
+
+    block(start: number, end: number) {
+        if (end > start) this.occupied.push({ start, end });
+    }
+
+    /** Find and consume the first slot that fits `duration`, keeping `buffer`
+     *  minutes of separation from already-occupied time. */
+    allocate(duration: number, buffer: number): Interval | null {
+        const merged = [...this.occupied].sort((a, b) => a.start - b.start);
+        let cursor = this.dayStart;
+        for (const iv of merged) {
+            if (iv.end <= cursor) continue;
+            const gapEnd = Math.min(iv.start, this.dayEnd);
+            const usableStart = cursor === this.dayStart ? cursor : cursor + buffer;
+            const usableEnd = gapEnd >= this.dayEnd ? gapEnd : gapEnd - buffer;
+            if (usableEnd - usableStart >= duration) {
+                const slot = { start: usableStart, end: usableStart + duration };
+                this.block(slot.start, slot.end);
+                return slot;
+            }
+            cursor = Math.max(cursor, iv.end);
+            if (cursor >= this.dayEnd) return null;
+        }
+        // Tail gap after the last occupied interval
+        const usableStart = cursor === this.dayStart ? cursor : cursor + buffer;
+        if (this.dayEnd - usableStart >= duration) {
+            const slot = { start: usableStart, end: usableStart + duration };
+            this.block(slot.start, slot.end);
+            return slot;
+        }
+        return null;
+    }
+}
+
+// ── Context helpers ──────────────────────────────────────────────
+
+function blocksForDate(context: CalendarContext, date: string): ScheduleBlock[] {
+    const seen = new Set<string>();
+    const out: ScheduleBlock[] = [];
+    const pools = date === context.current.date
+        ? [context.schedule.today, context.schedule.this_week]
+        : [context.schedule.this_week, context.schedule.today];
+    for (const pool of pools) {
+        for (const b of pool || []) {
+            if (b.date !== date || seen.has(b.id)) continue;
+            seen.add(b.id);
+            out.push(b);
+        }
+    }
+    return out.filter(b => b.status !== 'cancelled');
+}
+
+function commitmentsForDate(context: CalendarContext, date: string): Interval[] {
+    const dow = new Date(date + 'T12:00:00').getDay();
+    return (context.commitments || [])
+        .filter((c: any) => c.is_active !== false && (c.days_of_week || []).map(Number).includes(dow))
+        .map((c: any) => ({ start: timeToMinutes(c.start_time), end: timeToMinutes(c.end_time) }));
+}
+
+function buildAllocator(context: CalendarContext, date: string, extraBlocked: Interval[] = []): DayAllocator {
+    const wakeMins = timeToMinutes(context.user.sleep_end || '07:00');
+    const sleepMins = timeToMinutes(context.user.sleep_start || '23:00');
+    const windDownStart = ((sleepMins - (context.user.wind_down_mins || 30)) + 1440) % 1440;
+
+    const dayStartBase = wakeMins + (context.user.morning_routine_mins || 0);
+    // If wind-down lands "before" wake numerically (sleep after midnight), cap at 23:59
+    const dayEnd = windDownStart > dayStartBase ? windDownStart : 1439;
+
+    // Never place anything before the current moment on today's schedule
+    const nowMins = date === context.current.date ? timeToMinutes(context.current.time) : 0;
+    const dayStart = Math.max(dayStartBase, nowMins);
+
+    const alloc = new DayAllocator(dayStart, dayEnd);
+    for (const b of blocksForDate(context, date)) {
+        alloc.block(timeToMinutes(b.start_time), timeToMinutes(b.end_time));
+    }
+    for (const iv of commitmentsForDate(context, date)) alloc.block(iv.start, iv.end);
+    for (const iv of extraBlocked) alloc.block(iv.start, iv.end);
+    return alloc;
+}
+
+function scheduledMinutesForGoal(blocks: ScheduleBlock[], goalId: string): number {
+    return blocks
+        .filter(b => b.goal_id === goalId)
+        .reduce((sum, b) => sum + Math.max(0, timeToMinutes(b.end_time) - timeToMinutes(b.start_time)), 0);
+}
+
+function makeGoalCreateOp(goal: any, slot: Interval): PatchOp {
+    return {
+        op: 'create_event',
+        payload: {
+            title: goal.title,
+            start_time: minutesToTime(slot.start),
+            end_time: minutesToTime(slot.end),
+            block_type: 'goal',
+            goal_id: goal.id,
+            pillar: goal.pillar || null,
+            status: 'planned',
+            checklist: [],
+        },
+    };
+}
+
+/** Create blocks that top every goal up to its daily target. Body goals get at
+ *  most one block per day; mind/craft may split into multiple chunks. */
+function fillGoalsToDailyTarget(
+    context: CalendarContext,
+    date: string,
+    alloc: DayAllocator,
+    buffer: number,
+    goalFilter?: (g: any) => boolean,
+): { ops: PatchOp[]; placed: string[] } {
+    const dayBlocks = blocksForDate(context, date);
+    const ops: PatchOp[] = [];
+    const placed: string[] = [];
+
+    const goals = [...(context.goals || [])]
+        .filter(g => g.is_active !== false)
+        .filter(g => !goalFilter || goalFilter(g))
+        .sort((a, b) => (b.importance || 5) - (a.importance || 5));
+
+    let bodyPlacedThisRun = dayBlocks.some(b => {
+        const g = context.goals.find(gg => gg.id === b.goal_id);
+        return (b.pillar || g?.pillar || '').toLowerCase() === 'body';
+    });
+
+    for (const goal of goals) {
+        const target = goal.minutes_per_day || 60;
+        // Never exceed the goal's daily allowance — chunks are capped at `remaining`
+        let remaining = target - scheduledMinutesForGoal(dayBlocks, goal.id);
+        if (remaining < 30) continue;
+
+        const isBody = (goal.pillar || '').toLowerCase() === 'body';
+        if (isBody && bodyPlacedThisRun) continue; // strictly one body block per day
+
+        let chunksPlaced = 0;
+        while (remaining >= 30) {
+            const chunk = Math.min(90, remaining);
+            const slot = alloc.allocate(chunk, buffer);
+            if (!slot) break;
+            ops.push(makeGoalCreateOp(goal, slot));
+            placed.push(`${goal.title} (${minutesToTime(slot.start)}–${minutesToTime(slot.end)})`);
+            remaining -= (slot.end - slot.start);
+            chunksPlaced++;
+            if (isBody) { bodyPlacedThisRun = true; break; } // body goals: single block only
+            if (chunksPlaced >= 3) break; // sanity cap
+        }
+    }
+
+    return { ops, placed };
 }
 
 // ── Main Function ────────────────────────────────────────────────
 
 export async function optimizeDayAI(
     context: CalendarContext,
-    focus?: string
+    focus?: string,
+    targetDate?: string
 ): Promise<OptimizeDayResult> {
-    const currentMins = timeToMinutes(context.current.time);
-    const windDown = calculateWindDown(context);
+    const date = targetDate || context.current.date;
+    const dayBlocks = blocksForDate(context, date);
+    const currentMins = date === context.current.date ? timeToMinutes(context.current.time) : 0;
 
-    // ── Bio-Context ─────────────────────────────────────────────
+    const remainingBlocks = dayBlocks.filter(b =>
+        timeToMinutes(b.start_time) >= currentMins && b.status !== 'done'
+    );
 
-    const userEnergy = context.user.energy_level || 5;
-    const userStress = context.user.stress_level || 3;
-    const chronotype = context.user.chronotype || 'bear';
-    const mealsPerDay = context.user.meals_per_day || 3;
-    const mealWindows = context.user.meal_windows || {};
+    const health = remainingBlocks.length > 8 ? 'overloaded'
+        : remainingBlocks.length > 4 ? 'busy but manageable'
+        : remainingBlocks.length > 0 ? 'balanced'
+        : 'light';
 
-    const chronotypeRules = chronotype === 'early_bird' || chronotype === 'lark'
-        ? 'EARLY BIRD: schedule deep work EARLY (7am-11am). Lighter tasks afternoon.'
-        : chronotype === 'night_owl' || chronotype === 'owl'
-            ? 'NIGHT OWL: schedule deep work LATE (11am-3pm, 4pm-8pm). Light mornings.'
-            : chronotype === 'wolf'
-                ? 'WOLF: peak productivity LATE (1pm-8pm). Easy mornings.'
-                : 'BEAR: deep work MID-MORNING (9am-12pm). Standard schedule.';
+    const options: DayOptimization[] = [];
 
-    // Compute flow-state phases and behavioral context
-    const wakeMins = timeToMinutes(context.user.sleep_end || '07:00');
-    const sleepMins = timeToMinutes(context.user.sleep_start || '23:00');
-    const phases = computeDayPhases(wakeMins, sleepMins, chronotype);
-    const flowFragment = buildFlowPromptFragment(phases, context);
-    const behaviorFragment = buildBehaviorInsights(context);
-    const progressFragment = buildGoalProgressFragment(context);
+    // ── RECOVERY: push low-priority blocks to the next day ───────
+    if (focus === 'recovery') {
+        const nextDate = addDaysISO(date, 1);
+        const nextAlloc = buildAllocator(context, nextDate);
+        const ops: PatchOp[] = [];
+        const movedTitles: string[] = [];
+        const keptTitles: string[] = [];
 
-    // ALL blocks for today (including past/done, for goal allocation tracking)
-    const allTodayBlocks = context.schedule.today;
+        for (const b of remainingBlocks) {
+            if (isProtectedBlock(b)) continue;
+            const goal = context.goals.find(g => g.id === b.goal_id);
+            const isLowPriority = goal
+                ? goalPriority(goal) === 'low'
+                : (b.block_type === 'flex'); // un-linked flex blocks are non-urgent
+            if (!isLowPriority) {
+                if (b.block_type === 'goal' || b.block_type === 'flex') keptTitles.push(b.title);
+                continue;
+            }
 
-    // Filter to remaining blocks (not yet past, not done)
-    const remainingBlocks = allTodayBlocks.filter(b => {
-        const blockStartMins = timeToMinutes(b.start_time);
-        return blockStartMins >= currentMins && b.status !== 'done' && b.status !== 'cancelled';
-    });
+            const duration = Math.max(30, timeToMinutes(b.end_time) - timeToMinutes(b.start_time));
+            const slot = nextAlloc.allocate(duration, 15);
+            if (!slot) continue; // no space tomorrow — leave the block where it is
 
-    const fixedBlocks = remainingBlocks.filter(b => b.is_fixed || b.commitment_id);
-    const movableBlocks = remainingBlocks.filter(b => !b.is_fixed && !b.commitment_id);
+            ops.push({
+                op: 'update_event',
+                event_id: b.id,
+                fields: {
+                    date: nextDate,
+                    start_time: minutesToTime(slot.start),
+                    end_time: minutesToTime(slot.end),
+                },
+            });
+            movedTitles.push(b.title);
+        }
 
-    // Calculate how many minutes each goal ALREADY has scheduled today
-    const goalAllocation = new Map<string, { title: string; scheduledMins: number; targetMins: number }>();
-    for (const goal of context.goals) {
-        const goalBlocks = allTodayBlocks.filter(b => b.goal_id === goal.id);
-        const scheduledMins = goalBlocks.reduce((sum, b) => {
-            return sum + Math.max(0, timeToMinutes(b.end_time) - timeToMinutes(b.start_time));
-        }, 0);
-        goalAllocation.set(goal.id, {
-            title: goal.title,
-            scheduledMins,
-            targetMins: goal.minutes_per_day || 60,
-        });
-    }
-
-    // Build goals text with allocation status
-    const goalsText = context.goals.length > 0
-        ? context.goals.map(g => {
-            const alloc = goalAllocation.get(g.id);
-            const scheduledMins = alloc?.scheduledMins || 0;
-            const targetMins = g.minutes_per_day || 60;
-            const isFull = scheduledMins >= targetMins;
-            const status = isFull ? '✅ FULLY SCHEDULED — DO NOT ADD MORE' : `⚠️ ${scheduledMins}/${targetMins}min scheduled`;
-            return `  - ${g.title} (${g.pillar.toUpperCase()}, ${g.energy_demand} energy): ${targetMins}min/day, ${status}, ID: ${g.id}`;
-        }).join('\n')
-        : '  (No specific goals)';
-
-    const commitmentsText = context.commitments.length > 0
-        ? context.commitments.filter(c => {
-            const dow = new Date(context.current.date + 'T12:00:00').getDay();
-            return (c.days_of_week || []).includes(dow as any);
-        }).map(c =>
-            `  - ${c.title}: ${c.start_time}-${c.end_time} (FIXED)`
-        ).join('\n')
-        : '  (No fixed commitments today)';
-
-    const habitStacksText = context.habitStacks?.length > 0
-        ? context.habitStacks.map(h =>
-            `  - When doing "${h.trigger_habit}" → also do "${h.action_habit}" (${h.action_duration_mins}min)`
-        ).join('\n')
-        : '  (No habit stacks)';
-
-    const systemPrompt = `You are PlannrAI's schedule optimizer — an expert in flow state management and energy-aware scheduling. Analyze the remaining day and suggest adjustments that respect the user's energy arc.
-
-CRITICAL RULES:
-1. NEVER move or delete FIXED blocks (is_fixed=true or has commitment_id)
-2. Wind-down starts at ${windDown} — no work after this
-3. Sleep starts at ${context.user.sleep_start} — everything must end before wind-down
-4. Generate exactly 2 optimization options. Each should be meaningfully different.
-5. You can use 'move_event' to shift blocks, 'delete_event' to cancel them, or 'create_event' to fill gaps.
-6. For 'create_event', payload must match: {"title":"...", "start_time":"HH:MM", "end_time":"HH:MM", "block_type":"goal|routine|meal|buffer|flex", "goal_id":"...", "pillar":"...", "checklist": [{"text": "Action item 1"}]}
-7. FLOW-STATE RULES:
-   - Follow the Energy Arc: don't move high-energy blocks into trough/wind-down phases
-   - After deep work (60-90min), ensure a 15min Active Recovery block exists
-   - 10-15 minute transition buffers between different activities
-   - MATHEMATICAL SPACING: If there are large gaps between fixed blocks, DO NOT pack all movable blocks sequentially into the morning. Mathematically center them or distribute them evenly across the available free time.
-   - If user's energy is low, suggest removing blocks, not adding them
-   - CHECKLIST SYNC: For every 'goal' block you create, generate a realistic 2-3 item checklist
-8. Use existing block IDs for move/delete operations
-9. Use the user's ACTUAL goal names and IDs. Do NOT invent generic blocks.
-10. block_type for create_event MUST be one of: goal, routine, meal, buffer, flex. NEVER use "task", "shopping", "errand", or any custom value.
-11. OPTION DIVERGENCE (CRITICAL): Option 1 and Option 2 MUST propose completely different operations. If Option 1 moves a block to 2:00 PM, Option 2 MUST move it somewhere else, or delete it, or leave it alone. Do NOT generate identical \`ops\` arrays for both options.
-
-🚫 IMMUTABLE BLOCKS (ABSOLUTE — NEVER VIOLATE):
-- NEVER move, delete, modify, or reschedule blocks of type: sleep, meal, wind_down, anchor, routine.
-- These are biological necessities and fixed commitments. They are SACRED.
-- To free up time, you MUST work around goal blocks, buffer blocks, or flex blocks ONLY.
-- If the user asks to skip sleep or meals, REFUSE and explain why it's harmful.
-- If all remaining blocks are immutable, tell the user there's nothing to optimize — their schedule is locked.
-
-🎯 GOAL TIME ENFORCEMENT (CRITICAL — HIGHEST PRIORITY):
-- Each goal has a minutes_per_day limit shown in the GOALS section below.
-- If a goal is marked "✅ FULLY SCHEDULED", you MUST NOT create any new blocks for that goal.
-- If a goal shows e.g. "60/90min scheduled", you may only add up to 30min more.
-- NEVER exceed the goal's daily minutes_per_day limit under any circumstances.
-- This rule overrides all other scheduling logic. Over-scheduling goals is the #1 bug to avoid.
-- When you see gaps in the schedule, fill them with buffers, routines, or flex blocks — NOT with more goal blocks if goals are already at their daily limit.
-- If a non-body goal (mind/craft) has a high weekly commitment (>120 mins), you MAY schedule multiple blocks for it on the same day to reach its limit.
-- You MUST NEVER schedule multiple body blocks (pillar: body) on the same day, regardless of the goal. Body blocks are strictly 1 block per day max globally to prevent physical over-taxing.
-
-BIO-CONTEXT:
-- ${chronotypeRules}
-- User energy: ${userEnergy}/10, Stress: ${userStress}/10
-- Plan density should match energy level. HIGH stress = MORE breaks, FEWER goal blocks.
-- Meals per day: ${mealsPerDay}
-${(mealWindows as any)?.breakfast ? `- Breakfast window: ${(mealWindows as any).breakfast.start}–${(mealWindows as any).breakfast.end}` : ''}
-${(mealWindows as any)?.lunch ? `- Lunch window: ${(mealWindows as any).lunch.start}–${(mealWindows as any).lunch.end}` : ''}
-${(mealWindows as any)?.dinner ? `- Dinner window: ${(mealWindows as any).dinner.start}–${(mealWindows as any).dinner.end}` : ''}
-${flowFragment}
-${behaviorFragment}
-Return valid JSON only.`;
-
-    const blocksText = remainingBlocks.map(b =>
-        `  - ID: ${b.id} | ${b.start_time}-${b.end_time} | "${b.title}" | ${b.block_type} | ${b.is_fixed ? 'FIXED' : 'movable'} | ${b.status}`
-    ).join('\n');
-
-    let strategyInstruction = '';
-    let optionsText = '';
-
-    if (focus === 'momentum') {
-        strategyInstruction = 'USER STRATEGY: MOMENTUM. Maximize output and deep work. Tighten the schedule and push harder. Ignore the afternoon trough if necessary to maintain momentum. Pack work early and back-to-back.';
-        optionsText = `Generate 2 options:\nOption 1: "Aggressive Sprint" — Maximum density, clustering all work into long uninterrupted blocks.\nOption 2: "Steady Momentum" — High output but retains standard meal breaks.`;
-    } else if (focus === 'recovery') {
-        strategyInstruction = 'USER STRATEGY: RECOVERY. Reduce overwhelm. Priority is active recovery and avoiding burnout. Aggressively remove low-priority blocks and shorten remaining blocks. Space remaining blocks out mathematically with at least 60-minute buffers between them. Do NOT schedule heavy new goals.';
-        optionsText = `Generate 2 options:\nOption 1: "Essential Only" — Strips schedule to only fixed commitments and highest priority goals.\nOption 2: "Active Recovery" — Includes essential goals but heavily spaces them out with massive buffers.`;
-    } else {
-        strategyInstruction = 'USER STRATEGY: BALANCED. Balance the schedule — ensure breaks, meals, and focus time are placed optimally until wind-down. Use mathematical centering to distribute tasks evenly across large free windows instead of clumping them all together.';
-        optionsText = `Generate 2 options:\nOption 1: "Realistic" — Balanced plan with standard meal times and evenly spaced blocks.\nOption 2: "Focused Flow" — Slightly more concentrated work/goals but still mathematically balanced.`;
-    }
-
-    // Build the full-day view (ALL blocks, including past) so AI sees what was already planned
-    const allBlocksText = allTodayBlocks.map(b =>
-        `  - ID: ${b.id} | ${b.start_time}-${b.end_time} | "${b.title}" | ${b.block_type} | ${b.is_fixed ? 'FIXED' : 'movable'} | ${b.status}${b.goal_id ? ` | goal_id: ${b.goal_id}` : ''}`
-    ).join('\n');
-
-    const userPrompt = `
-OPTIMIZE TODAY'S SCHEDULE
-
-CURRENT TIME: ${context.current.time}
-DATE: ${context.current.date}
-STRATEGY: ${focus || 'balanced'}
-WIND-DOWN: ${windDown}
-
-GOALS (with today's allocation — respect these limits!):
-${goalsText}
-
-FIXED COMMITMENTS (Must be scheduled if missing):
-${commitmentsText}
-
-FULL TODAY'S SCHEDULE (ALL ${allTodayBlocks.length} blocks — including past):
-${allBlocksText || '  (No blocks today)'}
-
-REMAINING BLOCKS (${remainingBlocks.length} — future only):
-${blocksText || '  (No remaining blocks)'}
-
-FIXED BLOCKS (${fixedBlocks.length}): Cannot be moved or deleted
-MOVABLE BLOCKS (${movableBlocks.length}): Can be rearranged or removed
-
-USER PERFORMANCE: ${context.performance.last_7_days_completion_rate}% completion rate last 7 days
-
-INSTRUCTIONS:
-${strategyInstruction}
-Identify gaps in the schedule and CREATE routines, Meals, and Focus Blocks for the user's goals if missing. Follow the ENERGY ARC — place deep work in peak/rebound phases, light work in trough/wind-down.
-REMEMBER: Check the goal allocation status above. If a goal is ✅ FULLY SCHEDULED, do NOT create more blocks for it. Only fill gaps with buffers, routines, meals, or flex blocks.
-${progressFragment}
-${optionsText}
-
-
-OUTPUT FORMAT (strict JSON):
-{
-  "analysis": {
-    "energy_state": "moderate",
-    "schedule_health": "busy but manageable",
-    "recommendation": "Consider dropping one low-priority block"
-  },
-  "options": [
-    {
-      "id": "realistic",
-      "label": "Realistic Plan",
-      "description": "Keep top priorities, defer the rest",
-      "tradeoff": "You'll miss the reading session but complete deep work",
-      "ops": [
-        {"op": "move_event", "event_id": "block-uuid", "to_start": "16:00", "to_end": "17:00"},
-        {"op": "create_event", "payload": {"title": "Evening Routine", "start_time": "19:00", "end_time": "20:00", "block_type": "routine", "goal_id": null, "pillar": null, "checklist": [{"text": "Wind down"}]}},
-        {"op": "delete_event", "event_id": "block-uuid"}
-      ]
-    }
-  ]
-}`;
-
-    const response = await callAI<OptimizeDayResult>({
-        prompt: userPrompt,
-        systemPrompt,
-        model: 'smart',
-        temperature: 0.5,
-        maxTokens: 4000,
-        requireJSON: true,
-        timeout: 110000,
-    });
-
-    if (!response.success || !response.data) {
-        console.warn('[OptimizeDay] AI failed:', response.error);
-        return generateFallbackOptimization(context, remainingBlocks);
-    }
-
-    // ── Validate ────────────────────────────────────────────────
-
-    const result = response.data;
-
-    return {
-        analysis: result.analysis || {
-            energy_state: 'unknown',
-            schedule_health: 'unknown',
-            recommendation: 'AI analysis unavailable',
-        },
-        options: (result.options || []).slice(0, 3).map((opt: any) => ({
-            id: opt.id || `option_${Math.random().toString(36).slice(2, 6)}`,
-            label: opt.label || 'Optimization',
-            description: opt.description || 'AI-suggested schedule adjustment',
-            tradeoff: opt.tradeoff || '',
-            ops: (opt.ops || []).filter((op: any) => op.op && ['create_event', 'move_event', 'update_event', 'delete_event'].includes(op.op)),
-        })),
-    };
-}
-
-// ── Fallback ─────────────────────────────────────────────────────
-
-function generateFallbackOptimization(ctx: CalendarContext, blocks: ScheduleBlock[]): OptimizeDayResult {
-    const PROTECTED_TYPES = ['sleep', 'meal', 'wind_down', 'anchor', 'buffer', 'routine'];
-    const health = blocks.length > 6 ? 'overloaded' : blocks.length > 0 ? 'manageable' : 'light';
-    // Only goal and flex blocks are movable — NEVER touch sleep, meal, anchor, buffer, wind_down, routine
-    const movable = blocks.filter(b => !b.is_fixed && !b.commitment_id && !PROTECTED_TYPES.includes(b.block_type));
-
-    const options: DayOptimization[] = [
-        {
-            id: 'keep',
-            label: 'Keep Current',
-            description: blocks.length === 0
-                ? 'Schedule is clear — add blocks or plan in the calendar'
-                : `Keep your ${blocks.length} remaining blocks as-is`,
-            tradeoff: 'No disruption to existing plan',
-            ops: [],
-        },
-    ];
-
-    // If there are movable blocks, offer a "light" option that removes low-priority ones
-    if (movable.length > 1) {
-        const lowestPriority = movable[movable.length - 1];
         options.push({
-            id: 'lighten',
-            label: 'Lighten Load',
-            description: `Remove "${lowestPriority.title}" to free up time`,
-            tradeoff: `You'll skip ${lowestPriority.title} today`,
-            ops: [{ op: 'delete_event', event_id: lowestPriority.id }],
+            id: 'recovery_push',
+            label: 'Recovery Mode',
+            description: movedTitles.length > 0
+                ? `Moves ${movedTitles.length} low-priority block${movedTitles.length > 1 ? 's' : ''} to tomorrow: ${movedTitles.join(', ')}.${keptTitles.length ? ` Keeps: ${keptTitles.join(', ')}.` : ''}`
+                : 'No low-priority blocks left to move — your remaining schedule is already essential.',
+            tradeoff: movedTitles.length > 0
+                ? 'Tomorrow will be slightly fuller, but today gets breathing room.'
+                : 'No changes needed.',
+            ops,
+        });
+        options.push({
+            id: 'keep_current',
+            label: 'Keep Current',
+            description: `Keep your ${remainingBlocks.length} remaining block${remainingBlocks.length === 1 ? '' : 's'} as-is.`,
+            tradeoff: 'No disruption to the existing plan.',
+            ops: [],
         });
     }
+
+    // ── MOMENTUM: fill today's goals + pull mind/craft from later days ──
+    else if (focus === 'momentum') {
+        const tightBuffer = 5;
+
+        // Option 1: fill + pull forward
+        const alloc1 = buildAllocator(context, date);
+        const fill1 = fillGoalsToDailyTarget(context, date, alloc1, tightBuffer);
+        const pullOps: PatchOp[] = [];
+        const pulledTitles: string[] = [];
+
+        const futureCandidates = (context.schedule.this_week || [])
+            .filter(b => b.date > date && b.status === 'planned' && !isProtectedBlock(b))
+            .filter(b => {
+                const goal = context.goals.find(g => g.id === b.goal_id);
+                const pillar = (b.pillar || goal?.pillar || '').toLowerCase();
+                // Only mind/craft goal blocks may be pulled forward — never body
+                return b.block_type === 'goal' && !!b.goal_id && (pillar === 'mind' || pillar === 'craft');
+            })
+            .sort((a, b) => a.date.localeCompare(b.date) || timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
+
+        for (const b of futureCandidates) {
+            const duration = Math.max(30, timeToMinutes(b.end_time) - timeToMinutes(b.start_time));
+            const slot = alloc1.allocate(duration, tightBuffer);
+            if (!slot) break; // day is full
+            pullOps.push({
+                op: 'update_event',
+                event_id: b.id,
+                fields: {
+                    date,
+                    start_time: minutesToTime(slot.start),
+                    end_time: minutesToTime(slot.end),
+                },
+            });
+            pulledTitles.push(b.title);
+        }
+
+        options.push({
+            id: 'full_momentum',
+            label: 'Full Momentum',
+            description: [
+                fill1.placed.length > 0 ? `Fills today's goal targets: ${fill1.placed.join(', ')}.` : '',
+                pulledTitles.length > 0 ? `Pulls forward from later this week: ${pulledTitles.join(', ')}.` : '',
+            ].filter(Boolean).join(' ') || 'Today is already at maximum density — nothing more fits.',
+            tradeoff: 'A packed day, but you get ahead on the week. Body blocks are never doubled.',
+            ops: [...fill1.ops, ...pullOps],
+        });
+
+        // Option 2: fill today's targets only
+        const alloc2 = buildAllocator(context, date);
+        const fill2 = fillGoalsToDailyTarget(context, date, alloc2, tightBuffer);
+        options.push({
+            id: 'steady_momentum',
+            label: 'Steady Momentum',
+            description: fill2.placed.length > 0
+                ? `Completes today's goal targets without borrowing from other days: ${fill2.placed.join(', ')}.`
+                : 'All goals already meet their daily targets — nothing to add.',
+            tradeoff: 'High output while keeping the rest of the week intact.',
+            ops: fill2.ops,
+        });
+    }
+
+    // ── BALANCED (default): meet today's goals with buffer time ──
+    else {
+        const buffer = Math.max(10, context.user.default_buffer_duration || 15);
+
+        const alloc1 = buildAllocator(context, date);
+        const fill1 = fillGoalsToDailyTarget(context, date, alloc1, buffer);
+        options.push({
+            id: 'balanced_day',
+            label: 'Balanced Day',
+            description: fill1.placed.length > 0
+                ? `Schedules the remaining time for every goal with ${buffer}min buffers: ${fill1.placed.join(', ')}.`
+                : 'All goals already meet their daily targets — your day is balanced.',
+            tradeoff: 'Sustainable pace with recovery space between blocks.',
+            ops: fill1.ops,
+        });
+
+        const alloc2 = buildAllocator(context, date);
+        const fill2 = fillGoalsToDailyTarget(context, date, alloc2, buffer * 2,
+            g => goalPriority(g) !== 'low');
+        options.push({
+            id: 'priority_focus',
+            label: 'Priority Focus',
+            description: fill2.placed.length > 0
+                ? `Schedules only medium/high-priority goals with extra-wide ${buffer * 2}min buffers: ${fill2.placed.join(', ')}.`
+                : 'No medium/high-priority goals need more time today.',
+            tradeoff: 'Low-priority goals wait, giving the essentials maximum space.',
+            ops: fill2.ops,
+        });
+    }
+
+    const totalChanges = options.reduce((s, o) => s + o.ops.length, 0);
 
     return {
         analysis: {
-            energy_state: 'moderate',
+            energy_state: `${context.user.energy_level || 5}/10 energy, ${context.user.stress_level || 3}/10 stress`,
             schedule_health: health,
-            recommendation: blocks.length === 0
-                ? 'No blocks remaining today. Add activities or plan your week.'
-                : `${blocks.length} blocks left today (${movable.length} adjustable). ${health === 'overloaded' ? 'Consider reducing.' : 'On track.'}`,
+            recommendation: totalChanges === 0
+                ? 'Your schedule already satisfies this strategy — no changes needed.'
+                : focus === 'recovery'
+                    ? 'Lighten today and protect your energy — essentials stay put.'
+                    : focus === 'momentum'
+                        ? 'Maximize output today; fixed blocks and meals stay untouched.'
+                        : 'Meet every goal today with breathing room between blocks.',
         },
         options,
     };
