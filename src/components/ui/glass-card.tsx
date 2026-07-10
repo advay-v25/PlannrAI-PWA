@@ -38,6 +38,7 @@ export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
     }, ref) => {
         return (
             <motion.div
+                suppressHydrationWarning
                 ref={ref}
                 className={cn(
                     'relative overflow-hidden border backdrop-blur-md rounded-[var(--radius-2xl)] transition-all duration-300 ease-out',

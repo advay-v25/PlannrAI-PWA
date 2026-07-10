@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@/lib/supabase/client';
-import { GlassCard } from '@/components/ui/glass-card';
+import { StaticGlassCard as GlassCard } from '@/components/ui/glass-card';
 import { GlassButton } from '@/components/ui/glass-button';
 import { GlassInput } from '@/components/ui/glass-input';
 import { Mail, Sparkles, ArrowRight, Check, Lock } from 'lucide-react';
@@ -120,9 +120,9 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen min-h-dvh flex items-center justify-center p-4 bg-[var(--color-bg-primary)] dark:bg-gradient-to-b dark:from-[#1a0a00] dark:via-neutral-950 dark:to-neutral-950 overflow-hidden relative">
+        <div suppressHydrationWarning className="min-h-screen min-h-dvh flex items-center justify-center p-4 bg-[var(--color-bg-primary)] dark:bg-gradient-to-b dark:from-[#1a0a00] dark:via-neutral-950 dark:to-neutral-950 overflow-hidden relative">
             <div className="w-full max-w-md relative z-10">
-                <GlassCard variant="glow" padding="lg" className="border-white/10 shadow-2xl">
+                <GlassCard variant="glow" padding="lg" className="shadow-2xl">
                     <div className="relative z-10">
                         {/* Logo & Title */}
                         <div className="text-center mb-8">
@@ -180,7 +180,7 @@ export default function LoginPage() {
                                         initial={{ opacity: 0, height: 0 }}
                                         animate={{ opacity: 1, height: 'auto' }}
                                         exit={{ opacity: 0, height: 0 }}
-                                        className="text-xs text-red-400 bg-red-400/10 p-3 rounded-lg border border-red-400/20"
+                                        className="text-xs text-[var(--color-error)] bg-[var(--color-error)]/10 p-3 rounded-lg border border-[var(--color-error)]/20"
                                     >
                                         {error}
                                     </motion.p>
