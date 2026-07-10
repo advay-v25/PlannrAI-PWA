@@ -1,4 +1,4 @@
-
+import { cn } from '@/lib/utils';
 import { ProfilePreferences } from '@/lib/types/settings';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -63,16 +63,11 @@ export default function WorkPreferences({ preferences, onChange }: Props) {
                             </div>
                         ))}
                         <p className="text-[10px] text-[var(--text-tertiary)] text-center">
-                            (Detailed window editing coming in v2)
+                            Full window customization available in future updates
                         </p>
                     </div>
                 </CardContent>
             </Card>
         </div>
     );
-}
-
-function cn(arg0: string, arg1: string): string | undefined {
-    // Basic cn mock if utils not picked up, but it is imported globally usually
-    return arg0 + " " + arg1;
 }

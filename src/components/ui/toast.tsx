@@ -114,17 +114,25 @@ function ToastContainer({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id
                             initial={{ opacity: 0, y: 20, scale: 0.95 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, x: 100, scale: 0.95 }}
-                            className="pointer-events-auto glass-card px-4 py-3 flex items-center gap-3 min-w-[280px] max-w-[400px] shadow-2xl"
+                            className={`pointer-events-auto px-4 py-3 flex items-center gap-3 min-w-[280px] max-w-[400px] backdrop-blur-xl rounded-2xl border ${
+                                toast.type === 'success'
+                                    ? 'bg-[var(--color-success)]/85 border-[var(--color-success)]/30 text-white'
+                                    : toast.type === 'error'
+                                    ? 'bg-[var(--color-bg-secondary)] border-[var(--color-error)]/30'
+                                    : toast.type === 'warning'
+                                    ? 'bg-[var(--color-bg-secondary)] border-[var(--color-warning)]/30'
+                                    : 'bg-[var(--glass-bg)] border-[var(--glass-border)]'
+                            } shadow-lg`}
                             style={{ borderLeft: `3px solid ${color}` }}
                         >
                             <div
                                 className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                                style={{ backgroundColor: `${color}20` }}
+                                style={{ backgroundColor: `${color}15` }}
                             >
                                 <Icon className="w-4 h-4" style={{ color }} />
                             </div>
                             <div className="flex-1">
-                                <p className="text-sm">{toast.message}</p>
+                                <p className="text-sm font-medium text-[var(--text-primary)]">{toast.message}</p>
                             </div>
                             {toast.action && (
                                 <div className="flex-shrink-0">
@@ -133,7 +141,7 @@ function ToastContainer({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id
                             )}
                             <button
                                 onClick={() => onDismiss(toast.id)}
-                                className="p-1 hover:bg-white/10 rounded-full transition-colors flex-shrink-0"
+                                className="p-1 rounded-full transition-colors flex-shrink-0 hover:bg-[var(--glass-bg)]"
                             >
                                 <X className="w-4 h-4 text-[var(--text-tertiary)]" />
                             </button>

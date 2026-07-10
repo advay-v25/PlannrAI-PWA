@@ -77,7 +77,7 @@ export default function ResetPasswordPage() {
             <div
                 className="w-full max-w-md relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-700 fill-mode-both"
             >
-                <GlassCard variant="glow" padding="lg" className="border-white/10 shadow-3xl relative overflow-hidden">
+                <GlassCard variant="glow" padding="lg" className="border-[var(--glass-border)] dark:border-white/10 shadow-3xl relative overflow-hidden">
                     {/* Minimal geometric accent */}
                     <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-orange-500 to-transparent opacity-50" />
                     
@@ -98,10 +98,10 @@ export default function ResetPasswordPage() {
                                 <Lock className="w-9 h-9 text-orange-500 filter drop-shadow-[0_0_8px_rgba(249,115,22,0.4)]" />
                             </motion.div>
 
-                            <h1 className="text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white via-white to-white/60 mb-3">
+                            <h1 className="text-4xl font-extrabold tracking-tight text-[var(--text-primary)] mb-3">
                                 Reset Access
                             </h1>
-                            <p className="text-white/50 text-sm font-medium">
+                            <p className="text-[var(--text-secondary)] dark:text-white/50 text-sm font-medium">
                                 Secure your account with a new password.
                             </p>
                         </div>

@@ -40,7 +40,7 @@ export function useGoalsManager() {
             if ('status' in updates || 'is_paused' in updates) {
                 dispatchAppEvent({
                     type: 'schedule-recompute',
-                    payload: { source: 'goal_paused' }
+                    payload: { trigger: 'goal_paused' }
                 });
             }
             
@@ -86,7 +86,7 @@ export function useGoalsManager() {
                 // Cross-feature: Notify schedule sync about new goal
                 dispatchAppEvent({
                     type: 'schedule-recompute',
-                    payload: { source: 'goal_created' }
+                    payload: { trigger: 'goal_created' }
                 });
                 import('@/hooks/use-coach').then(({ useCoach }) => {
                     useCoach.getState().refreshContext().catch(console.error);

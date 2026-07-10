@@ -84,7 +84,7 @@ function InlineOptionCard({
             <p className="font-bold text-[var(--text-primary)] text-[14px] leading-snug mb-1">{option.title}</p>
 
             {option.description && (
-                <p className="text-sm text-white/55 leading-relaxed whitespace-pre-line">{option.description}</p>
+                <p className="text-sm text-[var(--text-secondary)] dark:text-white/55 leading-relaxed whitespace-pre-line">{option.description}</p>
             )}
 
             {option.tradeoff && (
@@ -105,8 +105,8 @@ function InlineOptionCard({
                     disabled={disabled}
                     className={`px-4 py-1.5 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-colors ${
                         option.recommended
-                            ? 'bg-orange-500 text-[var(--text-primary)] hover:bg-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.35)]'
-                            : 'bg-[var(--glass-bg)] text-white/80 hover:bg-white/[0.16]'
+                            ? 'bg-orange-500 text-white hover:bg-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.35)]'
+                            : 'bg-[var(--glass-bg)] text-[var(--text-secondary)] dark:text-white/80 hover:bg-[var(--glass-bg-hover)] dark:hover:bg-white/[0.16]'
                     }`}
                 >
                     {reviewOpen ? 'Hide Review' : 'Review & Execute'}
@@ -114,7 +114,7 @@ function InlineOptionCard({
                 {option.scenario_analysis && (
                     <button
                         onClick={e => { e.stopPropagation(); setReviewOpen(!reviewOpen); }}
-                        className="px-3 py-1.5 rounded-xl text-[11px] font-bold uppercase tracking-widest bg-[var(--glass-bg)] text-white/35 hover:text-[var(--text-secondary)] transition-colors"
+                        className="px-3 py-1.5 rounded-xl text-[11px] font-bold uppercase tracking-widest bg-[var(--glass-bg)] text-[var(--text-tertiary)] dark:text-white/35 hover:text-[var(--text-primary)] dark:hover:text-[var(--text-secondary)] transition-colors"
                     >
                         Why?
                     </button>
@@ -143,7 +143,7 @@ function InlineOptionCard({
                                 <p className="text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">
                                     Changes Preview
                                 </p>
-                            <p className="text-sm text-white/75 whitespace-pre-line leading-relaxed">
+                            <p className="text-sm text-[var(--text-secondary)] dark:text-white/75 whitespace-pre-line leading-relaxed">
                                 {(() => {
                                     let content = "";
                                     if (option.description && option.description.length > 10) {
@@ -601,7 +601,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                 </button>
                                 <button
                                     onClick={e => handleDeleteChat(e, conv.id)}
-                                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-white/10 opacity-0 group-hover/item:opacity-100 hover:text-red-400 hover:bg-red-400/10 transition-all"
+                                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-[var(--text-muted)] dark:text-white/10 opacity-0 group-hover/item:opacity-100 hover:text-red-400 hover:bg-red-400/10 transition-all"
                                     title="Delete"
                                 >
                                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -637,7 +637,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                         <button
                             onClick={handleNewChat}
                             title="New conversation"
-                            className="p-2 rounded-xl hover:bg-[var(--glass-bg)] transition-colors text-white/35 hover:text-[var(--text-primary)]"
+                            className="p-2 rounded-xl hover:bg-[var(--glass-bg)] transition-colors text-[var(--text-tertiary)] dark:text-white/35 hover:text-[var(--text-primary)]"
                         >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

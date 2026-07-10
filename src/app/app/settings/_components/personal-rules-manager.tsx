@@ -104,8 +104,8 @@ export default function PersonalRulesManager() {
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-xl font-bold text-white tracking-tight">Personal Rules</h2>
-                    <p className="text-sm text-white/40 mt-1">Rules that guide how AI schedules your time</p>
+                    <h2 className="text-xl font-bold text-[var(--text-primary)] tracking-tight">Personal Rules</h2>
+                    <p className="text-sm text-[var(--text-tertiary)] mt-1">Rules that guide how AI schedules your time</p>
                 </div>
                 {!isAdding && (
                     <button
@@ -129,7 +129,7 @@ export default function PersonalRulesManager() {
                         className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 space-y-4"
                     >
                         <div className="flex items-center justify-between">
-                            <h3 className="text-sm font-bold text-white">New Rule</h3>
+                            <h3 className="text-sm font-bold text-[var(--text-primary)]">New Rule</h3>
                             <button onClick={resetForm} className="text-white/30 hover:text-white transition-colors">
                                 <X className="w-4 h-4" />
                             </button>
@@ -149,7 +149,7 @@ export default function PersonalRulesManager() {
                                         key={cat}
                                         onClick={() => setCategory(cat)}
                                         className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold capitalize transition-all ${category === cat
-                                                ? categoryColors[cat] || 'text-white bg-white/10'
+                                                ? categoryColors[cat] || 'text-[var(--text-primary)] bg-[var(--glass-bg)]'
                                                 : 'bg-white/5 border border-white/10 text-white/40 hover:bg-white/10'
                                             }`}
                                     >
@@ -158,10 +158,10 @@ export default function PersonalRulesManager() {
                                 ))}
                             </div>
                         </div>
-                        <div className="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/5">
+                        <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)]">
                             <div>
-                                <p className="text-xs font-bold text-white">Hard Rule</p>
-                                <p className="text-[10px] text-white/30">AI must follow this strictly, not just as a suggestion</p>
+                                <p className="text-xs font-bold text-[var(--text-primary)]">Hard Rule</p>
+                                <p className="text-[10px] text-[var(--text-tertiary)]">AI must follow this strictly, not just as a suggestion</p>
                             </div>
                             <button onClick={() => setIsHard(!isHard)}>
                                 {isHard
@@ -202,7 +202,7 @@ export default function PersonalRulesManager() {
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
                                     <Shield className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                                    <span className="text-sm font-medium text-white">&quot;{r.rule}&quot;</span>
+                                    <span className="text-sm font-medium text-[var(--text-primary)]">&quot;{r.rule}&quot;</span>
                                 </div>
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${categoryColors[r.category] || 'text-white/40 bg-white/5'}`}>

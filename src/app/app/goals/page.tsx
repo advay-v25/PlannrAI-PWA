@@ -146,7 +146,7 @@ export default function GoalsPage() {
             {/* 1. Header & Quick Actions */}
             <header className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60 pb-2">
+                    <h1 className="text-5xl font-bold text-[var(--text-primary)] pb-2">
                         Goals
                     </h1>
                     <p className="text-sm text-[var(--text-tertiary)]">Design your ideal week.</p>
@@ -212,7 +212,7 @@ export default function GoalsPage() {
                         <section key={pillar.id} className="space-y-6 pt-4">
                             <div className="flex items-center gap-4 px-1">
                                 <h2 className="text-3xl font-bold capitalize text-[var(--text-primary)]">{pillar.label}</h2>
-                                <div className="h-px flex-1 bg-white/20" />
+                                <div className="h-px flex-1 bg-[var(--glass-border)]" />
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -239,7 +239,7 @@ export default function GoalsPage() {
                         <Anchor className="w-8 h-8 text-[var(--text-tertiary)]" />
                     </div>
                     <div>
-                        <h3 className="text-xl font-bold text-white/80">No goals set yet</h3>
+                        <h3 className="text-xl font-bold text-[var(--text-primary)]">No goals set yet</h3>
                         <p className="text-sm text-[var(--text-secondary)] max-w-sm mt-2">
                             Start by designing your ideal life. Set your first goal across Mind, Body, or Craft to establish your baseline.
                         </p>

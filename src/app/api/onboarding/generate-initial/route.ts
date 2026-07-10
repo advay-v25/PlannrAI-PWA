@@ -69,5 +69,5 @@ export const POST = secureApiRoute(
             blocksCreated
         });
     },
-    { requireAuth: process.env.NODE_ENV !== 'development', auditAction: 'onboarding_generate_initial' }
+    { requireAuth: process.env.NODE_ENV !== 'development', rateLimit: 'aiPlanWeek', auditAction: 'onboarding_generate_initial' }
 );

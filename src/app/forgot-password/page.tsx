@@ -59,7 +59,7 @@ export default function ForgotPasswordPage() {
             <div
                 className="w-full max-w-md relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-700 fill-mode-both"
             >
-                <GlassCard variant="glow" padding="lg" className="border-white/10 shadow-2xl">
+                <GlassCard variant="glow" padding="lg" className="border-[var(--glass-border)] dark:border-white/10 shadow-2xl">
                     <div className="relative z-10">
                         {/* Title */}
                         <div className="text-center mb-8">
@@ -72,10 +72,10 @@ export default function ForgotPasswordPage() {
                                 <Mail className="w-8 h-8 text-orange-500" />
                             </motion.div>
 
-                            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60 mb-2">
+                            <h1 className="text-3xl font-bold text-[var(--text-primary)] mb-2">
                                 Reset Password
                             </h1>
-                            <p className="text-white/40 text-sm">
+                            <p className="text-[var(--text-secondary)] dark:text-white/40 text-sm">
                                 We'll send you a secure link to reset it.
                             </p>
                         </div>
@@ -123,7 +123,7 @@ export default function ForgotPasswordPage() {
                         <div className="text-center">
                             <Link
                                 href="/login"
-                                className="inline-flex items-center text-xs text-white/40 hover:text-white transition-colors"
+                                className="inline-flex items-center text-xs text-[var(--text-tertiary)] dark:text-white/40 hover:text-[var(--text-primary)] dark:hover:text-white transition-colors"
                             >
                                 <ArrowLeft className="w-3 h-3 mr-1" />
                                 Back to login

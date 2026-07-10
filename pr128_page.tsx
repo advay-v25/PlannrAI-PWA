@@ -1,4 +1,5 @@
 import Link from 'next/link';
+
 import { Sparkles, ArrowRight, Shield, Heart, Brain, Target, Calendar, BarChart3, Zap } from 'lucide-react';
 import { SciFiEarthBackground } from '@/components/ui/SciFiEarthBackground';
 import { OrbitalScheduleEngine } from '@/components/ui/orbital-schedule-engine';
@@ -6,56 +7,48 @@ import { LiquidGlassButton } from '@/components/ui/liquid-glass-button';
 
 export default function LandingPage() {
   return (
-    <div className="dark min-h-screen relative font-sans text-white overflow-x-hidden selection:bg-purple-500/30">
+    <div className="min-h-screen relative font-sans text-white overflow-x-hidden selection:bg-purple-500/30">
       {/* Cinematic Sci-Fi Background */}
       <SciFiEarthBackground />
 
       {/* Hero Section */}
-      <section className="relative px-4 pt-12 pb-16 md:pb-28 overflow-hidden flex flex-col min-h-[100dvh]">
+      <section className="relative px-4 pt-6 md:pt-12 pb-16 md:pb-28 overflow-hidden flex flex-col min-h-[100dvh]">
         <div className="max-w-5xl mx-auto w-full flex flex-col flex-1 relative z-10">
-          
-          <header className="text-center shrink-0 mb-4 md:mb-6 mt-0 flex flex-col items-center relative z-30 pointer-events-none">
-            <h1 className="text-6xl sm:text-7xl md:text-8xl lg:text-[7.5rem] font-extrabold mb-4 tracking-tighter leading-[1.1]">
+          {/* Logo + tagline — above the solar system */}
+          <header className="text-center shrink-0 mb-4 md:mb-6 mt-0 flex flex-col items-center">
+            <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold mb-3 md:mb-4 tracking-tighter leading-[1.1]">
               <span className="text-transparent bg-clip-text bg-gradient-to-b from-white via-white/90 to-white/30 drop-shadow-[0_0_40px_rgba(255,255,255,0.1)]">
                 PlannrAI
               </span>
             </h1>
-            
-            <p className="text-xl md:text-3xl text-white/80 font-medium mb-4 max-w-3xl mx-auto tracking-tight">
-              Build how you want to, adapt when you need to.
-            </p>
-
-            <p className="text-base md:text-lg text-[var(--text-secondary)] max-w-2xl mx-auto leading-relaxed tracking-wide font-light hidden sm:block">
-              Absorb mental chaos. See what matters today. Adapt to low-energy days.
-              Protect your long-term goals without pressure or judgment.
+            <p className="text-lg sm:text-xl md:text-2xl text-white/75 font-medium max-w-2xl mx-auto tracking-tight">
+              Build when you want, adapt when you need
             </p>
           </header>
 
-          {/* Tactical Orbital Schedule Engine Centerpiece */}
-          <div className="relative flex-1 flex items-center justify-center min-h-[300px] sm:min-h-[400px] z-10 pointer-events-none">
-            <OrbitalScheduleEngine className="absolute w-[min(120vw,800px)] h-[min(120vw,800px)] md:w-[1000px] md:h-[1000px] opacity-90" />
+          {/* Solar system centerpiece */}
+          <div className="relative flex-1 flex items-center justify-center min-h-[250px] sm:min-h-[380px] md:min-h-[440px] z-20">
+            <OrbitalScheduleEngine className="absolute w-[min(120vw,800px)] h-[min(120vw,800px)] md:w-[1000px] md:h-[1000px]" />
           </div>
 
-          <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto shrink-0 mt-6 relative z-30 pointer-events-none">
-            <div className="pointer-events-auto w-full">
-                <LiquidGlassButton href="/login" size="lg" className="w-full text-lg tracking-wide">
-                Get Started Free
-                <ArrowRight className="w-5 h-5 ml-2 opacity-70 group-hover:translate-x-1 transition-transform" />
-                </LiquidGlassButton>
-            </div>
-            
-            {/* Subtle scroll indicator */}
-            <div className="flex flex-col items-center text-[var(--text-secondary)] opacity-50 hover:opacity-100 transition-opacity mt-12 pointer-events-auto">
-              <span className="text-[10px] tracking-[0.3em] uppercase font-semibold mb-4">Discover</span>
-              <div className="w-px h-16 bg-gradient-to-b from-white/40 to-transparent" />
-            </div>
+          {/* Get Started — bottom CTA */}
+          <div className="flex justify-center w-full max-w-md mx-auto shrink-0 mt-6 md:mt-10 relative z-30">
+            <LiquidGlassButton href="/login" size="lg" className="w-full text-lg font-bold text-white tracking-wide">
+              Get Started Free
+              <ArrowRight className="w-5 h-5 ml-2 opacity-90 transition-transform group-hover:translate-x-1" />
+            </LiquidGlassButton>
           </div>
-          
+        </div>
+        
+        {/* Subtle scroll indicator */}
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 hidden sm:flex flex-col items-center text-white/30 opacity-50 hover:opacity-100 transition-opacity">
+          <span className="text-[10px] tracking-[0.3em] uppercase font-semibold mb-4">Discover</span>
+          <div className="w-px h-16 bg-gradient-to-b from-white/40 to-transparent" />
         </div>
       </section>
 
       {/* Core Promise - Premium Banner */}
-      <section className="relative px-4 py-32 overflow-hidden border-y border-white/[0.02] bg-white/[0.01]">
+      <section className="relative px-4 py-16 md:py-32 overflow-hidden border-y border-white/[0.02] bg-white/[0.01]">
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-purple-900/5 to-transparent backdrop-blur-[2px]" />
         <div className="max-w-4xl mx-auto text-center relative z-10">
           <p className="text-3xl md:text-5xl font-light leading-tight tracking-tight text-white/90">
@@ -63,20 +56,20 @@ export default function LandingPage() {
             I am not alone, I am not failing, and I can still move forward.
             <span className="text-purple-400 font-serif ml-4 opacity-40">&rdquo;</span>
           </p>
-          <p className="mt-10 text-xs tracking-[0.3em] text-[var(--text-muted)] uppercase font-semibold">
+          <p className="mt-10 text-xs tracking-[0.3em] text-white/40 uppercase font-semibold">
             What you should feel after every interaction
           </p>
         </div>
       </section>
 
       {/* Features Grid */}
-      <section id="features" className="px-4 py-32 relative">
+      <section id="features" className="px-4 py-16 md:py-32 relative">
         <div className="max-w-6xl mx-auto relative z-10">
           <div className="text-center mb-24">
             <h2 className="text-4xl md:text-5xl lg:text-6xl font-extrabold mb-6 tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white to-white/60">
               A Chief of Staff for Your Life
             </h2>
-            <p className="text-lg md:text-xl text-[var(--text-secondary)] max-w-3xl mx-auto font-light leading-relaxed tracking-wide">
+            <p className="text-lg md:text-xl text-white/50 max-w-3xl mx-auto font-light leading-relaxed tracking-wide">
               PlannrAI sees the full context, tracks reality honestly, anticipates friction,
               and suggests strategies — but never takes control.
             </p>
@@ -124,7 +117,7 @@ export default function LandingPage() {
       </section>
 
       {/* Guarantees */}
-      <section className="px-4 py-32 relative overflow-hidden">
+      <section className="px-4 py-16 md:py-32 relative overflow-hidden">
         <div className="absolute inset-0 bg-white/[0.01] backdrop-blur-3xl border-t border-white/[0.02]" />
         <div className="max-w-6xl mx-auto relative z-10">
           <h2 className="text-4xl md:text-5xl font-extrabold text-center mb-20 tracking-tighter text-white/90">
@@ -143,7 +136,7 @@ export default function LandingPage() {
       </section>
 
       {/* CTA */}
-      <section className="px-4 py-40 relative">
+      <section className="px-4 py-16 md:py-40 relative">
         {/* Glow behind CTA - Removed expensive blur-[120px] filter in favor of hardware-friendly radial gradient */}
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] h-[80vw] max-w-[600px] max-h-[600px] bg-[radial-gradient(circle,rgba(147,51,234,0.15)_0%,transparent_60%)] rounded-full pointer-events-none" />
         
@@ -151,7 +144,7 @@ export default function LandingPage() {
           <h2 className="text-4xl md:text-5xl font-extrabold mb-6 tracking-tighter text-white">
             Ready to feel supported?
           </h2>
-          <p className="text-lg md:text-xl text-[var(--text-secondary)] mb-10 font-light tracking-wide max-w-xl mx-auto">
+          <p className="text-lg md:text-xl text-white/50 mb-10 font-light tracking-wide max-w-xl mx-auto">
             No credit card. No complicated setup. Just an intelligent companion that has your back.
           </p>
           <div className="flex justify-center">
@@ -168,15 +161,14 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex flex-col items-center md:items-start gap-2">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-orange-400" />
               <span className="font-bold tracking-wide text-white">PlannrAI</span>
             </div>
-            <p className="text-sm text-[var(--text-muted)]">
+            <p className="text-sm text-white/40">
               Your data is private. Always.
             </p>
           </div>
           
-          <div className="flex gap-8 text-sm text-[var(--text-muted)] font-medium">
+          <div className="flex gap-8 text-sm text-white/40 font-medium">
             <Link href="/legal/terms" className="hover:text-white transition-colors">
               Terms & Conditions
             </Link>
@@ -216,7 +208,7 @@ function FeatureCard({
       </div>
       
       <h3 className="font-semibold text-xl mb-3 text-white/90 tracking-wide relative z-10">{title}</h3>
-      <p className="text-[var(--text-secondary)] leading-relaxed font-light relative z-10">{description}</p>
+      <p className="text-white/50 leading-relaxed font-light relative z-10">{description}</p>
     </div>
   );
 }
@@ -224,10 +216,10 @@ function FeatureCard({
 function GuaranteeCard({ icon, text }: { icon: React.ReactNode; text: string }) {
   return (
     <div className="flex items-center gap-5 p-6 rounded-3xl bg-white/[0.02] border border-white/[0.05] hover:border-white/[0.1] hover:bg-white/[0.04] transition-all duration-500 group">
-      <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-white/[0.05] text-[var(--text-secondary)] group-hover:text-white group-hover:bg-white/[0.1] transition-all duration-500 group-hover:scale-110 border border-white/[0.05] flex-shrink-0">
+      <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-white/[0.05] text-white/60 group-hover:text-white group-hover:bg-white/[0.1] transition-all duration-500 group-hover:scale-110 border border-white/[0.05] flex-shrink-0">
         {icon}
       </div>
-      <span className="font-medium text-[var(--text-secondary)] group-hover:text-white/90 transition-colors tracking-wide">{text}</span>
+      <span className="font-medium text-white/70 group-hover:text-white/90 transition-colors tracking-wide">{text}</span>
     </div>
   );
 }

@@ -150,7 +150,7 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                                     </div>
                                     <div className={cn(
                                         "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all shadow-inner",
-                                        isToday ? "bg-gradient-to-tr from-orange-500/80 to-purple-500/80 text-[var(--text-primary)] backdrop-blur-md border border-white/30 shadow-[0_0_15px_rgba(249,115,22,0.4)]" : "text-[var(--text-secondary)] hover:bg-[var(--glass-bg)]"
+                                        isToday ? "bg-gradient-to-tr from-orange-500/80 to-purple-500/80 text-white dark:text-[var(--text-primary)] backdrop-blur-md border border-white/40 dark:border-white/30 shadow-[0_0_15px_rgba(249,115,22,0.4)]" : "text-[var(--text-secondary)] hover:bg-[var(--glass-bg)]"
                                     )}>
                                         {format(day, 'd')}
                                     </div>
@@ -256,7 +256,7 @@ function DroppableHour({ dayIndex, hour, onClick }: { dayIndex: number; hour: nu
             ref={setNodeRef}
             onClick={onClick}
             className={cn(
-                "border-b border-dashed border-white/[0.03] transition-colors cursor-pointer group",
+                "border-b border-dashed border-[var(--glass-border)] dark:border-white/[0.03] transition-colors cursor-pointer group",
                 isOver ? "bg-purple-500/20 border-l-2 border-purple-400/60 shadow-[inset_0_0_20px_rgba(168,85,247,0.15)]" : "hover:bg-[var(--glass-bg)]"
             )}
             style={{ height: CELL_HEIGHT }}

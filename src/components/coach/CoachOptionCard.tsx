@@ -44,7 +44,7 @@ export function CoachOptionCard({
     if (minimalMode) {
         return (
             <div
-                className={`glass-card glass-interactive group p-3 transition-all w-full flex items-center justify-between gap-4 border-white/5 bg-[var(--glass-bg)] ${disabled ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
+                className={`glass-card glass-interactive group p-3 transition-all w-full flex items-center justify-between gap-4 border-[var(--glass-border)] dark:border-white/5 bg-[var(--glass-bg)] ${disabled ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
                 onClick={() => !disabled && onSelect()}
             >
                 <div className="flex flex-col">
@@ -116,7 +116,7 @@ export function CoachOptionCard({
 
                 {/* Impact Highlight */}
                 {option.impact && (
-                    <div className="flex items-center space-x-2 py-2 border-y border-white/5">
+                    <div className="flex items-center space-x-2 py-2 border-y border-[var(--glass-border)] dark:border-white/5">
                         <div className="w-2 h-2 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.8)]"></div>
                         <span className="text-xs font-bold uppercase tracking-widest text-orange-500/90">
                             {option.impact}
@@ -130,8 +130,8 @@ export function CoachOptionCard({
                 <div className="flex items-center gap-3 pt-2">
                     <button
                         className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-[0.15em] transition-all flex items-center justify-center space-x-2 ${option.recommended
-                                ? 'bg-orange-500 text-[var(--text-primary)] shadow-[0_0_15px_rgba(249,115,22,0.4)] hover:bg-orange-400'
-                                : 'bg-white/15 text-[var(--text-primary)] hover:bg-white/25 hover:text-[var(--text-primary)]'
+                                ? 'bg-orange-500 text-white shadow-[0_0_15px_rgba(249,115,22,0.4)] hover:bg-orange-400'
+                                : 'bg-[var(--glass-bg-active)] dark:bg-white/15 text-[var(--text-primary)] hover:bg-[var(--glass-bg-hover)] dark:hover:bg-white/25'
                             }`}
                         onClick={(e) => {
                             e.stopPropagation();
@@ -157,7 +157,7 @@ export function CoachOptionCard({
 
                 {/* Scenario Analysis Toggle Content */}
                 {option.scenario_analysis && isExpanded && (
-                    <div className="mt-2 text-xs text-foreground/80 p-4 bg-[var(--glass-bg)] rounded-xl border border-white/5 leading-relaxed">
+                    <div className="mt-2 text-xs text-[var(--text-secondary)] p-4 bg-[var(--glass-bg)] rounded-xl border border-[var(--glass-border)] dark:border-white/5 leading-relaxed">
                         {option.scenario_analysis}
                     </div>
                 )}

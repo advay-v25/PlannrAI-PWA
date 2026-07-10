@@ -22,12 +22,13 @@ export const GlassInput = forwardRef<HTMLInputElement, GlassInputProps>(
         return (
             <div className="space-y-1.5">
                 {label && (
-                    <label className="block text-sm font-medium text-[var(--color-text-secondary)]">
+                    <label className="block text-sm font-medium text-[var(--text-secondary)]">
                         {label}
                     </label>
                 )}
-                <div className="relative">
+                <div className="relative" suppressHydrationWarning>
                     <input
+                        suppressHydrationWarning
                         ref={ref}
                         type={inputType}
                         className={cn(
@@ -35,7 +36,7 @@ export const GlassInput = forwardRef<HTMLInputElement, GlassInputProps>(
                             isPassword ? 'pr-12' : 'pr-4',
                             'bg-[var(--glass-bg)] backdrop-blur-xl',
                             'border border-[var(--glass-border)]',
-                            'text-[var(--color-text-primary)] placeholder:text-white/20',
+                            'text-[var(--text-primary)] placeholder:text-[var(--text-muted)]',
                             'transition-all duration-200',
                             'focus:outline-none focus:border-[var(--color-primary)]',
                             error && 'border-red-500/50',
@@ -55,7 +56,7 @@ export const GlassInput = forwardRef<HTMLInputElement, GlassInputProps>(
                         <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/80 transition-colors p-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-500/50 z-20"
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors p-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-500/50 z-20"
                             aria-label={showPassword ? "Hide password" : "Show password"}
                         >
                             {showPassword ? (
@@ -83,7 +84,7 @@ export const GlassInput = forwardRef<HTMLInputElement, GlassInputProps>(
                 {(error || hint) && (
                     <p className={cn(
                         'text-xs',
-                        error ? 'text-red-400' : 'text-[var(--color-text-muted)]'
+                        error ? 'text-red-400' : 'text-[var(--text-muted)]'
                     )}>
                         {error || hint}
                     </p>
@@ -108,7 +109,7 @@ export const GlassTextarea = forwardRef<HTMLTextAreaElement, GlassTextareaProps>
         return (
             <div className="space-y-1.5">
                 {label && (
-                    <label className="block text-sm font-medium text-[var(--color-text-secondary)]">
+                    <label className="block text-sm font-medium text-[var(--text-secondary)]">
                         {label}
                     </label>
                 )}
@@ -119,7 +120,7 @@ export const GlassTextarea = forwardRef<HTMLTextAreaElement, GlassTextareaProps>
                             'w-full px-4 py-3 rounded-xl resize-none',
                             'bg-[var(--glass-bg)] backdrop-blur-xl',
                             'border border-[var(--glass-border)]',
-                            'text-[var(--color-text-primary)] placeholder:text-white/50',
+                            'text-[var(--text-primary)] placeholder:text-[var(--text-muted)]',
                             'transition-all duration-200',
                             'focus:outline-none focus:border-[var(--color-primary)]',
                             'min-h-[120px]',
@@ -153,7 +154,7 @@ export const GlassTextarea = forwardRef<HTMLTextAreaElement, GlassTextareaProps>
                 {(error || hint) && (
                     <p className={cn(
                         'text-xs',
-                        error ? 'text-red-400' : 'text-[var(--color-text-muted)]'
+                        error ? 'text-red-400' : 'text-[var(--text-muted)]'
                     )}>
                         {error || hint}
                     </p>

@@ -131,6 +131,12 @@ export function Step6Generate() {
         }
     }, [phase]);
 
+    useEffect(() => {
+        if (phase === 'options' && !data.selected_variant_id) {
+            updateData({ selected_variant_id: 'balanced' });
+        }
+    }, [phase, data.selected_variant_id, updateData]);
+
     const options: ScheduleOption[] = [
         {
             id: 'balanced',
@@ -227,13 +233,13 @@ export function Step6Generate() {
                                         )}
                                         <div className={`absolute inset-0 transition-all duration-500 border ${
                                             selectedOption === opt.id
-                                                ? 'bg-white/[0.08] border-transparent shadow-[0_0_25px_rgba(255,255,255,0.05)] animate-shimmer'
+                                                ? 'bg-[var(--glass-bg-hover)] border-transparent shadow-[0_0_25px_rgba(255,255,255,0.05)] animate-shimmer'
                                                 : 'bg-[var(--glass-bg)] border-[var(--glass-border)] group-hover:bg-[var(--glass-bg-hover)]'
                                         }`} />
                                     </div>
 
                                     {opt.recommended && (
-                                        <div className="absolute -top-3 left-6 bg-white text-black text-[10px] font-bold px-3 py-1 rounded-full tracking-wide shadow-lg z-10">
+                                        <div className="absolute -top-3 left-6 bg-[var(--color-primary)] text-white text-[10px] font-bold px-3 py-1 rounded-full tracking-wide shadow-lg z-10">
                                             Recommended
                                         </div>
                                     )}
@@ -247,7 +253,7 @@ export function Step6Generate() {
                                                 <p className="text-sm text-[var(--text-primary)]/70 mt-2 leading-relaxed font-medium pr-8">{opt.summary}</p>
                                             </div>
                                             {selectedOption === opt.id && (
-                                                <div className="bg-white text-black p-1.5 rounded-full shadow-lg scale-110 ml-4 flex-shrink-0">
+                                                <div className="bg-[var(--color-primary)] text-white p-1.5 rounded-full shadow-lg scale-110 ml-4 flex-shrink-0">
                                                     <Check className="w-5 h-5 stroke-[3]" />
                                                 </div>
                                             )}
@@ -274,7 +280,7 @@ export function Step6Generate() {
                                                 </p>
 
                                                 {/* Visual Multi-segment Progress Bar */}
-                                                <div className="h-2 w-full rounded-full bg-white/5 flex overflow-hidden">
+                                                <div className="h-2 w-full rounded-full bg-[var(--glass-bg)] flex overflow-hidden">
                                                     {getPlanSegments(opt.id).map((seg, idx) => (
                                                         <div
                                                             key={idx}
@@ -291,13 +297,13 @@ export function Step6Generate() {
                                                         <div key={idx} className="flex items-center gap-2">
                                                             <span className={`w-2.5 h-2.5 rounded-full ${seg.bgClass}`} />
                                                             <span className="flex-1 text-[11px]">{seg.label}</span>
-                                                            <span className="font-mono font-bold text-white text-[11px]">{seg.hours}h</span>
+                                                            <span className="font-mono font-bold text-[var(--text-primary)] text-[11px]">{seg.hours}h</span>
                                                         </div>
                                                     ))}
                                                 </div>
 
                                                 {/* Short Text Overview Description */}
-                                                <div className="bg-white/[0.03] border border-white/[0.04] p-3 rounded-2xl text-[11px] text-[var(--text-primary)]/75 leading-relaxed">
+                                                <div className="bg-[var(--glass-bg)] border border-[var(--glass-border)] p-3 rounded-2xl text-[11px] text-[var(--text-primary)]/75 leading-relaxed">
                                                     {opt.id === 'balanced' && (
                                                         "Expect a steady rhythm where goals are tackled in solid, manageable blocks. Ideal for keeping progress consistent without feeling overwhelmed."
                                                     )}

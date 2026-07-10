@@ -490,6 +490,8 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
                 const rest: any[] = [];
 
                 for (const b of list) {
+                    if (!b) continue;
+                    
                     if (hasRoutine && b.title === 'Morning Routine' && b.block_type === 'routine') {
                         if (!routineBlock) routineBlock = { ...b, start_time: wakeTime, end_time: effectiveWakeTime };
                         continue; // dedupe AI-emitted duplicates
@@ -499,9 +501,28 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
                         if (!breakfastBlock) breakfastBlock = b;
                         continue; // one breakfast max
                     }
+                    
                     const bStart = timeToMinutes(b.start_time);
                     const bEnd = timeToMinutes(b.end_time);
-                    if (hasRoutine && bStart < effWakeMin && bEnd > wakeMin) continue; // routine has priority
+                    
+                    // If has routine and this block overlaps with routine window
+                    if (hasRoutine && (bEnd > wakeMin && bStart < effWakeMin)) {
+                        // Check if it's a real overlap (not just adjacent)
+                        const hasRealOverlap = !(bEnd <= wakeMin || bStart >= effWakeMin);
+                        
+                        if (hasRealOverlap) {
+                            const bType = (b.block_type || '').toLowerCase();
+                            const isFixed = ['anchor', 'commitment', 'routine', 'meal', 'sleep'].includes(bType);
+                            
+                            if (!isFixed) {
+                                // Skip this flexible block to accommodate Morning Routine
+                                continue;
+                            } else {
+                                // Preserve fixed blocks even if they overlap
+                                console.error(`[Schedule] ⚠️ CONFLICT: Block "${b.title}" overlaps with Morning Routine. Preserving both.`);
+                            }
+                        }
+                    }
                     rest.push(b);
                 }
 

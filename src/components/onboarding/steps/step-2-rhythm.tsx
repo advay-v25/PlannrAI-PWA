@@ -158,7 +158,7 @@ export function Step2Rhythm() {
                                     })}
                                     className={`py-5 rounded-3xl text-sm font-bold tracking-wide transition-all duration-300 flex-1 flex flex-col items-center justify-center gap-2 border ${
                                         data.meals_per_day === num 
-                                            ? 'bg-white text-black shadow-[0_0_25px_rgba(255,255,255,0.4)] scale-[1.02] border-transparent' 
+                                            ? 'bg-[var(--color-primary)] text-white shadow-[0_0_25px_var(--color-primary-glow)] scale-[1.02] border-transparent' 
                                             : 'bg-[var(--glass-bg-active)] text-[var(--text-primary)]/50 border-[var(--glass-border)] hover:bg-[var(--glass-bg)] hover:text-[var(--text-primary)] hover:scale-[1.01]'
                                     }`}
                                 >
@@ -191,9 +191,9 @@ export function Step2Rhythm() {
                                         onClick={() => handleMealClick(opt.id as 'breakfast' | 'lunch' | 'dinner')}
                                         className={`py-3.5 rounded-2xl text-xs font-bold transition-all duration-300 flex-1 border tracking-wide ${
                                             isDisabled
-                                                ? 'bg-white/[0.01] text-[var(--text-primary)]/20 border-white/[0.03] cursor-not-allowed shadow-none'
+                                                ? 'bg-[var(--glass-bg)] text-[var(--text-primary)]/20 border-white/[0.03] cursor-not-allowed shadow-none'
                                                 : isSelected
-                                                    ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)] scale-[1.03] border-transparent'
+                                                    ? 'bg-[var(--color-primary)] text-white shadow-[0_0_20px_var(--color-primary-glow)] scale-[1.03] border-transparent'
                                                     : 'bg-[var(--glass-bg-active)] text-[var(--text-primary)]/50 border-[var(--glass-border)] hover:bg-[var(--glass-bg)] hover:text-[var(--text-primary)] hover:scale-[1.02]'
                                         }`}
                                     >
@@ -274,14 +274,14 @@ export function Step2Rhythm() {
 
             <AnimatePresence>
                 {pendingSwitch && (
-                    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md">
+                    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[var(--color-bg-primary)]/60 backdrop-blur-md">
                         <motion.div 
                             initial={{ opacity: 0, scale: 0.95, y: 15 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 15 }}
                             className="bg-[var(--glass-bg)] border border-[var(--glass-border)] p-6 max-w-sm w-full mx-4 space-y-4 rounded-3xl shadow-2xl text-center backdrop-blur-xl animate-fade-in"
                         >
-                            <h3 className="text-lg font-bold text-white font-mono uppercase tracking-wide">
+                            <h3 className="text-lg font-bold text-[var(--text-primary)] font-mono uppercase tracking-wide">
                                 Switch Meal Selection?
                             </h3>
                             <p className="text-sm text-[var(--text-primary)]/70">

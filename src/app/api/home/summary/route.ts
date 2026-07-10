@@ -69,7 +69,8 @@ export const GET = secureApiRoute(
                 .eq('status', 'pending')
                 .order('order_index', { ascending: true })
                 .limit(1)
-                .maybeSingle(), null)
+                .maybeSingle(), null),
+            safeQuery(() => supabase.from('milestones').select('goal_id, status').eq('user_id', userId), [])
         ]);
 
         const profile = results[0];
@@ -82,6 +83,7 @@ export const GET = secureApiRoute(
         const weeklyBlocks = results[7];
         const nextWeekBlocks = results[8];
         const topTask = results[9];
+        const milestones = results[10];
 
         if (!profile) return apiError('Profile not found', 404);
 
@@ -144,6 +146,18 @@ export const GET = secureApiRoute(
             }
         }
 
+        // Calculate overdue count (blocks that ended before now and are not done/missed)
+        // Suppress on day one (created_at starts with today's date)
+        const isDayOne = profile.created_at?.startsWith(date);
+        let overdueCount = 0;
+        if (!isDayOne) {
+            overdueCount = validBlocks.filter((b: any) => 
+                b.end_time < currentTimeStr && 
+                b.status !== 'done' && 
+                b.status !== 'missed'
+            ).length;
+        }
+
         // 3. Insight Generation (Lightweight)
         let insight = { text: "Ready to conquer the day.", type: "neutral" };
 
@@ -153,17 +167,25 @@ export const GET = secureApiRoute(
             insight = { text: "Heavy load today. Pace yourself.", type: "info" };
         }
 
-        // 4. Goal Sorting (Time commitment + Energy/Importance)
-        // importance: high (3), medium (2), low (1)
+        // 4. Goal Sorting & Progress (Scope to today's goals and calculate progress)
+        const todaysGoalIds = new Set((blocks as any[])?.filter(b => b.block_type === 'goal' && b.goal_id).map(b => b.goal_id) || []);
+        
         const getImportanceValue = (imp: string) => imp === 'high' ? 3 : imp === 'medium' ? 2 : 1;
-        const sortedGoals = (goals || []).sort((a: any, b: any) => {
-            // Primary sort: Time commitment (minutes_per_day) descending
-            const timeA = a.minutes_per_day || 0;
-            const timeB = b.minutes_per_day || 0;
-            if (timeB !== timeA) return timeB - timeA;
-            // Secondary sort: Energy/Importance descending
-            return getImportanceValue(b.importance) - getImportanceValue(a.importance);
-        });
+        const processedGoals = (goals || [])
+            .filter((g: any) => todaysGoalIds.has(g.id))
+            .map((g: any) => {
+                const goalMilestones = milestones?.filter((m: any) => m.goal_id === g.id) || [];
+                const total = goalMilestones.length;
+                const completed = goalMilestones.filter((m: any) => m.status === 'completed').length;
+                const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+                return { ...g, progress };
+            })
+            .sort((a: any, b: any) => {
+                const timeA = a.minutes_per_day || 0;
+                const timeB = b.minutes_per_day || 0;
+                if (timeB !== timeA) return timeB - timeA;
+                return getImportanceValue(b.importance) - getImportanceValue(a.importance);
+            });
 
         // 5. Construct Response
         return apiSuccess({
@@ -182,7 +204,7 @@ export const GET = secureApiRoute(
             anchors: anchors || [],
             meals: (blocks || []).filter((b: any) => b.block_type === 'meal'),
             habit_stacks: habitStacks || [],
-            goals: sortedGoals,
+            goals: processedGoals,
             top_task: topTask,
             next_up: nextUpBlock ? { ...nextUpBlock, reason: nextUpReason } : null,
             metrics: {
@@ -190,7 +212,8 @@ export const GET = secureApiRoute(
                 completed_min: Math.round(completedMin),
                 planned_items: validBlocks.length,
                 completed_items: validBlocks.filter((b: any) => b.status === 'done').length,
-                free_min: Math.round(freeMin)
+                free_min: Math.round(freeMin),
+                overdue_count: overdueCount
             },
             weekly_metrics: {
                 planned_min: Math.round(wPlanned),

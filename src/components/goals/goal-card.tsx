@@ -195,7 +195,9 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                                     <div className="space-y-2">
                                         <div className="flex justify-between">
                                             <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Days / Week</label>
-                                            <span className="text-xs font-mono font-bold text-[var(--text-primary)]"><span style={{ color: pillarColor }}>{localDaysPerWeek}d</span></span>
+                                            <span className="text-xs font-mono font-bold" style={{ color: pillarColor }}>
+                                                {localDaysPerWeek}d
+                                            </span>
                                         </div>
                                         <input
                                             type="range" min={1} max={7} step={1}
@@ -210,7 +212,9 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                                     <div className="space-y-2">
                                         <div className="flex justify-between">
                                             <label className="text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider">Daily Mins</label>
-                                            <span className="text-xs font-mono font-bold text-[var(--text-primary)]"><span style={{ color: pillarColor }}>{localMinsPerDay}m</span></span>
+                                            <span className="text-xs font-mono font-bold" style={{ color: pillarColor }}>
+                                                {localMinsPerDay}m
+                                            </span>
                                         </div>
                                         <input
                                             type="range" min={5} max={180} step={5}

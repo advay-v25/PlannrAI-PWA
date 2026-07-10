@@ -283,14 +283,14 @@ export default function HomePage() {
                 background: 'linear-gradient(to right, transparent, hsla(16, 100%, 60%, 0.45) 30%, hsla(270, 91%, 65%, 0.45) 55%, hsla(158, 84%, 45%, 0.38) 75%, transparent)',
               }} />
               {/* Top-left corner cross */}
-              <div style={{ position: 'absolute', top: '72px', left: '12px', opacity: 0.12 }}>
-                <div style={{ position: 'absolute', width: '1px', height: '20px', background: 'white', left: '9px', top: 0 }} />
-                <div style={{ position: 'absolute', height: '1px', width: '20px', background: 'white', top: '9px', left: 0 }} />
+              <div style={{ position: 'absolute', top: '72px', left: '12px', opacity: 0.08 }}>
+                <div style={{ position: 'absolute', width: '1px', height: '20px', background: 'var(--text-primary)', left: '9px', top: 0 }} />
+                <div style={{ position: 'absolute', height: '1px', width: '20px', background: 'var(--text-primary)', top: '9px', left: 0 }} />
               </div>
               {/* Top-right corner cross */}
-              <div style={{ position: 'absolute', top: '72px', right: '12px', opacity: 0.12 }}>
-                <div style={{ position: 'absolute', width: '1px', height: '20px', background: 'white', left: '9px', top: 0 }} />
-                <div style={{ position: 'absolute', height: '1px', width: '20px', background: 'white', top: '9px', left: 0 }} />
+              <div style={{ position: 'absolute', top: '72px', right: '12px', opacity: 0.08 }}>
+                <div style={{ position: 'absolute', width: '1px', height: '20px', background: 'var(--text-primary)', left: '9px', top: 0 }} />
+                <div style={{ position: 'absolute', height: '1px', width: '20px', background: 'var(--text-primary)', top: '9px', left: 0 }} />
               </div>
               {/* Faint bottom vignette */}
               <div style={{
@@ -304,21 +304,21 @@ export default function HomePage() {
             {currentMode && currentMode.type && (
                 <div className={`mb-6 rounded-2xl border p-4 flex items-center justify-between ${
                     currentMode.type === 'recovery'
-                        ? 'bg-orange-500/10 border-orange-500/20'
-                        : 'bg-emerald-500/10 border-emerald-500/20'
+                        ? 'bg-orange-500/15 border-orange-500/30 dark:bg-orange-500/10 dark:border-orange-500/20'
+                        : 'bg-emerald-500/15 border-emerald-500/30 dark:bg-emerald-500/10 dark:border-emerald-500/20'
                 }`}>
                     <div className="flex items-center gap-3">
                         {currentMode.type === 'recovery' ? (
-                            <Shield className={`h-5 w-5 text-orange-400`} />
+                            <Shield className={`h-5 w-5 text-orange-600 dark:text-orange-400`} />
                         ) : (
-                            <Zap className={`h-5 w-5 text-emerald-400`} />
+                            <Zap className={`h-5 w-5 text-emerald-600 dark:text-emerald-400`} />
                         )}
                         <div>
                             <h4 className={`font-bold text-sm ${
-                                currentMode.type === 'recovery' ? 'text-orange-400' : 'text-emerald-400'
+                                currentMode.type === 'recovery' ? 'text-orange-700 dark:text-orange-400' : 'text-emerald-700 dark:text-emerald-400'
                             }`}>{currentMode.label}</h4>
                             <p className={`text-xs mt-0.5 ${
-                                currentMode.type === 'recovery' ? 'text-orange-400/70' : 'text-emerald-400/70'
+                                currentMode.type === 'recovery' ? 'text-orange-600 dark:text-orange-400/70' : 'text-emerald-600 dark:text-emerald-400/70'
                             }`}>{currentMode.message}</p>
                         </div>
                     </div>
@@ -429,7 +429,7 @@ export default function HomePage() {
                         userName={profile?.full_name || undefined}
                         plannedMinutes={effectiveData.metrics?.planned_min || 0}
                         unscheduledMinutes={effectiveData.metrics?.free_min || 1440}
-                        overdueCount={0}
+                        overdueCount={effectiveData.metrics?.overdue_count || 0}
                         state={effectiveState.state}
                         activeBlock={effectiveState.active_block}
                         nextBlock={effectiveState.next_block}

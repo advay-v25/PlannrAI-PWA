@@ -249,10 +249,10 @@ export function GoalStrategyModal({
                         </div>
                         <div>
                             <h2 className="text-xl font-bold">Expert Strategy</h2>
-                            <p className="text-sm text-[var(--color-text-muted)]">AI Deconstruction for "{goal.title}"</p>
+                            <p className="text-sm text-[var(--text-muted)]">AI Deconstruction for "{goal.title}"</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                    <button onClick={onClose} className="p-2 hover:bg-[var(--glass-bg)] dark:hover:bg-white/10 rounded-full transition-colors">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
@@ -314,26 +314,26 @@ export function GoalStrategyModal({
                                     <h3 className="text-xs font-bold text-[var(--color-primary)] uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
                                         <Sparkles className="w-3 h-3" /> Strategic One-Liner
                                     </h3>
-                                    <p className="text-white font-medium italic text-lg leading-relaxed">
+                                    <p className="text-[var(--text-primary)] font-medium italic text-lg leading-relaxed">
                                         &ldquo;{strategy.strategy_one_liner}&rdquo;
                                     </p>
                                 </div>
 
                                 <div className="space-y-4">
-                                    <h3 className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] px-1">Tactical Checklist</h3>
+                                    <h3 className="text-[10px] font-bold text-[var(--text-muted)] dark:text-white/40 uppercase tracking-[0.2em] px-1">Tactical Checklist</h3>
                                     <div className="space-y-2">
                                         {strategy.checklist?.map((item: any, i: number) => (
-                                            <motion.div 
+                                            <motion.div
                                                 key={i}
                                                 initial={{ opacity: 0, x: -10 }}
                                                 animate={{ opacity: 1, x: 0 }}
                                                 transition={{ delay: i * 0.1 }}
-                                                className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.05] hover:border-white/10 transition-all group"
+                                                className="flex items-center gap-3 p-3 rounded-xl bg-[var(--glass-bg)] dark:bg-white/[0.03] border border-[var(--glass-border)] dark:border-white/5 hover:bg-[var(--glass-bg-hover)] dark:hover:bg-white/[0.05] dark:hover:border-white/10 transition-all group"
                                             >
-                                                <div className="w-5 h-5 rounded-md border-2 border-white/10 flex items-center justify-center group-hover:border-[var(--color-primary)]/50 transition-colors">
+                                                <div className="w-5 h-5 rounded-md border-2 border-[var(--glass-border)] dark:border-white/10 flex items-center justify-center group-hover:border-[var(--color-primary)]/50 transition-colors">
                                                     <div className="w-2 h-2 bg-[var(--color-primary)] rounded-sm opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity" />
                                                 </div>
-                                                <span className="text-sm text-white/70 group-hover:text-white transition-colors">{item.text}</span>
+                                                <span className="text-sm text-[var(--text-secondary)] dark:text-white/70 group-hover:text-[var(--text-primary)] dark:group-hover:text-white transition-colors">{item.text}</span>
                                             </motion.div>
                                         ))}
                                     </div>
@@ -343,7 +343,7 @@ export function GoalStrategyModal({
                             {/* Right Pane: Protocol & Details */}
                             <div className="space-y-6">
                                 <div className="space-y-4">
-                                    <h3 className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] px-1 flex items-center justify-between">
+                                    <h3 className="text-[10px] font-bold text-[var(--text-muted)] dark:text-white/40 uppercase tracking-[0.2em] px-1 flex items-center justify-between">
                                         <span>Daily Flow Protocol</span>
                                         <Calendar className="w-3 h-3 opacity-30" />
                                     </h3>
@@ -356,10 +356,10 @@ export function GoalStrategyModal({
                                                 transition={{ delay: 0.2 + (i * 0.1) }}
                                                 className="relative"
                                             >
-                                                <div className="absolute -left-[22px] top-1 w-[22px] h-[22px] rounded-full bg-black border-2 border-[var(--color-primary)] flex items-center justify-center z-10 shadow-[0_0_10px_rgba(249,115,22,0.3)]">
+                                                <div className="absolute -left-[22px] top-1 w-[22px] h-[22px] rounded-full bg-[var(--color-bg-secondary)] dark:bg-black border-2 border-[var(--color-primary)] flex items-center justify-center z-10 shadow-[0_0_10px_rgba(249,115,22,0.3)]">
                                                     <span className="text-[9px] font-black text-[var(--color-primary)]">{i + 1}</span>
                                                 </div>
-                                                <p className="text-sm text-white/80 leading-relaxed font-medium">{step}</p>
+                                                <p className="text-sm text-[var(--text-secondary)] dark:text-white/80 leading-relaxed font-medium">{step}</p>
                                             </motion.div>
                                         ))}
                                     </div>
@@ -376,10 +376,10 @@ export function GoalStrategyModal({
                         </div>
 
                         {/* Scheduler Section */}
-                        <div className="border-t border-white/10 pt-4">
+                        <div className="border-t border-[var(--glass-border)] dark:border-white/10 pt-4">
                             <button
                                 onClick={() => setShowScheduler(!showScheduler)}
-                                className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-colors"
+                                className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-[var(--glass-bg)] dark:hover:bg-white/5 transition-colors"
                             >
                                 <div className="flex items-center gap-2">
                                     <Clock className="w-4 h-4 text-[var(--color-primary)]" />
@@ -396,25 +396,25 @@ export function GoalStrategyModal({
                                         exit={{ height: 0, opacity: 0 }}
                                         className="overflow-hidden"
                                     >
-                                        <div className="p-4 space-y-4 bg-white/5 rounded-lg mt-2">
+                                        <div className="p-4 space-y-4 bg-[var(--glass-bg)] dark:bg-white/5 rounded-lg mt-2">
                                             {/* Date & Time Picker */}
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div className="space-y-1">
-                                                    <label className="text-xs uppercase text-[var(--color-text-tertiary)]">Start Date</label>
+                                                    <label className="text-xs uppercase text-[var(--text-tertiary)]">Start Date</label>
                                                     <input
                                                         type="date"
                                                         value={scheduleDate}
                                                         onChange={(e) => setScheduleDate(e.target.value)}
-                                                        className="w-full bg-white/10 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
+                                                        className="w-full bg-[var(--glass-bg-active)] dark:bg-white/10 border border-[var(--glass-border)] dark:border-white/10 rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
                                                     />
                                                 </div>
                                                 <div className="space-y-1">
-                                                    <label className="text-xs uppercase text-[var(--color-text-tertiary)]">Start Time</label>
+                                                    <label className="text-xs uppercase text-[var(--text-tertiary)]">Start Time</label>
                                                     <input
                                                         type="time"
                                                         value={scheduleTime}
                                                         onChange={(e) => setScheduleTime(e.target.value)}
-                                                        className="w-full bg-white/10 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
+                                                        className="w-full bg-[var(--glass-bg-active)] dark:bg-white/10 border border-[var(--glass-border)] dark:border-white/10 rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-primary)]"
                                                     />
                                                 </div>
                                             </div>
@@ -424,10 +424,10 @@ export function GoalStrategyModal({
                                                 <span className="text-sm">Recurring Schedule</span>
                                                 <button
                                                     onClick={() => setIsRecurring(!isRecurring)}
-                                                    className={`w-12 h-6 rounded-full transition-colors ${isRecurring ? 'bg-[var(--color-primary)]' : 'bg-white/20'}`}
+                                                    className={`w-12 h-6 rounded-full transition-colors ${isRecurring ? 'bg-[var(--color-primary)]' : 'bg-[var(--glass-bg)] dark:bg-white/20'}`}
                                                 >
                                                     <motion.div
-                                                        className="w-5 h-5 bg-white rounded-full shadow-md"
+                                                        className="w-5 h-5 bg-[var(--text-primary)] dark:bg-white rounded-full shadow-md"
                                                         animate={{ x: isRecurring ? 26 : 2 }}
                                                         transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                                                     />
@@ -439,7 +439,7 @@ export function GoalStrategyModal({
                                                 <>
                                                     {/* Day Selector */}
                                                     <div className="space-y-2">
-                                                        <label className="text-xs uppercase text-[var(--color-text-tertiary)]">Days of Week</label>
+                                                        <label className="text-xs uppercase text-[var(--text-tertiary)]">Days of Week</label>
                                                         <div className="flex gap-2">
                                                             {DAY_LABELS.map((label, idx) => (
                                                                 <button
@@ -447,7 +447,7 @@ export function GoalStrategyModal({
                                                                     onClick={() => toggleDay(idx)}
                                                                     className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${selectedDays.includes(idx)
                                                                         ? 'bg-[var(--color-primary)] text-white'
-                                                                        : 'bg-white/10 text-[var(--color-text-tertiary)] hover:bg-white/20'
+                                                                        : 'bg-[var(--glass-bg)] dark:bg-white/10 text-[var(--text-tertiary)] dark:text-[var(--color-text-tertiary)] hover:bg-[var(--glass-bg-hover)] dark:hover:bg-white/20'
                                                                         }`}
                                                                 >
                                                                     {label}
@@ -458,7 +458,7 @@ export function GoalStrategyModal({
 
                                                     {/* Week Duration Selector */}
                                                     <div className="space-y-2">
-                                                        <label className="text-xs uppercase text-[var(--color-text-tertiary)]">Duration</label>
+                                                        <label className="text-xs uppercase text-[var(--text-tertiary)]">Duration</label>
                                                         <div className="grid grid-cols-2 gap-2">
                                                             {WEEK_OPTIONS.map(option => (
                                                                 <button
@@ -466,7 +466,7 @@ export function GoalStrategyModal({
                                                                     onClick={() => setScheduledWeeks(option.value)}
                                                                     className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${scheduledWeeks === option.value
                                                                         ? 'bg-[var(--color-primary)] text-white'
-                                                                        : 'bg-white/10 text-[var(--color-text-tertiary)] hover:bg-white/20'
+                                                                        : 'bg-[var(--glass-bg)] dark:bg-white/10 text-[var(--text-tertiary)] dark:text-[var(--color-text-tertiary)] hover:bg-[var(--glass-bg-hover)] dark:hover:bg-white/20'
                                                                         }`}
                                                                 >
                                                                     {option.label}
@@ -496,7 +496,7 @@ export function GoalStrategyModal({
                         </div>
 
                         {/* Footer Actions */}
-                        <div className="pt-4 flex gap-3 border-t border-white/10">
+                        <div className="pt-4 flex gap-3 border-t border-[var(--glass-border)] dark:border-white/10">
                             <GlassButton
                                 variant="primary"
                                 className="flex-1"

@@ -108,7 +108,7 @@ export function Step4Goals() {
                                 <button
                                     key={i}
                                     onClick={() => addDraftGoal(t.title, false, t.minutes)}
-                                    className="px-5 py-2.5 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-active)] hover:bg-white hover:border-white hover:text-black transition-all duration-300 text-sm font-semibold tracking-wide whitespace-nowrap shadow-sm hover:shadow-md hover:scale-105 active:scale-95"
+                                    className="px-5 py-2.5 rounded-full border border-[var(--glass-border)] bg-[var(--glass-bg-active)] hover:bg-[var(--color-primary)] hover:border-[var(--color-primary)] hover:text-white transition-all duration-300 text-sm font-semibold tracking-wide whitespace-nowrap shadow-sm hover:shadow-md hover:scale-105 active:scale-95"
                                 >
                                     + {t.title}
                                 </button>
@@ -153,7 +153,7 @@ export function Step4Goals() {
                                 const isEditing = editingGoalIndex === i;
 
                                 return (
-                                    <div key={i} className={`bg-white/[0.03] border backdrop-blur-xl ${isEditing ? 'border-[var(--glass-border)] ring-1 ring-white/20 shadow-2xl' : 'border-[var(--glass-border)] hover:border-[var(--glass-border)] hover:bg-[var(--glass-bg)]'} p-6 rounded-3xl transition-all duration-500 overflow-hidden`}>
+                                    <div key={i} className={`bg-[var(--glass-bg)] border backdrop-blur-xl ${isEditing ? 'border-[var(--glass-border)] ring-1 ring-[var(--glass-border)] shadow-2xl' : 'border-[var(--glass-border)] hover:border-[var(--glass-border)] hover:bg-[var(--glass-bg-hover)]'} p-6 rounded-3xl transition-all duration-500 overflow-hidden`}>
                                         
                                         {!isEditing ? (
                                             <div className="flex items-center justify-between">
@@ -234,7 +234,7 @@ export function Step4Goals() {
                                                                     key={e}
                                                                     onClick={() => updateGoal(i, { energy_demand: e })}
                                                                     className={`flex-1 text-[9px] font-black py-2 rounded-xl transition-all uppercase tracking-tighter ${goal.energy_demand === e
-                                                                        ? 'bg-white text-black shadow-lg'
+                                                                        ? 'bg-[var(--color-primary)] text-white shadow-[0_0_15px_var(--color-primary-glow)]'
                                                                         : 'text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]'
                                                                     }`}
                                                                 >
@@ -251,7 +251,7 @@ export function Step4Goals() {
                                                                     key={p}
                                                                     onClick={() => updateGoal(i, { importance: p })}
                                                                     className={`flex-1 text-[9px] font-black py-2 rounded-xl transition-all uppercase tracking-tighter ${goal.importance === p
-                                                                        ? 'bg-white text-black shadow-lg'
+                                                                        ? 'bg-[var(--color-primary)] text-white shadow-[0_0_15px_var(--color-primary-glow)]'
                                                                         : 'text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]'
                                                                     }`}
                                                                 >
@@ -293,7 +293,7 @@ export function Step4Goals() {
                                                 <button 
                                                     onClick={() => setEditingGoalIndex(null)} 
                                                     disabled={!goal.title} 
-                                                    className="w-full py-5 bg-white text-black font-black text-xs tracking-[0.3em] uppercase rounded-2xl disabled:opacity-50 mt-4 hover:scale-[1.01] active:scale-95 transition-all shadow-xl hover:shadow-[0_0_30px_rgba(255,255,255,0.2)]"
+                                                    className="w-full py-5 bg-[var(--color-primary)] text-white font-black text-xs tracking-[0.3em] uppercase rounded-2xl disabled:opacity-50 mt-4 hover:scale-[1.01] active:scale-95 transition-all shadow-xl hover:shadow-[0_0_30px_var(--color-primary-glow)]"
                                                 >
                                                     SAVE CALIBRATION
                                                 </button>

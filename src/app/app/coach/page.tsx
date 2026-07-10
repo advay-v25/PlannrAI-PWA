@@ -13,24 +13,33 @@ function CoachPageInner() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const context = searchParams.get('context');
+    const prompt = searchParams.get('prompt');
     const { messages, sendMessage } = useCoach();
     const initialized = useRef(false);
 
     useEffect(() => {
-        if (context === 'do_more_today' && messages.length === 0 && !initialized.current) {
-            initialized.current = true;
-            sendMessage("I have some extra time today. What should I tackle right now?");
-            const url = new URL(window.location.href);
-            url.searchParams.delete('context');
-            window.history.replaceState({}, '', url.toString());
-        } else if (context === 'calendar' && messages.length === 0 && !initialized.current) {
-            initialized.current = true;
-            sendMessage("I'm looking at my calendar and need some help.");
-            const url = new URL(window.location.href);
-            url.searchParams.delete('context');
-            window.history.replaceState({}, '', url.toString());
+        if (!initialized.current && messages.length === 0) {
+            let handled = false;
+            if (prompt) {
+                sendMessage(prompt);
+                handled = true;
+            } else if (context === 'do_more_today') {
+                sendMessage("I have some extra time today. What should I tackle right now?");
+                handled = true;
+            } else if (context === 'calendar') {
+                sendMessage("I'm looking at my calendar and need some help.");
+                handled = true;
+            }
+
+            if (handled) {
+                initialized.current = true;
+                const url = new URL(window.location.href);
+                url.searchParams.delete('context');
+                url.searchParams.delete('prompt');
+                window.history.replaceState({}, '', url.toString());
+            }
         }
-    }, [context, messages.length, sendMessage]);
+    }, [context, prompt, messages.length, sendMessage]);
 
     return (
         <div className="w-full h-full relative overflow-hidden flex flex-col">

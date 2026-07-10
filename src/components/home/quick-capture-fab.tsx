@@ -36,7 +36,7 @@ export function QuickCaptureFAB() {
                                 exit={{ opacity: 0, x: 20 }}
                                 transition={{ delay: i * 0.05 }}
                                 onClick={action.onClick}
-                                className="flex items-center gap-3 bg-[var(--glass-bg-elevated)] border border-[var(--glass-border)] hover:border-[var(--color-primary)] text-white px-4 py-3 rounded-full shadow-[var(--shadow-lg)] transition-all group"
+                                className="flex items-center gap-3 bg-[var(--glass-bg-elevated)] border border-[var(--glass-border)] hover:border-[var(--color-primary)] text-[var(--text-primary)] px-4 py-3 rounded-full shadow-[var(--shadow-lg)] transition-all group"
                             >
                                 <span className="text-sm font-semibold tracking-wide pr-2">{action.label}</span>
                                 <div className="text-[var(--text-secondary)] group-hover:text-[var(--color-primary)] transition-colors">
@@ -50,11 +50,11 @@ export function QuickCaptureFAB() {
 
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className={`w-14 h-14 rounded-full flex items-center justify-center shadow-[0_0_30px_var(--shadow-glow)] transition-all duration-300 ${
-                    isOpen 
-                        ? 'bg-[var(--glass-bg-elevated)] border border-[var(--glass-border)] text-white rotate-45' 
-                        : 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-black hover:scale-105'
-                }`}
+                className={`p-4 rounded-full shadow-lg transition-all flex items-center justify-center
+                    ${isOpen 
+                        ? 'bg-[var(--glass-bg-elevated)] border border-[var(--glass-border)] text-[var(--text-primary)] rotate-45' 
+                        : 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white hover:scale-105'
+                    }`}
             >
                 <Plus size={24} strokeWidth={2.5} />
             </button>

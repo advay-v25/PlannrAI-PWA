@@ -47,7 +47,7 @@ export function HabitStacks({ stacks, onUpdate }: any) {
                 <button
                     onClick={handleAIAssist}
                     disabled={generating}
-                    className="flex items-center gap-1.5 text-[10px] font-bold text-[var(--color-primary)] hover:text-white transition-colors"
+                    className="flex items-center gap-1.5 text-[10px] font-bold text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] transition-colors"
                 >
                     {generating ? <Loader className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
                     AI ASSIST
@@ -59,7 +59,7 @@ export function HabitStacks({ stacks, onUpdate }: any) {
                     stacks.map((stack: any) => (
                         <div key={stack.id} className="p-4 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-bg)] flex flex-col gap-2">
                             <div className="flex justify-between items-start">
-                                <h3 className="text-sm font-bold text-white">{stack.name}</h3>
+                                <h3 className="text-sm font-bold text-[var(--text-primary)]">{stack.name}</h3>
                                 <span className="text-[10px] text-[var(--text-secondary)] uppercase">{stack.preferred_window}</span>
                             </div>
                             <div className="space-y-1">

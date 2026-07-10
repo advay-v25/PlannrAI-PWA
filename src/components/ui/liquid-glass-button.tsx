@@ -27,33 +27,13 @@ const sizeClasses: Record<ButtonSize, string> = {
   icon: 'w-10 h-10 rounded-xl p-0 flex items-center justify-center',
 };
 
+// Use CSS variables that adapt per theme (set in globals.css)
+// Hover states are now handled by CSS transitions, not Framer Motion
 const variantBase: Record<ButtonVariant, string> = {
-  primary: 'bg-white/[0.07] border-white/[0.15] shadow-[0_8px_32px_0_rgba(0,0,0,0.37),inset_0_1px_0_rgba(255,255,255,0.12)]',
-  secondary: 'bg-white/[0.04] border-white/[0.08] shadow-[0_4px_16px_0_rgba(0,0,0,0.25),inset_0_1px_0_rgba(255,255,255,0.06)]',
-  ghost: 'bg-transparent border-white/[0.06] shadow-none',
-  danger: 'bg-red-500/[0.08] border-red-500/[0.2] shadow-[0_4px_16px_0_rgba(239,68,68,0.1),inset_0_1px_0_rgba(255,255,255,0.06)]',
-};
-
-const variantHover: Record<ButtonVariant, object> = {
-  primary: {
-    borderColor: 'rgba(255, 255, 255, 0.25)',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    boxShadow: '0 8px 32px 0 rgba(168, 85, 247, 0.2), inset 0 1px 0 rgba(255,255,255,0.2), 0 0 40px rgba(217, 4, 121, 0.1)',
-  },
-  secondary: {
-    borderColor: 'rgba(255, 255, 255, 0.18)',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    boxShadow: '0 8px 24px 0 rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255,255,255,0.12)',
-  },
-  ghost: {
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  danger: {
-    borderColor: 'rgba(239, 68, 68, 0.4)',
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    boxShadow: '0 8px 32px 0 rgba(239, 68, 68, 0.2), inset 0 1px 0 rgba(255,255,255,0.1)',
-  },
+  primary: 'bg-[var(--lg-primary-bg)] border-[var(--lg-primary-border)] shadow-[var(--lg-primary-shadow)] hover:bg-[var(--lg-primary-bg-hover)] hover:border-[var(--lg-primary-border-hover)] hover:shadow-[var(--lg-primary-shadow-hover)]',
+  secondary: 'bg-[var(--lg-secondary-bg)] border-[var(--lg-secondary-border)] shadow-[var(--lg-secondary-shadow)] hover:bg-[var(--lg-secondary-bg-hover)] hover:border-[var(--lg-secondary-border-hover)] hover:shadow-[var(--lg-secondary-shadow-hover)]',
+  ghost: 'bg-[var(--lg-ghost-bg)] border-[var(--lg-ghost-border)] shadow-[var(--lg-ghost-shadow)] hover:bg-[var(--lg-ghost-bg-hover)] hover:border-[var(--lg-ghost-border-hover)] hover:shadow-[var(--lg-ghost-shadow-hover)]',
+  danger: 'bg-[var(--lg-danger-bg)] border-[var(--lg-danger-border)] shadow-[var(--lg-danger-shadow)] hover:bg-[var(--lg-danger-bg-hover)] hover:border-[var(--lg-danger-border-hover)] hover:shadow-[var(--lg-danger-shadow-hover)]',
 };
 
 
@@ -73,8 +53,8 @@ export function LiquidGlassButton({
 
   const innerProps = {
     className: cn(
-      'relative overflow-hidden font-medium text-white cursor-pointer flex items-center justify-center',
-      'backdrop-blur-xl border transition-colors duration-300',
+      'relative overflow-hidden font-medium cursor-pointer flex items-center justify-center text-[var(--text-primary)]',
+      'backdrop-blur-xl border transition-all duration-300',
       sizeClasses[size],
       variantBase[variant],
       disabled && 'opacity-40 cursor-not-allowed',
@@ -82,7 +62,7 @@ export function LiquidGlassButton({
     ),
     onHoverStart: () => !disabled && setIsHovered(true),
     onHoverEnd: () => setIsHovered(false),
-    whileHover: disabled ? undefined : { scale: 1.03, ...(variantHover[variant] as any) },
+    whileHover: disabled ? undefined : { scale: 1.03 },
     whileTap: disabled ? undefined : { scale: 0.97 },
     transition: { type: 'spring' as const, stiffness: 200, damping: 25, mass: 1.2 }
   };

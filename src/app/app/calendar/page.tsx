@@ -183,7 +183,7 @@ function TaskCategories({ blocks }: { blocks: any[] }) {
                         <div className={cn("w-2.5 h-2.5 rounded-sm", color)} />
                         <span className="text-xs text-[var(--text-secondary)] capitalize">{type.replace('_', ' ')}</span>
                     </div>
-                    <span className="text-xs font-bold text-white/80">{count}</span>
+                    <span className="text-xs font-bold text-[var(--text-primary)] dark:text-white/80">{count}</span>
                 </div>
             ))}
         </div>
@@ -399,8 +399,8 @@ function CalendarPageInner() {
         : format(selectedDate, 'MMMM d, yyyy');
     return (
         <div className="h-full w-full bg-transparent text-[var(--text-primary)] overflow-hidden flex flex-col relative">
-            {/* Base gradient to ensure legibility while letting PageBackground shine through */}
-            <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/80 to-[#050508] pointer-events-none -z-10" />
+            {/* Dark-only overlay (removed for light mode to show ambient glows) */}
+            <div className="absolute inset-0 hidden dark:block bg-gradient-to-b from-black/60 via-black/80 to-[#050508] pointer-events-none -z-10" />
             <PageBackground color="teal" variant="horizon" intensity="medium" />
 
             {/* ── Top Header ────────────────────────────────────── */}
@@ -414,7 +414,7 @@ function CalendarPageInner() {
                                 <ChevronLeft className="w-4 h-4" />
                             </button>
                             <button onClick={() => setSelectedDate(new Date())}
-                                className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-white/8 transition-colors uppercase tracking-wider">
+                                className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--glass-bg)] dark:hover:bg-white/8 transition-colors uppercase tracking-wider">
                                 Today
                             </button>
                             <button onClick={() => navigateDate(1)}
@@ -534,7 +534,7 @@ function CalendarPageInner() {
 
                 {/* Minimal Stats Strip */}
                 {viewDayBlocks.length > 0 && (
-                    <div className="flex items-center gap-3 mt-2 pt-2 border-t border-white/[0.03]">
+                    <div className="flex items-center gap-3 mt-2 pt-2 border-t border-[var(--glass-border)] dark:border-white/[0.03]">
                         <span className="text-[10px] text-[var(--text-tertiary)] font-medium">
                             {dayStats.total} blocks · {dayStats.hours}h
                         </span>
@@ -586,7 +586,7 @@ function CalendarPageInner() {
                                     className="mx-auto"
                                 >
                                     {isGeneratingToday ? (
-                                        <><div className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white animate-spin" /> Planning...</>
+                                        <><div className="w-4 h-4 rounded-full border-2 border-[var(--text-muted)] border-t-[var(--text-primary)] dark:border-t-white animate-spin" /> Planning...</>
                                     ) : (
                                         <><Sparkles className="w-4 h-4" /> Plan {viewDateStr === todayStr ? 'Today' : 'This Day'} with AI</>
                                     )}
@@ -758,8 +758,8 @@ function AddBlockModal({ defaults, goals, onSubmit, onClose }: {
                         <div className="flex items-center gap-2 bg-[var(--glass-bg)] px-3 py-1.5 rounded-lg">
                             <span className="text-xs font-bold text-[var(--text-secondary)]">Recur Weekly?</span>
                             <button type="button" onClick={() => setIsAnchor(!isAnchor)}
-                                className={cn("w-8 h-4 rounded-full transition-colors relative", isAnchor ? "bg-orange-500" : "bg-white/20")}>
-                                <div className={cn("w-3 h-3 bg-white rounded-full absolute top-0.5 transition-all",
+                                className={cn("w-8 h-4 rounded-full transition-colors relative", isAnchor ? "bg-orange-500" : "bg-[var(--glass-bg)] dark:bg-white/20")}>
+                                <div className={cn("w-3 h-3 bg-[var(--text-primary)] dark:bg-white rounded-full absolute top-0.5 transition-all",
                                     isAnchor ? "left-4" : "left-0.5")} />
                             </button>
                         </div>
@@ -767,8 +767,8 @@ function AddBlockModal({ defaults, goals, onSubmit, onClose }: {
                             <div className="flex items-center gap-2 bg-[var(--glass-bg)] px-3 py-1.5 rounded-lg">
                                 <span className="text-xs font-bold text-[var(--text-secondary)]">Locked?</span>
                                 <button type="button" onClick={() => setIsLocked(!isLocked)}
-                                    className={cn("w-8 h-4 rounded-full transition-colors relative", isLocked ? "bg-orange-500" : "bg-white/20")}>
-                                    <div className={cn("w-3 h-3 bg-white rounded-full absolute top-0.5 transition-all",
+                                    className={cn("w-8 h-4 rounded-full transition-colors relative", isLocked ? "bg-orange-500" : "bg-[var(--glass-bg)] dark:bg-white/20")}>
+                                    <div className={cn("w-3 h-3 bg-[var(--text-primary)] dark:bg-white rounded-full absolute top-0.5 transition-all",
                                         isLocked ? "left-4" : "left-0.5")} />
                                 </button>
                             </div>

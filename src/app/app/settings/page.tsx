@@ -64,6 +64,33 @@ export default function SettingsPage() {
     const handleUpdate = (patch: Partial<ProfilePreferences>) => {
         setUnsavedChanges(prev => ({ ...prev, ...patch }));
         setPreferences(prev => prev ? { ...prev, ...patch } : null);
+        
+        // NEW: Handle energy mode quick-action toggles
+        if ('low_energy_mode' in patch && patch.low_energy_mode === true) {
+            // Reset toggle immediately (one-click action, not persistent state)
+            setPreferences(prev => prev ? { ...prev, low_energy_mode: false } : null);
+            setUnsavedChanges(prev => {
+                const copy = { ...prev };
+                delete copy.low_energy_mode;
+                return copy;
+            });
+            // Navigate to Coach with contextual prompt
+            router.push('/app/coach?mode=strategic&prompt=' + 
+                encodeURIComponent('I\'m in low-energy mode. Help me reduce today\'s schedule and focus on essentials.'));
+        }
+        
+        if ('overwhelm_mode' in patch && patch.overwhelm_mode === true) {
+            // Reset toggle immediately
+            setPreferences(prev => prev ? { ...prev, overwhelm_mode: false } : null);
+            setUnsavedChanges(prev => {
+                const copy = { ...prev };
+                delete copy.overwhelm_mode;
+                return copy;
+            });
+            // Navigate to Coach with contextual prompt
+            router.push('/app/coach?mode=strategic&prompt=' + 
+                encodeURIComponent('I\'m feeling overwhelmed. Help me handle or reschedule today\'s tasks.'));
+        }
     };
 
     const saveChanges = async () => {

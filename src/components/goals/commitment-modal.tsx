@@ -142,7 +142,7 @@ export function CommitmentModal({ onClose, onSuccess }: CommitmentModalProps) {
                         <Anchor className="w-5 h-5 text-[var(--color-primary)]" />
                         <h2 className="text-xl font-bold">New Anchor</h2>
                     </div>
-                    <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/10 transition-colors">
+                    <button onClick={onClose} className="p-2 rounded-lg hover:bg-[var(--glass-bg)] dark:hover:bg-white/10 transition-colors">
                         <X className="w-5 h-5 opacity-50 hover:opacity-100" />
                     </button>
                 </div>

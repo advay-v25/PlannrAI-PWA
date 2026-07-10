@@ -22,7 +22,7 @@ const paddingClasses = {
 const variants = {
     default: "bg-[var(--glass-bg)] border-[var(--glass-border)] shadow-md",
     glow: "bg-[var(--glass-bg)] border-[var(--color-primary)]/20 shadow-glow",
-    deep: "bg-[var(--color-bg-elevated)]/40 border-[var(--glass-border)] backdrop-blur-xl shadow-xl",
+    deep: "bg-[var(--glass-bg-elevated)]/40 border-[var(--glass-border)] backdrop-blur-xl shadow-xl",
     outline: "bg-transparent border-[var(--glass-border)]",
     breathe: "bg-[var(--glass-bg)] border-[var(--glass-border)] animate-pulse shadow-glow",
 };
@@ -38,6 +38,7 @@ export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
     }, ref) => {
         return (
             <motion.div
+                suppressHydrationWarning
                 ref={ref}
                 className={cn(
                     'relative overflow-hidden border backdrop-blur-md rounded-[var(--radius-2xl)] transition-all duration-300 ease-out',

@@ -35,13 +35,13 @@ export function StrategyOptionCard({ option, onApply, disabled }: StrategyOption
 
     return (
         <GlassCard
-            className="group relative overflow-hidden transition-all hover:bg-white/5 border border-white/10 hover:border-[var(--color-primary)]/30"
+            className="group relative overflow-hidden transition-all hover:bg-[var(--glass-bg-hover)] dark:hover:bg-white/5 border border-[var(--glass-border)] dark:border-white/10 hover:border-[var(--color-primary)]/30"
             padding="md"
         >
             <div className="flex flex-col gap-4">
                 {/* Header */}
                 <div className="space-y-1">
-                    <h4 className="text-base font-bold text-white flex items-center gap-2">
+                    <h4 className="text-base font-bold text-[var(--text-primary)] flex items-center gap-2">
                         <Sparkles className="w-4 h-4 text-[var(--color-primary)]" />
                         {option.label}
                     </h4>

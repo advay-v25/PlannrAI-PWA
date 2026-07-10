@@ -44,7 +44,7 @@ export function PillarBalance({ blocks }: PillarBalanceProps) {
     return (
         <GlassCard className="p-4">
             <h3 className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-4">
-                Pillar Balance
+                Pillar Balance — Today
             </h3>
             <div className="space-y-3">
                 {pillarData.map((p) => {
@@ -62,15 +62,19 @@ export function PillarBalance({ blocks }: PillarBalanceProps) {
                                     <span style={{ color: p.color }}>{p.minutes}</span> / {p.target}m
                                 </span>
                             </div>
-                            <div className="h-1.5 bg-[var(--glass-border)] rounded-full overflow-hidden">
+                            <div className="h-5 bg-black/40 rounded-lg overflow-hidden relative border border-white/5">
                                 <div
-                                    className="h-full rounded-full transition-all duration-700 ease-out"
+                                    className="absolute top-0 left-0 h-full transition-all duration-700 ease-out flex items-center justify-end"
                                     style={{
-                                        width: `${p.pct}%`,
+                                        width: p.pct > 0 ? `${Math.max(15, p.pct)}%` : '0%',
                                         backgroundColor: p.color,
-                                        opacity: p.minutes > 0 ? 1 : 0.2,
+                                        boxShadow: `0 0 10px ${p.color}40`,
                                     }}
-                                />
+                                >
+                                    {p.pct > 0 && (
+                                        <span className="text-[10px] font-bold text-black/70 pr-2">{p.pct}%</span>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     );

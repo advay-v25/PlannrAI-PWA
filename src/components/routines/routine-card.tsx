@@ -60,7 +60,7 @@ export function RoutineCard({ recommendation, onSchedule }: RoutineCardProps) {
                             )}
                         </div>
                         <h3 className="text-xl font-bold font-display">{r.name}</h3>
-                        <div className="flex items-center gap-3 text-sm text-[var(--color-text-secondary)]">
+                        <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)]">
                             <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {r.duration_minutes}m</span>
                             <span>•</span>
                             <span className="capitalize">{r.goal} Focus</span>
@@ -99,7 +99,7 @@ export function RoutineCard({ recommendation, onSchedule }: RoutineCardProps) {
                         <div className="pt-4 border-t border-[var(--glass-border)] flex flex-col gap-3">
                             <div className="flex items-center justify-between">
                                 <div className="text-xs text-[var(--text-tertiary)]">
-                                    Suggested: <span className="text-[var(--color-text-secondary)] font-mono">{r.best_time_window}</span>
+                                    Suggested: <span className="text-[var(--text-secondary)] font-mono">{r.best_time_window}</span>
                                 </div>
                             </div>
 

@@ -17,7 +17,7 @@ export function CollapsedInsights({ progressBars, energyCheckin }: CollapsedInsi
         <div className="w-full">
             <button 
                 onClick={() => setIsOpen(!isOpen)}
-                className="w-full flex items-center justify-between py-4 text-[var(--text-secondary)] hover:text-white transition-colors group border-t border-[var(--glass-border)]"
+                className="w-full flex items-center justify-between py-4 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors group border-t border-[var(--glass-border)]"
             >
                 <div className="flex items-center gap-2">
                     <Activity size={16} className="text-[var(--text-tertiary)] group-hover:text-[var(--color-primary)] transition-colors" />
