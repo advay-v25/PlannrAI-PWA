@@ -138,7 +138,7 @@ export default function LoginPage() {
                             <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[var(--text-primary)] to-[var(--text-secondary)] mb-2">
                                 Welcome to PlannrAI
                             </h1>
-                            <p className="text-white/60 text-sm">
+                            <p className="text-[var(--text-secondary)] text-sm">
                                 Your AI-powered executive assistant
                             </p>
                         </div>
@@ -166,7 +166,7 @@ export default function LoginPage() {
                                     <div className="flex justify-end mt-2">
                                         <Link 
                                             href="/forgot-password" 
-                                            className="text-xs text-white/60 hover:text-orange-500 transition-colors"
+                                            className="text-xs text-[var(--text-muted)] hover:text-orange-500 transition-colors"
                                         >
                                             Forgot password?
                                         </Link>
@@ -205,7 +205,7 @@ export default function LoginPage() {
                                         setMode(mode === 'login' ? 'signup' : 'login');
                                         setError('');
                                     }}
-                                    className="text-xs text-white/60 hover:text-orange-500 transition-colors py-2"
+                                    className="text-xs text-[var(--text-muted)] hover:text-orange-500 transition-colors py-2"
                                 >
                                     {mode === 'login' 
                                         ? "Don't have an account? Sign up" 
@@ -217,7 +217,7 @@ export default function LoginPage() {
                         {/* Divider */}
                         <div className="flex items-center gap-4 mb-6">
                             <div className="flex-1 h-px bg-[var(--glass-border)]" />
-                            <span className="text-[10px] uppercase tracking-widest text-white/40 font-bold">or continue with</span>
+                            <span className="text-[10px] uppercase tracking-widest text-[var(--text-muted)] font-bold">or continue with</span>
                             <div className="flex-1 h-px bg-[var(--glass-border)]" />
                         </div>
 
@@ -227,7 +227,7 @@ export default function LoginPage() {
                             variant="default"
                             size="lg"
                             loading={isLoading}
-                            className="w-full h-12 bg-white/5 border-white/10 hover:bg-white/10 transition-all text-white"
+                            className="w-full h-12 bg-[var(--glass-bg)] border-[var(--glass-border)] hover:bg-[var(--glass-bg-hover)] transition-all text-[var(--text-primary)]"
                         >
                             <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
                                 <path
@@ -251,7 +251,7 @@ export default function LoginPage() {
                         </GlassButton>
 
                         {/* Footer */}
-                        <div className="flex items-center justify-center gap-2 mt-8 text-[10px] text-white/40 uppercase tracking-[0.2em] font-bold">
+                        <div className="flex items-center justify-center gap-2 mt-8 text-[10px] text-[var(--text-muted)] uppercase tracking-[0.2em] font-bold">
                             <Lock className="w-3 h-3" />
                             End-to-end encrypted
                         </div>

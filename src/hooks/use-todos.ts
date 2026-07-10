@@ -59,7 +59,7 @@ export function useTodos() {
                         onClick: () => {
                             dispatchAppEvent({
                                 type: 'schedule-recompute',
-                                payload: { source: 'todo_block_time' }
+                                payload: { trigger: 'todo_block_time' }
                             });
                         },
                     },
@@ -78,7 +78,7 @@ export function useTodos() {
         if (result?.calendar_synced) {
             dispatchAppEvent({
                 type: 'schedule-recompute',
-                payload: { source: 'todo_completed' }
+                payload: { trigger: 'todo_completed' }
             });
         }
     };

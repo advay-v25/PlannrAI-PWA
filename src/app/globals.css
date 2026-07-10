@@ -51,10 +51,10 @@
   --shadow-glow-intense: 0 0 60px rgba(255, 91, 34, 0.2);
 
   /* Text Hierarchy - High Legibility (Light Mode) */
-  --text-primary: #18181b;
-  --text-secondary: #52525b;
-  --text-tertiary: #71717a;
-  --text-muted: #a1a1aa;
+  --text-primary: #18181b;     /* zinc-900 */
+  --text-secondary: #3f3f46;   /* zinc-700 */
+  --text-tertiary: #52525b;    /* zinc-600 */
+  --text-muted: #71717a;       /* zinc-500 */
 
   /* Status / Semantic Colors */
   --color-future: hsl(200, 80%, 55%);
@@ -160,10 +160,10 @@
   --glass-border-subtle: rgba(255, 255, 255, 0.04);
   --glass-border-hover: rgba(255, 255, 255, 0.2);
 
-  --text-primary: #FFFFFF;
-  --text-secondary: #A1A1AA;
-  --text-tertiary: #52525B;
-  --text-muted: #3F3F46;
+  --text-primary: #FFFFFF;     /* white */
+  --text-secondary: #D4D4D8;   /* zinc-300 */
+  --text-tertiary: #A1A1AA;    /* zinc-400 */
+  --text-muted: #71717A;       /* zinc-500 */
 }
 
 /* ═══════════════════════════════════════

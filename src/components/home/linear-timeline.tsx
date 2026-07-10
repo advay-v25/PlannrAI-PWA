@@ -21,7 +21,7 @@ export function LinearTimeline({ blocks, onStatusChange }: LinearTimelineProps) 
             <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-[var(--color-primary)]" />
-                    <h3 className="text-sm font-semibold text-white tracking-wide">Today</h3>
+                    <h3 className="text-sm font-semibold text-[var(--text-primary)] tracking-wide">Today</h3>
                 </div>
                 <Link href="/app/calendar" className="text-xs font-medium text-[var(--color-primary)] hover:underline flex items-center gap-1 transition-colors">
                     Open Calendar <ArrowRight className="w-3 h-3" />

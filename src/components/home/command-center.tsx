@@ -131,7 +131,7 @@ export function CommandCenter({
                     
                     <button 
                         onClick={() => onAction('next_move')}
-                        className="flex-none flex items-center justify-center gap-2 px-6 py-4 rounded-2xl text-sm font-bold border border-white/10 bg-white/5 hover:bg-white/10 text-white/90 hover:text-white hover:scale-[1.02] active:scale-[0.98] transition-all shadow-sm"
+                        className="flex-none flex items-center justify-center gap-2 px-6 py-4 rounded-2xl text-sm font-bold border border-[var(--glass-border)] bg-[var(--glass-bg)] hover:bg-[var(--glass-bg-hover)] text-[var(--text-primary)] hover:scale-[1.02] active:scale-[0.98] transition-all shadow-sm"
                     >
                         Need help?
                     </button>
@@ -146,20 +146,20 @@ export function CommandCenter({
                                     <CalendarIcon className="w-5 h-5 text-blue-400 group-hover:text-blue-300" />
                                 </div>
                                 <div className="flex flex-col min-w-0 flex-1 justify-center">
-                                    <span className="text-[10px] leading-tight font-bold uppercase tracking-widest text-white/40 mb-1">
+                                    <span className="text-[10px] leading-tight font-bold uppercase tracking-widest text-[var(--text-muted)] mb-1">
                                         Up Next
                                     </span>
-                                    <span className="text-sm leading-tight font-semibold text-white/90 truncate group-hover:text-white transition-colors">
+                                    <span className="text-sm leading-tight font-semibold text-[var(--text-primary)] truncate group-hover:text-[var(--color-primary)] transition-colors">
                                         {nextBlock ? nextBlock.title : "No upcoming events"}
                                     </span>
                                 </div>
                                 {nextBlock && nextBlock.start_time && (
-                                    <div className="hidden sm:flex px-4 py-1.5 rounded-full bg-black/20 border border-white/5 text-[10px] font-bold text-white/50 uppercase tracking-widest group-hover:bg-black/40 group-hover:text-white transition-all flex-shrink-0">
+                                    <div className="hidden sm:flex px-4 py-1.5 rounded-full bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest group-hover:bg-[var(--glass-bg-hover)] group-hover:text-[var(--text-primary)] transition-all flex-shrink-0">
                                         {format(new Date(`2000-01-01T${nextBlock.start_time}`), 'h:mm a')}
                                     </div>
                                 )}
                                 {!nextBlock && (
-                                    <div className="hidden sm:flex px-4 py-1.5 rounded-full bg-black/20 border border-white/5 text-[10px] font-bold text-white/50 uppercase tracking-widest group-hover:bg-black/40 group-hover:text-white transition-all flex-shrink-0">
+                                    <div className="hidden sm:flex px-4 py-1.5 rounded-full bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest group-hover:bg-[var(--glass-bg-hover)] group-hover:text-[var(--text-primary)] transition-all flex-shrink-0">
                                         View Calendar
                                     </div>
                                 )}

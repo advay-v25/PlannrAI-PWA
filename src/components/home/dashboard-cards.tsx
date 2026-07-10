@@ -33,8 +33,8 @@ export function DashboardCards({ goals, insight, topTask, isPreview = false }: D
                             <h3 className="font-semibold text-sm text-[var(--text-secondary)]">Mindspace</h3>
                         </div>
                         <div className="w-full bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-xl py-2 px-4 shadow-sm group-hover:bg-[var(--glass-bg-hover)] transition-all flex items-center justify-between">
-                            <span className="text-white/80 text-sm font-medium">Capture a thought</span>
-                            <ArrowRight className="w-4 h-4 text-white/50 group-hover:text-white/90 group-hover:translate-x-1 transition-all" />
+                            <span className="text-[var(--text-primary)] text-sm font-medium">Capture a thought</span>
+                            <ArrowRight className="w-4 h-4 text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] group-hover:translate-x-1 transition-all" />
                         </div>
                     </div>
                 </GlassCard>
@@ -99,7 +99,7 @@ export function DashboardCards({ goals, insight, topTask, isPreview = false }: D
                     </div>
                     <div className="w-full bg-black/20 border border-white/5 rounded-xl py-3 px-4 flex flex-col items-start gap-1">
                         <span className="text-indigo-300 text-xs font-bold tracking-wider uppercase">Coming Soon</span>
-                        <span className="text-white/40 text-xs">Chain behaviors for effortless routines.</span>
+                        <span className="text-[var(--text-muted)] text-xs">Chain behaviors for effortless routines.</span>
                     </div>
                 </GlassCard>
             </div>

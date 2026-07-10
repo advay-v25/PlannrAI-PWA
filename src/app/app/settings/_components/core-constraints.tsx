@@ -77,49 +77,106 @@ export default function CoreConstraints({ preferences, onChange }: Props) {
                             </SelectContent>
                         </Select>
                     </div>
-                    <div className="space-y-2">
-                        <Label>Breakfast Start Time</Label>
-                        <Input
-                            type="time"
-                            value={preferences.meal_windows?.breakfast?.start || '07:00'}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ 
-                                meal_windows: { 
-                                    ...preferences.meal_windows, 
-                                    breakfast: { start: e.target.value, end: preferences.meal_windows?.breakfast?.end || '10:00' } 
-                                } 
-                            })}
-                            className="w-full bg-[var(--color-bg-primary)] border border-[var(--glass-border)] rounded-md px-3 py-2 text-sm"
-                        />
+                    <div className="space-y-2 col-span-1 md:col-span-2">
+                        <Label>Breakfast Window</Label>
+                        <div className="flex items-center gap-3">
+                            <div className="flex-1">
+                                <label className="text-xs text-[var(--text-tertiary)] block mb-1">Start</label>
+                                <Input
+                                    type="time"
+                                    value={preferences.meal_windows?.breakfast?.start || '07:00'}
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ 
+                                        meal_windows: { 
+                                            ...preferences.meal_windows, 
+                                            breakfast: { start: e.target.value, end: preferences.meal_windows?.breakfast?.end || '10:00' } 
+                                        } 
+                                    })}
+                                    className="w-full bg-[var(--color-bg-primary)] border border-[var(--glass-border)] rounded-md px-3 py-2 text-sm"
+                                />
+                            </div>
+                            <div className="flex-1">
+                                <label className="text-xs text-[var(--text-tertiary)] block mb-1">End</label>
+                                <Input
+                                    type="time"
+                                    value={preferences.meal_windows?.breakfast?.end || '10:00'}
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ 
+                                        meal_windows: { 
+                                            ...preferences.meal_windows, 
+                                            breakfast: { start: preferences.meal_windows?.breakfast?.start || '07:00', end: e.target.value } 
+                                        } 
+                                    })}
+                                    className="w-full bg-[var(--color-bg-primary)] border border-[var(--glass-border)] rounded-md px-3 py-2 text-sm"
+                                />
+                            </div>
+                        </div>
                     </div>
                     {preferences.meals_per_day !== 2 && (
-                        <div className="space-y-2">
-                            <Label>Lunch Start Time</Label>
-                            <Input
-                                type="time"
-                                value={preferences.meal_windows?.lunch?.start || '12:00'}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ 
-                                    meal_windows: { 
-                                        ...preferences.meal_windows, 
-                                        lunch: { start: e.target.value, end: preferences.meal_windows?.lunch?.end || '15:00' } 
-                                    } 
-                                })}
-                                className="w-full bg-[var(--color-bg-primary)] border border-[var(--glass-border)] rounded-md px-3 py-2 text-sm"
-                            />
+                        <div className="space-y-2 col-span-1 md:col-span-2">
+                            <Label>Lunch Window</Label>
+                            <div className="flex items-center gap-3">
+                                <div className="flex-1">
+                                    <label className="text-xs text-[var(--text-tertiary)] block mb-1">Start</label>
+                                    <Input
+                                        type="time"
+                                        value={preferences.meal_windows?.lunch?.start || '12:00'}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ 
+                                            meal_windows: { 
+                                                ...preferences.meal_windows, 
+                                                lunch: { start: e.target.value, end: preferences.meal_windows?.lunch?.end || '15:00' } 
+                                            } 
+                                        })}
+                                        className="w-full bg-[var(--color-bg-primary)] border border-[var(--glass-border)] rounded-md px-3 py-2 text-sm"
+                                    />
+                                </div>
+                                <div className="flex-1">
+                                    <label className="text-xs text-[var(--text-tertiary)] block mb-1">End</label>
+                                    <Input
+                                        type="time"
+                                        value={preferences.meal_windows?.lunch?.end || '15:00'}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ 
+                                            meal_windows: { 
+                                                ...preferences.meal_windows, 
+                                                lunch: { start: preferences.meal_windows?.lunch?.start || '12:00', end: e.target.value } 
+                                            } 
+                                        })}
+                                        className="w-full bg-[var(--color-bg-primary)] border border-[var(--glass-border)] rounded-md px-3 py-2 text-sm"
+                                    />
+                                </div>
+                            </div>
                         </div>
                     )}
-                    <div className="space-y-2">
-                        <Label>Dinner Start Time</Label>
-                        <Input
-                            type="time"
-                            value={preferences.meal_windows?.dinner?.start || '20:00'}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ 
-                                meal_windows: { 
-                                    ...preferences.meal_windows, 
-                                    dinner: { start: e.target.value, end: preferences.meal_windows?.dinner?.end || '21:30' } 
-                                } 
-                            })}
-                            className="w-full bg-[var(--color-bg-primary)] border border-[var(--glass-border)] rounded-md px-3 py-2 text-sm"
-                        />
+                    <div className="space-y-2 col-span-1 md:col-span-2">
+                        <Label>Dinner Window</Label>
+                        <div className="flex items-center gap-3">
+                            <div className="flex-1">
+                                <label className="text-xs text-[var(--text-tertiary)] block mb-1">Start</label>
+                                <Input
+                                    type="time"
+                                    value={preferences.meal_windows?.dinner?.start || '20:00'}
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ 
+                                        meal_windows: { 
+                                            ...preferences.meal_windows, 
+                                            dinner: { start: e.target.value, end: preferences.meal_windows?.dinner?.end || '21:30' } 
+                                        } 
+                                    })}
+                                    className="w-full bg-[var(--color-bg-primary)] border border-[var(--glass-border)] rounded-md px-3 py-2 text-sm"
+                                />
+                            </div>
+                            <div className="flex-1">
+                                <label className="text-xs text-[var(--text-tertiary)] block mb-1">End</label>
+                                <Input
+                                    type="time"
+                                    value={preferences.meal_windows?.dinner?.end || '21:30'}
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ 
+                                        meal_windows: { 
+                                            ...preferences.meal_windows, 
+                                            dinner: { start: preferences.meal_windows?.dinner?.start || '20:00', end: e.target.value } 
+                                        } 
+                                    })}
+                                    className="w-full bg-[var(--color-bg-primary)] border border-[var(--glass-border)] rounded-md px-3 py-2 text-sm"
+                                />
+                            </div>
+                        </div>
                     </div>
                 </CardContent>
             </Card>

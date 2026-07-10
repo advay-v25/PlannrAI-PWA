@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, Smile, Meh, Frown, Sun, Moon, CloudRain, RefreshCw, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -23,6 +24,7 @@ const MOODS = [
 ];
 
 export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyCheckinProps) {
+    const router = useRouter();
     const [energy, setEnergy] = useState(currentEnergy || 0);
     const [mood, setMood] = useState(currentMood || '');
     const [submitted, setSubmitted] = useState(!!currentEnergy);
@@ -101,12 +103,12 @@ export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyC
                             <button
                                 onClick={() => {
                                     if (modeBanner.type === 'recovery') {
-                                        dispatchAppEvent({ type: 'trigger', payload: 'chat_coach' });
+                                        router.push('/app/coach?mode=strategic&prompt=I need some help managing my schedule today, my energy is very low.');
                                     } else {
                                         dispatchAppEvent({
                                             type: 'schedule-recompute',
                                             payload: {
-                                                source: 'energy_checkin_action',
+                                                trigger: 'energy_checkin_action',
                                                 // @ts-ignore
                                                 energy,
                                                 mood,
@@ -187,15 +189,12 @@ export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyC
             }
 
             if (isNonDefault && finalEnergy <= 2) {
-                dispatchAppEvent({
-                    type: 'trigger',
-                    payload: 'chat_coach'
-                });
+                router.push('/app/coach?mode=strategic&prompt=I need some help managing my schedule today, my energy is very low.');
             } else {
                 dispatchAppEvent({
                     type: 'schedule-recompute',
                     payload: {
-                        source: 'energy_checkin',
+                        trigger: 'energy_checkin',
                         // @ts-ignore
                         energy: finalEnergy,
                         mood: finalMood,

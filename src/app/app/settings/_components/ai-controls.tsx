@@ -56,23 +56,7 @@ export default function AIControls({ preferences, onChange }: Props) {
                         />
                     </div>
 
-                    <div className="flex items-center justify-between">
-                        <div className="space-y-0.5">
-                            <Label>Max Options</Label>
-                            <p className="text-xs text-[var(--text-tertiary)]">Choices presented by Coach</p>
-                        </div>
-                        <Select
-                            value={String(preferences.max_ai_options)}
-                            onValueChange={(v: string) => onChange({ max_ai_options: parseInt(v) as 1 | 2 | 3 })}
-                        >
-                            <SelectTrigger className="w-[100px] bg-transparent"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="1">1 (Decisive)</SelectItem>
-                                <SelectItem value="2">2 (Balanced)</SelectItem>
-                                <SelectItem value="3">3 (Flexible)</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
+
                 </CardContent>
             </Card>
 

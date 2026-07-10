@@ -9,6 +9,7 @@ import { Loader2, Plus, Trash2, CheckCircle2, Circle, Archive, GripHorizontal, C
 import { cn } from '@/lib/utils';
 import { format, formatDistanceToNow, startOfWeek, endOfWeek, isWithinInterval, subDays } from 'date-fns';
 import { RichTextEditor } from './RichTextEditor';
+import { WeeklyStatsBar } from './WeeklyStatsBar';
 import { DndContext, DragOverlay, closestCorners, PointerSensor, TouchSensor, useSensor, useSensors, defaultDropAnimationSideEffects, type DragStartEvent, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -487,15 +488,11 @@ export function MindspaceBoard() {
                     </div>
 
                     {/* WEEKLY STAT BAR */}
-                    <div className="w-full mt-2 flex flex-col gap-1.5 px-2">
-                        <div className="flex items-center justify-between text-[11px] font-bold text-white/40 uppercase tracking-widest">
-                            <span>Added {weeklyStats.addedCount}</span>
-                            <span>Completed {weeklyStats.completedCount}</span>
-                        </div>
-                        <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden flex">
-                            <div className="h-full bg-white/20 transition-all duration-500" style={{ width: `${weeklyStats.addedWidth}%` }} />
-                            <div className="h-full bg-[var(--color-primary)] transition-all duration-500" style={{ width: `${100 - weeklyStats.addedWidth}%` }} />
-                        </div>
+                    <div className="w-full mt-4 flex flex-col gap-1.5 px-2">
+                        <WeeklyStatsBar 
+                            added={weeklyStats.addedCount} 
+                            completed={weeklyStats.completedCount} 
+                        />
                     </div>
                 </div>
             </div>
@@ -530,6 +527,15 @@ export function MindspaceBoard() {
                                 />
                             ))}
                         </div>
+                        <DragOverlay>
+                            {activeId ? (
+                                <div className="bg-[var(--glass-bg)] border border-[var(--color-primary)] rounded-2xl p-4 shadow-xl opacity-90">
+                                    <h4 className="font-bold text-[var(--text-primary)] text-sm">
+                                        {activeTodos.find(t => t.id === activeId)?.title || 'Dragging...'}
+                                    </h4>
+                                </div>
+                            ) : null}
+                        </DragOverlay>
                     </DndContext>
                 )}
             </div>
@@ -752,8 +758,6 @@ function MindspaceCard({ todo, updateTodo, deleteTodo }: any) {
             {/* The small card on the board */}
             <div
                 ref={setNodeRef}
-                {...attributes}
-                {...listeners}
                 onClick={openModal}
                 className={cn(
                     "group relative bg-[#1c1c1e] hover:bg-[#2c2c2e] border border-white/[0.05] rounded-2xl p-4 transition-all duration-200 cursor-pointer flex flex-col gap-2",
@@ -766,9 +770,20 @@ function MindspaceCard({ todo, updateTodo, deleteTodo }: any) {
                 }}
             >
                 <div className="flex items-start justify-between gap-2">
-                    <h4 className={cn("font-bold text-[var(--text-primary)] text-sm leading-tight", todo.is_completed && "line-through opacity-40")}>
-                        {todo.title || 'Untitled'}
-                    </h4>
+                    <div className="flex items-start gap-2">
+                        {/* DRAG HANDLE */}
+                        <div
+                            {...attributes}
+                            {...listeners}
+                            className="mt-0.5 cursor-grab active:cursor-grabbing text-white/20 hover:text-white/60 transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <GripHorizontal className="w-4 h-4" />
+                        </div>
+                        <h4 className={cn("font-bold text-[var(--text-primary)] text-sm leading-tight", todo.is_completed && "line-through opacity-40")}>
+                            {todo.title || 'Untitled'}
+                        </h4>
+                    </div>
                     <button 
                         onClick={togglePin}
                         className={cn(

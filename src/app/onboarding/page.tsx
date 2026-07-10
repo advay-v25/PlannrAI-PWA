@@ -105,9 +105,9 @@ export default function OnboardingPage() {
         <div className="min-h-screen relative flex flex-col items-center justify-center p-4 overflow-hidden bg-[var(--color-bg-primary)] text-[var(--text-primary)] font-sans selection:bg-purple-500/30 selection:text-white">
             
             {/* Premium Subtle Ambient Background */}
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(15,10,35,0.8)_0%,rgba(2,1,6,1)_100%)] pointer-events-none" />
-            <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-purple-900/10 rounded-full blur-[150px] pointer-events-none" />
-            <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-fuchsia-900/10 rounded-full blur-[150px] pointer-events-none" />
+            <div className="absolute inset-0 hidden dark:block bg-[radial-gradient(ellipse_at_top,rgba(15,10,35,0.8)_0%,rgba(2,1,6,1)_100%)] pointer-events-none transition-colors duration-500" />
+            <div className="absolute top-0 left-0 w-[500px] h-[500px] hidden dark:block bg-purple-900/10 rounded-full blur-[150px] pointer-events-none transition-colors duration-500" />
+            <div className="absolute bottom-0 right-0 w-[500px] h-[500px] hidden dark:block bg-fuchsia-900/10 rounded-full blur-[150px] pointer-events-none transition-colors duration-500" />
 
             <div className="relative z-10 w-full max-w-3xl flex flex-col items-center min-h-0 md:min-h-[700px] py-10">
 

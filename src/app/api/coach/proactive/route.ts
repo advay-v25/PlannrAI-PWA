@@ -25,13 +25,14 @@ export const GET = secureApiRoute(
         const completedBlocks = blocks.filter((b: any) => b.status === 'completed');
 
         // Check for needs_rescheduling flag in profile bio_data
-        const { data: profile } = await supabase.from('profiles').select('bio_data').eq('id', userId).single();
+        const { data: profile } = await supabase.from('profiles').select('bio_data, created_at').eq('id', userId).single();
         const bioData = (profile?.bio_data as any) || {};
         const needsRescheduling = bioData.needs_rescheduling === true;
         const pendingGoal = bioData.pending_goal_update || 'your settings';
 
         // Generate a proactive suggestion based on schedule state
         let suggestion = null;
+        const isDayOne = profile?.created_at?.startsWith(today);
 
         if (needsRescheduling) {
             suggestion = {
@@ -47,7 +48,7 @@ export const GET = secureApiRoute(
             
             // Note: Flag is now cleared only upon user action (dismiss/apply)
 
-        } else if (missedBlocks.length >= 3) {
+        } else if (missedBlocks.length >= 3 && !isDayOne) {
             suggestion = {
                 id: 'missed-blocks',
                 dismiss_uid: `missed-${today}`,
