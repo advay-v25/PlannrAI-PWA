@@ -6,7 +6,7 @@ import { LiquidGlassButton } from '@/components/ui/liquid-glass-button';
 
 export default function LandingPage() {
   return (
-    <div className="dark min-h-screen relative font-sans text-white overflow-x-hidden selection:bg-purple-500/30 bg-[var(--color-bg-primary)]">
+    <div className="min-h-screen relative font-sans text-white overflow-x-hidden selection:bg-purple-500/30">
       {/* Cinematic Sci-Fi Background */}
       <SciFiEarthBackground />
 

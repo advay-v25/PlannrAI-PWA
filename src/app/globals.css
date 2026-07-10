@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
   /* ========================================
@@ -54,25 +55,15 @@
   --text-secondary: #52525b;
   --text-tertiary: #71717a;
   --text-muted: #a1a1aa;
-}
 
-.dark {
-  --color-bg-primary: #050508;
-  --color-bg-secondary: #0A0A0E;
-  --color-bg-tertiary: #121218;
-
-  --glass-bg: rgba(255, 255, 255, 0.03);
-  --glass-bg-hover: rgba(255, 255, 255, 0.06);
-  --glass-bg-active: rgba(255, 255, 255, 0.09);
-  --glass-bg-elevated: rgba(255, 255, 255, 0.04);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-border-subtle: rgba(255, 255, 255, 0.04);
-  --glass-border-hover: rgba(255, 255, 255, 0.2);
-
-  --text-primary: #FFFFFF;
-  --text-secondary: #A1A1AA;
-  --text-tertiary: #52525B;
-  --text-muted: #3F3F46;
+  /* Status / Semantic Colors */
+  --color-future: hsl(200, 80%, 55%);
+  --color-future-soft: hsla(200, 80%, 55%, 0.15);
+  --color-mind-soft: hsla(270, 80%, 60%, 0.15);
+  --color-body-soft: hsla(140, 70%, 50%, 0.15);
+  --color-success: hsl(140, 70%, 45%);
+  --color-warning: hsl(38, 92%, 50%);
+  --color-error: hsl(0, 84%, 60%);
 
   /* ═══════════════════════════════════════
      TYPOGRAPHY - SF Pro with Luxury Spacing
@@ -130,7 +121,6 @@
 
   /* Border Radius */
   --radius-sm: 4px;
-  /* Sharper */
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
@@ -155,6 +145,25 @@
   --transition-colors: color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
   --transition-transform: transform var(--duration-normal) var(--ease-spring);
   --transition-all: all var(--duration-normal) var(--ease-out);
+}
+
+.dark {
+  --color-bg-primary: #050508;
+  --color-bg-secondary: #0A0A0E;
+  --color-bg-tertiary: #121218;
+
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-bg-hover: rgba(255, 255, 255, 0.06);
+  --glass-bg-active: rgba(255, 255, 255, 0.09);
+  --glass-bg-elevated: rgba(255, 255, 255, 0.04);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-subtle: rgba(255, 255, 255, 0.04);
+  --glass-border-hover: rgba(255, 255, 255, 0.2);
+
+  --text-primary: #FFFFFF;
+  --text-secondary: #A1A1AA;
+  --text-tertiary: #52525B;
+  --text-muted: #3F3F46;
 }
 
 /* ═══════════════════════════════════════
@@ -394,11 +403,11 @@ body::after {
   color: var(--text-tertiary);
 }
 
-/* Global placeholder styling for all inputs — subtle ghost text */
+/* Global placeholder styling for all inputs */
 input::placeholder,
 textarea::placeholder {
-  color: rgba(255, 255, 255, 0.15) !important;
-  opacity: 1 !important;
+  color: var(--text-muted);
+  opacity: 1;
 }
 
 .input:hover {

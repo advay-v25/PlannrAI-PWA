@@ -215,7 +215,7 @@ export function GoalInterpret({ goalId, goalTitle, onClose, onApply }: GoalInter
                         className="w-full flex items-center justify-between"
                     >
                         <div className="flex items-center gap-2">
-                            <Target className="w-5 h-5 text-[var(--color-text-secondary)]" />
+                            <Target className="w-5 h-5 text-[var(--text-secondary)]" />
                             <span className="font-medium">Setup Checklist</span>
                         </div>
                         {expandedSection === 'setup' ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
@@ -285,7 +285,7 @@ export function GoalInterpretTrigger({
             }}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${hasInterpretation
                 ? 'bg-[var(--color-primary)]/20 text-[var(--color-primary)] shadow-[0_0_10px_rgba(var(--color-primary-rgb),0.3)]'
-                : 'bg-[var(--glass-bg)] text-[var(--text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--glass-bg-hover)]'
+                : 'bg-[var(--glass-bg)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--glass-bg-hover)]'
                 }`}
         >
             <Sparkles className="w-3 h-3" />

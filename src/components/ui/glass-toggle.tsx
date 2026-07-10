@@ -29,12 +29,12 @@ export function GlassToggle({
             {(label || description) && (
                 <div className="flex-1">
                     {label && (
-                        <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                        <p className="text-sm font-medium text-[var(--text-primary)]">
                             {label}
                         </p>
                     )}
                     {description && (
-                        <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5">
                             {description}
                         </p>
                     )}
@@ -60,7 +60,7 @@ export function GlassToggle({
                         'absolute top-0.5 w-6 h-6 rounded-full',
                         'flex items-center justify-center',
                         'shadow-lg',
-                        checked ? 'bg-white' : 'bg-[var(--color-text-secondary)]'
+                        checked ? 'bg-white' : 'bg-[var(--text-secondary)]'
                     )}
                     animate={{
                         left: checked ? '22px' : '2px',
@@ -112,7 +112,7 @@ export function GlassSlider({
             {(label || showValue) && (
                 <div className="flex items-center justify-between">
                     {label && (
-                        <label className="text-sm font-medium text-[var(--color-text-secondary)]">
+                        <label className="text-sm font-medium text-[var(--text-secondary)]">
                             {label}
                         </label>
                     )}

@@ -90,6 +90,7 @@ export default function SettingsPage() {
         try {
             await apiClient.post('/api/auth/logout', {});
             await supabase.auth.signOut();
+            if (typeof window !== 'undefined') localStorage.setItem('theme', 'dark');
             window.location.href = '/login';
         } catch (err) {
             toast.error('Failed to sign out');
@@ -367,6 +368,7 @@ function DangerZone() {
             // Sign out client and redirect
             const supabase = createClient();
             await supabase.auth.signOut();
+            if (typeof window !== 'undefined') localStorage.setItem('theme', 'dark');
             window.location.href = '/login';
         } catch (err: any) {
             toast.error(err.message || 'Failed to delete account');

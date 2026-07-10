@@ -60,12 +60,12 @@ export function PatchPreviewModal({ isOpen, onClose, onApply, isApplying, previe
                             <div className="flex items-center justify-between mb-6">
                                 <div>
                                     <h2 className="text-xl font-bold">Review Changes</h2>
-                                    <p className="text-sm text-[var(--color-text-muted)]">
+                                    <p className="text-sm text-[var(--text-muted)]">
                                         Confirm the updates to your schedule.
                                     </p>
                                 </div>
                                 <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-                                    <X className="w-5 h-5 text-[var(--color-text-muted)]" />
+                                    <X className="w-5 h-5 text-[var(--text-muted)]" />
                                 </button>
                             </div>
 
@@ -147,7 +147,7 @@ export function PatchPreviewModal({ isOpen, onClose, onApply, isApplying, previe
                                     )}
 
                                     {(!diff || (diff.created.length === 0 && diff.moved.length === 0 && diff.deleted.length === 0)) && (
-                                        <p className="text-center text-sm text-[var(--color-text-muted)] py-4">
+                                        <p className="text-center text-sm text-[var(--text-muted)] py-4">
                                             No explicit schedule changes. Just updating goals/settings.
                                         </p>
                                     )}

@@ -22,7 +22,7 @@ const paddingClasses = {
 const variants = {
     default: "bg-[var(--glass-bg)] border-[var(--glass-border)] shadow-md",
     glow: "bg-[var(--glass-bg)] border-[var(--color-primary)]/20 shadow-glow",
-    deep: "bg-[var(--color-bg-elevated)]/40 border-[var(--glass-border)] backdrop-blur-xl shadow-xl",
+    deep: "bg-[var(--glass-bg-elevated)]/40 border-[var(--glass-border)] backdrop-blur-xl shadow-xl",
     outline: "bg-transparent border-[var(--glass-border)]",
     breathe: "bg-[var(--glass-bg)] border-[var(--glass-border)] animate-pulse shadow-glow",
 };

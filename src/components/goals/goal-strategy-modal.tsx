@@ -249,7 +249,7 @@ export function GoalStrategyModal({
                         </div>
                         <div>
                             <h2 className="text-xl font-bold">Expert Strategy</h2>
-                            <p className="text-sm text-[var(--color-text-muted)]">AI Deconstruction for "{goal.title}"</p>
+                            <p className="text-sm text-[var(--text-muted)]">AI Deconstruction for "{goal.title}"</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">

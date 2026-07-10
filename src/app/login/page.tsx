@@ -120,7 +120,7 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen min-h-dvh flex items-center justify-center p-4 bg-gradient-to-b from-[#1a0a00] via-neutral-950 to-neutral-950 overflow-hidden relative">
+        <div className="min-h-screen min-h-dvh flex items-center justify-center p-4 bg-[var(--color-bg-primary)] dark:bg-gradient-to-b dark:from-[#1a0a00] dark:via-neutral-950 dark:to-neutral-950 overflow-hidden relative">
             <div className="w-full max-w-md relative z-10">
                 <GlassCard variant="glow" padding="lg" className="border-white/10 shadow-2xl">
                     <div className="relative z-10">
@@ -135,10 +135,10 @@ export default function LoginPage() {
                                 <Sparkles className="w-8 h-8 text-orange-500" />
                             </motion.div>
 
-                            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60 mb-2">
+                            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[var(--text-primary)] to-[var(--text-secondary)] mb-2">
                                 Welcome to PlannrAI
                             </h1>
-                            <p className="text-white/40 text-sm">
+                            <p className="text-white/60 text-sm">
                                 Your AI-powered executive assistant
                             </p>
                         </div>
@@ -166,7 +166,7 @@ export default function LoginPage() {
                                     <div className="flex justify-end mt-2">
                                         <Link 
                                             href="/forgot-password" 
-                                            className="text-xs text-white/40 hover:text-orange-500 transition-colors"
+                                            className="text-xs text-white/60 hover:text-orange-500 transition-colors"
                                         >
                                             Forgot password?
                                         </Link>
@@ -205,7 +205,7 @@ export default function LoginPage() {
                                         setMode(mode === 'login' ? 'signup' : 'login');
                                         setError('');
                                     }}
-                                    className="text-xs text-white/40 hover:text-orange-500 transition-colors py-2"
+                                    className="text-xs text-white/60 hover:text-orange-500 transition-colors py-2"
                                 >
                                     {mode === 'login' 
                                         ? "Don't have an account? Sign up" 
@@ -216,9 +216,9 @@ export default function LoginPage() {
 
                         {/* Divider */}
                         <div className="flex items-center gap-4 mb-6">
-                            <div className="flex-1 h-px bg-white/10" />
-                            <span className="text-[10px] uppercase tracking-widest text-white/20 font-bold">or continue with</span>
-                            <div className="flex-1 h-px bg-white/10" />
+                            <div className="flex-1 h-px bg-[var(--glass-border)]" />
+                            <span className="text-[10px] uppercase tracking-widest text-white/40 font-bold">or continue with</span>
+                            <div className="flex-1 h-px bg-[var(--glass-border)]" />
                         </div>
 
                         {/* Google Sign In */}
@@ -227,7 +227,7 @@ export default function LoginPage() {
                             variant="default"
                             size="lg"
                             loading={isLoading}
-                            className="w-full h-12 bg-white/5 border-white/10 hover:bg-white/10 transition-all"
+                            className="w-full h-12 bg-white/5 border-white/10 hover:bg-white/10 transition-all text-white"
                         >
                             <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
                                 <path
@@ -251,7 +251,7 @@ export default function LoginPage() {
                         </GlassButton>
 
                         {/* Footer */}
-                        <div className="flex items-center justify-center gap-2 mt-8 text-[10px] text-white/20 uppercase tracking-[0.2em] font-bold">
+                        <div className="flex items-center justify-center gap-2 mt-8 text-[10px] text-white/40 uppercase tracking-[0.2em] font-bold">
                             <Lock className="w-3 h-3" />
                             End-to-end encrypted
                         </div>

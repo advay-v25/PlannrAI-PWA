@@ -100,17 +100,21 @@ export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyC
                             </span>
                             <button
                                 onClick={() => {
-                                    dispatchAppEvent({
-                                        type: 'schedule-recompute',
-                                        payload: {
-                                            source: 'energy_checkin_action',
-                                            // @ts-ignore
-                                            energy,
-                                            mood,
-                                            should_reoptimize: true,
-                                            banner: modeBanner,
-                                        }
-                                    });
+                                    if (modeBanner.type === 'recovery') {
+                                        dispatchAppEvent({ type: 'trigger', payload: 'chat_coach' });
+                                    } else {
+                                        dispatchAppEvent({
+                                            type: 'schedule-recompute',
+                                            payload: {
+                                                source: 'energy_checkin_action',
+                                                // @ts-ignore
+                                                energy,
+                                                mood,
+                                                should_reoptimize: true,
+                                                banner: modeBanner,
+                                            }
+                                        });
+                                    }
                                 }}
                                 className={cn(
                                     "text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-colors shrink-0",
@@ -131,22 +135,27 @@ export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyC
         );
     }
 
-    const handleSubmit = async () => {
-        if (energy === 0 || !mood) {
+    const handleSubmit = async (overrideEnergy?: number, overrideMood?: string) => {
+        const finalEnergy = overrideEnergy || energy;
+        const finalMood = overrideMood || mood;
+
+        if (finalEnergy === 0 || !finalMood) {
             toast.error('Select both energy & mood');
             return;
         }
 
-        // Call the parent handler (which hits the API)
-        onCheckin(energy, mood);
+        // Call the parent handler
+        onCheckin(finalEnergy, finalMood);
         setSubmitted(true);
+        setEnergy(finalEnergy);
+        setMood(finalMood);
         toast.success('Check-in recorded');
 
         // Fetch the protocol response to get the mode banner
         try {
             await apiClient.post('/api/home/energy-checkin', {
-                energy_level: energy,
-                emotional_state: mood
+                energy_level: finalEnergy,
+                emotional_state: finalMood
             });
             // Note: The actual DB write already happened via onCheckin. This re-POST
             // is idempotent (upserts) and we mainly need the protocol response.
@@ -159,44 +168,50 @@ export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyC
         // Dispatch schedule-recompute event for the sync hook
         // Short delay to ensure DB write is committed
         setTimeout(() => {
-            const isNonDefault = energy <= 2 || energy >= 4 || mood === 'low' || mood === 'rough' || mood === 'great';
+            const isNonDefault = finalEnergy <= 2 || finalEnergy >= 4 || finalMood === 'low' || finalMood === 'rough' || finalMood === 'great';
 
-            // Compute banner locally (mirrors SchedulingProtocol logic)
-            if (energy >= 4 && (mood === 'great' || mood === 'good')) {
+            if (finalEnergy >= 4 && (finalMood === 'great' || finalMood === 'good')) {
                 setModeBanner({
                     type: 'momentum',
                     message: '⚡ Momentum Mode — Full power. Push for maximum output.',
                     action_label: 'Boost Schedule',
                 });
-            } else if (energy <= 2 || mood === 'rough' || (energy === 3 && mood === 'low')) {
+            } else if (finalEnergy <= 2 || finalMood === 'rough' || (finalEnergy === 3 && finalMood === 'low')) {
                 setModeBanner({
                     type: 'recovery',
                     message: '🛡 Recovery Mode — Light schedule. Only essentials today.',
-                    action_label: 'Lighten Schedule',
+                    action_label: 'Talk to Coach',
                 });
             } else {
                 setModeBanner(null);
             }
 
-            dispatchAppEvent({
-                type: 'schedule-recompute',
-                payload: {
-                    source: 'energy_checkin',
-                    // @ts-ignore
-                    energy,
-                    mood,
-                    should_reoptimize: isNonDefault,
-                    suggestion: energy <= 2
-                        ? 'Low energy detected. Want me to lighten today\'s schedule?'
-                        : energy >= 4
-                        ? 'High energy detected! Want me to load up today?'
-                        : null,
-                    banner: isNonDefault ? {
-                        type: energy <= 2 || mood === 'rough' ? 'recovery' : 'momentum',
-                        action_label: energy <= 2 ? 'Lighten Schedule' : 'Boost Schedule',
-                    } : null,
-                }
-            });
+            if (isNonDefault && finalEnergy <= 2) {
+                dispatchAppEvent({
+                    type: 'trigger',
+                    payload: 'chat_coach'
+                });
+            } else {
+                dispatchAppEvent({
+                    type: 'schedule-recompute',
+                    payload: {
+                        source: 'energy_checkin',
+                        // @ts-ignore
+                        energy: finalEnergy,
+                        mood: finalMood,
+                        should_reoptimize: isNonDefault,
+                        suggestion: finalEnergy <= 2
+                            ? 'Low energy detected. Want me to lighten today\'s schedule?'
+                            : finalEnergy >= 4
+                            ? 'High energy detected! Want me to load up today?'
+                            : null,
+                        banner: isNonDefault ? {
+                            type: finalEnergy <= 2 || finalMood === 'rough' ? 'recovery' : 'momentum',
+                            action_label: finalEnergy <= 2 ? 'Talk to Coach' : 'Boost Schedule',
+                        } : null,
+                    }
+                });
+            }
         }, 500);
     };
 
@@ -215,75 +230,29 @@ export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyC
                 </h3>
             </div>
 
-            {/* Energy Slider */}
-            <div className="mb-4">
-                <label className="text-[10px] uppercase text-[var(--text-secondary)] tracking-wider mb-2 block">
-                    Energy Level
-                </label>
-                <div className="flex gap-2">
-                    {[1, 2, 3, 4, 5].map(level => (
-                        <button
-                            key={level}
-                            onClick={() => setEnergy(level)}
-                            className={cn(
-                                "flex-1 h-10 rounded-xl border transition-all text-sm font-bold",
-                                level <= energy
-                                    ? "border-[var(--color-primary)] bg-[var(--color-primary)]/20 text-[var(--color-primary)] shadow-[0_0_15px_rgba(var(--color-primary-rgb),0.2)]"
-                                    : "border-[var(--glass-border)] bg-[var(--glass-bg)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg)]"
-                            )}
-                        >
-                            {level}
-                        </button>
-                    ))}
-                </div>
+            <div className="grid grid-cols-3 gap-3">
+                <button
+                    onClick={() => handleSubmit(2, 'low')}
+                    className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-orange-500/20 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 transition-all group"
+                >
+                    <Frown className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                    <span className="text-xs font-bold uppercase tracking-wider">Low</span>
+                </button>
+                <button
+                    onClick={() => handleSubmit(3, 'good')}
+                    className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-blue-500/20 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 transition-all group"
+                >
+                    <Smile className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                    <span className="text-xs font-bold uppercase tracking-wider">Optimal</span>
+                </button>
+                <button
+                    onClick={() => handleSubmit(5, 'great')}
+                    className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition-all group"
+                >
+                    <Zap className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                    <span className="text-xs font-bold uppercase tracking-wider">High</span>
+                </button>
             </div>
-
-            {/* Mood Selection */}
-            <div className="mb-4">
-                <label className="text-[10px] uppercase text-[var(--text-secondary)] tracking-wider mb-2 block">
-                    Mood
-                </label>
-                <div className="flex gap-2">
-                    {MOODS.map(m => {
-                        const Icon = m.icon;
-                        return (
-                            <button
-                                key={m.value}
-                                onClick={() => setMood(m.value)}
-                                className={cn(
-                                    "flex-1 flex flex-col items-center gap-1 rounded-xl border p-2 transition-all",
-                                    mood === m.value
-                                        ? "border-[var(--glass-border)] bg-[var(--glass-bg)]"
-                                        : "border-[var(--glass-border)] bg-[var(--glass-bg)] hover:bg-[var(--glass-bg)]"
-                                )}
-                            >
-                                <Icon className={cn("h-4 w-4", mood === m.value ? m.color : "text-[var(--text-secondary)]")} />
-                                <span className={cn(
-                                    "text-[9px] font-bold uppercase",
-                                    mood === m.value ? "text-[var(--text-secondary)]" : "text-[var(--text-secondary)]"
-                                )}>
-                                    {m.label}
-                                </span>
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* Submit */}
-            <AnimatePresence>
-                {energy > 0 && mood && (
-                    <motion.button
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        onClick={handleSubmit}
-                        className="w-full rounded-xl bg-white py-3 text-sm font-bold text-black transition-transform hover:scale-[1.02] active:scale-[0.98]"
-                    >
-                        Check In
-                    </motion.button>
-                )}
-            </AnimatePresence>
         </motion.div>
     );
 }

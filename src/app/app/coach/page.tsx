@@ -13,15 +13,21 @@ function CoachPageInner() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const context = searchParams.get('context');
+    const prompt = searchParams.get('prompt');
     const { messages, sendMessage } = useCoach();
     const initialized = useRef(false);
 
     useEffect(() => {
-        if (context === 'calendar' && messages.length === 0 && !initialized.current) {
-            initialized.current = true;
-            sendMessage("I'm looking at my calendar and need some help.");
+        if (!initialized.current && messages.length === 0) {
+            if (prompt) {
+                initialized.current = true;
+                sendMessage(prompt);
+            } else if (context === 'calendar') {
+                initialized.current = true;
+                sendMessage("I'm looking at my calendar and need some help.");
+            }
         }
-    }, [context, messages.length, sendMessage]);
+    }, [context, prompt, messages.length, sendMessage]);
 
     return (
         <div className="w-full h-full relative overflow-hidden flex flex-col">

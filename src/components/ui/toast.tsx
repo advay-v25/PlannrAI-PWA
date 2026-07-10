@@ -114,17 +114,19 @@ function ToastContainer({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id
                             initial={{ opacity: 0, y: 20, scale: 0.95 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, x: 100, scale: 0.95 }}
-                            className="pointer-events-auto glass-card px-4 py-3 flex items-center gap-3 min-w-[280px] max-w-[400px] shadow-2xl"
+                            className={`pointer-events-auto px-4 py-3 flex items-center gap-3 min-w-[280px] max-w-[400px] shadow-2xl ${
+                                toast.type === 'success' ? 'bg-orange-500/90 backdrop-blur-xl rounded-2xl border border-white/20' : 'glass-card'
+                            }`}
                             style={{ borderLeft: `3px solid ${color}` }}
                         >
                             <div
                                 className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                                style={{ backgroundColor: `${color}20` }}
+                                style={{ backgroundColor: toast.type === 'success' ? 'rgba(0,0,0,0.1)' : `${color}20` }}
                             >
-                                <Icon className="w-4 h-4" style={{ color }} />
+                                <Icon className="w-4 h-4" style={{ color: toast.type === 'success' ? '#000' : color }} />
                             </div>
                             <div className="flex-1">
-                                <p className="text-sm">{toast.message}</p>
+                                <p className={`text-sm ${toast.type === 'success' ? 'text-black font-medium' : ''}`}>{toast.message}</p>
                             </div>
                             {toast.action && (
                                 <div className="flex-shrink-0">

@@ -57,7 +57,7 @@ export function TabBar() {
                                         'relative flex flex-col items-center justify-center px-3 py-2 rounded-xl transition-colors',
                                         isActive
                                             ? 'text-[var(--color-primary)]'
-                                            : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
+                                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                                     )}
                                 >
                                     {tab.soon && (
@@ -128,7 +128,7 @@ export function SideNav() {
                                 'relative flex items-center gap-3 px-3 py-3 rounded-xl transition-colors',
                                 isActive
                                     ? 'text-[var(--color-primary)]'
-                                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--glass-bg)]'
+                                    : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--glass-bg)]'
                             )}
                         >
                             {isActive && (

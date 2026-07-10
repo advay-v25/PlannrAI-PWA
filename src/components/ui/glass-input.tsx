@@ -22,7 +22,7 @@ export const GlassInput = forwardRef<HTMLInputElement, GlassInputProps>(
         return (
             <div className="space-y-1.5">
                 {label && (
-                    <label className="block text-sm font-medium text-[var(--color-text-secondary)]">
+                    <label className="block text-sm font-medium text-[var(--text-secondary)]">
                         {label}
                     </label>
                 )}
@@ -35,7 +35,7 @@ export const GlassInput = forwardRef<HTMLInputElement, GlassInputProps>(
                             isPassword ? 'pr-12' : 'pr-4',
                             'bg-[var(--glass-bg)] backdrop-blur-xl',
                             'border border-[var(--glass-border)]',
-                            'text-[var(--color-text-primary)] placeholder:text-white/20',
+                            'text-[var(--text-primary)] placeholder:text-white/20',
                             'transition-all duration-200',
                             'focus:outline-none focus:border-[var(--color-primary)]',
                             error && 'border-red-500/50',
@@ -83,7 +83,7 @@ export const GlassInput = forwardRef<HTMLInputElement, GlassInputProps>(
                 {(error || hint) && (
                     <p className={cn(
                         'text-xs',
-                        error ? 'text-red-400' : 'text-[var(--color-text-muted)]'
+                        error ? 'text-red-400' : 'text-[var(--text-muted)]'
                     )}>
                         {error || hint}
                     </p>
@@ -108,7 +108,7 @@ export const GlassTextarea = forwardRef<HTMLTextAreaElement, GlassTextareaProps>
         return (
             <div className="space-y-1.5">
                 {label && (
-                    <label className="block text-sm font-medium text-[var(--color-text-secondary)]">
+                    <label className="block text-sm font-medium text-[var(--text-secondary)]">
                         {label}
                     </label>
                 )}
@@ -119,7 +119,7 @@ export const GlassTextarea = forwardRef<HTMLTextAreaElement, GlassTextareaProps>
                             'w-full px-4 py-3 rounded-xl resize-none',
                             'bg-[var(--glass-bg)] backdrop-blur-xl',
                             'border border-[var(--glass-border)]',
-                            'text-[var(--color-text-primary)] placeholder:text-white/50',
+                            'text-[var(--text-primary)] placeholder:text-white/50',
                             'transition-all duration-200',
                             'focus:outline-none focus:border-[var(--color-primary)]',
                             'min-h-[120px]',
@@ -153,7 +153,7 @@ export const GlassTextarea = forwardRef<HTMLTextAreaElement, GlassTextareaProps>
                 {(error || hint) && (
                     <p className={cn(
                         'text-xs',
-                        error ? 'text-red-400' : 'text-[var(--color-text-muted)]'
+                        error ? 'text-red-400' : 'text-[var(--text-muted)]'
                     )}>
                         {error || hint}
                     </p>

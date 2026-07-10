@@ -4,7 +4,8 @@ export type AppEvent =
     | { type: 'calendar-refresh' }
     | { type: 'goals-refresh' }
     | { type: 'coach-refresh' }
-    | { type: 'schedule-recompute'; payload: { source: string; targetDate?: string; autoApply?: boolean } };
+    | { type: 'schedule-recompute'; payload: { source: string; targetDate?: string; autoApply?: boolean } }
+    | { type: 'trigger'; payload: string };
 
 export const dispatchAppEvent = (event: AppEvent) => {
     if (typeof window === 'undefined') return;

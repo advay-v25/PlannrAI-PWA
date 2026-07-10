@@ -429,7 +429,7 @@ export default function HomePage() {
                         userName={profile?.full_name || undefined}
                         plannedMinutes={effectiveData.metrics?.planned_min || 0}
                         unscheduledMinutes={effectiveData.metrics?.free_min || 1440}
-                        overdueCount={0}
+                        overdueCount={effectiveData.metrics?.overdue_count || 0}
                         state={effectiveState.state}
                         activeBlock={effectiveState.active_block}
                         nextBlock={effectiveState.next_block}

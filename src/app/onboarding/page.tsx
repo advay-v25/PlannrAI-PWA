@@ -77,6 +77,7 @@ export default function OnboardingPage() {
         if (currentStepDef.id === 'identity' && !data.full_name) return false;
         if (currentStepDef.id === 'rhythm' && data.meals_per_day === 2 && !data.two_meals_selection) return false;
         if (currentStepDef.id === 'goals' && (!data.goals || data.goals.length === 0)) return false;
+        if (currentStepDef.id === 'generate' && !data.selected_variant_id) return false;
         // Other steps are optional or have defaults
         return true;
     };
@@ -101,7 +102,7 @@ export default function OnboardingPage() {
     };
 
     return (
-        <div className="min-h-screen relative flex flex-col items-center justify-center p-4 overflow-hidden bg-[#020106] text-white font-sans selection:bg-purple-500/30 selection:text-white">
+        <div className="min-h-screen relative flex flex-col items-center justify-center p-4 overflow-hidden bg-[var(--color-bg-primary)] text-[var(--text-primary)] font-sans selection:bg-purple-500/30 selection:text-white">
             
             {/* Premium Subtle Ambient Background */}
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(15,10,35,0.8)_0%,rgba(2,1,6,1)_100%)] pointer-events-none" />
@@ -126,14 +127,14 @@ export default function OnboardingPage() {
                                             ? 'bg-gradient-to-r from-purple-500 to-fuchsia-500 shadow-[0_0_15px_rgba(168,85,247,0.5)]' 
                                             : i < currentStep 
                                                 ? 'bg-purple-500/30' 
-                                                : 'bg-white/5'
+                                                : 'bg-[var(--glass-bg)]'
                                     }`} 
                                 />
                             ))}
                         </div>
 
                         {currentStepDef.id === 'generate' && (
-                            <h2 className="text-2xl md:text-3xl font-light tracking-tight text-white/90">
+                            <h2 className="text-2xl md:text-3xl font-light tracking-tight text-[var(--text-primary)]">
                                 {currentStepDef.title}
                             </h2>
                         )}
@@ -172,15 +173,15 @@ export default function OnboardingPage() {
                 </AnimatePresence>
 
                 {/* Floating Navigation */}
-                <div className="flex items-center gap-6 mt-16 w-full justify-between max-w-lg px-6 fixed bottom-8 lg:relative border-t border-white/5 pt-8 backdrop-blur-md lg:backdrop-blur-none lg:border-t-0 lg:pt-0 pb-6 lg:pb-0 z-50">
+                <div className="flex items-center gap-6 mt-16 w-full justify-between max-w-lg px-6 fixed bottom-8 lg:relative border-t border-[var(--glass-border)] pt-8 backdrop-blur-md lg:backdrop-blur-none lg:border-t-0 lg:pt-0 pb-6 lg:pb-0 z-50">
                     <button
                         onClick={prevStep}
                         disabled={isFirstStep || isSaving}
                         className={`
-                            group flex items-center gap-2 text-xs font-medium transition-all duration-300 tracking-wide px-4 py-3 rounded-xl border border-transparent hover:border-white/10 hover:bg-white/5
+                            group flex items-center gap-2 text-xs font-medium transition-all duration-300 tracking-wide px-4 py-3 rounded-xl border border-transparent hover:border-[var(--glass-border-hover)] hover:bg-[var(--glass-bg-hover)]
                             ${(isFirstStep || isSaving)
                                 ? 'opacity-0 pointer-events-none'
-                                : 'text-white/40 hover:text-white'
+                                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
                             }
                         `}
                     >
@@ -191,7 +192,7 @@ export default function OnboardingPage() {
                     <button
                         onClick={handleNext}
                         disabled={isSaving}
-                        className="group relative px-7 py-3 md:py-3.5 rounded-full text-base font-bold tracking-wide text-black bg-white hover:scale-105 active:scale-95 transition-all duration-300 shadow-[0_0_20px_rgba(255,255,255,0.15)] hover:shadow-[0_0_30px_rgba(255,255,255,0.3)] disabled:opacity-50 disabled:pointer-events-none overflow-hidden"
+                        className="group relative px-7 py-3 md:py-3.5 rounded-full text-base font-bold tracking-wide bg-[var(--color-primary)] text-white hover:scale-105 active:scale-95 transition-all duration-300 shadow-lg disabled:opacity-50 disabled:pointer-events-none overflow-hidden"
                     >
                         {/* Shimmer effect */}
                         <div className="absolute inset-0 block w-full h-full transform -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/50 to-transparent" />

@@ -1,10 +1,8 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { GlassButton } from '@/components/ui/glass-button';
 import { Check, Edit2, Play, AlertCircle, RefreshCw, X, Brain, CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
-import { useTodos } from '@/hooks/use-todos';
 import Link from 'next/link';
 
 interface CommandCenterProps {
@@ -47,10 +45,6 @@ export function CommandCenter({
     onAction,
     isLoading
 }: CommandCenterProps) {
-    const { todos } = useTodos();
-    const recentCapture = todos
-        .filter(t => !t.is_completed)
-        .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))[0];
 
     if (isLoading) {
         return (
@@ -139,7 +133,7 @@ export function CommandCenter({
                         onClick={() => onAction('next_move')}
                         className="flex-none flex items-center justify-center gap-2 px-6 py-4 rounded-2xl text-sm font-bold border border-white/10 bg-white/5 hover:bg-white/10 text-white/90 hover:text-white hover:scale-[1.02] active:scale-[0.98] transition-all shadow-sm"
                     >
-                        What Should I Do Next?
+                        Need help?
                     </button>
 
                     {/* Up Next Block */}

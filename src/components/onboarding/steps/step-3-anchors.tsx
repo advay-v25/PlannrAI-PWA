@@ -113,7 +113,7 @@ export function Step3Anchors() {
                 <div className="space-y-6">
                     <div className="flex items-center justify-between px-2">
                         <h3 className="text-sm font-bold text-[var(--text-primary)]/80 tracking-widest uppercase">Your Commitments</h3>
-                        <div className="text-[10px] font-black tracking-[0.2em] text-black bg-white px-3 py-1.5 rounded-full shadow-[0_0_15px_rgba(255,255,255,0.4)]">
+                        <div className="text-[10px] font-black tracking-[0.2em] text-white bg-[var(--color-primary)] px-3 py-1.5 rounded-full shadow-[0_0_15px_var(--color-primary-glow)]">
                             {commitments.length} BLOCKS
                         </div>
                     </div>
@@ -121,7 +121,7 @@ export function Step3Anchors() {
                     <div className="space-y-4">
                         <AnimatePresence>
                             {commitments.length === 0 && !isAdding && (
-                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center p-10 border-2 border-dashed border-[var(--glass-border)] rounded-3xl text-[var(--text-primary)]/40 text-sm font-medium tracking-wide bg-white/[0.02]">
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center p-10 border-2 border-dashed border-[var(--glass-border)] rounded-3xl text-[var(--text-primary)]/40 text-sm font-medium tracking-wide bg-[var(--glass-bg)]">
                                     No locked commitments added yet.
                                 </motion.div>
                             )}
@@ -132,7 +132,7 @@ export function Step3Anchors() {
                                     initial={{ opacity: 0, height: 0, scale: 0.95 }}
                                     animate={{ opacity: 1, height: 'auto', scale: 1 }}
                                     exit={{ opacity: 0, height: 0, scale: 0.9 }}
-                                    className="bg-[var(--glass-bg)] border border-[var(--glass-border)] p-6 rounded-3xl overflow-hidden backdrop-blur-md hover:bg-white/[0.08] hover:border-[var(--glass-border)] transition-all shadow-lg"
+                                    className="bg-[var(--glass-bg)] border border-[var(--glass-border)] p-6 rounded-3xl overflow-hidden backdrop-blur-md hover:bg-[var(--glass-bg-hover)] hover:border-[var(--glass-border)] transition-all shadow-lg"
                                 >
                                     {editingIndex === i ? (
                                         <div className="w-full space-y-4">
@@ -177,7 +177,7 @@ export function Step3Anchors() {
                                                             onClick={() => toggleEditDay(d.id)}
                                                             className={`flex-1 py-2 text-[10px] font-bold rounded-lg border transition-all duration-300 ${
                                                                 editComm.days_of_week?.includes(d.id)
-                                                                ? 'bg-white text-black border-transparent shadow-[0_0_10px_rgba(255,255,255,0.3)]'
+                                                                ? 'bg-[var(--color-primary)] text-white border-transparent shadow-[0_0_10px_var(--color-primary-glow)]'
                                                                 : 'bg-[var(--glass-bg-active)] border-[var(--glass-border)] text-[var(--text-primary)]/40 hover:bg-[var(--glass-bg)] hover:text-[var(--text-primary)]'
                                                             }`}
                                                         >
@@ -202,7 +202,7 @@ export function Step3Anchors() {
                                                     type="button"
                                                     onClick={() => handleSaveEdit(i)}
                                                     disabled={!editComm.title || !editComm.days_of_week?.length}
-                                                    className="flex-1 py-2 rounded-xl bg-[var(--color-primary)] text-black text-[10px] font-black uppercase tracking-widest disabled:opacity-50 hover:scale-[1.01] transition-all"
+                                                    className="flex-1 py-2 rounded-xl bg-[var(--color-primary)] text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-50 hover:scale-[1.01] transition-all"
                                                 >
                                                     Save
                                                 </button>
@@ -225,7 +225,7 @@ export function Step3Anchors() {
                                                 <button
                                                     type="button"
                                                     onClick={() => startEditing(i, c)}
-                                                    className="p-3 text-[var(--text-primary)]/40 hover:text-white hover:bg-white/10 rounded-full transition-all bg-[var(--glass-bg-active)] hover:scale-105 active:scale-95 border border-transparent hover:border-white/10"
+                                                    className="p-3 text-[var(--text-primary)]/40 hover:text-[var(--text-primary)] hover:bg-[var(--glass-bg-hover)] rounded-full transition-all bg-[var(--glass-bg-active)] hover:scale-105 active:scale-95 border border-transparent hover:border-[var(--glass-border-hover)]"
                                                 >
                                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                                         <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
@@ -296,7 +296,7 @@ export function Step3Anchors() {
                                                 onClick={() => toggleDay(d.id)}
                                                 className={`flex-1 py-3 text-xs font-bold rounded-xl border transition-all duration-300 ${
                                                     newComm.days_of_week?.includes(d.id) 
-                                                    ? 'bg-white text-black border-transparent shadow-[0_0_15px_rgba(255,255,255,0.4)] scale-110 z-10' 
+                                                    ? 'bg-[var(--color-primary)] text-white border-transparent shadow-[0_0_15px_var(--color-primary-glow)] scale-110 z-10' 
                                                     : 'bg-[var(--glass-bg-active)] border-[var(--glass-border)] text-[var(--text-primary)]/40 hover:bg-[var(--glass-bg)] hover:text-[var(--text-primary)] hover:border-[var(--glass-border)]'
                                                 }`}
                                             >
@@ -310,7 +310,7 @@ export function Step3Anchors() {
                                     <button onClick={() => setIsAdding(false)} className="flex-[0.4] py-4 text-xs font-bold uppercase tracking-widest text-[var(--text-primary)]/50 hover:text-[var(--text-primary)] border border-[var(--glass-border)] rounded-2xl hover:bg-[var(--glass-bg)] hover:border-[var(--glass-border)] transition-all bg-[var(--glass-bg-active)]">
                                         Cancel
                                     </button>
-                                    <button onClick={handleSaveNew} disabled={!newComm.title} className="flex-1 py-4 text-sm font-black uppercase tracking-widest bg-[var(--color-primary)] text-black rounded-2xl disabled:opacity-50 disabled:grayscale hover:scale-[1.02] active:scale-95 transition-all shadow-[0_0_20px_rgba(var(--color-primary-rgb),0.3)]">
+                                    <button onClick={handleSaveNew} disabled={!newComm.title} className="flex-1 py-4 text-sm font-black uppercase tracking-widest bg-[var(--color-primary)] text-white rounded-2xl disabled:opacity-50 disabled:grayscale hover:scale-[1.02] active:scale-95 transition-all shadow-[0_0_20px_rgba(var(--color-primary-rgb),0.3)]">
                                         Lock Block
                                     </button>
                                 </div>

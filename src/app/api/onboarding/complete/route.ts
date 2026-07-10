@@ -17,7 +17,7 @@ const onboardingSchema = z.object({
     commitments: z.array(z.any()).optional().default([]),
     goals: z.array(z.any()).optional().default([]),
     failure_modes: z.array(z.string()).optional().default([]),
-    selected_variant_id: z.string().optional(),
+    selected_variant_id: z.string().nullable().optional(),
 });
 
 export const maxDuration = 60; // Allow 60s for AI processing
@@ -26,7 +26,7 @@ export const POST = secureApiRoute(
     async (context, body) => {
         const parsed = onboardingSchema.safeParse(body);
         if (!parsed.success) {
-            return apiError('Validation failed: ' + (parsed.error as any).errors.map((e: any) => e.message).join(', '), 400);
+            return apiError('Validation failed: ' + (parsed.error as any).issues.map((e: any) => e.message).join(', '), 400);
         }
 
         const {

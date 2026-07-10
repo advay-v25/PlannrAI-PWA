@@ -15,7 +15,7 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
         <div className="max-w-4xl mx-auto px-4 h-16 flex items-center">
           <Link 
             href="/" 
-            className="inline-flex items-center text-sm font-medium text-[var(--color-text-muted)] hover:text-white transition-colors"
+            className="inline-flex items-center text-sm font-medium text-[var(--text-muted)] hover:text-white transition-colors"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Home
@@ -25,7 +25,7 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
 
       {/* Content Container */}
       <main className="relative max-w-3xl mx-auto px-4 py-16">
-        <div className="p-6 sm:p-12 rounded-2xl bg-[#111111]/80 backdrop-blur-xl border border-[var(--glass-border)] shadow-2xl text-[var(--color-text-muted)]">
+        <div className="p-6 sm:p-12 rounded-2xl bg-[#111111]/80 backdrop-blur-xl border border-[var(--glass-border)] shadow-2xl text-[var(--text-muted)]">
           {children}
         </div>
       </main>

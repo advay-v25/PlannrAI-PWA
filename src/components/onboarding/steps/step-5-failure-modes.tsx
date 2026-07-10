@@ -45,7 +45,7 @@ export function Step5FailureModes() {
                 <h2 className="text-4xl font-bold tracking-tight text-[var(--text-primary)] font-mono">
                     Protective <span className="text-[var(--color-primary)]">Layers</span>
                 </h2>
-                <p className="text-[var(--color-text-secondary)] text-sm tracking-wide">
+                <p className="text-[var(--text-secondary)] text-sm tracking-wide">
                     What usually derails your ideal schedule?
                 </p>
             </motion.div>
@@ -65,15 +65,15 @@ export function Step5FailureModes() {
                             className={`flex items-start gap-4 p-5 rounded-2xl border transition-all duration-300 text-left group backdrop-blur-md shadow-lg ${
                                 isSelected
                                     ? 'bg-[var(--glass-bg)] border-[var(--glass-border)] shadow-[0_0_30px_rgba(255,255,255,0.05)] scale-[1.02]'
-                                    : 'bg-[var(--glass-bg)] border-[var(--glass-border)] hover:border-[var(--glass-border)] hover:bg-white/[0.07] hover:scale-[1.01]'
+                                    : 'bg-[var(--glass-bg)] border-[var(--glass-border)] hover:border-[var(--glass-border)] hover:bg-[var(--glass-bg-hover)] hover:scale-[1.01]'
                             }`}
                         >
                             <div className={`mt-0.5 flex-shrink-0 w-5 h-5 rounded-md border flex items-center justify-center transition-all duration-300 shadow-inner ${
                                 isSelected 
-                                    ? 'bg-white border-white scale-110' 
+                                    ? 'bg-[var(--glass-bg)] border-[var(--glass-border)] scale-110' 
                                     : 'border-[var(--glass-border)] group-hover:border-[var(--color-primary)]'
                             }`}>
-                                {isSelected && <div className="w-2.5 h-2.5 bg-black rounded-sm shadow-sm" />}
+                                {isSelected && <div className="w-2.5 h-2.5 bg-[var(--color-primary)] rounded-sm shadow-sm" />}
                             </div>
                             <div>
                                 <div className={`font-semibold tracking-wide transition-colors duration-300 ${isSelected ? 'text-[var(--color-primary)]' : 'text-[var(--text-primary)]'}`}>
