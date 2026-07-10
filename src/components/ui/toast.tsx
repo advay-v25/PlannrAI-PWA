@@ -135,9 +135,9 @@ function ToastContainer({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id
                             )}
                             <button
                                 onClick={() => onDismiss(toast.id)}
-                                className="p-1 hover:bg-white/10 rounded-full transition-colors flex-shrink-0"
+                                className={`p-1 rounded-full transition-colors flex-shrink-0 ${toast.type === 'success' ? 'hover:bg-black/10' : 'hover:bg-white/10'}`}
                             >
-                                <X className="w-4 h-4 text-[var(--text-tertiary)]" />
+                                <X className={`w-4 h-4 ${toast.type === 'success' ? 'text-black/50 hover:text-black' : 'text-[var(--text-tertiary)]'}`} />
                             </button>
                         </motion.div>
                     );
