@@ -189,7 +189,9 @@ export async function generateWeekPlan(
         });
     }
 
-    // Load bio blocks into exclusion zones
+    // Load bio blocks into exclusion zones. The Morning Routine MUST stay in the
+    // exclusions — without it, goal placement starts at wake and overlaps the
+    // routine block on every day.
     for (let d = 1; d <= 7; d++) {
         for (const bio of bioTemplates) {
             commitmentsByDay.get(d)!.push({

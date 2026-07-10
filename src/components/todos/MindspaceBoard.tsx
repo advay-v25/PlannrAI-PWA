@@ -7,8 +7,12 @@ import { useTodos, TodoItem } from '@/hooks/use-todos';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, Plus, Trash2, CheckCircle2, Circle, Archive, GripHorizontal, CalendarIcon, AlertCircle, Search, Pin, PinOff, MoreVertical, Edit2, ChevronDown, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow, startOfWeek, endOfWeek, isWithinInterval, subDays } from 'date-fns';
 import { RichTextEditor } from './RichTextEditor';
+import { DndContext, DragOverlay, closestCorners, PointerSensor, TouchSensor, useSensor, useSensors, defaultDropAnimationSideEffects, type DragStartEvent, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, arrayMove, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { useDroppable } from '@dnd-kit/core';
 
 const DEFAULT_LABELS = {
     teal: 'Notes',
@@ -130,8 +134,33 @@ export function MindspaceBoard() {
 
     const archivedTodos = useMemo(() => todos.filter(t => t.description?.includes('[archived:true]')).sort((a,b) => (b.created_at || '').localeCompare(a.created_at || '')), [todos]);
 
-    // Enforce 5 archived limit
+    // Enforce 5 archived limit & auto-clear 7-day old completed items
+    const vaultPurgeRun = useRef(false);
     useEffect(() => {
+        if (!vaultPurgeRun.current && archivedTodos.length > 0) {
+            vaultPurgeRun.current = true;
+            const now = new Date();
+            const sevenDaysAgo = subDays(now, 7);
+            
+            // Delete completed vault items older than 7 days
+            archivedTodos.forEach(todo => {
+                if (todo.is_completed) {
+                    const desc = todo.description || '';
+                    const archivedAtMatch = desc.match(/\[archived_at:([^\]]+)\]/);
+                    const dateStr = archivedAtMatch ? archivedAtMatch[1] : todo.created_at;
+                    if (dateStr) {
+                        try {
+                            const date = new Date(dateStr);
+                            if (date < sevenDaysAgo) {
+                                deleteTodo(todo.id);
+                            }
+                        } catch (e) {}
+                    }
+                }
+            });
+        }
+
+        // Cap at 5 items
         if (archivedTodos.length > 5) {
             // Delete oldest (since they are sorted newest first, oldest are at the end)
             const toDelete = archivedTodos.slice(5);
@@ -141,49 +170,131 @@ export function MindspaceBoard() {
         }
     }, [archivedTodos, deleteTodo]);
 
-    // HTML5 Drag and Drop Setup
-    const [draggedId, setDraggedId] = useState<string | null>(null);
+    // dnd-kit Drag and Drop Setup
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+        useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } })
+    );
 
-    const handleDragStart = (e: React.DragEvent, id: string) => {
-        setDraggedId(id);
-        if (e.dataTransfer) {
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', id);
-        }
+    const [activeId, setActiveId] = useState<string | null>(null);
+
+    const handleDragStart = (event: DragStartEvent) => {
+        setActiveId(String(event.active.id));
     };
 
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault();
-        if (e.dataTransfer) {
-            e.dataTransfer.dropEffect = 'move';
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+        setActiveId(null);
+        if (!over) return;
+
+        const activeIdStr = String(active.id);
+        const overIdStr = String(over.id);
+        if (activeIdStr === overIdStr) return;
+
+        const activeTodo = activeTodos.find(t => t.id === activeIdStr);
+        if (!activeTodo) return;
+
+        // Determine target column color
+        let targetColor: string | null = null;
+        if (Object.keys(DEFAULT_LABELS).includes(overIdStr)) {
+            targetColor = overIdStr;
+        } else {
+            const overTodo = activeTodos.find(t => t.id === overIdStr);
+            if (overTodo) {
+                const match = (overTodo.description || '').match(/^\[color:(teal|purple|orange|blue|pink)\]\s*/i);
+                targetColor = match ? match[1].toLowerCase() : 'teal';
+            }
         }
-    };
 
-    const handleDrop = (e: React.DragEvent, targetColor: string) => {
-        e.preventDefault();
-        if (!draggedId) return;
-
-        const draggedTodo = activeTodos.find(t => t.id === draggedId);
-        if (!draggedTodo) return;
-
-        const rawDesc = draggedTodo.description || '';
+        const rawDesc = activeTodo.description || '';
         const colorMatch = rawDesc.match(/^\[color:(teal|purple|orange|blue|pink)\]\s*/i);
         const currentColor = colorMatch ? colorMatch[1].toLowerCase() : 'teal';
-        
-        let newDesc = rawDesc;
-        if (currentColor !== targetColor) {
+
+        if (targetColor && currentColor !== targetColor) {
+            // Cross-column drop
+            let newDesc = rawDesc;
             if (colorMatch) {
                 newDesc = rawDesc.replace(/^\[color:(teal|purple|orange|blue|pink)\]\s*/i, `[color:${targetColor}] `);
             } else {
                 newDesc = `[color:${targetColor}] ${rawDesc}`;
             }
-            updateTodo(draggedTodo.id, { description: newDesc });
+            updateTodo(activeIdStr, { description: newDesc });
+            return;
         }
+
+        // Within-column reorder
+        const sortColumn = (columnTodos: TodoItem[]) => {
+            return [...columnTodos].sort((a, b) => {
+                const aPinned = a.description?.includes('[pinned:true]') ? 1 : 0;
+                const bPinned = b.description?.includes('[pinned:true]') ? 1 : 0;
+                if (aPinned !== bPinned) return bPinned - aPinned;
         
-        setDraggedId(null);
+                const aOrder = a.order_index ?? 0;
+                const bOrder = b.order_index ?? 0;
+                if (aOrder !== bOrder) return aOrder - bOrder;
+        
+                if (a.due_date && b.due_date) {
+                    const dateCmp = new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+                    if (dateCmp !== 0) return dateCmp;
+                } else if (a.due_date) {
+                    return -1;
+                } else if (b.due_date) {
+                    return 1;
+                }
+        
+                return (b.created_at || '').localeCompare(a.created_at || '');
+            });
+        };
+
+        const columnTodos = sortColumn(activeTodos.filter(t => {
+            const match = (t.description || '').match(/^\[color:(teal|purple|orange|blue|pink)\]\s*/i);
+            const c = match ? match[1].toLowerCase() : 'teal';
+            return c === currentColor;
+        }));
+
+        const oldIndex = columnTodos.findIndex(t => t.id === activeIdStr);
+        const newIndex = columnTodos.findIndex(t => t.id === overIdStr);
+
+        if (oldIndex !== -1 && newIndex !== -1) {
+            const newColumnOrder = arrayMove(columnTodos, oldIndex, newIndex);
+            
+            // Reconstruct global todos array to preserve absolute order for other columns
+            const newTodos = [...todos];
+            const globalIndices = columnTodos.map(ct => todos.findIndex(t => t.id === ct.id)).sort((a, b) => a - b);
+            
+            newColumnOrder.forEach((item, i) => {
+                const globalIndex = globalIndices[i];
+                if (globalIndex !== -1) {
+                    newTodos[globalIndex] = item;
+                }
+            });
+            
+            reorderTodos(newTodos);
+        }
     };
 
-    // Columns
+    // Columns (sort using the same logic)
+    const sortColumnLogic = (a: TodoItem, b: TodoItem) => {
+        const aPinned = a.description?.includes('[pinned:true]') ? 1 : 0;
+        const bPinned = b.description?.includes('[pinned:true]') ? 1 : 0;
+        if (aPinned !== bPinned) return bPinned - aPinned;
+
+        const aOrder = a.order_index ?? 0;
+        const bOrder = b.order_index ?? 0;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+
+        if (a.due_date && b.due_date) {
+            const dateCmp = new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+            if (dateCmp !== 0) return dateCmp;
+        } else if (a.due_date) {
+            return -1;
+        } else if (b.due_date) {
+            return 1;
+        }
+
+        return (b.created_at || '').localeCompare(a.created_at || '');
+    };
+
     const columns = (Object.keys(DEFAULT_LABELS) as Array<keyof typeof DEFAULT_LABELS>).map(color => {
         const columnTodos = activeTodos.filter(t => {
             const match = (t.description || '').match(/^\[color:(teal|purple|orange|blue|pink)\]\s*/i);
@@ -191,16 +302,47 @@ export function MindspaceBoard() {
             return c === color;
         });
 
-        // Separate pinned and unpinned, sort by created_at DESC
-        const pinned = columnTodos.filter(t => t.description?.includes('[pinned:true]')).sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
-        const unpinned = columnTodos.filter(t => !t.description?.includes('[pinned:true]')).sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
-
         return {
             color,
             label: labels[color],
-            todos: [...pinned, ...unpinned]
+            todos: [...columnTodos].sort(sortColumnLogic)
         };
     });
+
+    // Weekly Stats Logic
+    const weeklyStats = useMemo(() => {
+        const now = new Date();
+        const start = startOfWeek(now, { weekStartsOn: 1 });
+        const end = endOfWeek(now, { weekStartsOn: 1 });
+
+        let addedCount = 0;
+        let completedCount = 0;
+
+        todos.forEach(todo => {
+            // Count Added
+            if (todo.created_at) {
+                const createdDate = new Date(todo.created_at);
+                if (isWithinInterval(createdDate, { start, end })) {
+                    addedCount++;
+                }
+            }
+
+            // Count Completed
+            const desc = todo.description || '';
+            const completedMatch = desc.match(/\[completed:([^\]]+)\]/);
+            if (completedMatch && completedMatch[1]) {
+                const completedDate = new Date(completedMatch[1]);
+                if (isWithinInterval(completedDate, { start, end })) {
+                    completedCount++;
+                }
+            }
+        });
+
+        const total = addedCount + completedCount;
+        const addedWidth = total === 0 ? 50 : (addedCount / total) * 100;
+
+        return { addedCount, completedCount, addedWidth };
+    }, [todos]);
 
     if (isLoading) {
         return (
@@ -343,6 +485,18 @@ export function MindspaceBoard() {
                             <span>Vault ({archivedTodos.length}/5)</span>
                         </button>
                     </div>
+
+                    {/* WEEKLY STAT BAR */}
+                    <div className="w-full mt-2 flex flex-col gap-1.5 px-2">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-white/40 uppercase tracking-widest">
+                            <span>Added {weeklyStats.addedCount}</span>
+                            <span>Completed {weeklyStats.completedCount}</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden flex">
+                            <div className="h-full bg-white/20 transition-all duration-500" style={{ width: `${weeklyStats.addedWidth}%` }} />
+                            <div className="h-full bg-[var(--color-primary)] transition-all duration-500" style={{ width: `${100 - weeklyStats.addedWidth}%` }} />
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -357,23 +511,26 @@ export function MindspaceBoard() {
                         <p className="text-sm font-medium tracking-wide mt-2">Capture ideas, notes, tasks and thoughts above.</p>
                     </div>
                 ) : (
-                    <div className="h-full flex w-max gap-4 px-4 md:px-8 pb-8 items-start pt-6">
-                        {columns.map(col => (
-                            <KanbanColumn 
-                                key={col.color}
-                                color={col.color}
-                                label={col.label}
-                                todos={col.todos}
-                                onUpdateLabel={updateLabel}
-                                onDragOver={handleDragOver}
-                                onDrop={handleDrop}
-                                draggedId={draggedId}
-                                handleDragStart={handleDragStart}
-                                updateTodo={updateTodo}
-                                deleteTodo={deleteTodo}
-                            />
-                        ))}
-                    </div>
+                    <DndContext 
+                        sensors={sensors}
+                        collisionDetection={closestCorners}
+                        onDragStart={handleDragStart}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <div className="h-full flex w-max gap-4 px-4 md:px-8 pb-8 items-start pt-6">
+                            {columns.map(col => (
+                                <KanbanColumn 
+                                    key={col.color}
+                                    color={col.color}
+                                    label={col.label}
+                                    todos={col.todos}
+                                    onUpdateLabel={updateLabel}
+                                    updateTodo={updateTodo}
+                                    deleteTodo={deleteTodo}
+                                />
+                            ))}
+                        </div>
+                    </DndContext>
                 )}
             </div>
 
@@ -423,7 +580,7 @@ export function MindspaceBoard() {
                                             <div className="flex items-center gap-2">
                                                 <button 
                                                     onClick={() => {
-                                                        const newDesc = todo.description?.replace(/\[archived:true\]/g, '').trim() || '';
+                                                        const newDesc = todo.description?.replace(/\[archived:true\]/g, '').replace(/\[completed:[^\]]+\]/g, '').replace(/\[archived_at:[^\]]+\]/g, '').trim() || '';
                                                         updateTodo(todo.id, { description: newDesc, isCompleted: false });
                                                     }}
                                                     className="p-2 bg-blue-500/10 text-blue-400 hover:bg-blue-500 hover:text-white rounded-lg opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all shrink-0"
@@ -451,9 +608,11 @@ export function MindspaceBoard() {
     );
 }
 
-function KanbanColumn({ color, label, todos, onUpdateLabel, onDragOver, onDrop, draggedId, handleDragStart, updateTodo, deleteTodo }: any) {
+function KanbanColumn({ color, label, todos, onUpdateLabel, updateTodo, deleteTodo }: any) {
     const [isEditingLabel, setIsEditingLabel] = useState(false);
     const [editLabel, setEditLabel] = useState(label);
+
+    const { setNodeRef } = useDroppable({ id: color });
 
     const handleLabelSave = () => {
         setIsEditingLabel(false);
@@ -464,9 +623,8 @@ function KanbanColumn({ color, label, todos, onUpdateLabel, onDragOver, onDrop, 
 
     return (
         <div 
+            ref={setNodeRef}
             className="flex flex-col gap-4 h-full w-[85vw] shrink-0 snap-center md:w-auto md:flex-1 md:min-w-[200px]"
-            onDragOver={onDragOver}
-            onDrop={(e) => onDrop(e, color)}
         >
             {/* Column Header */}
             <div className="flex items-center justify-between px-1">
@@ -496,23 +654,38 @@ function KanbanColumn({ color, label, todos, onUpdateLabel, onDragOver, onDrop, 
             </div>
 
             {/* Column Cards */}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col gap-3 pb-20 scrollbar-hide">
-                {todos.map((todo: any) => (
-                    <MindspaceCard 
-                        key={todo.id}
-                        todo={todo}
-                        updateTodo={updateTodo}
-                        deleteTodo={deleteTodo}
-                        handleDragStart={handleDragStart}
-                        isDragged={draggedId === todo.id}
-                    />
-                ))}
-            </div>
+            <SortableContext items={todos.map((t: TodoItem) => String(t.id))} strategy={verticalListSortingStrategy}>
+                <div className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col gap-3 pb-20 scrollbar-hide">
+                    {todos.map((todo: any) => (
+                        <MindspaceCard 
+                            key={todo.id}
+                            todo={todo}
+                            updateTodo={updateTodo}
+                            deleteTodo={deleteTodo}
+                        />
+                    ))}
+                </div>
+            </SortableContext>
         </div>
     );
 }
 
-function MindspaceCard({ todo, updateTodo, deleteTodo, handleDragStart, isDragged }: any) {
+function MindspaceCard({ todo, updateTodo, deleteTodo }: any) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: String(todo.id) });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        touchAction: 'manipulation'
+    };
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editTitle, setEditTitle] = useState(todo.title || '');
     const [editDesc, setEditDesc] = useState('');
@@ -526,7 +699,11 @@ function MindspaceCard({ todo, updateTodo, deleteTodo, handleDragStart, isDragge
     
     // Clean description for display
     let displayDescription = colorMatch ? rawDescription.substring(colorMatch[0].length).trim() : rawDescription;
-    displayDescription = displayDescription.replace(/\[pinned:true\]/g, '').trim();
+    displayDescription = displayDescription.replace(/\[pinned:true\]/g, '')
+                                            .replace(/\[completed:[^\]]+\]/g, '')
+                                            .replace(/\[archived_at:[^\]]+\]/g, '')
+                                            .replace(/\[archived:true\]/g, '')
+                                            .trim();
 
     const togglePin = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -574,15 +751,17 @@ function MindspaceCard({ todo, updateTodo, deleteTodo, handleDragStart, isDragge
         <>
             {/* The small card on the board */}
             <div
-                draggable
-                onDragStart={(e) => handleDragStart(e, todo.id)}
+                ref={setNodeRef}
+                {...attributes}
+                {...listeners}
                 onClick={openModal}
                 className={cn(
                     "group relative bg-[#1c1c1e] hover:bg-[#2c2c2e] border border-white/[0.05] rounded-2xl p-4 transition-all duration-200 cursor-pointer flex flex-col gap-2",
-                    isDragged ? "opacity-30 scale-95" : "opacity-100",
+                    isDragging ? "opacity-30 scale-95" : "opacity-100",
                     isPinned && "border-white/20 bg-white/5"
                 )}
                 style={{
+                    ...style,
                     boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
                 }}
             >
@@ -615,7 +794,8 @@ function MindspaceCard({ todo, updateTodo, deleteTodo, handleDragStart, isDragge
                         <button 
                             onClick={(e) => { 
                                 e.stopPropagation(); 
-                                const newDesc = (todo.description || '') + ' [archived:true]';
+                                const todayStr = new Date().toISOString().split('T')[0];
+                                const newDesc = (todo.description || '') + ` [archived:true] [completed:${todayStr}] [archived_at:${todayStr}]`;
                                 updateTodo(todo.id, { isCompleted: true, description: newDesc.trim() }); 
                             }}
                             className="p-1.5 hover:text-green-400 hover:bg-green-500/10 rounded-md transition-colors text-white/30"

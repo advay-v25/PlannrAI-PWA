@@ -30,7 +30,27 @@ const quickBubbles = [
         action: 'fix_today_schedule' as const,
         description: 'Reschedule overdue blocks to open slots',
     },
+    {
+        label: "Do more today",
+        emoji: '⚡️',
+        action: 'do_more_today' as const,
+        description: 'Find something to tackle right now',
+    },
 ];
+
+// Shape of applied ledger operations rendered in the "Applied" summary —
+// ops arrive in several historical formats, so every field is optional.
+interface AppliedOpSummary {
+    type?: string;
+    op?: string;
+    title?: string;
+    payload?: { title?: string; start_time?: string; end_time?: string };
+    new_start?: string; new_end?: string;
+    to_start?: string; to_end?: string;
+    start_time?: string; end_time?: string;
+    fields?: { start_time?: string; end_time?: string };
+    changes?: { start_time?: string; end_time?: string };
+}
 
 // ── Inline option card with "Review & Execute" expand ───────────────────────
 function InlineOptionCard({
@@ -194,6 +214,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
     const {
         messages,
         isLoading,
+        isLoadingHistory,
         error,
         canUndo,
         sendMessage,
@@ -238,6 +259,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
     // the exchange as a coach conversation (so it appears in the sidebar and
     // reloads read-only like manual prompts); this holds the live-session copy.
     const [syntheticMessages, setSyntheticMessages] = useState<CoachMessage[]>([]);
+    const [loadingConvId, setLoadingConvId] = useState<string | null>(null);
     const [quickConversationId, setQuickConversationId] = useState<string | null>(null);
 
     // Auto-scroll when either message source updates
@@ -300,7 +322,12 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
     const showLoadingIndicator = isLoading || isQuickActionLoading;
 
     // ── Quick action handler (no AI, dedicated endpoint) ─────────────────────
-    const handleQuickAction = async (action: 'reduce_today_load' | 'fix_today_schedule') => {
+    const handleQuickAction = async (action: 'reduce_today_load' | 'fix_today_schedule' | 'do_more_today') => {
+        if (action === 'do_more_today') {
+            sendMessage("I have some extra time today. What should I tackle right now?");
+            return;
+        }
+
         if (isQuickActionLoading || isLoading) return;
         setIsQuickActionLoading(true);
 
@@ -537,7 +564,14 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                 {/* Conversation list */}
                 <div className="flex-1 overflow-y-auto px-2 pb-4 space-y-0.5 scrollbar-hide">
                     {isLoadingHistoryList ? (
-                        <p className="text-[11px] text-[var(--text-tertiary)] text-center py-6 animate-pulse">Loading…</p>
+                        <div className="space-y-1">
+                            {Array.from({ length: 3 }).map((_, i) => (
+                                <div key={i} className="w-full px-3 py-2.5 rounded-xl border border-transparent flex flex-col gap-1">
+                                    <div className="h-4 bg-zinc-200 dark:bg-white/5 rounded-md animate-pulse w-3/4"></div>
+                                    <div className="h-3 bg-zinc-100 dark:bg-white/5 rounded-md animate-pulse w-1/3"></div>
+                                </div>
+                            ))}
+                        </div>
                     ) : pastConversations.length === 0 ? (
                         <p className="text-[11px] text-[var(--text-tertiary)] text-center py-6 leading-relaxed px-2">
                             No past chats yet.<br />Start a conversation below.
@@ -547,12 +581,14 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                             <div key={conv.id} className="relative group/item">
                                 <button
                                     onClick={() => {
+                                        if (isLoadingHistory) return;
+                                        setLoadingConvId(conv.id);
                                         clearConversation();
                                         setSyntheticMessages([]);
                                         setQuickConversationId(null);
-                                        loadHistory(conv.id);
+                                        loadHistory(conv.id).finally(() => setLoadingConvId(null));
                                     }}
-                                    className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-[var(--glass-bg)] border border-transparent hover:border-[var(--glass-border)] transition-all flex flex-col gap-0.5 pr-8"
+                                    className={`w-full text-left px-3 py-2.5 rounded-xl hover:bg-[var(--glass-bg)] border border-transparent hover:border-[var(--glass-border)] transition-all flex flex-col gap-0.5 pr-8 ${loadingConvId === conv.id ? 'bg-[var(--glass-bg)] border-[var(--glass-border)]' : ''}`}
                                 >
                                     <span className="text-[12px] font-medium text-zinc-900 dark:text-white/65 group-hover:text-orange-500 dark:hover:text-orange-300 transition-colors truncate leading-snug">
                                         {conv.primary_topic || 'Strategy Session'}
@@ -621,8 +657,17 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                 {/* ── Messages ── */}
                 <div className="z-10 flex-1 overflow-y-auto overscroll-contain px-4 md:px-8 py-6 space-y-6 scrollbar-hide">
 
+                    {/* Skeleton loader for history */}
+                    {isLoadingHistory && allMessages.length === 0 && (
+                        <div className="flex flex-col space-y-6 mt-4 animate-fade-in w-full max-w-2xl mx-auto px-4 md:px-0">
+                            <div className="self-end w-2/3 md:w-1/2 h-20 rounded-2xl rounded-tr-sm bg-[var(--glass-bg)] border border-[var(--glass-border)] animate-pulse" />
+                            <div className="self-start w-3/4 md:w-2/3 h-24 rounded-2xl rounded-tl-sm bg-[var(--glass-bg)] border border-[var(--glass-border)] animate-pulse" />
+                            <div className="self-end w-1/2 md:w-1/3 h-16 rounded-2xl rounded-tr-sm bg-[var(--glass-bg)] border border-[var(--glass-border)] animate-pulse" />
+                        </div>
+                    )}
+
                     {/* Empty state — 2 quick-action bubbles */}
-                    {allMessages.length === 0 && !showLoadingIndicator && (
+                    {allMessages.length === 0 && !showLoadingIndicator && !isLoadingHistory && (
                         <div className="flex flex-col items-center mt-10 animate-fade-in">
                             <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500/50 mx-auto mb-5 flex items-center justify-center shadow-[0_0_30px_rgba(249,115,22,0.2)]">
                                 <span className="text-[var(--text-primary)] text-2xl">⚡️</span>
@@ -696,20 +741,57 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                 !message.isApplying && (
                                 <div className="pl-2">
                                     <div className="p-3 rounded-xl bg-[var(--color-primary)]/5 border border-[var(--color-primary)]/20 flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-5 h-5 rounded-full bg-[var(--color-primary)] flex items-center justify-center text-[10px] text-[var(--text-primary)]">✓</div>
-                                            <div>
-                                                <span className="text-[10px] font-bold text-[var(--color-primary)] uppercase block">Applied</span>
-                                                <span className="text-sm text-[var(--text-secondary)]">
-                                                    {message.options?.find(o => o.id === message.selected_option_id)?.title}
-                                                </span>
+                                        <div className="flex items-start gap-3 w-full">
+                                            <div className="mt-0.5 w-5 h-5 rounded-full bg-[var(--color-primary)] flex-shrink-0 flex items-center justify-center text-[10px] text-[var(--text-primary)]">✓</div>
+                                            <div className="flex-1 min-w-0">
+                                                <span className="text-[10px] font-bold text-[var(--color-primary)] uppercase block mb-1">Applied</span>
+                                                <div className="flex flex-col gap-1.5 w-full">
+                                                    {(() => {
+                                                        const opt = message.options?.find(o => o.id === message.selected_option_id);
+                                                        const optExtras = opt as ({ operations?: unknown[]; ops?: unknown[] } | undefined);
+                                                        const ops = (opt?.ledger?.ops || optExtras?.operations || optExtras?.ops || []) as AppliedOpSummary[];
+                                                        if (!ops || ops.length === 0) {
+                                                            return <span className="text-[13px] text-[var(--text-secondary)] leading-tight">{opt?.title || 'Changes applied'}</span>;
+                                                        }
+                                                        return ops.map((op, i) => {
+                                                            const opType = op.type || op.op || '';
+                                                            const title = op.title || op.payload?.title || opt?.title || 'Event';
+                                                            let detail = '';
+                                                            
+                                                            if (['move_block', 'move', 'move_event'].includes(opType)) {
+                                                                const start = op.new_start || op.to_start || op.start_time;
+                                                                const end = op.new_end || op.to_end || op.end_time;
+                                                                if (start && end) detail = ` → ${start} - ${end}`;
+                                                            } else if (['delete_block', 'delete', 'delete_event'].includes(opType)) {
+                                                                detail = ' (Removed)';
+                                                            } else if (['create_event', 'create_block', 'create'].includes(opType)) {
+                                                                const start = op.payload?.start_time || op.start_time || op.new_start;
+                                                                const end = op.payload?.end_time || op.end_time || op.new_end;
+                                                                if (start && end) detail = ` (Created at ${start} - ${end})`;
+                                                                else detail = ' (Created)';
+                                                            } else if (['update_event', 'update_block', 'update', 'compress_block', 'compress'].includes(opType)) {
+                                                                const start = op.new_start || op.fields?.start_time || op.changes?.start_time;
+                                                                const end = op.new_end || op.fields?.end_time || op.changes?.end_time;
+                                                                detail = start && end ? ` → ${start} - ${end}` : ' (Updated)';
+                                                            } else {
+                                                                detail = ` (${opType})`;
+                                                            }
+                                                            
+                                                            return (
+                                                                <span key={i} className="text-[13px] text-[var(--text-secondary)] leading-tight block">
+                                                                    • {title}{detail}
+                                                                </span>
+                                                            );
+                                                        });
+                                                    })()}
+                                                </div>
                                             </div>
                                         </div>
                                         {message.undoToken && (
                                             <button
                                                 onClick={e => { e.stopPropagation(); handleUndo(); }}
                                                 disabled={isLoading}
-                                                className="px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-[10px] font-bold text-red-400 uppercase tracking-wider hover:bg-red-500/20 transition-all disabled:opacity-50"
+                                                className="ml-2 flex-shrink-0 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-[10px] font-bold text-red-400 uppercase tracking-wider hover:bg-red-500/20 transition-all disabled:opacity-50"
                                             >
                                                 ↩ Undo
                                             </button>

@@ -19,12 +19,24 @@ function CoachPageInner() {
 
     useEffect(() => {
         if (!initialized.current && messages.length === 0) {
+            let handled = false;
             if (prompt) {
-                initialized.current = true;
                 sendMessage(prompt);
+                handled = true;
+            } else if (context === 'do_more_today') {
+                sendMessage("I have some extra time today. What should I tackle right now?");
+                handled = true;
             } else if (context === 'calendar') {
-                initialized.current = true;
                 sendMessage("I'm looking at my calendar and need some help.");
+                handled = true;
+            }
+
+            if (handled) {
+                initialized.current = true;
+                const url = new URL(window.location.href);
+                url.searchParams.delete('context');
+                url.searchParams.delete('prompt');
+                window.history.replaceState({}, '', url.toString());
             }
         }
     }, [context, prompt, messages.length, sendMessage]);
