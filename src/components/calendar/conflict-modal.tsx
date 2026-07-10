@@ -45,7 +45,7 @@ export function ConflictModal({ error, onClose, onConfirmOption }: ConflictModal
                             <ShieldAlert className="w-5 h-5 text-red-400" />
                         </div>
                         <div className="flex-1">
-                            <h2 className="text-lg font-bold text-white tracking-tight leading-tight">
+                            <h2 className="text-lg font-bold text-[var(--text-primary)] tracking-tight leading-tight">
                                 Schedule Conflict Detected
                             </h2>
                             <p className="text-sm text-red-200/70 mt-1">
@@ -53,7 +53,7 @@ export function ConflictModal({ error, onClose, onConfirmOption }: ConflictModal
                                 Choose how to proceed.
                             </p>
                         </div>
-                        <button onClick={onClose} className="p-1 rounded-lg hover:bg-white/5 text-white/40">
+                        <button onClick={onClose} className="p-1 rounded-lg hover:bg-[var(--glass-bg)] dark:hover:bg-white/5 text-[var(--text-tertiary)] dark:text-white/40">
                             <X className="w-5 h-5" />
                         </button>
                     </div>
@@ -65,22 +65,22 @@ export function ConflictModal({ error, onClose, onConfirmOption }: ConflictModal
                                 <button
                                     key={i}
                                     onClick={() => onConfirmOption(opt)}
-                                    className="w-full text-left p-4 rounded-xl glass-panel hover:bg-white/[0.08] hover:border-white/[0.15] transition-all duration-300 hover:scale-[1.02] group"
+                                    className="w-full text-left p-4 rounded-xl glass-panel hover:bg-[var(--glass-bg-hover)] dark:hover:bg-white/[0.08] hover:border-[var(--color-primary)]/30 dark:hover:border-white/[0.15] transition-all duration-300 hover:scale-[1.02] group"
                                 >
                                     <div className="flex items-center justify-between mb-2">
-                                        <div className="font-bold text-white text-sm">
+                                        <div className="font-bold text-[var(--text-primary)] text-sm">
                                             {opt.label}
                                         </div>
-                                        <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                            <ArrowRight className="w-3 h-3 text-white" />
+                                        <div className="w-6 h-6 rounded-full bg-[var(--glass-bg)] dark:bg-white/5 flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                            <ArrowRight className="w-3 h-3 text-[var(--text-primary)] dark:text-white" />
                                         </div>
                                     </div>
-                                    <p className="text-xs text-white/70 mb-2">{opt.description}</p>
-                                    <p className="text-[10px] text-white/50 italic">Tradeoff: {opt.tradeoff}</p>
+                                    <p className="text-xs text-[var(--text-secondary)] dark:text-white/70 mb-2">{opt.description}</p>
+                                    <p className="text-[10px] text-[var(--text-tertiary)] dark:text-white/50 italic">Tradeoff: {opt.tradeoff}</p>
 
                                     {/* Preview Changes Count */}
                                     <div className="mt-2 flex gap-2">
-                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-white/40">
+                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--glass-bg)] dark:bg-white/5 text-[var(--text-tertiary)] dark:text-white/40">
                                             {opt.patch?.ops?.length || 0} Block Changes
                                         </span>
                                     </div>
@@ -88,7 +88,7 @@ export function ConflictModal({ error, onClose, onConfirmOption }: ConflictModal
                             ))
                         ) : (
                             <div className="p-4 text-center flex flex-col items-center">
-                                <p className="text-sm text-white/40 mb-4">No automatic resolution available.</p>
+                                <p className="text-sm text-[var(--text-muted)] dark:text-white/40 mb-4">No automatic resolution available.</p>
                                 <LiquidGlassButton
                                     onClick={onClose}
                                     variant="ghost"

@@ -58,7 +58,7 @@ export function ClearGoalsDialog({ onClose }: { onClose: () => void }) {
                         <AlertTriangle className="w-6 h-6" />
                     </div>
                     <div>
-                        <h2 className="text-xl font-bold text-white">Clear All Goals</h2>
+                        <h2 className="text-xl font-bold text-[var(--text-primary)]">Clear All Goals</h2>
                         <p className="text-xs text-[var(--text-tertiary)]">Reset your current goal set</p>
                     </div>
                 </div>

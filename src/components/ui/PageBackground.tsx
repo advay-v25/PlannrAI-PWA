@@ -1,5 +1,8 @@
 'use client';
 
+import { useTheme } from 'next-themes';
+import { useEffect, useState } from 'react';
+
 type PageBgColor    = 'orange' | 'purple' | 'teal' | 'pink';
 type PageBgVariant  = 'blob' | 'aurora' | 'horizon' | 'rising';
 type PageBgIntensity = 'subtle' | 'medium' | 'strong';
@@ -330,14 +333,24 @@ function RisingBackground({ color, m }: { color: PageBgColor; m: number }) {
 }
 
 /* ══════════════════════════════════════════════════════════════
-   Main export
+   Main export (theme-aware)
    ══════════════════════════════════════════════════════════════ */
 export function PageBackground({
   color    = 'orange',
   variant  = 'blob',
   intensity = 'medium',
 }: Props) {
-  const m = MULT[intensity];
+  const { theme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // In light mode, reduce intensity by ~40% so glows don't look muddy/pastel-washed
+  const baseMultiplier = MULT[intensity];
+  const isLightMode = mounted && (resolvedTheme === 'light' || (resolvedTheme === undefined && theme === 'light'));
+  const m = isLightMode ? baseMultiplier * 0.6 : baseMultiplier;
 
   return (
     <div

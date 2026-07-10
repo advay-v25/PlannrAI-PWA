@@ -347,7 +347,7 @@ export function MindspaceBoard() {
 
     if (isLoading) {
         return (
-            <div className="flex h-full items-center justify-center text-white/50 min-h-[400px]">
+            <div className="flex h-full items-center justify-center text-[var(--text-tertiary)] min-h-[400px]">
                 <Loader2 className="w-8 h-8 animate-spin text-[var(--color-primary)]" />
             </div>
         );
@@ -355,14 +355,14 @@ export function MindspaceBoard() {
 
     return (
         <div className="flex flex-col h-full w-full min-w-0 bg-transparent overflow-hidden">
-            
+
             {/* HERO CAPTURE AREA */}
-            <div className="shrink-0 pt-6 px-4 md:pt-10 md:px-8 pb-6 flex flex-col items-center justify-center relative z-20 border-b border-white/[0.05]">
+            <div className="shrink-0 pt-6 px-4 md:pt-10 md:px-8 pb-6 flex flex-col items-center justify-center relative z-20 border-b border-[var(--glass-border)]">
                 <div className="max-w-2xl w-full flex flex-col gap-4">
                     <form onSubmit={handleAdd} className="w-full relative">
                         <div className={cn(
-                            "bg-[var(--glass-bg)] backdrop-blur-2xl border border-white/[0.08] rounded-3xl overflow-hidden shadow-2xl transition-all duration-300",
-                            isExpanded ? "ring-2 ring-[var(--color-primary)]/50 shadow-[0_0_40px_rgba(var(--color-primary-rgb),0.15)]" : "hover:border-white/[0.15]"
+                            "bg-[var(--glass-bg)] backdrop-blur-2xl border border-[var(--glass-border)] rounded-3xl overflow-hidden shadow-lg transition-all duration-300",
+                            isExpanded ? "ring-2 ring-[var(--color-primary)]/50 shadow-[0_0_40px_rgba(var(--color-primary-rgb),0.15)]" : "hover:border-[var(--glass-border-hover)]"
                         )}>
                             <input
                                 type="text"
@@ -371,7 +371,7 @@ export function MindspaceBoard() {
                                 onFocus={() => setIsExpanded(true)}
                                 placeholder={isExpanded ? "Title" : "What's on your mind?"}
                                 className={cn(
-                                    "w-full bg-transparent text-[var(--text-primary)] focus:outline-none placeholder:text-white/30 px-6",
+                                    "w-full bg-transparent text-[var(--text-primary)] focus:outline-none placeholder:text-[var(--text-muted)] px-6",
                                     isExpanded ? "py-4 text-xl font-bold" : "py-6 text-2xl font-light text-center"
                                 )}
                             />
@@ -390,63 +390,63 @@ export function MindspaceBoard() {
                                                 placeholder="Dump ideas, notes, or thoughts here..." 
                                             />
                                         </div>
-                                        <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center justify-between p-4 border-t border-white/[0.04] bg-white/[0.02] gap-4">
+                                        <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center justify-between p-4 border-t border-[var(--glass-border)] bg-[var(--glass-bg-active)] dark:bg-white/[0.02] gap-4">
                                             <div className="flex flex-col sm:flex-row flex-wrap gap-2 items-start sm:items-center w-full sm:w-auto">
                                                 <div className="flex flex-wrap gap-2 items-center w-full sm:w-auto">
                                                 {(Object.keys(DEFAULT_LABELS) as Array<keyof typeof DEFAULT_LABELS>).map(c => (
-                                                    <button 
+                                                    <button
                                                         key={c}
-                                                        type="button" 
+                                                        type="button"
                                                         title={labels[c]}
-                                                        onClick={() => setSelectedColor(c)} 
+                                                        onClick={() => setSelectedColor(c)}
                                                         className={cn(
                                                             "px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1",
-                                                            selectedColor === c ? COLOR_CLASSES[c] + " ring-1 ring-current" : "text-white/40 hover:text-white/80 bg-white/5"
+                                                            selectedColor === c ? COLOR_CLASSES[c] + " ring-1 ring-current" : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] bg-[var(--glass-bg)] dark:bg-white/5"
                                                         )}
                                                     >
                                                         {labels[c]}
                                                     </button>
                                                 ))}
-                                                
-                                                <div className="w-px h-6 bg-white/10 mx-2 hidden sm:block" />
+
+                                                <div className="w-px h-6 bg-[var(--glass-border)] dark:bg-white/10 mx-2 hidden sm:block" />
 
                                                 {/* Date Picker */}
                                                 <div className="relative group/date w-full sm:w-auto">
-                                                    <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40 pointer-events-none group-focus-within/date:text-[var(--color-primary)] transition-colors z-10" />
-                                                    <input 
+                                                    <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)] pointer-events-none group-focus-within/date:text-[var(--color-primary)] transition-colors z-10" />
+                                                    <input
                                                         type="date"
                                                         value={dueDate}
                                                         onChange={(e) => setDueDate(e.target.value)}
-                                                        className="pl-8 pr-3 py-1.5 rounded-full bg-[#0a0a0c] border border-white/10 text-xs font-semibold text-white/80 hover:border-white/20 focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-all outline-none [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-50 hover:[&::-webkit-calendar-picker-indicator]:opacity-100 cursor-pointer w-full sm:w-auto"
+                                                        className="pl-8 pr-3 py-1.5 rounded-full bg-[var(--glass-bg)] dark:bg-[#0a0a0c] border border-[var(--glass-border)] dark:border-white/10 text-xs font-semibold text-[var(--text-primary)] dark:text-white/80 hover:border-[var(--glass-border-hover)] dark:hover:border-white/20 focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] transition-all outline-none [&::-webkit-calendar-picker-indicator]:invert [&::-webkit-calendar-picker-indicator]:opacity-50 hover:[&::-webkit-calendar-picker-indicator]:opacity-100 cursor-pointer w-full sm:w-auto"
                                                     />
                                                 </div>
 
                                                 {/* Priority Dropdown */}
                                                 <div className="relative group/priority w-full sm:w-auto">
-                                                    <AlertCircle className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40 pointer-events-none group-focus-within/priority:text-orange-400 transition-colors z-10" />
+                                                    <AlertCircle className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)] pointer-events-none group-focus-within/priority:text-orange-500 dark:group-focus-within/priority:text-orange-400 transition-colors z-10" />
                                                     <select
                                                         value={priority}
                                                         onChange={(e) => setPriority(e.target.value as any)}
                                                         className={cn(
                                                             "pl-8 pr-7 py-1.5 rounded-full border text-xs font-bold transition-all outline-none appearance-none cursor-pointer w-full sm:w-auto",
-                                                            priority === 'high' ? "bg-red-500/10 border-red-500/20 text-red-400" :
-                                                            priority === 'low' ? "bg-blue-500/10 border-blue-500/20 text-blue-400" :
-                                                            "bg-[#0a0a0c] border-white/10 text-white/80 hover:border-white/20"
+                                                            priority === 'high' ? "bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400" :
+                                                            priority === 'low' ? "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400" :
+                                                            "bg-[var(--glass-bg)] dark:bg-[#0a0a0c] border-[var(--glass-border)] dark:border-white/10 text-[var(--text-primary)] dark:text-white/80 hover:border-[var(--glass-border-hover)] dark:hover:border-white/20"
                                                         )}
                                                     >
-                                                        <option value="low" className="bg-[#121214]">Low</option>
-                                                        <option value="medium" className="bg-[#121214]">Medium</option>
-                                                        <option value="high" className="bg-[#121214]">High</option>
+                                                        <option value="low" className="bg-[var(--color-bg-secondary)] dark:bg-[#121214]">Low</option>
+                                                        <option value="medium" className="bg-[var(--color-bg-secondary)] dark:bg-[#121214]">Medium</option>
+                                                        <option value="high" className="bg-[var(--color-bg-secondary)] dark:bg-[#121214]">High</option>
                                                     </select>
-                                                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-white/40 pointer-events-none" />
+                                                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[var(--text-muted)] dark:text-white/40 pointer-events-none" />
                                                 </div>
                                             </div>
                                             </div>
                                             <div className="flex gap-3 shrink-0 ml-auto w-full sm:w-auto justify-end mt-2 sm:mt-0">
-                                                <button 
-                                                    type="button" 
+                                                <button
+                                                    type="button"
                                                     onClick={() => { setIsExpanded(false); setTitle(''); setDescription(''); setDueDate(''); setPriority('medium'); }}
-                                                    className="px-4 py-2 text-xs font-bold text-white/40 hover:text-[var(--text-primary)] transition-colors"
+                                                    className="px-4 py-2 text-xs font-bold text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
                                                 >
                                                     Cancel
                                                 </button>
@@ -468,19 +468,19 @@ export function MindspaceBoard() {
                     {/* SEARCH BAR & ARCHIVE TOGGLE */}
                     <div className="flex items-center gap-3 w-full">
                         <div className="relative group flex-1">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 group-focus-within:text-[var(--color-primary)] transition-colors" />
-                            <input 
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)] group-focus-within:text-[var(--color-primary)] transition-colors" />
+                            <input
                                 type="text"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="Search your notes..."
-                                className="w-full bg-[var(--glass-bg)] backdrop-blur-md border border-white/[0.05] focus:border-white/20 rounded-full py-3 pl-11 pr-4 text-sm text-[var(--text-primary)] outline-none transition-all placeholder:text-white/30"
+                                className="w-full bg-[var(--glass-bg)] backdrop-blur-md border border-[var(--glass-border)] focus:border-[var(--glass-border-hover)] rounded-full py-3 pl-11 pr-4 text-sm text-[var(--text-primary)] outline-none transition-all placeholder:text-[var(--text-muted)]"
                             />
                         </div>
-                        <button 
+                        <button
                             type="button"
                             onClick={() => setShowArchived(true)}
-                            className="flex items-center gap-2 px-5 py-3 rounded-full bg-[var(--glass-bg)] backdrop-blur-md border border-white/[0.05] hover:border-white/20 transition-all text-sm font-medium text-white/70 hover:text-white"
+                            className="flex items-center gap-2 px-5 py-3 rounded-full bg-[var(--glass-bg)] backdrop-blur-md border border-[var(--glass-border)] hover:border-[var(--glass-border-hover)] transition-all text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                         >
                             <Archive className="w-4 h-4" />
                             <span>Vault ({archivedTodos.length}/5)</span>
@@ -489,9 +489,9 @@ export function MindspaceBoard() {
 
                     {/* WEEKLY STAT BAR */}
                     <div className="w-full mt-4 flex flex-col gap-1.5 px-2">
-                        <WeeklyStatsBar 
-                            added={weeklyStats.addedCount} 
-                            completed={weeklyStats.completedCount} 
+                        <WeeklyStatsBar
+                            added={weeklyStats.addedCount}
+                            completed={weeklyStats.completedCount}
                         />
                     </div>
                 </div>
@@ -501,7 +501,7 @@ export function MindspaceBoard() {
             <div className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden snap-x snap-mandatory md:snap-none">
                 {activeTodos.length === 0 && !searchQuery ? (
                     <div className="h-full flex flex-col items-center justify-center opacity-40 pointer-events-none pb-20">
-                        <div className="w-20 h-20 rounded-3xl border border-dashed border-white/20 flex items-center justify-center mb-6 bg-white/5">
+                        <div className="w-20 h-20 rounded-3xl border border-dashed border-[var(--glass-border)] flex items-center justify-center mb-6 bg-[var(--glass-bg)]">
                             <Plus className="w-8 h-8 text-[var(--text-primary)]" />
                         </div>
                         <p className="text-lg font-light tracking-wide text-[var(--text-primary)]">Your mind is clear.</p>
@@ -555,17 +555,17 @@ export function MindspaceBoard() {
                             animate={{ scale: 1, y: 0, opacity: 1 }}
                             exit={{ scale: 0.95, y: 20, opacity: 0 }}
                             onClick={e => e.stopPropagation()}
-                            className="bg-[#1c1c1e] border border-white/10 rounded-3xl w-full max-w-lg flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden"
+                            className="bg-[var(--color-bg-secondary)] dark:bg-[#1c1c1e] border border-[var(--glass-border)] dark:border-white/10 rounded-3xl w-full max-w-lg flex flex-col shadow-lg dark:shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden"
                         >
-                            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-black/20">
+                            <div className="p-6 border-b border-[var(--glass-border)] dark:border-white/5 flex items-center justify-between bg-[var(--glass-bg-active)] dark:bg-black/20">
                                 <div>
-                                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                                        <Archive className="w-5 h-5 text-blue-400" />
+                                    <h3 className="text-xl font-bold text-[var(--text-primary)] dark:text-white flex items-center gap-2">
+                                        <Archive className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                                         Mindspace Vault
                                     </h3>
-                                    <p className="text-xs text-white/40 mt-1">Stored ideas and completed tasks (Max 5)</p>
+                                    <p className="text-xs text-[var(--text-secondary)] dark:text-white/40 mt-1">Stored ideas and completed tasks (Max 5)</p>
                                 </div>
-                                <button onClick={() => setShowArchived(false)} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white transition-colors">
+                                <button onClick={() => setShowArchived(false)} className="p-2 hover:bg-[var(--glass-bg)] dark:hover:bg-white/10 rounded-full text-[var(--text-tertiary)] dark:text-white/50 hover:text-[var(--text-primary)] dark:hover:text-white transition-colors">
                                     <Plus className="w-5 h-5 rotate-45" />
                                 </button>
                             </div>
@@ -573,15 +573,15 @@ export function MindspaceBoard() {
                                 {archivedTodos.length === 0 ? (
                                     <div className="flex-1 flex flex-col items-center justify-center opacity-50 py-8">
                                         <Archive className="w-10 h-10 mb-4 opacity-50" />
-                                        <p className="text-sm font-medium">Vault is empty.</p>
+                                        <p className="text-sm font-medium text-[var(--text-primary)]">Vault is empty.</p>
                                     </div>
                                 ) : (
                                     archivedTodos.map((todo) => (
-                                        <div key={todo.id} className="p-4 rounded-xl bg-white/5 border border-white/10 flex items-start justify-between gap-4 group hover:bg-white/10 transition-colors">
+                                        <div key={todo.id} className="p-4 rounded-xl bg-[var(--glass-bg)] dark:bg-white/5 border border-[var(--glass-border)] dark:border-white/10 flex items-start justify-between gap-4 group hover:bg-[var(--glass-bg-hover)] dark:hover:bg-white/10 transition-colors">
                                             <div>
-                                                <h4 className="font-bold text-sm text-white opacity-60 line-through">{todo.title || 'Untitled'}</h4>
-                                                <div className="text-xs text-white/40 mt-1 line-clamp-2" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(todo.description?.replace(/\[.*?\]/g, '').trim() || '') }} />
-                                                <p className="text-[10px] text-white/30 uppercase tracking-widest mt-3">Archived</p>
+                                                <h4 className="font-bold text-sm text-[var(--text-primary)] dark:text-white opacity-60 line-through">{todo.title || 'Untitled'}</h4>
+                                                <div className="text-xs text-[var(--text-secondary)] dark:text-white/40 mt-1 line-clamp-2" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(todo.description?.replace(/\[.*?\]/g, '').trim() || '') }} />
+                                                <p className="text-[10px] text-[var(--text-muted)] dark:text-white/30 uppercase tracking-widest mt-3">Archived</p>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <button 
@@ -634,29 +634,29 @@ function KanbanColumn({ color, label, todos, onUpdateLabel, updateTodo, deleteTo
         >
             {/* Column Header */}
             <div className="flex items-center justify-between px-1">
-                <div 
-                    className="flex items-center px-4 py-2 rounded-full bg-[#0a0a0c]/80 border border-white/[0.08] transition-colors w-fit shadow-sm group cursor-pointer hover:bg-white/[0.04]"
+                <div
+                    className="flex items-center px-4 py-2 rounded-full bg-[var(--glass-bg)] dark:bg-[#0a0a0c]/80 border border-[var(--glass-border)] dark:border-white/[0.08] transition-colors w-fit shadow-sm group cursor-pointer hover:bg-[var(--glass-bg-hover)] dark:hover:bg-white/[0.04]"
                     onClick={() => setIsEditingLabel(true)}
                 >
                     <div className={cn("w-2 h-2 rounded-full mr-3 shadow-[0_0_8px_currentColor]", COLOR_DOT_CLASSES[color as keyof typeof COLOR_DOT_CLASSES])} />
                     {isEditingLabel ? (
-                        <input 
+                        <input
                             autoFocus
                             value={editLabel}
                             onChange={e => setEditLabel(e.target.value)}
                             onBlur={handleLabelSave}
                             onKeyDown={e => e.key === 'Enter' && handleLabelSave()}
                             onClick={e => e.stopPropagation()}
-                            className="bg-transparent border-none outline-none w-24 font-medium text-sm text-white/90"
+                            className="bg-transparent border-none outline-none w-24 font-medium text-sm text-[var(--text-primary)] dark:text-white/90"
                         />
                     ) : (
-                        <h3 className="font-medium text-sm text-white/90 select-none flex items-center gap-2" title="Click to rename">
+                        <h3 className="font-medium text-sm text-[var(--text-primary)] dark:text-white/90 select-none flex items-center gap-2" title="Click to rename">
                             {label}
-                            <Edit2 className="w-3 h-3 text-white/0 group-hover:text-white/40 transition-colors" />
+                            <Edit2 className="w-3 h-3 text-[var(--text-tertiary)] dark:text-white/0 group-hover:text-[var(--text-secondary)] dark:group-hover:text-white/40 transition-colors" />
                         </h3>
                     )}
                 </div>
-                <span className="text-xs font-bold text-white/30 px-2">{todos.length}</span>
+                <span className="text-xs font-bold text-[var(--text-muted)] dark:text-white/30 px-2">{todos.length}</span>
             </div>
 
             {/* Column Cards */}
@@ -760,13 +760,13 @@ function MindspaceCard({ todo, updateTodo, deleteTodo }: any) {
                 ref={setNodeRef}
                 onClick={openModal}
                 className={cn(
-                    "group relative bg-[#1c1c1e] hover:bg-[#2c2c2e] border border-white/[0.05] rounded-2xl p-4 transition-all duration-200 cursor-pointer flex flex-col gap-2",
+                    "group relative bg-[var(--glass-bg)] dark:bg-[#1c1c1e] hover:bg-[var(--glass-bg-hover)] dark:hover:bg-[#2c2c2e] border border-[var(--glass-border)] dark:border-white/[0.05] rounded-2xl p-4 transition-all duration-200 cursor-pointer flex flex-col gap-2",
                     isDragging ? "opacity-30 scale-95" : "opacity-100",
-                    isPinned && "border-white/20 bg-white/5"
+                    isPinned && "border-[var(--color-primary)]/30 dark:border-white/20 bg-[var(--color-primary)]/10 dark:bg-white/5"
                 )}
                 style={{
                     ...style,
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                    boxShadow: isDragging ? 'none' : 'var(--shadow-sm)'
                 }}
             >
                 <div className="flex items-start justify-between gap-2">
@@ -775,7 +775,7 @@ function MindspaceCard({ todo, updateTodo, deleteTodo }: any) {
                         <div
                             {...attributes}
                             {...listeners}
-                            className="mt-0.5 cursor-grab active:cursor-grabbing text-white/20 hover:text-white/60 transition-colors"
+                            className="mt-0.5 cursor-grab active:cursor-grabbing text-[var(--text-tertiary)] dark:text-white/20 hover:text-[var(--text-secondary)] dark:hover:text-white/60 transition-colors"
                             onClick={(e) => e.stopPropagation()}
                         >
                             <GripHorizontal className="w-4 h-4" />
@@ -784,11 +784,11 @@ function MindspaceCard({ todo, updateTodo, deleteTodo }: any) {
                             {todo.title || 'Untitled'}
                         </h4>
                     </div>
-                    <button 
+                    <button
                         onClick={togglePin}
                         className={cn(
                             "p-1.5 rounded-full transition-colors shrink-0 -mt-1 -mr-1",
-                            isPinned ? "text-white bg-white/20" : "text-white/20 hover:bg-white/10 opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                            isPinned ? "text-[var(--color-primary)] dark:text-white bg-[var(--color-primary)]/10 dark:bg-white/20" : "text-[var(--text-tertiary)] dark:text-white/20 hover:bg-[var(--glass-bg-hover)] dark:hover:bg-white/10 opacity-100 md:opacity-0 md:group-hover:opacity-100"
                         )}
                     >
                         {isPinned ? <Pin className="w-3.5 h-3.5 fill-current" /> : <Pin className="w-3.5 h-3.5" />}
@@ -796,31 +796,31 @@ function MindspaceCard({ todo, updateTodo, deleteTodo }: any) {
                 </div>
 
                 {displayDescription && (
-                    <div 
-                        className="text-xs text-white/60 leading-relaxed [&_p]:m-0 [&_ul]:pl-4 [&_ul]:list-disc line-clamp-3"
+                    <div
+                        className="text-xs text-[var(--text-secondary)] dark:text-white/60 leading-relaxed [&_p]:m-0 [&_ul]:pl-4 [&_ul]:list-disc line-clamp-3"
                         dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(displayDescription) }}
                     />
                 )}
 
-                <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/[0.05]">
-                    <span className="text-[10px] font-medium text-white/30 uppercase tracking-wider">{timeAgo}</span>
-                    
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--glass-border)] dark:border-white/[0.05]">
+                    <span className="text-[10px] font-medium text-[var(--text-muted)] dark:text-white/30 uppercase tracking-wider">{timeAgo}</span>
+
                     <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                        <button 
-                            onClick={(e) => { 
-                                e.stopPropagation(); 
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
                                 const todayStr = new Date().toISOString().split('T')[0];
                                 const newDesc = (todo.description || '') + ` [archived:true] [completed:${todayStr}] [archived_at:${todayStr}]`;
-                                updateTodo(todo.id, { isCompleted: true, description: newDesc.trim() }); 
+                                updateTodo(todo.id, { isCompleted: true, description: newDesc.trim() });
                             }}
-                            className="p-1.5 hover:text-green-400 hover:bg-green-500/10 rounded-md transition-colors text-white/30"
+                            className="p-1.5 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-500/10 rounded-md transition-colors text-[var(--text-tertiary)] dark:text-white/30"
                             title="Mark as done and vault"
                         >
                             <CheckCircle2 className="w-3.5 h-3.5" />
                         </button>
-                        <button 
+                        <button
                             onClick={(e) => { e.stopPropagation(); deleteTodo(todo.id); }}
-                            className="p-1.5 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors text-white/30"
+                            className="p-1.5 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors text-[var(--text-tertiary)] dark:text-white/30"
                             title="Delete note"
                         >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -844,24 +844,24 @@ function MindspaceCard({ todo, updateTodo, deleteTodo }: any) {
                             animate={{ scale: 1, y: 0, opacity: 1 }}
                             exit={{ scale: 0.95, y: 20, opacity: 0 }}
                             onClick={e => e.stopPropagation()}
-                            className="bg-[#1c1c1e] border border-white/10 rounded-2xl w-full max-w-2xl flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden"
+                            className="bg-[var(--color-bg-secondary)] dark:bg-[#1c1c1e] border border-[var(--glass-border)] dark:border-white/10 rounded-2xl w-full max-w-2xl flex flex-col shadow-lg dark:shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden"
                             style={{ maxHeight: '85vh' }}
                         >
                             {/* Modal Header */}
-                            <div className="flex items-center justify-between p-4 md:p-6 border-b border-white/5 bg-black/10">
-                                <input 
+                            <div className="flex items-center justify-between p-4 md:p-6 border-b border-[var(--glass-border)] dark:border-white/5 bg-[var(--glass-bg-active)] dark:bg-black/10">
+                                <input
                                     autoFocus
                                     value={editTitle}
                                     onChange={e => setEditTitle(e.target.value)}
-                                    className="font-bold text-xl md:text-2xl text-[var(--text-primary)] bg-transparent border-none outline-none flex-1 placeholder:text-white/30"
+                                    className="font-bold text-xl md:text-2xl text-[var(--text-primary)] bg-transparent border-none outline-none flex-1 placeholder:text-[var(--text-muted)]"
                                     placeholder="Note title"
                                 />
                                 <div className="flex items-center gap-2 shrink-0 ml-4">
-                                    <button 
+                                    <button
                                         onClick={togglePin}
                                         className={cn(
                                             "p-2 rounded-full transition-colors",
-                                            isPinned ? "text-white bg-white/20" : "text-white/40 hover:bg-white/10"
+                                            isPinned ? "text-[var(--color-primary)] dark:text-white bg-[var(--color-primary)]/10 dark:bg-white/20" : "text-[var(--text-tertiary)] dark:text-white/40 hover:bg-[var(--glass-bg)] dark:hover:bg-white/10"
                                         )}
                                         title={isPinned ? "Unpin" : "Pin"}
                                     >
@@ -869,70 +869,70 @@ function MindspaceCard({ todo, updateTodo, deleteTodo }: any) {
                                     </button>
                                 </div>
                             </div>
-                            
+
                             {/* Modal Body: Editor */}
-                            <div className="flex-1 overflow-hidden flex flex-col p-4 md:p-6 bg-black/20 min-h-0 min-w-0 max-w-full">
-                                <RichTextEditor 
-                                    content={editDesc} 
-                                    onChange={setEditDesc} 
-                                    placeholder="Write your note here... Use the toolbar above for formatting, lists, and tables." 
+                            <div className="flex-1 overflow-hidden flex flex-col p-4 md:p-6 bg-[var(--glass-bg-active)] dark:bg-black/20 min-h-0 min-w-0 max-w-full">
+                                <RichTextEditor
+                                    content={editDesc}
+                                    onChange={setEditDesc}
+                                    placeholder="Write your note here... Use the toolbar above for formatting, lists, and tables."
                                     minHeight="300px"
                                     maxHeight="45vh"
                                 />
                             </div>
 
                             {/* Modal Footer */}
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 md:px-6 md:py-4 border-t border-white/5 bg-[#1c1c1e]">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 md:px-6 md:py-4 border-t border-[var(--glass-border)] dark:border-white/5 bg-[var(--color-bg-secondary)] dark:bg-[#1c1c1e]">
                                 <div className="flex flex-wrap items-center gap-2 md:gap-3">
                                     <div className="relative group flex items-center">
-                                        <div className="absolute left-3 pointer-events-none text-white/40 group-hover:text-white/60 transition-colors">
+                                        <div className="absolute left-3 pointer-events-none text-[var(--text-muted)] dark:text-white/40 group-hover:text-[var(--text-secondary)] dark:group-hover:text-white/60 transition-colors">
                                             <CalendarIcon className="w-4 h-4" />
                                         </div>
-                                        <input 
+                                        <input
                                             type="date"
                                             value={editDueDate}
                                             onChange={e => setEditDueDate(e.target.value)}
-                                            className="appearance-none bg-[#0a0a0c] border border-white/10 rounded-xl px-4 py-2 pl-9 text-xs font-medium text-white/80 outline-none hover:bg-white/5 focus:border-white/20 transition-all cursor-pointer min-w-[130px] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:opacity-0"
+                                            className="appearance-none bg-[var(--glass-bg)] dark:bg-[#0a0a0c] border border-[var(--glass-border)] dark:border-white/10 rounded-xl px-4 py-2 pl-9 text-xs font-medium text-[var(--text-primary)] dark:text-white/80 outline-none hover:bg-[var(--glass-bg-hover)] dark:hover:bg-white/5 focus:border-[var(--color-primary)] dark:focus:border-white/20 transition-all cursor-pointer min-w-[130px] [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:opacity-0"
                                             title="Due Date"
                                         />
                                     </div>
                                     <div className="relative group flex items-center">
-                                        <select 
+                                        <select
                                             value={editPriority}
                                             onChange={e => setEditPriority(e.target.value)}
                                             className={cn(
-                                                "appearance-none bg-[#0a0a0c] border border-white/10 rounded-xl px-4 py-2 pr-9 text-xs font-medium outline-none hover:bg-white/5 focus:border-white/20 transition-all cursor-pointer",
-                                                editPriority === 'high' ? 'text-red-400' : editPriority === 'low' ? 'text-blue-400' : 'text-white/80'
+                                                "appearance-none bg-[var(--glass-bg)] dark:bg-[#0a0a0c] border border-[var(--glass-border)] dark:border-white/10 rounded-xl px-4 py-2 pr-9 text-xs font-medium outline-none hover:bg-[var(--glass-bg-hover)] dark:hover:bg-white/5 focus:border-[var(--color-primary)] dark:focus:border-white/20 transition-all cursor-pointer",
+                                                editPriority === 'high' ? 'text-red-600 dark:text-red-400' : editPriority === 'low' ? 'text-blue-600 dark:text-blue-400' : 'text-[var(--text-primary)] dark:text-white/80'
                                             )}
                                             title="Priority"
                                         >
-                                            <option value="low" className="bg-[#0a0a0c] text-blue-400">Low Priority</option>
-                                            <option value="medium" className="bg-[#0a0a0c] text-white">Medium Priority</option>
-                                            <option value="high" className="bg-[#0a0a0c] text-red-400">High Priority</option>
+                                            <option value="low" className="bg-[var(--color-bg-secondary)] dark:bg-[#0a0a0c] text-blue-600 dark:text-blue-400">Low Priority</option>
+                                            <option value="medium" className="bg-[var(--color-bg-secondary)] dark:bg-[#0a0a0c] text-[var(--text-primary)] dark:text-white">Medium Priority</option>
+                                            <option value="high" className="bg-[var(--color-bg-secondary)] dark:bg-[#0a0a0c] text-red-600 dark:text-red-400">High Priority</option>
                                         </select>
-                                        <div className="absolute right-3 pointer-events-none text-white/40 group-hover:text-white/60 transition-colors">
+                                        <div className="absolute right-3 pointer-events-none text-[var(--text-muted)] dark:text-white/40 group-hover:text-[var(--text-secondary)] dark:group-hover:text-white/60 transition-colors">
                                             <ChevronDown className="w-4 h-4" />
                                         </div>
                                     </div>
 
-                                    <button 
+                                    <button
                                         onClick={(e) => { e.stopPropagation(); deleteTodo(todo.id); }}
-                                        className="p-2 ml-1 md:ml-2 hover:bg-red-500/10 hover:text-red-400 text-white/30 rounded-xl transition-all shrink-0 border border-transparent hover:border-red-500/20"
+                                        className="p-2 ml-1 md:ml-2 hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400 text-[var(--text-tertiary)] dark:text-white/30 rounded-xl transition-all shrink-0 border border-transparent hover:border-red-500/20"
                                         title="Delete Note"
                                     >
                                         <Trash2 className="w-4 h-4" />
                                     </button>
                                 </div>
                                 <div className="flex items-center gap-3 self-end sm:self-auto">
-                                    <button 
+                                    <button
                                         onClick={() => setIsModalOpen(false)}
-                                        className="px-4 py-2 text-xs uppercase font-bold text-white/50 hover:text-white transition-colors"
+                                        className="px-4 py-2 text-xs uppercase font-bold text-[var(--text-tertiary)] dark:text-white/50 hover:text-[var(--text-primary)] dark:hover:text-white transition-colors"
                                     >
                                         Cancel
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={saveEdit}
-                                        className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white text-xs uppercase font-bold rounded-lg transition-all shadow-lg border border-white/10"
+                                        className="px-6 py-2 bg-[var(--lg-primary-bg)] dark:bg-white/10 hover:bg-[var(--lg-primary-bg-hover)] dark:hover:bg-white/20 text-[var(--text-primary)] dark:text-white text-xs uppercase font-bold rounded-lg transition-all shadow-[var(--lg-primary-shadow)] dark:shadow-lg border border-[var(--lg-primary-border)] dark:border-white/10"
                                     >
                                         Save Note
                                     </button>

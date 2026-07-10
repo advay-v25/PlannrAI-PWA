@@ -80,11 +80,11 @@ export function DayOptimizerModal({ date, onClose, onApply, optimizeDay }: DayOp
             onClick={() => setSelectedMode(mode)}
             className={`w-full p-4 rounded-xl text-left transition-all duration-300 hover:scale-[1.02] ${selectedMode === mode
                 ? 'glass-panel bg-[var(--color-primary)]/10 border-[var(--color-primary)] shadow-lg shadow-[var(--color-primary)]/20'
-                : 'glass-panel hover:bg-white/[0.08] hover:border-white/[0.15]'
+                : 'glass-panel hover:bg-[var(--glass-bg-hover)] dark:hover:bg-white/[0.08] hover:border-[var(--color-primary)]/20 dark:hover:border-white/[0.15]'
                 }`}
         >
             <div className="flex items-center gap-3 mb-2">
-                <div className={`p-2 rounded-lg ${selectedMode === mode ? 'bg-[var(--color-primary)] text-white' : 'bg-white/10 text-[var(--text-tertiary)]'}`}>
+                <div className={`p-2 rounded-lg ${selectedMode === mode ? 'bg-[var(--color-primary)] text-white' : 'bg-[var(--glass-bg)] dark:bg-white/10 text-[var(--text-tertiary)]'}`}>
                     <Icon className="w-5 h-5" />
                 </div>
                 <span className="font-bold capitalize">{title}</span>
@@ -115,7 +115,7 @@ export function DayOptimizerModal({ date, onClose, onApply, optimizeDay }: DayOp
                                 <p className="text-xs text-[var(--text-tertiary)]">AI Performance Coach</p>
                             </div>
                         </div>
-                        <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg">
+                        <button onClick={onClose} className="p-2 hover:bg-[var(--glass-bg)] dark:hover:bg-white/10 rounded-lg">
                             <X className="w-5 h-5 text-[var(--text-tertiary)]" />
                         </button>
                     </div>
@@ -229,7 +229,7 @@ export function DayOptimizerModal({ date, onClose, onApply, optimizeDay }: DayOp
                                                 onClick={() => setSelectedOption(opt)}
                                                 className={`w-full p-4 rounded-xl text-left transition-all duration-300 hover:scale-[1.02] ${selectedOption?.id === opt.id
                                                     ? 'glass-panel bg-[var(--color-success)]/10 border-[var(--color-success)] shadow-lg shadow-[var(--color-success)]/10'
-                                                    : 'glass-panel hover:bg-white/[0.08] hover:border-white/[0.15]'
+                                                    : 'glass-panel hover:bg-[var(--glass-bg-hover)] dark:hover:bg-white/[0.08] hover:border-[var(--color-primary)]/20 dark:hover:border-white/[0.15]'
                                                     }`}
                                             >
                                                 <div className="flex justify-between items-start mb-1">
@@ -239,7 +239,7 @@ export function DayOptimizerModal({ date, onClose, onApply, optimizeDay }: DayOp
                                                 <p className="text-xs text-[var(--text-secondary)] mb-2">{opt.description}</p>
                                                 <p className="text-[10px] text-[var(--text-tertiary)] italic">Tradeoff: {opt.tradeoff}</p>
                                                 <div className="mt-2 flex gap-2">
-                                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-[var(--text-tertiary)]">
+                                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--glass-bg)] dark:bg-white/5 text-[var(--text-tertiary)]">
                                                         {opt.patch?.ops?.length || 0} Block Changes
                                                     </span>
                                                 </div>

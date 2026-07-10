@@ -96,7 +96,7 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied }:
                 <div className="flex justify-between items-center mb-6">
                     <div className="flex items-center gap-2">
                         {step === 'review' && (
-                            <button onClick={() => setStep('intro')} className="p-1 hover:bg-white/10 rounded-full mr-1">
+                            <button onClick={() => setStep('intro')} className="p-1 hover:bg-[var(--glass-bg)] dark:hover:bg-white/10 rounded-full mr-1">
                                 <ChevronLeft className="w-4 h-4" />
                             </button>
                         )}
@@ -105,7 +105,7 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied }:
                             Expert Strategist
                         </h2>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                    <button onClick={onClose} className="p-2 hover:bg-[var(--glass-bg)] dark:hover:bg-white/10 rounded-full transition-colors">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
@@ -128,8 +128,8 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied }:
                                         <Brain className="w-12 h-12 text-[var(--color-primary)]" />
                                     </div>
                                     <h3 className="text-2xl font-bold">Unlocking &quot;{goal.title}&quot;</h3>
-                                    <p className="text-sm text-[var(--text-tertiary)] leading-relaxed">
-                                        I will break this goal down into a concrete <span className="text-white font-bold">protocol</span>, <span className="text-white font-bold">checklist</span>, and specific <span className="text-white font-bold">milestones</span>.
+                                    <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
+                                        I will break this goal down into a concrete <span className="text-[var(--text-primary)] font-bold">protocol</span>, <span className="text-[var(--text-primary)] font-bold">checklist</span>, and specific <span className="text-[var(--text-primary)] font-bold">milestones</span>.
                                     </p>
                                 </div>
 
@@ -139,7 +139,7 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied }:
                                 </GlassButton>
 
                                 {strategy && (
-                                    <button onClick={() => setStep('review')} className="text-xs text-[var(--text-tertiary)] hover:text-white underline flex items-center gap-1">
+                                    <button onClick={() => setStep('review')} className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] dark:hover:text-white underline flex items-center gap-1">
                                         <Play className="w-3 h-3" /> View Active Strategy
                                     </button>
                                 )}
@@ -205,11 +205,11 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied }:
                                             <Clock className="w-3 h-3" /> {strategy.routine.duration_mins}m
                                         </span>
                                     </h5>
-                                    <div className="space-y-2 text-sm bg-white/5 p-4 rounded-xl border border-white/5">
+                                    <div className="space-y-2 text-sm bg-[var(--glass-bg)] dark:bg-white/5 p-4 rounded-xl border border-[var(--glass-border)] dark:border-white/5">
                                         {strategy.routine.steps.map((s: string, i: number) => (
                                             <div key={i} className="flex gap-3">
                                                 <span className="font-mono text-[var(--color-primary)] font-bold">{i + 1}.</span>
-                                                <span className="text-white/90">{s}</span>
+                                                <span className="text-[var(--text-primary)] dark:text-white/90">{s}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -228,9 +228,9 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied }:
                                     </h5>
                                     <div className="space-y-2 text-sm">
                                         {strategy.milestones.map((m: string, i: number) => (
-                                            <div key={i} className="flex items-center gap-3 bg-white/5 p-3 rounded-lg border border-white/5">
+                                            <div key={i} className="flex items-center gap-3 bg-[var(--glass-bg)] dark:bg-white/5 p-3 rounded-lg border border-[var(--glass-border)] dark:border-white/5">
                                                 <div className="w-6 h-6 rounded-full bg-[var(--color-primary)]/20 text-[var(--color-primary)] flex items-center justify-center text-xs font-bold">{i + 1}</div>
-                                                <span className="text-white/80">{m}</span>
+                                                <span className="text-[var(--text-primary)] dark:text-white/80">{m}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -241,11 +241,11 @@ export function GoalStrategyWizard({ goal, isOpen, onClose, onStrategyApplied }:
                                     <h5 className="text-xs font-bold uppercase text-[var(--text-tertiary)] flex items-center gap-2">
                                         <List className="w-4 h-4" /> Pre-Flight Checklist
                                     </h5>
-                                    <ul className="space-y-1 bg-white/5 p-4 rounded-xl border border-white/5">
+                                    <ul className="space-y-1 bg-[var(--glass-bg)] dark:bg-white/5 p-4 rounded-xl border border-[var(--glass-border)] dark:border-white/5">
                                         {strategy.checklist.map((item: { text: string }, i: number) => (
                                             <li key={i} className="flex items-start gap-3 text-sm">
-                                                <div className="w-4 h-4 mt-0.5 rounded border border-white/20 shrink-0" />
-                                                <span className="text-white/80">{item.text}</span>
+                                                <div className="w-4 h-4 mt-0.5 rounded border border-[var(--glass-border)] dark:border-white/20 shrink-0" />
+                                                <span className="text-[var(--text-primary)] dark:text-white/80">{item.text}</span>
                                             </li>
                                         ))}
                                     </ul>

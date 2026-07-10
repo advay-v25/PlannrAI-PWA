@@ -82,7 +82,7 @@ function SetPasswordContent() {
                 transition={{ type: 'spring', stiffness: 100, damping: 20 }}
                 className="w-full max-w-md relative z-10"
             >
-                <GlassCard variant="glow" padding="lg" className="border-white/10 shadow-3xl relative overflow-hidden">
+                <GlassCard variant="glow" padding="lg" className="border-[var(--glass-border)] dark:border-white/10 shadow-3xl relative overflow-hidden">
                     <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-orange-500 to-transparent opacity-50" />
                     
                     <div className="relative z-10">
@@ -96,10 +96,10 @@ function SetPasswordContent() {
                                 <Lock className="w-8 h-8 text-orange-500 filter drop-shadow-[0_0_8px_rgba(249,115,22,0.4)]" />
                             </motion.div>
 
-                            <h1 className="text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white via-white to-white/60 mb-2">
+                            <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)] mb-2">
                                 Optional: Set Password
                             </h1>
-                            <p className="text-white/50 text-xs font-medium px-4">
+                            <p className="text-[var(--text-secondary)] dark:text-white/50 text-xs font-medium px-4">
                                 You signed in with Google. You can set a password now to also sign in using your email in the future.
                             </p>
                         </div>
@@ -156,7 +156,7 @@ function SetPasswordContent() {
                                 <button
                                     type="button"
                                     onClick={handleSkip}
-                                    className="w-full h-12 text-xs font-bold tracking-widest uppercase text-white/40 hover:text-white transition-colors flex items-center justify-center group"
+                                    className="w-full h-12 text-xs font-bold tracking-widest uppercase text-[var(--text-tertiary)] dark:text-white/40 hover:text-[var(--text-primary)] dark:hover:text-white transition-colors flex items-center justify-center group"
                                 >
                                     Skip for now
                                     <ChevronRight className="w-4 h-4 ml-1 opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0" />
@@ -172,7 +172,7 @@ function SetPasswordContent() {
 
 export default function SetPasswordPage() {
     return (
-        <Suspense fallback={<div className="min-h-screen min-h-dvh bg-neutral-950 flex items-center justify-center text-white/40 text-xs">Loading...</div>}>
+        <Suspense fallback={<div className="min-h-screen min-h-dvh bg-[var(--color-bg-primary)] dark:bg-neutral-950 flex items-center justify-center text-[var(--text-muted)] dark:text-white/40 text-xs">Loading...</div>}>
             <SetPasswordContent />
         </Suspense>
     );

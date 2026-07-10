@@ -102,8 +102,8 @@ export default function OnboardingPage() {
     };
 
     return (
-        <div className="min-h-screen relative flex flex-col items-center justify-center p-4 overflow-hidden bg-[var(--color-bg-primary)] text-[var(--text-primary)] font-sans selection:bg-purple-500/30 selection:text-white">
-            
+        <div className="min-h-screen relative flex flex-col items-center justify-center p-4 overflow-hidden bg-[var(--color-bg-primary)] text-[var(--text-primary)] font-sans selection:bg-[var(--color-mind)]/20 selection:text-[var(--text-primary)]">
+
             {/* Premium Subtle Ambient Background */}
             <div className="absolute inset-0 hidden dark:block bg-[radial-gradient(ellipse_at_top,rgba(15,10,35,0.8)_0%,rgba(2,1,6,1)_100%)] pointer-events-none transition-colors duration-500" />
             <div className="absolute top-0 left-0 w-[500px] h-[500px] hidden dark:block bg-purple-900/10 rounded-full blur-[150px] pointer-events-none transition-colors duration-500" />
@@ -114,21 +114,21 @@ export default function OnboardingPage() {
                 {/* Premium Minimalist Progress Header */}
                 <div className={`w-full flex justify-center px-2 ${currentStepDef.id !== 'generate' ? 'mb-6' : 'mb-16'}`}>
                     <div className="flex flex-col items-center w-full max-w-md">
-                        <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-purple-400/80 mb-4">
+                        <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-[var(--color-mind)]/60 dark:text-purple-400/80 mb-4">
                             Step {currentStep + 1} of {STEPS.length}
                         </span>
-                        
+
                         <div className="flex gap-3 w-full mb-6">
                             {STEPS.map((_, i) => (
-                                <div 
-                                    key={i} 
+                                <div
+                                    key={i}
                                     className={`h-1 rounded-full transition-all duration-700 ease-in-out flex-1 ${
-                                        i === currentStep 
-                                            ? 'bg-gradient-to-r from-purple-500 to-fuchsia-500 shadow-[0_0_15px_rgba(168,85,247,0.5)]' 
-                                            : i < currentStep 
-                                                ? 'bg-purple-500/30' 
+                                        i === currentStep
+                                            ? 'bg-gradient-to-r from-[var(--color-mind)] to-fuchsia-500 dark:from-purple-500 dark:to-fuchsia-500 shadow-[0_0_15px_var(--color-mind-glow)] dark:shadow-[0_0_15px_rgba(168,85,247,0.5)]'
+                                            : i < currentStep
+                                                ? 'bg-[var(--color-mind)]/25 dark:bg-purple-500/30'
                                                 : 'bg-[var(--glass-bg)]'
-                                    }`} 
+                                    }`}
                                 />
                             ))}
                         </div>
@@ -218,18 +218,18 @@ export default function OnboardingPage() {
 
             <AnimatePresence>
                 {showMealSelectionPopup && (
-                    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md">
-                        <motion.div 
+                    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 dark:bg-black/60 backdrop-blur-md">
+                        <motion.div
                             initial={{ opacity: 0, scale: 0.95, y: 15 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 15 }}
-                            className="bg-[var(--glass-bg)] border border-[var(--glass-border)] p-6 max-w-sm w-full mx-4 space-y-5 rounded-3xl shadow-2xl text-center backdrop-blur-xl"
+                            className="bg-[var(--glass-bg-elevated)] border border-[var(--glass-border)] p-6 max-w-sm w-full mx-4 space-y-5 rounded-3xl shadow-2xl text-center backdrop-blur-xl"
                         >
                             <div className="space-y-2">
-                                <h3 className="text-lg font-bold text-white font-mono uppercase tracking-wide">
+                                <h3 className="text-lg font-bold text-[var(--text-primary)] font-mono uppercase tracking-wide">
                                     Select Your 2 Meals
                                 </h3>
-                                <p className="text-xs text-[var(--text-primary)]/70 leading-relaxed">
+                                <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
                                     Please select the two meals you would like to schedule before proceeding.
                                 </p>
                             </div>
@@ -258,8 +258,8 @@ export default function OnboardingPage() {
                                             }}
                                             className={`py-3 rounded-2xl text-xs font-bold transition-all duration-300 flex-1 border tracking-wide ${
                                                 isSelected
-                                                    ? 'bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.4)] scale-[1.03] border-transparent'
-                                                    : 'bg-[var(--glass-bg-active)] text-[var(--text-primary)]/50 border-[var(--glass-border)] hover:bg-[var(--glass-bg)] hover:text-[var(--text-primary)] hover:scale-[1.02]'
+                                                    ? 'bg-[var(--color-primary)] text-white dark:text-white shadow-[0_0_20px_var(--color-primary-glow)] scale-[1.03] border-[var(--color-primary)]/50'
+                                                    : 'bg-[var(--glass-bg-active)] text-[var(--text-tertiary)] border-[var(--glass-border)] hover:bg-[var(--glass-bg)] hover:text-[var(--text-primary)] hover:scale-[1.02]'
                                             }`}
                                         >
                                             {opt.label}

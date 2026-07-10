@@ -12,7 +12,7 @@ export function CoachDashboard({ onCalendarUpdate }: { onCalendarUpdate?: () => 
 
     if (!mounted) return (
         <div className="flex items-center justify-center h-full">
-            <Loader2 className="w-8 h-8 text-white/20 animate-spin" />
+            <Loader2 className="w-8 h-8 text-[var(--text-muted)] dark:text-white/20 animate-spin" />
         </div>
     );
 

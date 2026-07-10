@@ -177,7 +177,7 @@ export function CoachMessageBubble({ message }: CoachMessageBubbleProps) {
 
                     {/* Thinking Steps — Collapsed by default */}
                     {hasThinking && (
-                        <div className="mt-3 pt-3 border-t border-white/5">
+                        <div className="mt-3 pt-3 border-t border-[var(--glass-border)] dark:border-white/5">
                             <button
                                 onClick={() => setShowThinking(!showThinking)}
                                 className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-foreground/30 hover:text-orange-500/80 transition-colors"
@@ -204,11 +204,11 @@ export function CoachMessageBubble({ message }: CoachMessageBubbleProps) {
 
                     {/* Context Used — Subtle badges */}
                     {!isUser && message.contextUsed && message.contextUsed.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-white/5 flex flex-wrap gap-1.5">
+                        <div className="mt-3 pt-3 border-t border-[var(--glass-border)] dark:border-white/5 flex flex-wrap gap-1.5">
                             {message.contextUsed.map((ctx, i) => (
                                 <span
                                     key={i}
-                                    className="text-[8px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-[var(--glass-bg)] text-foreground/30 border border-white/5"
+                                    className="text-[8px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-[var(--glass-bg)] text-[var(--text-tertiary)] dark:text-foreground/30 border border-[var(--glass-border)] dark:border-white/5"
                                 >
                                     {ctx}
                                 </span>

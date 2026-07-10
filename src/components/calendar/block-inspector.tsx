@@ -157,11 +157,11 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                                 value={editTitle}
                                 onChange={e => setEditTitle(e.target.value)}
                                 onKeyDown={e => e.key === 'Enter' && saveTitleEdit()}
-                                className="flex-1 bg-[var(--glass-bg)] border border-white/20 rounded-lg px-3 py-1.5 text-[var(--text-primary)]
-                                    text-base font-bold focus:outline-none focus:border-white/40"
+                                className="flex-1 bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-lg px-3 py-1.5 text-[var(--text-primary)]
+                                    text-base font-bold focus:outline-none focus:border-[var(--color-primary)]"
                                 autoFocus
                             />
-                            <button onClick={saveTitleEdit} className="p-1.5 rounded-lg bg-[var(--glass-bg)] hover:bg-white/20 text-[var(--text-primary)]">
+                            <button onClick={saveTitleEdit} className="p-1.5 rounded-lg bg-[var(--glass-bg)] hover:bg-[var(--glass-bg-hover)] text-[var(--text-primary)]">
                                 <Save className="w-4 h-4" />
                             </button>
                         </div>
@@ -262,7 +262,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                                         {block.goal.ai_strategy.routine.steps.map((step: string, idx: number) => (
                                             <div key={idx} className="flex gap-2 text-xs">
                                                 <span className="text-purple-400 font-mono font-bold">{idx + 1}.</span>
-                                                <span className="text-white/80">{step}</span>
+                                                <span className="text-[var(--text-secondary)]">{step}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -274,7 +274,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                     {/* Checklist / Habit Stacks */}
                     {hasSubTasks && !isReadOnly && (
                         <div className="rounded-xl glass-panel overflow-hidden">
-                            <div className="px-4 py-3 flex items-center justify-between border-b border-white/5">
+                            <div className="px-4 py-3 flex items-center justify-between border-b border-[var(--glass-border)]">
                                 <div className="flex items-center gap-2 text-[var(--text-secondary)]">
                                     <ListTodo className="w-3.5 h-3.5" />
                                     <span className="text-[10px] font-bold uppercase tracking-widest">
@@ -310,7 +310,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                                             )}
                                             <span className={cn(
                                                 "text-sm leading-tight",
-                                                item.completed ? "text-[var(--text-tertiary)] line-through" : "text-white/80"
+                                                item.completed ? "text-[var(--text-tertiary)] line-through" : "text-[var(--text-secondary)]"
                                             )}>
                                                 {item.text}
                                             </span>
@@ -367,7 +367,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
             {/* Actions — bottom pinned. Read-only blocks (anchors, meals, routines,
                 sleep, wind-down, buffers) show no actions at all. */}
             {!isReadOnly && (
-            <div className="shrink-0 border-t border-white/5 bg-[var(--glass-bg)] backdrop-blur-2xl p-4 space-y-2">
+            <div className="shrink-0 border-t border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-2xl p-4 space-y-2">
                 {/* Status actions */}
                 {!isAnchor && (
                     <div className="flex gap-2">

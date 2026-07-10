@@ -161,7 +161,7 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
                                     <button
                                         key={p.id}
                                         onClick={() => setCategory(p.id as GoalCategory)}
-                                        className={`flex-1 p-3 rounded-xl flex flex-col items-center gap-2 transition-all ${category === p.id ? 'bg-white/10 ring-1 ring-white/20 shadow-md text-white' : 'bg-[var(--glass-bg)] hover:bg-[var(--glass-bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}
+                                        className={`flex-1 p-3 rounded-xl flex flex-col items-center gap-2 transition-all ${category === p.id ? 'bg-[var(--color-primary)]/10 ring-1 ring-[var(--color-primary)]/20 shadow-md text-[var(--color-primary)] dark:bg-white/10 dark:ring-white/20 dark:text-white' : 'bg-[var(--glass-bg)] hover:bg-[var(--glass-bg-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'}`}
                                     >
                                         <p.icon className="w-5 h-5" style={category === p.id ? { color: p.color } : undefined} />
                                         <span className="text-[10px] font-semibold tracking-wide uppercase">{p.label}</span>
@@ -176,7 +176,7 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
                                     <button
                                         key={imp}
                                         onClick={() => setImportance(imp)}
-                                        className={`flex-1 rounded-xl py-2 text-xs font-semibold capitalize transition-all ${importance === imp ? 'bg-white text-black shadow-md' : 'bg-[var(--glass-bg)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-hover)] hover:text-white'}`}
+                                        className={`flex-1 rounded-xl py-2 text-xs font-semibold capitalize transition-all ${importance === imp ? 'bg-[var(--color-primary)] text-white dark:bg-white dark:text-black shadow-md' : 'bg-[var(--glass-bg)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-hover)] hover:text-[var(--text-primary)]'}`}
                                     >
                                         {imp}
                                     </button>
@@ -196,8 +196,8 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
                                         key={t}
                                         onClick={() => setPreferredTime(t)}
                                         className={`flex-1 py-2 rounded-xl text-xs font-semibold capitalize transition-all ${preferredTime === t
-                                            ? 'bg-white text-black shadow-md'
-                                            : 'bg-[var(--glass-bg-subtle)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-hover)] hover:text-white'}`}
+                                            ? 'bg-[var(--color-primary)] text-white dark:bg-white dark:text-black shadow-md'
+                                            : 'bg-[var(--glass-bg-subtle)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-hover)] hover:text-[var(--text-primary)]'}`}
                                     >
                                         {t}
                                     </button>
@@ -209,7 +209,7 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
                             <div className="space-y-3">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                        <Clock className="w-4 h-4 text-white" />
+                                        <Clock className="w-4 h-4 text-[var(--text-primary)]" />
                                         <span className="text-sm font-medium">Daily Mins</span>
                                     </div>
                                     <span className="font-mono text-sm font-bold">{minutes}m</span>
@@ -218,13 +218,13 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
                                     type="range" min={5} max={180} step={5}
                                     value={minutes}
                                     onChange={(e) => setMinutes(Number(e.target.value))}
-                                    className="w-full accent-white"
+                                    className="w-full accent-[var(--color-primary)] dark:accent-white"
                                 />
                             </div>
                             <div className="space-y-3">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                        <CalendarDays className="w-4 h-4 text-white" />
+                                        <CalendarDays className="w-4 h-4 text-[var(--text-primary)]" />
                                         <span className="text-sm font-medium">Days / Week</span>
                                     </div>
                                     <span className="font-mono text-sm font-bold">{daysPerWeek}d</span>
@@ -233,7 +233,7 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
                                     type="range" min={1} max={7} step={1}
                                     value={daysPerWeek}
                                     onChange={(e) => setDaysPerWeek(Number(e.target.value))}
-                                    className="w-full accent-white"
+                                    className="w-full accent-[var(--color-primary)] dark:accent-white"
                                 />
                             </div>
                         </div>
@@ -248,7 +248,7 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
                                     <button
                                         key={e}
                                         onClick={() => setEnergy(e)}
-                                        className={`px-4 py-1.5 rounded-md text-xs font-semibold capitalize transition-all ${energy === e ? 'bg-white text-black shadow-md' : 'text-[var(--text-tertiary)] hover:text-white'}`}
+                                        className={`px-4 py-1.5 rounded-md text-xs font-semibold capitalize transition-all ${energy === e ? 'bg-[var(--color-primary)] text-white dark:bg-white dark:text-black shadow-md' : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)]'}`}
                                     >
                                         {e}
                                     </button>
@@ -258,12 +258,12 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
                     </div>
 
                     <button
-                        className="w-full py-4 text-base font-bold rounded-xl bg-white text-black hover:bg-gray-100 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-lg flex items-center justify-center gap-2"
+                        className="w-full py-4 text-base font-bold rounded-xl bg-[var(--color-primary)] text-white dark:bg-white dark:text-black hover:bg-[var(--color-primary-hover)] dark:hover:bg-gray-100 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-lg flex items-center justify-center gap-2"
                         onClick={handleSubmit}
                         disabled={!title || isSubmitting}
                     >
                         {isSubmitting ? (
-                            <span className="flex items-center gap-2 text-black/70">
+                            <span className="flex items-center gap-2 text-[var(--text-primary)]/70 dark:text-black/70">
                                 <Sparkles className="w-4 h-4 animate-spin" /> Creating...
                             </span>
                         ) : (

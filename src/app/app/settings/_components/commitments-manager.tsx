@@ -158,7 +158,7 @@ export default function CommitmentsManager() {
                     >
                         <div className="flex items-center justify-between">
                             <h3 className="text-sm font-bold text-[var(--text-primary)]">{editId ? 'Edit' : 'New'} Commitment</h3>
-                            <button onClick={resetForm} className="text-zinc-500 hover:text-[var(--text-primary)]/30 dark:hover:text-white transition-colors">
+                            <button onClick={resetForm} className="text-[var(--text-tertiary)] dark:text-zinc-500 hover:text-[var(--text-primary)] dark:hover:text-white transition-colors">
                                 <X className="w-4 h-4" />
                             </button>
                         </div>

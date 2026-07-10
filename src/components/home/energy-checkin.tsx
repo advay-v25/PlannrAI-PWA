@@ -16,11 +16,11 @@ interface EnergyCheckinProps {
 }
 
 const MOODS = [
-    { value: 'great', icon: Sun, label: 'Great', color: 'text-yellow-400' },
-    { value: 'good', icon: Smile, label: 'Good', color: 'text-green-400' },
-    { value: 'neutral', icon: Meh, label: 'Okay', color: 'text-blue-400' },
-    { value: 'low', icon: Frown, label: 'Low', color: 'text-orange-400' },
-    { value: 'rough', icon: CloudRain, label: 'Rough', color: 'text-red-400' }
+    { value: 'great', icon: Sun, label: 'Great', color: 'text-amber-500' },
+    { value: 'good', icon: Smile, label: 'Good', color: 'text-emerald-600 dark:text-emerald-400' },
+    { value: 'neutral', icon: Meh, label: 'Okay', color: 'text-blue-600 dark:text-blue-400' },
+    { value: 'low', icon: Frown, label: 'Low', color: 'text-orange-500' },
+    { value: 'rough', icon: CloudRain, label: 'Rough', color: 'text-red-600 dark:text-red-400' }
 ];
 
 export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyCheckinProps) {
@@ -83,20 +83,20 @@ export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyC
                             className={cn(
                                 "rounded-2xl border px-4 py-3 flex items-center gap-3",
                                 modeBanner.type === 'recovery'
-                                    ? "bg-orange-500/10 border-orange-500/20"
+                                    ? "bg-orange-500/15 border-orange-500/30 dark:bg-orange-500/10 dark:border-orange-500/20"
                                     : modeBanner.type === 'momentum'
-                                    ? "bg-emerald-500/10 border-emerald-500/20"
+                                    ? "bg-emerald-500/15 border-emerald-500/30 dark:bg-emerald-500/10 dark:border-emerald-500/20"
                                     : "bg-[var(--glass-bg)] border-[var(--glass-border)]"
                             )}
                         >
                             {modeBanner.type === 'recovery' ? (
-                                <Shield className="h-4 w-4 text-orange-400 shrink-0" />
+                                <Shield className="h-4 w-4 text-orange-600 dark:text-orange-400 shrink-0" />
                             ) : (
-                                <Zap className="h-4 w-4 text-emerald-400 shrink-0" />
+                                <Zap className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                             )}
                             <span className={cn(
                                 "text-xs font-medium flex-1",
-                                modeBanner.type === 'recovery' ? "text-orange-400/80" : "text-emerald-400/80"
+                                modeBanner.type === 'recovery' ? "text-orange-700 dark:text-orange-400" : "text-emerald-700 dark:text-emerald-400"
                             )}>
                                 {modeBanner.message}
                             </span>

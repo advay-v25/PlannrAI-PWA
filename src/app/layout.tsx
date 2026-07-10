@@ -58,7 +58,24 @@ export default function RootLayout({
           <ToastProvider>
             {children}
             <ApiDiagnostics />
-            <Toaster position="top-center" />
+            <Toaster
+              position="top-center"
+              theme="system"
+              richColors
+              closeButton
+              visibleToasts={3}
+              className="!top-4"
+              toastOptions={{
+                classNames: {
+                  toast: "!bg-[var(--glass-bg)] !border-[var(--glass-border)] !text-[var(--text-primary)] !shadow-lg backdrop-blur-xl",
+                  success: "!bg-[var(--color-success)]/15 !border-[var(--color-success)]/30 !text-[var(--color-success)]",
+                  error: "!bg-[var(--color-error)]/15 !border-[var(--color-error)]/30 !text-[var(--color-error)]",
+                  warning: "!bg-[var(--color-warning)]/15 !border-[var(--color-warning)]/30 !text-[var(--color-warning)]",
+                  info: "!bg-[var(--color-primary)]/15 !border-[var(--color-primary)]/30 !text-[var(--color-primary)]",
+                  closeButton: "!bg-[var(--glass-bg)] !text-[var(--text-tertiary)] hover:!text-[var(--text-primary)]",
+                },
+              }}
+            />
             <SpeedInsights />
           </ToastProvider>
         </ThemeProvider>
