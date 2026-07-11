@@ -32,13 +32,13 @@
   --color-bg-secondary: #f5f3f0;   /* warm stone-100 */
   --color-bg-tertiary: #e8e4df;    /* warm stone-200 */
 
-  --glass-bg: rgba(255, 255, 255, 0.60);         /* frosted white glass, more opaque */
-  --glass-bg-hover: rgba(255, 255, 255, 0.72);   /* frosted white hover */
-  --glass-bg-active: rgba(255, 255, 255, 0.80);  /* frosted white active */
-  --glass-bg-elevated: rgba(255, 255, 255, 0.88); /* more opaque for modals */
-  --glass-border: rgba(0, 0, 0, 0.10);           /* slightly darker for better definition */
-  --glass-border-subtle: rgba(0, 0, 0, 0.05);    /* subtle gray line */
-  --glass-border-hover: rgba(0, 0, 0, 0.18);     /* visible on hover */
+  --glass-bg: rgba(255, 255, 255, 0.35);         /* frosted white glass, lower opacity for true glass effect */
+  --glass-bg-hover: rgba(255, 255, 255, 0.45);   /* frosted white hover */
+  --glass-bg-active: rgba(255, 255, 255, 0.55);  /* frosted white active */
+  --glass-bg-elevated: rgba(255, 255, 255, 0.70); /* modal backdrop, more opaque for layering */
+  --glass-border: rgba(0, 0, 0, 0.12);           /* slightly darker for better definition in light mode */
+  --glass-border-subtle: rgba(0, 0, 0, 0.06);    /* subtle gray line */
+  --glass-border-hover: rgba(0, 0, 0, 0.20);     /* visible on hover */
   --glass-blur: 24px;
   --glass-blur-intense: 40px;
 
