@@ -323,17 +323,13 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
 
     // ── Quick action handler (no AI, dedicated endpoint) ─────────────────────
     const handleQuickAction = async (action: 'reduce_today_load' | 'fix_today_schedule' | 'do_more_today') => {
-        if (action === 'do_more_today') {
-            sendMessage("I have some extra time today. What should I tackle right now?");
-            return;
-        }
-
         if (isQuickActionLoading || isLoading) return;
         setIsQuickActionLoading(true);
 
         const labelMap: Record<string, string> = {
             reduce_today_load: "Reduce today's load",
             fix_today_schedule: "Fix today's schedule",
+            do_more_today: "Do more today",
         };
 
         try {
@@ -713,7 +709,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                                 key={opt.id}
                                                 option={opt}
                                                 onSelect={() => handleOptionSelect(opt, message.id || '')}
-                                                disabled={isDisabled}
+                                                disabled={isDisabled || (opt as any).disabled}
                                             />
                                         );
                                     })}
