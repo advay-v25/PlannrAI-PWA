@@ -476,8 +476,8 @@ export const POST = secureApiRoute(
 
         // ── BRANCH: do_more_today ────────────────────────────────────────
         if (action === 'do_more_today') {
-            const todayStr = clientDate;
-            const currentTime = clientTime;
+            const todayStr = today;
+            const currentT = currentTime;
 
             // 1. Filter candidates: from all blocks from tomorrow onwards, take the `type === 'goal'` blocks whose `status` is not done (empty or null).
             let candidates = allBlocks.filter(b => b.date > todayStr && b.block_type === 'goal' && (b.status === '' || b.status === null || b.status === undefined));
@@ -505,7 +505,7 @@ export const POST = secureApiRoute(
                 
                 for (const b of blocksToMove) {
                     const blockDuration = timeToMinutes(b.end_time) - timeToMinutes(b.start_time);
-                    const slot = findFreeSlot(tentativeDayBlocks, todayStr, blockDuration, profile?.wake_time || '07:00', profile?.sleep_time || '23:00', 60, 30, currentTime);
+                    const slot = findFreeSlot(tentativeDayBlocks, todayStr, blockDuration, wakeTime, sleepTime, windDownMins, morningRoutineMins, currentT);
                     
                     if (slot) {
                         ops.push({
