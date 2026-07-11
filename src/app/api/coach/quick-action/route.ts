@@ -480,7 +480,7 @@ export const POST = secureApiRoute(
             const currentTime = clientTime;
 
             // 1. Filter candidates: from all blocks from tomorrow onwards, take the `type === 'goal'` blocks whose `status` is not done (empty or null).
-            let candidates = sortedBlocks.filter(b => b.date > todayStr && b.block_type === 'goal' && (b.status === '' || b.status === null || b.status === undefined));
+            let candidates = allBlocks.filter(b => b.date > todayStr && b.block_type === 'goal' && (b.status === '' || b.status === null || b.status === undefined));
 
             // 2. Never move Body-pillar blocks; if a candidate would result in two body blocks today, skip it.
             // (The prompt says: "skip any block with pillar === 'body'")
@@ -505,7 +505,7 @@ export const POST = secureApiRoute(
                 
                 for (const b of blocksToMove) {
                     const blockDuration = timeToMinutes(b.end_time) - timeToMinutes(b.start_time);
-                    const slot = findFreeSlot(tentativeDayBlocks, todayStr, blockDuration, settings.wake_time, settings.sleep_time, 60, 30, currentTime);
+                    const slot = findFreeSlot(tentativeDayBlocks, todayStr, blockDuration, profile?.wake_time || '07:00', profile?.sleep_time || '23:00', 60, 30, currentTime);
                     
                     if (slot) {
                         ops.push({
@@ -572,6 +572,7 @@ export const POST = secureApiRoute(
                 conversation_id: conversationId,
                 meta: { num_candidates: candidates.length },
             });
+        }
 
         return NextResponse.json({ success: false, error: 'Unhandled action' }, { status: 400 });
     },
