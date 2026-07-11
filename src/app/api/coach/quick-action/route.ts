@@ -141,12 +141,13 @@ export const POST = secureApiRoute(
         const QUICK_ACTION_LABELS: Record<string, string> = {
             reduce_today_load: "Reduce Today's Load",
             fix_today_schedule: "Fix Today's Schedule",
+            do_more_today: "Do More Today",
         };
         const quickLabel = QUICK_ACTION_LABELS[action];
 
         // Persist the quick action as a coach conversation so it shows up in the
         // Coach Hub sidebar and reloads read-only — exactly like manual prompts.
-        const persistQuickChat = async (summary: string, ops: any[], impact: string): Promise<{ conversationId: string | null; optionId: string }> => {
+        const persistQuickChat = async (summary: string, ops: any[], impact: string, customOptions?: any[]): Promise<{ conversationId: string | null; optionId: string }> => {
             const optionId = 'opt_quick_1';
             try {
                 const nowIso = new Date().toISOString();
@@ -176,29 +177,32 @@ export const POST = secureApiRoute(
                     created_at: nowIso,
                 });
 
-                const option = ops.length > 0 ? {
-                    id: optionId,
-                    title: quickLabel,
-                    description: summary,
-                    impact,
-                    recommended: true,
-                    ledger: {
-                        ops,
-                        operations: ops,
-                        undoable: true,
-                        scope: 'week',
-                        reason: quickLabel,
-                        requires_confirmation: false,
-                    },
-                } : null;
+                let finalOptions = customOptions || null;
+                if (!finalOptions && ops.length > 0) {
+                    finalOptions = [{
+                        id: optionId,
+                        title: quickLabel,
+                        description: summary,
+                        impact,
+                        recommended: true,
+                        ledger: {
+                            ops,
+                            operations: ops,
+                            undoable: true,
+                            scope: 'week',
+                            reason: quickLabel,
+                            requires_confirmation: false,
+                        },
+                    }];
+                }
 
                 await supabase.from('coach_messages').insert({
                     conversation_id: conv.id,
                     user_id: user.id,
                     role: 'assistant',
                     content: summary,
-                    mode: option ? 'propose' : 'normal',
-                    options: option ? [option] : null,
+                    mode: finalOptions ? 'propose' : 'normal',
+                    options: finalOptions,
                     created_at: new Date(Date.now() + 1000).toISOString(),
                 });
 
@@ -466,6 +470,107 @@ export const POST = secureApiRoute(
                 conversation_id: conversationId,
                 option_id: optionId,
                 meta: { moved: movedResults.length, dropped: droppedResults.length },
+            });
+        }
+
+
+        // ── BRANCH: do_more_today ────────────────────────────────────────
+        if (action === 'do_more_today') {
+            const todayStr = today;
+            const currentT = currentTime;
+
+            // 1. Filter candidates: from all blocks from tomorrow onwards, take the `type === 'goal'` blocks whose `status` is not done (empty or null).
+            let candidates = allBlocks.filter(b => b.date > todayStr && b.block_type === 'goal' && (b.status === '' || b.status === null || b.status === undefined));
+
+            // 2. Never move Body-pillar blocks; if a candidate would result in two body blocks today, skip it.
+            // (The prompt says: "skip any block with pillar === 'body'")
+            candidates = candidates.filter(b => {
+                const goal = goals.find(g => g.id === b.goal_id);
+                return !(goal && goal.pillar === 'body');
+            });
+
+            // 3. Sort them chronologically. (already chronologically sorted by date/time since sortedBlocks is)
+            
+            // 4. Calculate free time today (`findFreeSlot(todayDate, ...)` without needing a specific duration, just see total free minutes).
+            // Actually, we don't need to manually sum free time, we can just use tentative placement for Option 1, 2, and 3.
+
+            const options: any[] = [];
+            
+            // We want exactly 3 options: move 1 block, move 2 blocks, move 3 blocks.
+            for (let numToMove = 1; numToMove <= 3; numToMove++) {
+                const blocksToMove = candidates.slice(0, numToMove);
+                const ops: any[] = [];
+                let tentativeDayBlocks = [...allBlocks];
+                let allPlaced = true;
+                
+                for (const b of blocksToMove) {
+                    const blockDuration = timeToMinutes(b.end_time) - timeToMinutes(b.start_time);
+                    const slot = findFreeSlot(tentativeDayBlocks, todayStr, blockDuration, wakeTime, sleepTime, windDownMins, morningRoutineMins, currentT);
+                    
+                    if (slot) {
+                        ops.push({
+                            op: 'update_block',
+                            block_id: b.id,
+                            changes: {
+                                date: todayStr,
+                                start_time: slot.start,
+                                end_time: slot.end
+                            }
+                        });
+                        // Add tentative block for subsequent placements
+                        tentativeDayBlocks.push({
+                            ...b,
+                            date: todayStr,
+                            start_time: slot.start,
+                            end_time: slot.end
+                        });
+                    } else {
+                        allPlaced = false;
+                        break;
+                    }
+                }
+                
+                if (blocksToMove.length === 0) {
+                    // No candidates at all
+                    allPlaced = false;
+                }
+
+                // If all placed successfully and we found the exact number requested
+                const success = allPlaced && ops.length === numToMove;
+                
+                // Construct the description
+                let title = `Move ${numToMove} block${numToMove > 1 ? 's' : ''}`;
+                let description = success ? `Move ${ops.map(op => {
+                    const block = candidates.find(b => b.id === op.block_id);
+                    return `"${block?.title}"`;
+                }).join(', ')} to today.` : `Not enough free time to move ${numToMove} block${numToMove > 1 ? 's' : ''}.`;
+                
+                options.push({
+                    id: `do_more_today_${numToMove}`,
+                    title: title,
+                    description: description,
+                    impact: success ? `Moved ${numToMove} future block${numToMove > 1 ? 's' : ''} to today's schedule.` : `Requires more free time.`,
+                    disabled: !success,
+                    ledger: success ? { ops, meta: {} } : undefined
+                });
+            }
+
+            // In this flow only, same-goal repetition is allowed, but we don't return the full summary/ops until they select an option.
+            let summary = options.every(o => o.disabled) 
+                ? "You don't have enough free time to move any blocks to today."
+                : "I found some future blocks you can tackle today. How many would you like to move?";
+            
+            const { conversationId } = await persistQuickChat(summary, [], "Proposed options to do more today", options);
+
+            return NextResponse.json({
+                success: true,
+                summary: summary,
+                options: options,
+                proposed_options: options, // some front-end versions look for proposed_options
+                mode: 'PROPOSE_OPTIONS',
+                execution_mode: 'PROPOSE_OPTIONS',
+                conversation_id: conversationId,
+                meta: { num_candidates: candidates.length },
             });
         }
 

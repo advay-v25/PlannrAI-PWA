@@ -23,11 +23,22 @@ function CoachPageInner() {
             if (prompt) {
                 sendMessage(prompt);
                 handled = true;
-            } else if (context === 'do_more_today') {
-                sendMessage("I have some extra time today. What should I tackle right now?");
-                handled = true;
             } else if (context === 'calendar') {
                 sendMessage("I'm looking at my calendar and need some help.");
+                handled = true;
+            } else if (context === 'do_more_today' || context === 'fix_today_schedule' || context === 'reduce_today_load') {
+                // Trigger the quick action bubble click if available
+                setTimeout(() => {
+                    const texts: Record<string, string> = {
+                        'do_more_today': 'Do more today',
+                        'fix_today_schedule': "Fix today's schedule",
+                        'reduce_today_load': "Reduce today's load"
+                    };
+                    const label = texts[context];
+                    const buttons = Array.from(document.querySelectorAll('button'));
+                    const target = buttons.find(b => b.textContent?.toLowerCase().includes(label.toLowerCase()));
+                    if (target) target.click();
+                }, 100);
                 handled = true;
             }
 

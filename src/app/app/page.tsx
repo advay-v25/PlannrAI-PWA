@@ -388,6 +388,8 @@ export default function HomePage() {
                             onClick={() => {
                                 if (proactiveSuggestion.id === 'no-schedule' || proactiveSuggestion.id === 'goal-sync-needed') {
                                     router.push('/app/calendar?action=optimize_day');
+                                } else if (proactiveSuggestion.id === 'missed-blocks') {
+                                    router.push('/app/coach?context=fix_today_schedule');
                                 } else {
                                     router.push(`/app/coach?mode=strategic&prompt=${encodeURIComponent(proactiveSuggestion.query || proactiveSuggestion.message)}`);
                                 }
