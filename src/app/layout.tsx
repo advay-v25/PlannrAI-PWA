@@ -53,6 +53,7 @@ export default function RootLayout({
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
+          storageKey="plannrai-theme"
         >
           <GlobalInputSanitizer />
           <ToastProvider>

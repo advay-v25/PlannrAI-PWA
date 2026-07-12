@@ -9,7 +9,7 @@ export function CalendarSkeleton() {
                 <PageBackground color="teal" variant="horizon" intensity="subtle" />
                 
                 {/* Top Header Skeleton */}
-                <div className="shrink-0 px-6 py-3 border-b border-[var(--glass-border)] bg-black/80 backdrop-blur-xl flex items-center justify-between">
+                <div className="shrink-0 px-6 py-3 border-b border-[var(--glass-border)] bg-[var(--color-bg-secondary)] dark:bg-black/80 backdrop-blur-xl flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="flex items-center gap-1">
                             <div className="w-8 h-8 rounded-lg skeleton-shimmer bg-[var(--glass-bg)]" />
