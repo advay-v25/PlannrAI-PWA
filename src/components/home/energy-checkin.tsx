@@ -100,36 +100,38 @@ export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyC
                             )}>
                                 {modeBanner.message}
                             </span>
-                            <button
-                                onClick={() => {
-                                    if (modeBanner.type === 'recovery') {
-                                        router.push('/app/coach?mode=strategic&prompt=I need some help managing my schedule today, my energy is very low.');
-                                    } else {
-                                        dispatchAppEvent({
-                                            type: 'schedule-recompute',
-                                            payload: {
-                                                trigger: 'energy_checkin_action',
-                                                // @ts-ignore
-                                                energy,
-                                                mood,
-                                                should_reoptimize: true,
-                                                banner: modeBanner,
-                                            }
-                                        });
-                                    }
-                                }}
-                                className={cn(
-                                    "text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-colors shrink-0",
-                                    modeBanner.type === 'recovery'
-                                        ? "bg-orange-500/20 text-orange-400 hover:bg-orange-500/30"
-                                        : "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+                            <div className="flex gap-2">
+                                {modeBanner.type === 'momentum' && (
+                                    <button
+                                        onClick={() => {
+                                            router.push('/app/calendar');
+                                        }}
+                                        className="text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-colors shrink-0 bg-[var(--glass-bg)] text-[var(--text-secondary)] dark:text-white/80 hover:bg-[var(--glass-bg-hover)] dark:hover:bg-white/[0.16]"
+                                    >
+                                        Maintain Schedule
+                                    </button>
                                 )}
-                            >
-                                <span className="flex items-center gap-1">
-                                    <RefreshCw className="h-3 w-3" />
-                                    {modeBanner.action_label}
-                                </span>
-                            </button>
+                                <button
+                                    onClick={() => {
+                                        if (modeBanner.type === 'recovery') {
+                                            router.push('/app/coach?context=reduce_today_load');
+                                        } else {
+                                            router.push('/app/coach?context=do_more_today');
+                                        }
+                                    }}
+                                    className={cn(
+                                        "text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-colors shrink-0",
+                                        modeBanner.type === 'recovery'
+                                            ? "bg-orange-500/20 text-orange-400 hover:bg-orange-500/30"
+                                            : "bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30"
+                                    )}
+                                >
+                                    <span className="flex items-center gap-1">
+                                        <RefreshCw className="h-3 w-3" />
+                                        {modeBanner.action_label}
+                                    </span>
+                                </button>
+                            </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -188,8 +190,10 @@ export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyC
                 setModeBanner(null);
             }
 
-            if (isNonDefault && finalEnergy <= 2) {
-                router.push('/app/coach?mode=strategic&prompt=I need some help managing my schedule today, my energy is very low.');
+            if (finalEnergy <= 2) {
+                router.push('/app/coach?context=reduce_today_load');
+            } else if (finalEnergy === 3) {
+                router.push('/app/calendar');
             } else {
                 dispatchAppEvent({
                     type: 'schedule-recompute',

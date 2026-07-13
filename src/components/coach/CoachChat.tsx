@@ -351,7 +351,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                 return;
             }
 
-            const { summary, ops } = raw;
+            const { summary, ops, options: multiOptions, proposed_options } = raw;
             const assistantId = `assistant_${Date.now()}`;
 
             // The quick action is persisted server-side as a conversation — track it
@@ -363,48 +363,86 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                     .catch(() => { /* sidebar refresh is best-effort */ });
             }
 
-            const option: ProposedOption = {
-                id: raw.option_id || `opt_${Date.now()}`,
-                title: labelMap[action],
-                description: summary,
-                impact: `${raw.meta?.moved || 0} block${(raw.meta?.moved || 0) !== 1 ? 's' : ''} rescheduled${raw.meta?.dropped ? `, ${raw.meta.dropped} dropped` : ''}`,
-                ledger: {
-                    ops: ops.map((op: any) => {
-                        if (op.type === 'move_block') {
-                            return { op: 'move_event', event_id: op.block_id, title: op.title, to_start: op.new_start, to_end: op.new_end, date: op.new_date };
-                        }
-                        if (op.type === 'delete_block') {
-                            return { op: 'delete_event', event_id: op.block_id, title: op.title };
-                        }
-                        return op;
-                    }),
-                    operations: ops, // passed to apply/route normalizer
-                    undoable: true,
-                    scope: 'week' as const,
-                    reason: labelMap[action],
-                    // false: the inline "Review & Execute" panel IS the confirmation step —
-                    // no second modal needed
-                    requires_confirmation: false,
-                } as any,
-                recommended: true,
-            };
+            const effectiveOptions = multiOptions || proposed_options;
 
-            setSyntheticMessages(prev => [
-                ...prev,
-                {
-                    id: `user_${Date.now()}`,
-                    role: 'user' as const,
-                    content: labelMap[action],
-                    timestamp: Date.now(),
-                },
-                {
-                    id: assistantId,
-                    role: 'assistant' as const,
-                    content: summary,
-                    options: ops.length > 0 ? [option] : undefined,
-                    timestamp: Date.now() + 1,
-                },
-            ]);
+            if (effectiveOptions && Array.isArray(effectiveOptions) && effectiveOptions.length > 0) {
+                // Multi-option response path (e.g. do_more_today)
+                setSyntheticMessages(prev => [
+                    ...prev,
+                    {
+                        id: `user_${Date.now()}`,
+                        role: 'user' as const,
+                        content: labelMap[action],
+                        timestamp: Date.now(),
+                    },
+                    {
+                        id: assistantId,
+                        role: 'assistant' as const,
+                        content: summary,
+                        options: effectiveOptions.map((opt: any) => ({
+                            id: opt.id,
+                            title: opt.title,
+                            description: opt.description,
+                            impact: opt.impact,
+                            disabled: opt.disabled,
+                            ledger: opt.ledger ? {
+                                ops: opt.ledger.ops,
+                                operations: opt.ledger.ops,
+                                undoable: true,
+                                scope: 'week' as const,
+                                reason: opt.title,
+                                requires_confirmation: false,
+                            } : { ops: [] },
+                            recommended: opt.recommended,
+                        })) as ProposedOption[],
+                        timestamp: Date.now() + 1,
+                    },
+                ]);
+            } else {
+                // Single option path (existing)
+                const option: ProposedOption = {
+                    id: raw.option_id || `opt_${Date.now()}`,
+                    title: labelMap[action],
+                    description: summary,
+                    impact: `${raw.meta?.moved || 0} block${(raw.meta?.moved || 0) !== 1 ? 's' : ''} rescheduled${raw.meta?.dropped ? `, ${raw.meta.dropped} dropped` : ''}`,
+                    ledger: {
+                        ops: ops ? ops.map((op: any) => {
+                            if (op.type === 'move_block') {
+                                return { op: 'move_event', event_id: op.block_id, title: op.title, to_start: op.new_start, to_end: op.new_end, date: op.new_date };
+                            }
+                            if (op.type === 'delete_block') {
+                                return { op: 'delete_event', event_id: op.block_id, title: op.title };
+                            }
+                            return op;
+                        }) : [],
+                        operations: ops || [], // passed to apply/route normalizer
+                        undoable: true,
+                        scope: 'week' as const,
+                        reason: labelMap[action],
+                        // false: the inline "Review & Execute" panel IS the confirmation step —
+                        // no second modal needed
+                        requires_confirmation: false,
+                    } as any,
+                    recommended: true,
+                };
+
+                setSyntheticMessages(prev => [
+                    ...prev,
+                    {
+                        id: `user_${Date.now()}`,
+                        role: 'user' as const,
+                        content: labelMap[action],
+                        timestamp: Date.now(),
+                    },
+                    {
+                        id: assistantId,
+                        role: 'assistant' as const,
+                        content: summary,
+                        options: ops && ops.length > 0 ? [option] : undefined,
+                        timestamp: Date.now() + 1,
+                    },
+                ]);
+            }
         } catch (err: any) {
             showToast('Failed to process request', 'error');
             console.error('[QuickAction]', err);

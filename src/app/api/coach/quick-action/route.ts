@@ -479,8 +479,8 @@ export const POST = secureApiRoute(
             const todayStr = today;
             const currentT = currentTime;
 
-            // 1. Filter candidates: from all blocks from tomorrow onwards, take the `type === 'goal'` blocks whose `status` is not done (empty or null).
-            let candidates = allBlocks.filter(b => b.date > todayStr && b.block_type === 'goal' && (b.status === '' || b.status === null || b.status === undefined));
+            // 1. Filter candidates: from all blocks from tomorrow onwards, take the `type === 'goal'` blocks whose `status` is not done.
+            let candidates = allBlocks.filter(b => b.date > todayStr && b.block_type === 'goal' && b.status !== 'done');
 
             // 2. Never move Body-pillar blocks; if a candidate would result in two body blocks today, skip it.
             // (The prompt says: "skip any block with pillar === 'body'")
@@ -505,7 +505,8 @@ export const POST = secureApiRoute(
                 
                 for (const b of blocksToMove) {
                     const blockDuration = timeToMinutes(b.end_time) - timeToMinutes(b.start_time);
-                    const slot = findFreeSlot(tentativeDayBlocks, todayStr, blockDuration, wakeTime, sleepTime, windDownMins, morningRoutineMins, currentT);
+                    const effectiveDuration = Math.max(blockDuration, 30);
+                    const slot = findFreeSlot(tentativeDayBlocks, todayStr, effectiveDuration, wakeTime, sleepTime, windDownMins, morningRoutineMins, currentT);
                     
                     if (slot) {
                         ops.push({
