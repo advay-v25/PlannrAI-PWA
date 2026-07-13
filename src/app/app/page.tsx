@@ -327,8 +327,24 @@ export default function HomePage() {
                             onClick={clearMode}
                             className="text-[10px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
                         >Dismiss</button>
+                        {currentMode.type === 'momentum' && (
+                            <button
+                                onClick={() => {
+                                    router.push('/app/calendar');
+                                }}
+                                className="px-4 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 bg-[var(--glass-bg)] text-[var(--text-secondary)] dark:text-white/80 hover:bg-[var(--glass-bg-hover)] dark:hover:bg-white/[0.16]"
+                            >
+                                Maintain Schedule
+                            </button>
+                        )}
                         <button
-                            onClick={handleReoptimize}
+                            onClick={() => {
+                                if (currentMode.type === 'recovery') {
+                                    router.push('/app/coach?context=reduce_today_load');
+                                } else {
+                                    router.push('/app/coach?context=do_more_today');
+                                }
+                            }}
                             disabled={isReoptimizing}
                             className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 ${
                                 currentMode.type === 'recovery'
@@ -390,6 +406,8 @@ export default function HomePage() {
                                     router.push('/app/calendar?action=optimize_day');
                                 } else if (proactiveSuggestion.id === 'missed-blocks') {
                                     router.push('/app/coach?context=fix_today_schedule');
+                                } else if (proactiveSuggestion.action_label === 'Boost Schedule') {
+                                    router.push('/app/coach?context=do_more_today');
                                 } else {
                                     router.push(`/app/coach?mode=strategic&prompt=${encodeURIComponent(proactiveSuggestion.query || proactiveSuggestion.message)}`);
                                 }
