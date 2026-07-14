@@ -99,7 +99,7 @@ export function ConfirmationModal({
                     <button
                         onClick={onConfirm}
                         disabled={isLoading}
-                        className="px-4 py-2 bg-[var(--color-primary)] text-[var(--text-primary)] rounded-lg hover:brightness-110 disabled:opacity-50 transition-all font-medium"
+                        className="px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg shadow-[0_0_16px_var(--color-primary-glow)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50 transition-all font-medium"
                     >
                         {isLoading ? 'Applying...' : 'Confirm & Apply'}
                     </button>

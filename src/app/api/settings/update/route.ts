@@ -7,7 +7,7 @@ import { validateWithZod } from '@/lib/security/zod-validator';
 const SCHEDULE_AFFECTING_FIELDS = [
     'sleep_start', 'sleep_end', 'wake_time', 'scheduling_strategy',
     'focus_hours_start', 'focus_hours_end', 'meal_times',
-    'work_start', 'work_end', 'wind_down_min', 'morning_routine_min'
+    'work_start', 'work_end', 'wind_down_min', 'morning_routine_min', 'chronotype'
 ];
 
 const TimeStringSchema = z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, {
@@ -22,6 +22,7 @@ const MealWindowSchema = z.object({
 const PreferencesUpdateSchema = z.object({
     sleep_start: TimeStringSchema.optional(),
     wake_time: TimeStringSchema.optional(),
+    chronotype: z.enum(['lark', 'bear', 'owl', 'wolf']).optional(),
     wind_down_min: z.number().min(0).max(180).optional(),
     morning_routine_min: z.number().min(0).max(120).optional(),
     meals_per_day: z.union([z.literal(2), z.literal(3)]).optional(),
@@ -109,8 +110,14 @@ export const POST = secureApiRoute(
         delete (patch as any).user_id;
         delete (patch as any).updated_at;
 
+        // chronotype lives on profiles.body_preferences, not profile_preferences —
+        // pull it out before the profile_preferences update below so it doesn't
+        // error on an unknown column, but keep it for the affectsSchedule check.
+        const chronotypePatch = (patch as any).chronotype as ('lark' | 'bear' | 'owl' | 'wolf') | undefined;
+        delete (patch as any).chronotype;
+
         // Check if any schedule-affecting fields are being changed
-        const affectsSchedule = Object.keys(patch).some(key => SCHEDULE_AFFECTING_FIELDS.includes(key));
+        const affectsSchedule = chronotypePatch !== undefined || Object.keys(patch).some(key => SCHEDULE_AFFECTING_FIELDS.includes(key));
 
         // 3. Update Preferences
         let updated = null;
@@ -166,8 +173,9 @@ export const POST = secureApiRoute(
                 }
 
                 // Sync wake/sleep times and set needs_rescheduling inside bio_data JSONB field
-                const { data: profile } = await supabase.from('profiles').select('bio_data').eq('id', userId).single();
+                const { data: profile } = await supabase.from('profiles').select('bio_data, body_preferences').eq('id', userId).single();
                 const bioData = (profile?.bio_data as any) || {};
+                const bodyPreferences = (profile?.body_preferences as any) || {};
 
                 const profileUpdate: any = {
                     bio_data: {
@@ -178,6 +186,9 @@ export const POST = secureApiRoute(
                 };
                 if (patch.wake_time) profileUpdate.sleep_end = patch.wake_time;
                 if (patch.sleep_start) profileUpdate.sleep_start = patch.sleep_start;
+                if (chronotypePatch) {
+                    profileUpdate.body_preferences = { ...bodyPreferences, chronotype: chronotypePatch };
+                }
 
                 await supabase
                     .from('profiles')

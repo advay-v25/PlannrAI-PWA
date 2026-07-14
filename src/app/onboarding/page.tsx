@@ -114,7 +114,7 @@ export default function OnboardingPage() {
                 {/* Premium Minimalist Progress Header */}
                 <div className={`w-full flex justify-center px-2 ${currentStepDef.id !== 'generate' ? 'mb-6' : 'mb-16'}`}>
                     <div className="flex flex-col items-center w-full max-w-md">
-                        <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-[var(--color-mind)]/60 dark:text-purple-400/80 mb-4">
+                        <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-[var(--color-mind)]/70 dark:text-purple-300/95 mb-4">
                             Step {currentStep + 1} of {STEPS.length}
                         </span>
 
@@ -124,9 +124,9 @@ export default function OnboardingPage() {
                                     key={i}
                                     className={`h-1 rounded-full transition-all duration-700 ease-in-out flex-1 ${
                                         i === currentStep
-                                            ? 'bg-gradient-to-r from-[var(--color-mind)] to-fuchsia-500 dark:from-purple-500 dark:to-fuchsia-500 shadow-[0_0_15px_var(--color-mind-glow)] dark:shadow-[0_0_15px_rgba(168,85,247,0.5)]'
+                                            ? 'bg-gradient-to-r from-[var(--color-mind)] to-fuchsia-500 dark:from-purple-400 dark:to-fuchsia-400 shadow-[0_0_15px_var(--color-mind-glow)] dark:shadow-[0_0_18px_rgba(192,132,252,0.6)]'
                                             : i < currentStep
-                                                ? 'bg-[var(--color-mind)]/25 dark:bg-purple-500/30'
+                                                ? 'bg-[var(--color-mind)]/25 dark:bg-purple-400/45'
                                                 : 'bg-[var(--glass-bg)]'
                                     }`}
                                 />

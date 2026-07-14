@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { buildCalendarContext } from '@/lib/calendar/context-builder';
 import { generateWeekPlan } from '@/lib/calendar/ai/plan-week';
 import { format, startOfWeek, addDays } from 'date-fns';
-import { SchedulingProtocol, type MoodLevel } from '@/lib/scheduling/protocol';
+import { SchedulingProtocol } from '@/lib/scheduling/protocol';
+import { DEFAULT_TIMEZONE, nowInTimezone } from '@/lib/timezone';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -27,12 +28,14 @@ export const POST = secureApiRoute(
         const { start_date, mode, allow_weekend } = validation.data;
         const allowWeekend = allow_weekend;
 
-        // 2. Determine week start (default to current week's Monday)
+        // 2. Determine week start (default to current week's Monday, computed in
+        // the app's default timezone rather than the server's local clock)
         let weekStart: string;
         if (start_date) {
             weekStart = start_date;
         } else {
-            const thisMonday = startOfWeek(new Date(), { weekStartsOn: 1 });
+            const todayIst = new Date(`${nowInTimezone(DEFAULT_TIMEZONE).date}T00:00:00`);
+            const thisMonday = startOfWeek(todayIst, { weekStartsOn: 1 });
             weekStart = format(thisMonday, 'yyyy-MM-dd');
         }
 
@@ -40,39 +43,24 @@ export const POST = secureApiRoute(
             // 3. Build context
             const calendarCtx = await buildCalendarContext(userId, supabase);
 
-            // 3b. SCHEDULING PROTOCOL: Auto-select mode if user didn't choose explicitly
-            const { data: userState } = await supabase
-                .from('user_states')
-                .select('energy_level, emotional_state')
-                .eq('user_id', userId)
-                .maybeSingle();
+            // 3b. SCHEDULING PROTOCOL: mode is always explicit from the client — the
+            // Plan Week modal requires an active selection (with an energy-based
+            // suggestion banner already nudging the user beforehand) before Generate
+            // can be clicked, so there's no remaining "auto-select" case here. Look up
+            // the canonical config for that mode directly — no energy/mood
+            // re-derivation, so it can never silently diverge from what was picked.
+            const effectiveMode = mode;
+            const modeConfig = SchedulingProtocol.getModeConfig(effectiveMode);
 
-            const currentEnergy = userState?.energy_level || 3;
-            const currentMood: MoodLevel = (userState?.emotional_state as MoodLevel) || 'neutral';
-            const effectiveMode = SchedulingProtocol.getWeekModeOverride(
-                mode === 'balanced' ? undefined : mode,  // treat default 'balanced' as auto-select
-                currentEnergy,
-                currentMood
-            );
-            const scheduleMode = SchedulingProtocol.computeMode({ energy: currentEnergy, mood: currentMood });
+            console.log(`[PlanWeek] Mode: ${effectiveMode}`);
 
-            console.log(`[PlanWeek] Protocol: ${effectiveMode} (energy=${currentEnergy}, mood=${currentMood})`);
-
-            // 4. Generate AI variants with protocol-aware buffer config
-            let dynamicBuffer = scheduleMode.bufferBetweenBlocks;
-            const defaultBuffer = calendarCtx.user.default_buffer_duration || 15;
-            if (scheduleMode.strategy === 'balanced') {
-                dynamicBuffer = defaultBuffer;
-            } else if (scheduleMode.strategy === 'recovery') {
-                dynamicBuffer = Math.max(30, defaultBuffer * 2);
-            } else if (scheduleMode.strategy === 'momentum') {
-                dynamicBuffer = 5;
-            }
-
+            // 4. Generate AI variants. bufferMinutes is intentionally left unset —
+            // generateWeekPlan's own getBufferMinutes() has per-variant granularity
+            // (e.g. Recovery's "Weekend Shift" vs "Spaced Mindfulness" use different
+            // buffers) that a single flat number computed here cannot express.
             const variants = await generateWeekPlan(calendarCtx, weekStart, effectiveMode, allowWeekend, {
-                bufferMinutes: dynamicBuffer,
-                maxGoalBlocksPerDay: scheduleMode.maxGoalBlocksPerDay,
-                maxDeepWorkMins: scheduleMode.maxDeepWorkMins,
+                maxGoalBlocksPerDay: modeConfig.maxGoalBlocksPerDay,
+                maxDeepWorkMins: modeConfig.maxDeepWorkMins,
             });
 
             // 5. Convert to option format expected by frontend

@@ -1,4 +1,5 @@
 import { CoachContext } from '@/lib/coach/context-builder';
+import { DEFAULT_TIMEZONE, nowInTimezone } from '@/lib/timezone';
 
 export interface ProactiveSuggestion {
     id: string;
@@ -20,22 +21,22 @@ export async function checkProactiveTriggers(
         .eq('id', userId)
         .single();
 
-    const tz = profile?.timezone || 'UTC';
-    
+    const tz = profile?.timezone || DEFAULT_TIMEZONE;
+
     // Create localized date strings (YYYY-MM-DD) for today and tomorrow in user's timezone
     const now = new Date();
     const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
     const today = formatter.format(now);
-    
+
     const tomorrowDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     const tomorrow = formatter.format(tomorrowDate);
 
     // Check triggers in priority order
     const triggers = [
         () => checkTomorrowOverload(userId, supabase, tomorrow, profile),
-        () => checkEnergyMismatch(userId, supabase, today),
+        () => checkEnergyMismatch(userId, supabase, today, tz),
         () => checkConsecutiveMisses(userId, supabase),
-        () => checkGoalBehind(userId, supabase),
+        () => checkGoalBehind(userId, supabase, tz),
     ];
 
     for (const checkTrigger of triggers) {
@@ -101,7 +102,8 @@ async function checkTomorrowOverload(
 async function checkEnergyMismatch(
     userId: string,
     supabase: any,
-    today: string
+    today: string,
+    timezone: string = DEFAULT_TIMEZONE
 ): Promise<ProactiveSuggestion | null> {
     const { data: energy } = await supabase
         .from('energy_checkins')
@@ -115,7 +117,9 @@ async function checkEnergyMismatch(
         return null;
     }
 
-    const currentTime = new Date().toTimeString().slice(0, 5);
+    // schedule_blocks.start_time is stored as the user's local wall-clock time,
+    // so "current time" must be computed in the user's timezone, not the server's.
+    const currentTime = nowInTimezone(timezone).time;
 
     const { data: blocks } = await supabase
         .from('schedule_blocks')
@@ -193,7 +197,8 @@ async function checkConsecutiveMisses(
 
 async function checkGoalBehind(
     userId: string,
-    supabase: any
+    supabase: any,
+    timezone: string = DEFAULT_TIMEZONE
 ): Promise<ProactiveSuggestion | null> {
     const { data: goals } = await supabase
         .from('goals')
@@ -203,7 +208,8 @@ async function checkGoalBehind(
 
     if (!goals || goals.length === 0) return null;
 
-    const weekStart = getWeekStart(new Date());
+    const { date: todayInTz, dayOfWeek } = nowInTimezone(timezone);
+    const weekStart = getWeekStart(todayInTz, dayOfWeek);
 
     for (const goal of goals) {
         const { data: blocks } = await supabase
@@ -218,7 +224,6 @@ async function checkGoalBehind(
             return sum + (timeToMinutes(b.end_time) - timeToMinutes(b.start_time));
         }, 0);
 
-        const dayOfWeek = new Date().getDay();
         const weekProgress = dayOfWeek / 7;
         const expectedMinutes = goal.weekly_target_minutes * weekProgress;
 
@@ -248,9 +253,11 @@ function timeToMinutes(time: string): number {
     return h * 60 + m;
 }
 
-function getWeekStart(date: Date): string {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    return new Date(d.setDate(diff)).toISOString().split('T')[0];
+/** Monday of the week containing `dateStr` (yyyy-MM-dd), given its day-of-week (0=Sun..6=Sat). */
+function getWeekStart(dateStr: string, dayOfWeek: number): string {
+    const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const utcDate = new Date(Date.UTC(y, m - 1, d));
+    utcDate.setUTCDate(utcDate.getUTCDate() - daysSinceMonday);
+    return utcDate.toISOString().split('T')[0];
 }

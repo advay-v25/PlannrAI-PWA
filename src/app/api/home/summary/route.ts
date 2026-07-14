@@ -1,12 +1,13 @@
 
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { startOfWeek, endOfWeek, format } from 'date-fns';
+import { DEFAULT_TIMEZONE, nowInTimezone } from '@/lib/timezone';
 
 export const GET = secureApiRoute(
     async (context) => {
         const { userId, supabase } = context;
         const { searchParams } = new URL(context.request.url);
-        const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
+        const date = searchParams.get('date') || nowInTimezone(DEFAULT_TIMEZONE).date;
         
         const todayDateObj = new Date(date);
         const weekStartStr = format(startOfWeek(todayDateObj, { weekStartsOn: 1 }), 'yyyy-MM-dd');
@@ -126,8 +127,9 @@ export const GET = secureApiRoute(
         const freeMin = 1440 - plannedMin; // Crude approx
 
         // 2. Identification of "Next Up"
-        const now = new Date();
-        const currentTimeStr = now.toTimeString().slice(0, 5);
+        // schedule_blocks times are the user's local wall-clock — compare against
+        // "now" in the user's timezone, not the server's (Vercel runs UTC).
+        const currentTimeStr = nowInTimezone(profile.timezone || DEFAULT_TIMEZONE).time;
 
         let nextUpBlock = null;
         let nextUpReason = "Scheduled";

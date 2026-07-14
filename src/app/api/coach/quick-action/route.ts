@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { secureApiRoute, SecureApiContext } from '@/lib/security/api-protection';
+import { DEFAULT_TIMEZONE } from '@/lib/timezone';
 
 export const maxDuration = 30; // Well within Vercel's limit — pure TS, no AI
 
@@ -229,7 +230,7 @@ export const POST = secureApiRoute(
 
         // Prefer client-supplied values — the browser knows the user's local time exactly.
         // Fall back to server-side calculation only if the client didn't send them.
-        const resolvedTimezone = clientTimezone || profile?.timezone || 'UTC';
+        const resolvedTimezone = clientTimezone || profile?.timezone || DEFAULT_TIMEZONE;
         const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: resolvedTimezone, year: 'numeric', month: '2-digit', day: '2-digit' });
         const timeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: resolvedTimezone, hour: '2-digit', minute: '2-digit', hour12: false });
         const today = clientDate || dateFormatter.format(now);

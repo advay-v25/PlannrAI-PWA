@@ -10,6 +10,7 @@ import {
 } from '@/lib/calendar/flow-protocol';
 import { SchedulingProtocol, type MoodLevel } from '@/lib/scheduling/protocol';
 import { format } from 'date-fns';
+import { DEFAULT_TIMEZONE, nowInTimezone } from '@/lib/timezone';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -19,7 +20,7 @@ export const POST = secureApiRoute(
         const { userId, supabase } = context;
         const { date, force, mode } = body as { date?: string; force?: boolean; mode?: string };
 
-        const targetDate = date || format(new Date(), 'yyyy-MM-dd');
+        const targetDate = date || nowInTimezone(DEFAULT_TIMEZONE).date;
         const dayName = format(new Date(targetDate + 'T12:00:00'), 'EEEE');
 
         try {
@@ -77,7 +78,7 @@ export const POST = secureApiRoute(
 
             // 2. Compute energy phases for this user's chronotype
             const wakeMins = parseInt(wakeTime.split(':')[0]) * 60 + parseInt(wakeTime.split(':')[1] || '0');
-            const phases = computeDayPhases(wakeMins, sleepMins, chronotype);
+            const phases = computeDayPhases(wakeMins, sleepMins, chronotype, ctx.user.timezone || DEFAULT_TIMEZONE);
 
             // 3. Build rich context fragments
             const flowFragment = buildFlowPromptFragment(phases, ctx);

@@ -71,12 +71,12 @@ function InlineOptionCard({
             transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
             className={`group relative p-4 rounded-2xl border transition-all duration-200 ${
                 option.recommended
-                    ? 'border-orange-500/30 bg-orange-500/5'
+                    ? 'border-[var(--color-primary)]/30 bg-[var(--color-primary)]/5'
                     : 'border-[var(--glass-border)] bg-[var(--glass-bg)]'
             } ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
         >
             {option.recommended && (
-                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-orange-500 mb-1.5 block">
+                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--color-primary)] mb-1.5 block">
                     ✦ Recommended
                 </span>
             )}
@@ -84,15 +84,15 @@ function InlineOptionCard({
             <p className="font-bold text-[var(--text-primary)] text-[14px] leading-snug mb-1">{option.title}</p>
 
             {option.description && (
-                <p className="text-sm text-[var(--text-secondary)] dark:text-white/55 leading-relaxed whitespace-pre-line">{option.description}</p>
+                <p className="text-sm text-[var(--text-secondary)] leading-relaxed whitespace-pre-line">{option.description}</p>
             )}
 
             {option.tradeoff && (
                 <div className={`mt-2 text-xs p-2.5 rounded-xl border ${
                     option.tradeoff.severity === 'warning'
-                        ? 'bg-red-500/5 text-red-300/80 border-red-500/15'
+                        ? 'bg-[var(--color-error)]/5 text-[var(--color-error)] border-[var(--color-error)]/20'
                         : option.tradeoff.severity === 'caution'
-                        ? 'bg-yellow-500/5 text-yellow-300/80 border-yellow-500/15'
+                        ? 'bg-[var(--color-warning)]/5 text-[var(--color-warning)] border-[var(--color-warning)]/20'
                         : 'bg-[var(--glass-bg)] text-[var(--text-tertiary)] border-[var(--glass-border)]'
                 }`}>
                     <span className="font-bold">Note: </span>{option.tradeoff.warning}
@@ -105,8 +105,8 @@ function InlineOptionCard({
                     disabled={disabled}
                     className={`px-4 py-1.5 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-colors ${
                         option.recommended
-                            ? 'bg-orange-500 text-white hover:bg-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.35)]'
-                            : 'bg-[var(--glass-bg)] text-[var(--text-secondary)] dark:text-white/80 hover:bg-[var(--glass-bg-hover)] dark:hover:bg-white/[0.16]'
+                            ? 'bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] shadow-[0_0_12px_var(--color-primary-glow)]'
+                            : 'bg-[var(--glass-bg)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-hover)]'
                     }`}
                 >
                     {reviewOpen ? 'Hide Review' : 'Review & Execute'}
@@ -114,7 +114,7 @@ function InlineOptionCard({
                 {option.scenario_analysis && (
                     <button
                         onClick={e => { e.stopPropagation(); setReviewOpen(!reviewOpen); }}
-                        className="px-3 py-1.5 rounded-xl text-[11px] font-bold uppercase tracking-widest bg-[var(--glass-bg)] text-[var(--text-tertiary)] dark:text-white/35 hover:text-[var(--text-primary)] dark:hover:text-[var(--text-secondary)] transition-colors"
+                        className="px-3 py-1.5 rounded-xl text-[11px] font-bold uppercase tracking-widest bg-[var(--glass-bg)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
                     >
                         Why?
                     </button>
@@ -136,14 +136,14 @@ function InlineOptionCard({
                                     <p className="text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">
                                         Impact
                                     </p>
-                                    <p className="text-xs text-orange-400/80 whitespace-pre-line leading-relaxed">{option.impact}</p>
+                                    <p className="text-xs text-[var(--color-primary)]/90 whitespace-pre-line leading-relaxed">{option.impact}</p>
                                 </div>
                             )}
                             <div className="space-y-1 mt-3">
                                 <p className="text-[11px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">
                                     Changes Preview
                                 </p>
-                            <p className="text-sm text-[var(--text-secondary)] dark:text-white/75 whitespace-pre-line leading-relaxed">
+                            <p className="text-sm text-[var(--text-secondary)] whitespace-pre-line leading-relaxed">
                                 {(() => {
                                     let content = "";
                                     if (option.description && option.description.length > 10) {
@@ -196,7 +196,7 @@ function InlineOptionCard({
                                     if (!disabled) { setReviewOpen(false); onSelect(); }
                                 }}
                                 disabled={disabled}
-                                className="w-full py-2.5 rounded-xl text-[12px] font-bold uppercase tracking-widest bg-orange-500 text-[var(--text-primary)] hover:bg-orange-400 transition-colors shadow-[0_0_20px_rgba(249,115,22,0.3)] disabled:opacity-50"
+                                className="w-full py-2.5 rounded-xl text-[12px] font-bold uppercase tracking-widest bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] transition-colors shadow-[0_0_20px_var(--color-primary-glow)] disabled:opacity-50"
                             >
                                 Apply Changes
                             </button>
@@ -564,10 +564,10 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
         <div className="flex h-full relative overflow-hidden bg-transparent">
 
             {/* ── LEFT SIDEBAR — Past Chats ── */}
-            <div className="w-56 shrink-0 hidden md:flex flex-col border-r border-[var(--glass-border)] bg-[var(--color-bg-primary)] dark:bg-[#080809]">
+            <div className="w-56 shrink-0 hidden md:flex flex-col border-r border-[var(--glass-border)] bg-[var(--color-bg-secondary)]/40 backdrop-blur-xl">
                 {/* Sidebar header */}
                 <div className="px-4 py-4 flex items-center justify-between border-b border-[var(--glass-border)] shrink-0">
-                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500 dark:text-[var(--text-tertiary)]">Coach Hub</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-tertiary)]">Coach Hub</span>
                     <button
                         onClick={handleNewChat}
                         title="New conversation"
@@ -583,16 +583,16 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                 <div className="px-3 pt-3 pb-2 shrink-0">
                     <button
                         onClick={handleNewChat}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-orange-500/10 border border-orange-500/20 hover:bg-orange-500/15 transition-all text-left group"
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 hover:bg-[var(--color-primary)]/15 transition-all text-left group"
                     >
-                        <span className="text-orange-400 text-base">⚡</span>
-                        <span className="text-[12px] font-bold text-orange-300/90 group-hover:text-orange-300">New Chat</span>
+                        <span className="text-[var(--color-primary)] text-base">⚡</span>
+                        <span className="text-[12px] font-bold text-[var(--color-primary)] group-hover:text-[var(--color-primary-hover)]">New Chat</span>
                     </button>
                 </div>
 
                 {/* Recents label */}
                 <div className="px-4 pt-2 pb-1 shrink-0">
-                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500 dark:text-[var(--text-tertiary)]">Recents</span>
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Recents</span>
                 </div>
 
                 {/* Conversation list */}
@@ -601,8 +601,8 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                         <div className="space-y-1">
                             {Array.from({ length: 3 }).map((_, i) => (
                                 <div key={i} className="w-full px-3 py-2.5 rounded-xl border border-transparent flex flex-col gap-1">
-                                    <div className="h-4 bg-zinc-200 dark:bg-white/5 rounded-md animate-pulse w-3/4"></div>
-                                    <div className="h-3 bg-zinc-100 dark:bg-white/5 rounded-md animate-pulse w-1/3"></div>
+                                    <div className="h-4 bg-[var(--glass-bg-hover)] rounded-md animate-pulse w-3/4"></div>
+                                    <div className="h-3 bg-[var(--glass-bg-hover)] rounded-md animate-pulse w-1/3"></div>
                                 </div>
                             ))}
                         </div>
@@ -624,10 +624,10 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                     }}
                                     className={`w-full text-left px-3 py-2.5 rounded-xl hover:bg-[var(--glass-bg)] border border-transparent hover:border-[var(--glass-border)] transition-all flex flex-col gap-0.5 pr-8 ${loadingConvId === conv.id ? 'bg-[var(--glass-bg)] border-[var(--glass-border)]' : ''}`}
                                 >
-                                    <span className="text-[12px] font-medium text-zinc-900 dark:text-white/65 group-hover:text-orange-500 dark:hover:text-orange-300 transition-colors truncate leading-snug">
+                                    <span className="text-[12px] font-medium text-[var(--text-primary)]/80 group-hover:text-[var(--color-primary)] transition-colors truncate leading-snug">
                                         {conv.primary_topic || 'Strategy Session'}
                                     </span>
-                                    <span className="text-[10px] text-zinc-500 dark:text-[var(--text-tertiary)]">
+                                    <span className="text-[10px] text-[var(--text-tertiary)]">
                                         {conv.last_message_at
                                             ? formatDistanceToNow(new Date(conv.last_message_at), { addSuffix: true })
                                             : '—'}
@@ -635,7 +635,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                 </button>
                                 <button
                                     onClick={e => handleDeleteChat(e, conv.id)}
-                                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-[var(--text-muted)] dark:text-white/10 opacity-0 group-hover/item:opacity-100 hover:text-red-400 hover:bg-red-400/10 transition-all"
+                                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-[var(--text-muted)] opacity-0 group-hover/item:opacity-100 hover:text-[var(--color-error)] hover:bg-[var(--color-error)]/10 transition-all"
                                     title="Delete"
                                 >
                                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -652,17 +652,17 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
             <div className="w-full min-w-0 flex flex-col h-full relative overflow-hidden">
 
                 {/* ── Header ── */}
-                <div className="z-20 px-5 py-4 flex justify-between items-center border-b border-[var(--glass-border)] bg-[var(--color-bg-primary)] dark:bg-[#0a0a0b]/80 backdrop-blur-md shrink-0">
+                <div className="z-20 px-5 py-4 flex justify-between items-center border-b border-[var(--glass-border)] bg-[var(--glass-bg-elevated)] backdrop-blur-xl shrink-0">
                     <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-[0_0_15px_rgba(249,115,22,0.3)]">
-                            <span className="text-[var(--text-primary)] text-sm">⚡</span>
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-orange-600 flex items-center justify-center shadow-[0_0_15px_var(--color-primary-glow)]">
+                            <span className="text-white text-sm">⚡</span>
                         </div>
                         <div>
-                            <span className="text-sm font-bold text-zinc-900 dark:text-[var(--text-primary)] tracking-tight flex items-center gap-1.5">
+                            <span className="text-[15px] font-bold text-[var(--text-primary)] tracking-tight flex items-center gap-1.5">
                                 Donna
-                                <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-scifi-blink" />
+                                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)] animate-scifi-blink" />
                             </span>
-                            <span className="text-[10px] text-zinc-500 dark:text-white/35 uppercase tracking-wider block">
+                            <span className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider block">
                                 Strategic Mode · Calendar · Goals · Tasks
                             </span>
                         </div>
@@ -671,7 +671,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                         <button
                             onClick={handleNewChat}
                             title="New conversation"
-                            className="p-2 rounded-xl hover:bg-[var(--glass-bg)] transition-colors text-[var(--text-tertiary)] dark:text-white/35 hover:text-[var(--text-primary)]"
+                            className="p-2 rounded-xl hover:bg-[var(--glass-bg)] transition-colors text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
                         >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -682,9 +682,9 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
 
                 {/* ── Error banner ── */}
                 {error && (
-                    <div className="z-10 bg-red-500/10 border-b border-red-500/20 px-4 py-2 flex justify-between items-center backdrop-blur-md shrink-0">
-                        <span className="text-xs text-red-400 font-medium">{error}</span>
-                        <button onClick={clearError} className="text-red-400/50 hover:text-red-400 text-lg leading-none">×</button>
+                    <div className="z-10 bg-[var(--color-error)]/10 border-b border-[var(--color-error)]/20 px-4 py-2 flex justify-between items-center backdrop-blur-md shrink-0">
+                        <span className="text-xs text-[var(--color-error)] font-medium">{error}</span>
+                        <button onClick={clearError} className="text-[var(--color-error)]/60 hover:text-[var(--color-error)] text-lg leading-none">×</button>
                     </div>
                 )}
 
@@ -703,11 +703,11 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                     {/* Empty state — 2 quick-action bubbles */}
                     {allMessages.length === 0 && !showLoadingIndicator && !isLoadingHistory && (
                         <div className="flex flex-col items-center mt-10 animate-fade-in">
-                            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500/50 mx-auto mb-5 flex items-center justify-center shadow-[0_0_30px_rgba(249,115,22,0.2)]">
-                                <span className="text-[var(--text-primary)] text-2xl">⚡️</span>
+                            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[var(--color-primary)] to-orange-600/60 mx-auto mb-5 flex items-center justify-center shadow-[0_0_30px_var(--color-primary-glow)]">
+                                <span className="text-white text-2xl">⚡️</span>
                             </div>
-                            <p className="text-lg font-semibold text-[var(--text-primary)] mb-1">How shall we architect today?</p>
-                            <p className="text-xs text-zinc-500 dark:text-white/35 italic mb-8">Or type anything below to start a conversation.</p>
+                            <p className="text-xl md:text-2xl font-bold tracking-tight text-[var(--text-primary)] mb-1.5">How shall we architect today?</p>
+                            <p className="text-xs text-[var(--text-tertiary)] italic mb-8">Or type anything below to start a conversation.</p>
 
                             <div className="flex flex-col sm:flex-row gap-4 w-full max-w-xl">
                                 {quickBubbles.map(bubble => (
@@ -715,10 +715,10 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                         key={bubble.action}
                                         onClick={() => handleQuickAction(bubble.action)}
                                         disabled={showLoadingIndicator}
-                                        className="flex-1 flex flex-col items-start gap-2 p-5 rounded-2xl bg-orange-500/5 dark:bg-[var(--glass-bg)] border border-orange-500/10 dark:border-[var(--glass-border)] hover:border-orange-500/25 hover:bg-orange-500/10 transition-all duration-200 text-left disabled:opacity-50 disabled:pointer-events-none group"
+                                        className="flex-1 flex flex-col items-start gap-2 p-5 rounded-2xl bg-[var(--glass-bg)] border border-[var(--glass-border)] hover:border-[var(--color-primary)]/25 hover:bg-[var(--color-primary)]/5 transition-all duration-200 text-left disabled:opacity-50 disabled:pointer-events-none group shadow-[var(--shadow-sm)]"
                                     >
                                         <span className="text-2xl">{bubble.emoji}</span>
-                                        <span className="font-semibold text-[var(--text-primary)] text-[15px] group-hover:text-orange-300 transition-colors">{bubble.label}</span>
+                                        <span className="font-semibold text-[var(--text-primary)] text-[15px] group-hover:text-[var(--color-primary)] transition-colors">{bubble.label}</span>
                                         <span className="text-xs text-[var(--text-tertiary)]">{bubble.description}</span>
                                     </button>
                                 ))}
@@ -760,11 +760,11 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                 message.options.length > 0 &&
                                 message.isApplying && (
                                 <div className="pl-2">
-                                    <div className="p-3 rounded-xl bg-yellow-500/5 border border-yellow-500/20 flex items-center gap-3 animate-pulse">
-                                        <div className="w-5 h-5 rounded-full bg-yellow-500/20 flex items-center justify-center">
-                                            <span className="text-[10px] text-yellow-400 animate-spin">⚡</span>
+                                    <div className="p-3 rounded-xl bg-[var(--color-warning)]/5 border border-[var(--color-warning)]/20 flex items-center gap-3 animate-pulse">
+                                        <div className="w-5 h-5 rounded-full bg-[var(--color-warning)]/20 flex items-center justify-center">
+                                            <span className="text-[10px] text-[var(--color-warning)] animate-spin">⚡</span>
                                         </div>
-                                        <span className="text-[11px] font-bold text-yellow-400 uppercase tracking-wider">Applying Changes…</span>
+                                        <span className="text-[11px] font-bold text-[var(--color-warning)] uppercase tracking-wider">Applying Changes…</span>
                                     </div>
                                 </div>
                             )}
@@ -825,7 +825,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                             <button
                                                 onClick={e => { e.stopPropagation(); handleUndo(); }}
                                                 disabled={isLoading}
-                                                className="ml-2 flex-shrink-0 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-[10px] font-bold text-red-400 uppercase tracking-wider hover:bg-red-500/20 transition-all disabled:opacity-50"
+                                                className="ml-2 flex-shrink-0 px-3 py-1.5 rounded-lg bg-[var(--color-error)]/10 border border-[var(--color-error)]/20 text-[10px] font-bold text-[var(--color-error)] uppercase tracking-wider hover:bg-[var(--color-error)]/20 transition-all disabled:opacity-50"
                                             >
                                                 ↩ Undo
                                             </button>
@@ -845,7 +845,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                             key={i}
                                             onClick={() => sendMessage(action)}
                                             disabled={showLoadingIndicator}
-                                            className="px-3 py-1.5 bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-full text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-orange-500/10 hover:border-orange-500/25 transition-all disabled:opacity-50"
+                                            className="px-3 py-1.5 bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-full text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--color-primary)]/10 hover:border-[var(--color-primary)]/25 transition-all disabled:opacity-50"
                                         >
                                             {action}
                                         </button>
@@ -859,19 +859,19 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                     {showLoadingIndicator && (
                         <div className="flex items-start gap-4 animate-fade-in pl-2">
                             <div className="relative w-11 h-11 shrink-0 flex items-center justify-center">
-                                <div className="absolute inset-2 bg-gradient-to-tr from-purple-500 to-orange-400 rounded-full animate-pulse shadow-[0_0_15px_rgba(249,115,22,0.8)]" />
-                                <div className="absolute inset-0 border-2 border-t-purple-500 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin" style={{ animationDuration: '2s' }} />
-                                <div className="absolute inset-0 border-[1.5px] border-b-orange-500 border-r-transparent border-t-transparent border-l-transparent rounded-full animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }} />
+                                <div className="absolute inset-2 bg-gradient-to-tr from-[var(--color-mind)] to-[var(--color-primary)] rounded-full animate-pulse shadow-[0_0_15px_var(--color-primary-glow)]" />
+                                <div className="absolute inset-0 border-2 border-t-[var(--color-mind)] border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin" style={{ animationDuration: '2s' }} />
+                                <div className="absolute inset-0 border-[1.5px] border-b-[var(--color-primary)] border-r-transparent border-t-transparent border-l-transparent rounded-full animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }} />
                             </div>
                             <div className="pt-1">
                                 <div className="bg-[var(--glass-bg)] backdrop-blur-md border border-[var(--glass-border)] px-4 py-3 rounded-2xl rounded-tl-sm max-w-[260px]">
                                     <div className="flex items-center gap-3">
-                                        <span className="text-[11px] text-white/55 font-mono tracking-wide italic">
+                                        <span className="text-[11px] text-[var(--text-secondary)] font-mono tracking-wide italic">
                                             {stages[loadingStage]}
                                         </span>
                                         <div className="flex gap-1 shrink-0">
-                                            <span className="w-1.5 h-1.5 bg-orange-400 rounded-full animate-bounce shadow-[0_0_8px_rgba(251,146,60,0.8)]" style={{ animationDelay: '0s' }} />
-                                            <span className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce shadow-[0_0_8px_rgba(168,85,247,0.8)]" style={{ animationDelay: '0.2s' }} />
+                                            <span className="w-1.5 h-1.5 bg-[var(--color-primary)] rounded-full animate-bounce shadow-[0_0_8px_var(--color-primary-glow)]" style={{ animationDelay: '0s' }} />
+                                            <span className="w-1.5 h-1.5 bg-[var(--color-mind)] rounded-full animate-bounce shadow-[0_0_8px_var(--color-mind-glow)]" style={{ animationDelay: '0.2s' }} />
                                             <span className="w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce shadow-[0_0_8px_rgba(236,72,153,0.8)]" style={{ animationDelay: '0.4s' }} />
                                         </div>
                                     </div>
@@ -904,17 +904,17 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                 )}
 
                 {/* Input bar */}
-                <div className="z-10 w-full border-t border-[var(--glass-border)] bg-[var(--color-bg-primary)] dark:bg-[#0a0a0b]/80 backdrop-blur-3xl pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-4 shrink-0">
+                <div className="z-10 w-full border-t border-[var(--glass-border)] bg-[var(--glass-bg-elevated)] backdrop-blur-3xl pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-4 shrink-0">
                     <form onSubmit={handleSubmit} className="px-4 md:px-8 py-3">
-                        <div className="flex items-center gap-3 bg-zinc-100 dark:bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-[1.5rem] p-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.5)] transition-all focus-within:border-orange-500/50 dark:focus-within:bg-[#0a0a0b] focus-within:shadow-[0_0_40px_rgba(249,115,22,0.15)] group relative overflow-hidden">
-                            <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 to-amber-500/5 opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
+                        <div className="flex items-center gap-3 bg-[var(--color-bg-secondary)] dark:bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-3xl p-1.5 shadow-[var(--shadow-lg)] transition-all focus-within:border-[var(--color-primary)]/50 focus-within:shadow-[0_0_40px_var(--color-primary-glow)] group relative overflow-hidden">
+                            <div className="absolute inset-0 bg-gradient-to-r from-[var(--color-primary)]/5 to-orange-600/5 opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
                             <input
                                 type="text"
                                 value={input}
                                 onChange={e => setInput(e.target.value)}
                                 placeholder={allMessages.length > 0 ? 'Message Donna…' : 'Or type anything to start a conversation…'}
                                 disabled={showLoadingIndicator}
-                                className="flex-1 bg-transparent px-4 py-3.5 text-[15px] focus:outline-none placeholder:text-zinc-400 dark:placeholder:text-[var(--text-tertiary)] text-zinc-900 dark:text-[var(--text-primary)] font-medium relative z-10"
+                                className="flex-1 bg-transparent px-4 py-3.5 text-[15px] focus:outline-none placeholder:text-[var(--text-tertiary)] text-[var(--text-primary)] font-medium relative z-10"
                             />
                             {isLoading ? (
                                 <button
@@ -923,16 +923,16 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                         const returnedContent = await stopGenerating();
                                         if (returnedContent) setInput(returnedContent);
                                     }}
-                                    className="w-12 h-12 bg-red-500/10 hover:bg-red-500/20 rounded-[1.1rem] flex items-center justify-center transition-all text-red-400 border border-red-500/20 relative z-10 group"
+                                    className="w-12 h-12 bg-[var(--color-error)]/10 hover:bg-[var(--color-error)]/20 rounded-2xl flex items-center justify-center transition-all text-[var(--color-error)] border border-[var(--color-error)]/20 relative z-10 group"
                                     title="Stop Generating & Edit"
                                 >
-                                    <div className="w-3.5 h-3.5 bg-red-400 group-hover:bg-red-300 rounded-[3px]" />
+                                    <div className="w-3.5 h-3.5 bg-[var(--color-error)] group-hover:bg-[var(--color-error)]/80 rounded-[3px]" />
                                 </button>
                             ) : (
                                 <button
                                     type="submit"
                                     disabled={isQuickActionLoading || !input.trim()}
-                                    className="w-12 h-12 bg-orange-500 text-white dark:bg-[var(--glass-bg)] hover:bg-orange-600 dark:hover:bg-gradient-to-tr dark:hover:from-orange-500 dark:hover:to-amber-500 rounded-[1.1rem] flex items-center justify-center transition-all dark:text-[var(--text-tertiary)] dark:hover:text-[var(--text-primary)] disabled:opacity-30 disabled:hover:bg-orange-500 dark:disabled:hover:bg-[var(--glass-bg)] relative z-10"
+                                    className="w-12 h-12 bg-[var(--color-primary)] text-white dark:bg-[var(--glass-bg)] hover:bg-[var(--color-primary-hover)] dark:hover:bg-gradient-to-tr dark:hover:from-[var(--color-primary)] dark:hover:to-orange-600 rounded-2xl flex items-center justify-center transition-all dark:text-[var(--text-tertiary)] dark:hover:text-white disabled:opacity-30 disabled:hover:bg-[var(--color-primary)] dark:disabled:hover:bg-[var(--glass-bg)] relative z-10"
                                 >
                                     <svg className="w-5 h-5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -945,7 +945,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
 
                 {/* Confirmation modal */}
                 {showPreview && pendingOption && (
-                    <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-[var(--glass-bg)] backdrop-blur-md">
+                    <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/30 dark:bg-black/50 backdrop-blur-md">
                         <ConfirmationModal
                             option={pendingOption}
                             onConfirm={() => {

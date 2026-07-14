@@ -140,6 +140,43 @@ export function Step2Rhythm() {
                     </div>
                 </div>
 
+                {/* ⏰ CHRONOTYPE */}
+                <div className="space-y-6 bg-[var(--glass-bg)] border border-[var(--glass-border)] p-7 rounded-3xl backdrop-blur-md shadow-lg">
+                    <div className="flex items-center gap-3 text-lg font-bold text-[var(--text-primary)] uppercase tracking-widest border-b border-[var(--glass-border)] pb-4">
+                        <span className="text-2xl drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">⏰</span> ENERGY TYPE
+                    </div>
+
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-bold tracking-widest text-[var(--text-primary)]/50 uppercase ml-1">When are you sharpest?</label>
+                        <div className="grid grid-cols-2 gap-2.5">
+                            {[
+                                { id: 'lark', label: 'Early Bird', hint: 'Sharpest right after waking' },
+                                { id: 'bear', label: 'Standard', hint: 'Peak mid-morning to early afternoon' },
+                                { id: 'owl', label: 'Night Owl', hint: 'Peak late afternoon to evening' },
+                                { id: 'wolf', label: 'Very Late', hint: 'Slow start, sharpest at night' },
+                            ].map((opt) => (
+                                <button
+                                    key={opt.id}
+                                    type="button"
+                                    onClick={() => updateData({ chronotype: opt.id as 'lark' | 'bear' | 'owl' | 'wolf' })}
+                                    className={`py-3.5 px-3 rounded-2xl text-left transition-all duration-300 border ${
+                                        data.chronotype === opt.id
+                                            ? 'bg-[var(--color-primary)] text-white shadow-[0_0_20px_var(--color-primary-glow)] scale-[1.02] border-transparent'
+                                            : 'bg-[var(--glass-bg-active)] border-[var(--glass-border)] hover:bg-[var(--glass-bg)] hover:scale-[1.01]'
+                                    }`}
+                                >
+                                    <div className={`text-xs font-bold tracking-wide ${data.chronotype === opt.id ? 'text-white' : 'text-[var(--text-primary)]/80'}`}>
+                                        {opt.label}
+                                    </div>
+                                    <div className={`text-[10px] mt-0.5 ${data.chronotype === opt.id ? 'text-white/80' : 'text-[var(--text-primary)]/40'}`}>
+                                        {opt.hint}
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
                 {/* 🍽️ MEALS */}
                 <div className="space-y-6 bg-[var(--glass-bg)] border border-[var(--glass-border)] p-7 rounded-3xl backdrop-blur-md shadow-lg">
                     <div className="flex items-center gap-3 text-lg font-bold text-[var(--text-primary)] uppercase tracking-widest border-b border-[var(--glass-border)] pb-4">

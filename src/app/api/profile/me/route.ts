@@ -57,13 +57,21 @@ export const GET = secureApiRoute(
 
         const { data: userData } = await supabase.auth.getUser();
 
+        // chronotype lives on profiles.body_preferences, not profile_preferences —
+        // merge it in so the Settings UI can read/write it through the same
+        // `preferences` object as everything else.
+        const mergedPreferences = {
+            ...preferences,
+            chronotype: (profile?.body_preferences as any)?.chronotype || 'bear'
+        };
+
         return apiSuccess({
             profile: {
                 ...profile,
                 email: userData?.user?.email,
                 providers: userData?.user?.app_metadata?.providers || []
             },
-            preferences,
+            preferences: mergedPreferences,
             habit_stacks_summary: stacks || [],
             integrations_status: {
                 google_calendar: preferences?.calendar_integration_enabled || false

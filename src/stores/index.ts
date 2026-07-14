@@ -41,6 +41,7 @@ export interface OnboardingData {
     // Step 2: Daily Rhythm
     sleep_start: string;
     sleep_end: string;
+    chronotype: 'lark' | 'bear' | 'owl' | 'wolf';
     wind_down_mins: number;
     morning_routine_mins: number;
     meals_per_day: number;
@@ -128,11 +129,14 @@ interface OnboardingState {
 
 const defaultOnboardingData: OnboardingData = {
     full_name: '',
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    // PlannrAI is currently sold only in India — default new signups to IST
+    // rather than trusting browser auto-detection (VPNs, misconfigured devices).
+    timezone: 'Asia/Kolkata',
 
     // Step 2: Daily Rhythm
     sleep_start: '23:00',
     sleep_end: '07:00',
+    chronotype: 'bear',
     wind_down_mins: 30,
     morning_routine_mins: 0,
     meals_per_day: 3,

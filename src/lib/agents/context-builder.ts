@@ -4,6 +4,7 @@ import { AgentContext } from './core/types';
 import { startOfDay, endOfDay } from 'date-fns';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { StateService } from '@/lib/user-state/state-service';
+import { DEFAULT_TIMEZONE } from '@/lib/timezone';
 
 export class ContextBuilder {
     static async build(userId: string, injectedClient?: SupabaseClient): Promise<AgentContext> {
@@ -105,7 +106,7 @@ export class ContextBuilder {
         return {
             userId,
             now,
-            timezone: profile?.timezone || 'UTC',
+            timezone: profile?.timezone || DEFAULT_TIMEZONE,
             userState,
             currentSchedule: mergedSchedule, // Return merged list
             goals: goals || [],

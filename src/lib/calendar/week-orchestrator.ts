@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { DEFAULT_TIMEZONE } from "@/lib/timezone";
 
 /**
  * Canonical calendar table: schedule_blocks
@@ -234,7 +235,7 @@ export class WeekOrchestrator {
         if (error || !data) {
             // Provide sensible defaults if missing
             return {
-                timezone: "UTC",
+                timezone: DEFAULT_TIMEZONE,
                 sleep_start: "23:00",
                 sleep_end: "07:00",
                 winddown_mins: 30,
@@ -260,7 +261,7 @@ export class WeekOrchestrator {
         };
 
         return {
-            timezone: data.timezone ?? "UTC",
+            timezone: data.timezone ?? DEFAULT_TIMEZONE,
             sleep_start: data.sleep_start ?? "23:00",
             sleep_end: data.sleep_end ?? "07:00",
             winddown_mins: data.winddown_mins ?? 30,

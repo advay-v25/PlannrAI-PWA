@@ -10,6 +10,7 @@
  */
 
 import type { CalendarContext } from './context-builder';
+import { DEFAULT_TIMEZONE } from '@/lib/timezone';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -35,30 +36,49 @@ export interface FlowViolation {
 
 /**
  * Computes the 5 energy phases of the day based on wake/sleep times and chronotype.
- * 
+ *
  * The phases shift based on chronotype:
  * - BEAR (default): Standard schedule, peak 9am-12pm
  * - LARK/EARLY_BIRD: Everything shifts 1-2h earlier, peak 7am-10:30am
  * - OWL/NIGHT_OWL: Everything shifts 2-3h later, peak 11am-2:30pm
  * - WOLF: Late start, peak 1pm-5pm
+ *
+ * @param wakeMinutes - Minutes from midnight user wakes up (in their local timezone)
+ * @param sleepMinutes - Minutes from midnight user sleeps (in their local timezone)
+ * @param chronotype - User's chronotype ('bear', 'lark', 'early_bird', 'owl', 'night_owl', 'wolf')
+ * @param timezone - User's timezone (e.g., 'America/New_York'); used for validation only
  */
 export function computeDayPhases(
     wakeMinutes: number,
     sleepMinutes: number,
-    chronotype: string = 'bear'
+    chronotype: string = 'bear',
+    timezone: string = DEFAULT_TIMEZONE
 ): DayPhase[] {
     // Chronotype offsets (minutes to shift the entire energy arc)
+    // Negative offsets = earlier peak; positive = later peak
     const chronoOffset: Record<string, number> = {
-        'lark': -90,
-        'early_bird': -90,
-        'bear': 0,
-        'owl': 120,
-        'night_owl': 150,
-        'wolf': 180,
+        'lark': -90,      // Peak 1-2h earlier
+        'early_bird': -90, // Peak 1-2h earlier
+        'bear': 0,         // Standard peak (9am-12pm)
+        'owl': 120,        // Peak 2h later
+        'night_owl': 150,  // Peak 2.5h later
+        'wolf': 180,       // Peak 3h later
     };
 
     const offset = chronoOffset[chronotype.toLowerCase()] || 0;
     const windDownMinutes = sleepMinutes - 30; // 30 min before sleep
+
+    // VALIDATION: Ensure wake and sleep times make sense (within 16-20 hours)
+    let actualSleepMinutes = sleepMinutes;
+    if (sleepMinutes < wakeMinutes) {
+        // Sleep time is past midnight (e.g., sleep at 1am = 60 mins)
+        actualSleepMinutes = sleepMinutes + 1440; // Add 24 hours
+    }
+    const awakeHours = (actualSleepMinutes - wakeMinutes) / 60;
+    if (awakeHours < 16 || awakeHours > 20) {
+        // Log warning but don't fail - could be valid edge case (shift worker)
+        console.warn(`[Flow Protocol] Unusual wake-sleep window: ${awakeHours.toFixed(1)}h (${chronotype} chronotype, timezone: ${timezone})`);
+    }
 
     // Base phase boundaries (relative to wake time for BEAR)
     // Ramp-Up:  wake → wake+90min (routine, breakfast, light prep)
@@ -75,10 +95,9 @@ export function computeDayPhases(
     const troughEnd = Math.min(wakeMinutes + 420 + offset, windDownMinutes); // wake + 7h
     const reboundStart = troughEnd;
     const reboundEnd = Math.min(wakeMinutes + 600 + offset, windDownMinutes); // wake + 10h
-    
-    // SANITY CHECK: Wind-down should ideally not start before 18:00 (1080 mins) 
-    // unless the user sleeps extremely early.
-    const windDownStart = Math.max(reboundEnd, Math.min(1080, windDownMinutes - 60));
+
+    // Wind-down starts at the later of: rebound end OR (30 min before sleep - 60 min buffer)
+    const windDownStart = Math.max(reboundEnd, windDownMinutes - 60);
 
     const phases: DayPhase[] = [];
 
@@ -102,10 +121,10 @@ export function computeDayPhases(
             label: 'Peak Focus',
             start_minutes: peakStart,
             end_minutes: peakEnd,
-            allowed_energy: ['high', 'medium'],
+            allowed_energy: ['high', 'medium', 'low'], // All energy levels OK; time is prime real estate
             max_deep_work_minutes: Math.min(180, peakEnd - peakStart), // Max 3h of deep work
             recommended_block_types: ['goal', 'buffer'],
-            description: 'Highest cognitive capacity. Schedule deep focus blocks (60-90min) with 15min recovery between them.',
+            description: 'Highest cognitive capacity. Prioritize high-energy goals, but low-energy maintenance tasks (admin, reviews) also fit here.',
         });
     }
 
@@ -128,10 +147,10 @@ export function computeDayPhases(
             label: 'Afternoon Rebound',
             start_minutes: reboundStart,
             end_minutes: reboundEnd,
-            allowed_energy: ['medium', 'high'],
+            allowed_energy: ['high', 'medium', 'low'], // All energy levels; great for creative + body work
             max_deep_work_minutes: Math.min(120, reboundEnd - reboundStart),
             recommended_block_types: ['goal', 'buffer', 'flex'],
-            description: 'Second wind. Good for creative work, body/exercise goals, and moderate focus tasks. Use 45-60min blocks.',
+            description: 'Second wind. Ideal for creative work, body/exercise goals, and moderate focus. Use 45-60min blocks.',
         });
     }
 
@@ -309,11 +328,17 @@ export function buildGoalProgressFragment(ctx: CalendarContext): string {
     return fragment;
 }
 
-// ── Post-Processing Validator ────────────────────────────────────
+// ── Post-Processing Validator & Auto-Fixer ──────────────────────
 
 /**
- * Validates AI-generated blocks against flow-state constraints.
- * Returns violations and suggested fixes.
+ * Validates AI-generated blocks against flow-state constraints and attempts to auto-fix violations.
+ *
+ * This function performs TWO operations:
+ * 1. VALIDATE: Checks blocks against ultradian rhythm, deep work limits, phase alignment, overlaps
+ * 2. AUTO-FIX: Shifts overlapping blocks and returns corrected schedule
+ *
+ * Returns both violations (for logging/feedback) and fixedBlocks (corrected schedule).
+ * Caller should use fixedBlocks in the final schedule; violations for user messaging.
  */
 export function validateFlowConstraints(
     blocks: any[],
@@ -335,30 +360,37 @@ export function validateFlowConstraints(
         return `${h.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
     };
 
-    // 1. Check for overlapping blocks
-    const sorted = [...fixedBlocks].sort((a, b) =>
-        timeToMinutes(a.start_time) - timeToMinutes(b.start_time)
-    );
+    // 1. Check for overlapping blocks using explicit interval math
+    // Create indexed list for tracking during sort
+    const indexed = fixedBlocks.map((block, idx) => ({
+        ...block,
+        originalIndex: idx,
+        startMin: timeToMinutes(block.start_time),
+        endMin: timeToMinutes(block.end_time),
+    }));
+
+    const sorted = indexed.sort((a, b) => a.startMin - b.startMin);
 
     for (let i = 0; i < sorted.length - 1; i++) {
-        const currentEnd = timeToMinutes(sorted[i].end_time);
-        const nextStart = timeToMinutes(sorted[i + 1].start_time);
+        const current = sorted[i];
+        const next = sorted[i + 1];
 
-        if (currentEnd > nextStart) {
+        // Explicit interval overlap check: the next block starts before the current one ends.
+        const hasOverlap = current.endMin > next.startMin;
+
+        if (hasOverlap) {
             violations.push({
-                block_title: sorted[i + 1].title,
-                block_time: `${sorted[i + 1].start_time}-${sorted[i + 1].end_time}`,
-                violation: `Overlaps with "${sorted[i].title}" (ends ${sorted[i].end_time})`,
-                suggestion: `Shift to ${minutesToTime(currentEnd)}`,
+                block_title: next.title,
+                block_time: `${next.start_time}-${next.end_time}`,
+                violation: `Overlaps with "${current.title}" (ends ${current.end_time})`,
+                suggestion: `Shift to ${minutesToTime(current.endMin + 5)}`, // Add 5min buffer
             });
 
-            // Auto-fix: shift the overlapping block
-            const duration = timeToMinutes(sorted[i + 1].end_time) - timeToMinutes(sorted[i + 1].start_time);
-            const fixedIdx = fixedBlocks.findIndex(b => b === sorted[i + 1] || (b.start_time === sorted[i + 1].start_time && b.title === sorted[i + 1].title));
-            if (fixedIdx >= 0) {
-                fixedBlocks[fixedIdx].start_time = minutesToTime(currentEnd);
-                fixedBlocks[fixedIdx].end_time = minutesToTime(currentEnd + duration);
-            }
+            // Auto-fix: shift the overlapping block by adding 5min buffer after previous block
+            const duration = next.endMin - next.startMin;
+            const fixedStart = current.endMin + 5; // 5min buffer
+            fixedBlocks[next.originalIndex].start_time = minutesToTime(fixedStart);
+            fixedBlocks[next.originalIndex].end_time = minutesToTime(fixedStart + duration);
         }
     }
 
@@ -408,46 +440,122 @@ export function validateFlowConstraints(
         }
     }
 
-    // 3. Check for consecutive deep work without recovery
+    // 3. Check for ultradian rhythm violations (deep work sessions with proper recovery)
     const goalBlocks = sorted.filter(b => b.block_type === 'goal');
-    let consecutiveDeepMinutes = 0;
+
+    // Track deep work sessions explicitly: contiguous blocks separated by <15min gaps
+    interface DeepWorkSession {
+        blocks: number[]; // Indices in goalBlocks
+        totalDuration: number;
+        startTime: number;
+        endTime: number;
+    }
+    const sessions: DeepWorkSession[] = [];
+    let currentSession: DeepWorkSession | null = null;
 
     for (let i = 0; i < goalBlocks.length; i++) {
         const duration = timeToMinutes(goalBlocks[i].end_time) - timeToMinutes(goalBlocks[i].start_time);
+        const isDeepWork = duration >= 45;
 
-        if (duration >= 45) {
-            consecutiveDeepMinutes += duration;
+        if (!isDeepWork) continue; // Skip non-deep-work blocks
 
-            if (i < goalBlocks.length - 1) {
-                const gapToNext = timeToMinutes(goalBlocks[i + 1].start_time) - timeToMinutes(goalBlocks[i].end_time);
-                if (gapToNext < 10 && consecutiveDeepMinutes > 90) {
-                    violations.push({
-                        block_title: goalBlocks[i + 1].title,
-                        block_time: `${goalBlocks[i + 1].start_time}`,
-                        violation: `${consecutiveDeepMinutes}min of deep work without recovery break`,
-                        suggestion: 'Insert a 15-min Active Recovery block',
-                    });
-                }
-                if (gapToNext >= 15) {
-                    consecutiveDeepMinutes = 0; // Reset if there's a proper break
-                }
-            }
+        if (currentSession === null) {
+            // Start a new session
+            currentSession = {
+                blocks: [i],
+                totalDuration: duration,
+                startTime: timeToMinutes(goalBlocks[i].start_time),
+                endTime: timeToMinutes(goalBlocks[i].end_time),
+            };
         } else {
-            consecutiveDeepMinutes = 0;
+            // Check gap to previous block in session
+            const gapFromPrevious = timeToMinutes(goalBlocks[i].start_time) - currentSession.endTime;
+
+            if (gapFromPrevious < 15) {
+                // Extend current session
+                currentSession.blocks.push(i);
+                currentSession.totalDuration += duration;
+                currentSession.endTime = timeToMinutes(goalBlocks[i].end_time);
+            } else {
+                // Gap >= 15 min: previous session ends, new session starts
+                sessions.push(currentSession);
+                currentSession = {
+                    blocks: [i],
+                    totalDuration: duration,
+                    startTime: timeToMinutes(goalBlocks[i].start_time),
+                    endTime: timeToMinutes(goalBlocks[i].end_time),
+                };
+            }
+        }
+
+        // Check individual block limit: max 90 min per deep work block
+        if (duration > 90) {
+            violations.push({
+                block_title: goalBlocks[i].title,
+                block_time: `${goalBlocks[i].start_time}-${goalBlocks[i].end_time}`,
+                violation: `Deep work block exceeds 90-min limit (${duration}min)`,
+                suggestion: 'Split into two 45min blocks with 15min recovery between',
+            });
         }
     }
 
-    // 4. Check total deep work doesn't exceed 4 hours
+    // Finalize last session
+    if (currentSession) {
+        sessions.push(currentSession);
+    }
+
+    // Check session-level constraints
+    for (let i = 0; i < sessions.length; i++) {
+        const session = sessions[i];
+
+        // Max 90 min per session
+        if (session.totalDuration > 90) {
+            violations.push({
+                block_title: `Deep Work Session ${i + 1}`,
+                block_time: `${minutesToTime(session.startTime)}-${minutesToTime(session.endTime)}`,
+                violation: `Session exceeds 90-min ultradian limit (${session.totalDuration}min)`,
+                suggestion: 'Insert a 15-20min Active Recovery block in the middle',
+            });
+        }
+
+        // After 2 sessions, require 30+ min break
+        if (i >= 2 && i > 0) {
+            const prevSessionEnd = sessions[i - 1].endTime;
+            const currSessionStart = session.startTime;
+            const breakDuration = currSessionStart - prevSessionEnd;
+
+            if (breakDuration < 30) {
+                violations.push({
+                    block_title: `Deep Work Session ${i + 1}`,
+                    block_time: `${minutesToTime(session.startTime)}`,
+                    violation: `Session 3+ requires 30+ min break (only ${breakDuration}min gap)`,
+                    suggestion: 'Add a 30min break or shift this session later',
+                });
+            }
+        }
+    }
+
+    // Max 4 sessions per day
+    if (sessions.length > 4) {
+        violations.push({
+            block_title: 'Overall Schedule',
+            block_time: 'all day',
+            violation: `${sessions.length} deep work sessions exceeds recommended 4 per day`,
+            suggestion: 'Merge some sessions or move some to next day',
+        });
+    }
+
+    // 4. Check total deep work doesn't exceed 4 hours (360 min)
     const totalDeepWork = goalBlocks.reduce((sum, b) => {
         const dur = timeToMinutes(b.end_time) - timeToMinutes(b.start_time);
         return sum + (dur >= 45 ? dur : 0);
     }, 0);
 
-    if (totalDeepWork > 240) {
+    if (totalDeepWork > 360) {
         violations.push({
             block_title: 'Overall Schedule',
             block_time: 'all day',
-            violation: `${totalDeepWork}min of deep work exceeds recommended 240min max`,
+            violation: `${totalDeepWork}min of deep work exceeds recommended 360min max`,
             suggestion: 'Reduce deep work blocks or shorten some to 30min light sessions',
         });
     }

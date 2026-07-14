@@ -326,7 +326,7 @@ Tomorrow (${tomorrowDate}): ${tomorrowFreeSlots.length > 0 ? tomorrowFreeSlots.m
 
         const wakeMins = timeToMinutes(calCtx.user.sleep_end || '07:00');
         const sleepMins = timeToMinutes(calCtx.user.sleep_start || '23:00');
-        const phases = computeDayPhases(wakeMins, sleepMins, (calCtx.user.chronotype || 'bear') as any);
+        const phases = computeDayPhases(wakeMins, sleepMins, (calCtx.user.chronotype || 'bear') as any, calCtx.user.timezone);
         flowContext = buildFlowPromptFragment(phases, calCtx);
         const progressContext = buildGoalProgressFragment(calCtx);
         flowContext += '\n' + progressContext;

@@ -18,6 +18,7 @@ export interface ProfilePreferences {
     // Core Constraints
     sleep_start: string;
     wake_time: string;
+    chronotype?: 'lark' | 'bear' | 'owl' | 'wolf';
     wind_down_min: number;
     morning_routine_min: number;
     meals_per_day: 2 | 3;

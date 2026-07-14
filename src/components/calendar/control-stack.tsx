@@ -46,7 +46,7 @@ export function ControlStack({ onPlanWeek, onOptimizeDay, filters, onToggleFilte
                     onClick={onPlanWeek}
                     className="w-full flex items-center gap-3 p-3 rounded-xl bg-[var(--glass-bg)] dark:bg-white/5 hover:bg-[var(--glass-bg-hover)] dark:hover:bg-white/10 border border-[var(--glass-border)] dark:border-white/5 transition-all text-left group"
                 >
-                    <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-500 group-hover:scale-110 transition-transform">
+                    <div className="w-8 h-8 rounded-lg bg-[var(--color-mind)]/10 dark:bg-[var(--color-mind)]/20 flex items-center justify-center text-[var(--color-mind)] group-hover:scale-110 transition-transform">
                         <Layout className="w-4 h-4" />
                     </div>
                     <div>

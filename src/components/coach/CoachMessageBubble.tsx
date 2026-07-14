@@ -153,20 +153,20 @@ export function CoachMessageBubble({ message }: CoachMessageBubbleProps) {
         >
             <div
                 className={`max-w-[85%] md:max-w-[70%] px-6 py-5 rounded-[2rem] shadow-sm relative group ${isUser
-                        ? 'bg-gradient-to-b from-[#2A1608] to-[#1A0D04] text-orange-50 ml-12 rounded-tr-md shadow-lg border border-orange-500/20 backdrop-blur-md'
+                        ? 'bg-gradient-to-b from-[var(--color-primary)] to-orange-700 text-white ml-12 rounded-tr-md shadow-lg border border-[var(--color-primary)]/30 backdrop-blur-md'
                         : 'bg-[var(--glass-bg)] backdrop-blur-3xl border border-[var(--glass-border)] text-[var(--text-primary)] mr-12 rounded-tl-md shadow-2xl'
                     }`}
             >
                 {/* Subtle inner reflection */}
                 <div className="absolute inset-0 bg-gradient-to-b from-white/[0.08] to-transparent opacity-[0.8] rounded-[2rem] pointer-events-none" />
-                
+
                 <div className="flex flex-col space-y-1 relative z-10">
                     {!isUser && (
                         <div className="flex items-center gap-2 mb-2">
-                            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-[0_0_10px_rgba(249,115,22,0.4)]">
-                                <span className="text-[var(--text-primary)] text-[10px]">⚡</span>
+                            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-orange-600 flex items-center justify-center shadow-[0_0_10px_var(--color-primary-glow)]">
+                                <span className="text-white text-[10px]">⚡</span>
                             </div>
-                            <span className="text-[10px] font-black uppercase tracking-widest text-orange-400">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-[var(--color-primary)]">
                                 Donna
                             </span>
                         </div>
@@ -177,23 +177,23 @@ export function CoachMessageBubble({ message }: CoachMessageBubbleProps) {
 
                     {/* Thinking Steps — Collapsed by default */}
                     {hasThinking && (
-                        <div className="mt-3 pt-3 border-t border-[var(--glass-border)] dark:border-white/5">
+                        <div className="mt-3 pt-3 border-t border-[var(--glass-border)]">
                             <button
                                 onClick={() => setShowThinking(!showThinking)}
-                                className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-foreground/30 hover:text-orange-500/80 transition-colors"
+                                className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-[var(--text-tertiary)] hover:text-[var(--color-primary)] transition-colors"
                             >
                                 <span className="text-[10px]">{showThinking ? '▾' : '▸'}</span>
                                 Donna&apos;s Reasoning ({message.thinking!.length} steps)
                             </button>
                             {showThinking && (
-                                <motion.div 
+                                <motion.div
                                     initial={{ opacity: 0, height: 0 }}
                                     animate={{ opacity: 1, height: 'auto' }}
                                     className="mt-2 space-y-1 overflow-hidden"
                                 >
                                     {message.thinking!.map((step, i) => (
-                                        <div key={i} className="flex items-start gap-1.5 text-[10px] text-foreground/40">
-                                            <span className="text-orange-500/40 font-mono mt-0.5 font-bold">{i + 1}.</span>
+                                        <div key={i} className="flex items-start gap-1.5 text-[10px] text-[var(--text-tertiary)]">
+                                            <span className="text-[var(--color-primary)]/60 font-mono mt-0.5 font-bold">{i + 1}.</span>
                                             <span>{step}</span>
                                         </div>
                                     ))}
@@ -204,11 +204,11 @@ export function CoachMessageBubble({ message }: CoachMessageBubbleProps) {
 
                     {/* Context Used — Subtle badges */}
                     {!isUser && message.contextUsed && message.contextUsed.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-[var(--glass-border)] dark:border-white/5 flex flex-wrap gap-1.5">
+                        <div className="mt-3 pt-3 border-t border-[var(--glass-border)] flex flex-wrap gap-1.5">
                             {message.contextUsed.map((ctx, i) => (
                                 <span
                                     key={i}
-                                    className="text-[8px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-[var(--glass-bg)] text-[var(--text-tertiary)] dark:text-foreground/30 border border-[var(--glass-border)] dark:border-white/5"
+                                    className="text-[8px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-[var(--glass-bg)] text-[var(--text-tertiary)] border border-[var(--glass-border)]"
                                 >
                                     {ctx}
                                 </span>

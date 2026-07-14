@@ -8,10 +8,12 @@ interface PillarBalanceProps {
     blocks: any[];
 }
 
+// Use the same CSS custom properties as Goals/Calendar so pillar colors
+// are consistent across the whole app (single source of truth in globals.css).
 const PILLAR_CONFIG = {
-    mind: { label: 'Mind', icon: Brain, color: '#38bdf8', target: 60 },   // sky-400
-    body: { label: 'Body', icon: Dumbbell, color: '#34d399', target: 60 }, // emerald-400
-    craft: { label: 'Craft', icon: Wrench, color: '#fbbf24', target: 180 }, // amber-400
+    mind: { label: 'Mind', icon: Brain, color: 'var(--color-mind)', glow: 'var(--color-mind-glow)', target: 60 },
+    body: { label: 'Body', icon: Dumbbell, color: 'var(--color-body)', glow: 'var(--color-body-glow)', target: 60 },
+    craft: { label: 'Craft', icon: Wrench, color: 'var(--color-craft)', glow: 'var(--color-craft-glow)', target: 180 },
 };
 
 export function PillarBalance({ blocks }: PillarBalanceProps) {
@@ -68,7 +70,7 @@ export function PillarBalance({ blocks }: PillarBalanceProps) {
                                     style={{
                                         width: p.pct > 0 ? `${Math.max(15, p.pct)}%` : '0%',
                                         backgroundColor: p.color,
-                                        boxShadow: `0 0 10px ${p.color}40`,
+                                        boxShadow: `0 0 10px ${p.glow}`,
                                     }}
                                 >
                                     {p.pct > 0 && (

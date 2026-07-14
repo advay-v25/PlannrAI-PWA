@@ -4,6 +4,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@/types/database';
 import { startOfDay, endOfDay, addDays, format } from 'date-fns';
 import { SchedulingProtocol, type MoodLevel, type ScheduleStrategy } from '@/lib/scheduling/protocol';
+import { DEFAULT_TIMEZONE } from '@/lib/timezone';
 
 export interface LiquidContext {
     user: {
@@ -77,7 +78,7 @@ export class ContextService {
             dailyLog,
             userState
         ] = await Promise.all([
-            safeQuery(() => supabase.from('profiles').select('full_name, timezone, bio_data').eq('id', userId).single(), { full_name: 'User', timezone: 'UTC', bio_data: null }),
+            safeQuery(() => supabase.from('profiles').select('full_name, timezone, bio_data').eq('id', userId).single(), { full_name: 'User', timezone: DEFAULT_TIMEZONE, bio_data: null }),
             safeQuery(() => supabase.from('profile_preferences').select('*').eq('user_id', userId).single(), {}),
             safeQuery(() => supabase.from('schedule_blocks').select('id, title, start_time, end_time, pillar, block_type').eq('user_id', userId).eq('date', todayStr).order('start_time'), []),
             safeQuery(() => supabase.from('schedule_blocks').select('id, title, start_time, end_time, block_type').eq('user_id', userId).eq('date', tomorrowStr).order('start_time'), []),
@@ -143,7 +144,7 @@ export class ContextService {
             user: {
                 id: userId,
                 name: profile.full_name || 'User',
-                timezone: profile.timezone || 'UTC',
+                timezone: profile.timezone || DEFAULT_TIMEZONE,
                 preferences: prefs
             },
             state: {

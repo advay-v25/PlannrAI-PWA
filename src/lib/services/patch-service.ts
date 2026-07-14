@@ -3,6 +3,7 @@ import sanitizeHtml from 'sanitize-html';
 import { CalendarEngine } from '@/lib/calendar/calendar-engine';
 import { buildCalendarContext } from '@/lib/calendar/context-builder';
 import { generateWeekPlan } from '@/lib/calendar/ai/plan-week';
+import { DEFAULT_TIMEZONE } from '@/lib/timezone';
 import crypto from 'crypto';
 
 // --- Patch Op Types ---
@@ -1512,7 +1513,7 @@ export class PatchService {
                 
                 // 2. Determine replan date (today) and correct week start (Monday) relative to user timezone
                 const { data: profile } = await supabase.from('profiles').select('timezone').eq('id', userId).single();
-                const timezone = profile?.timezone || 'UTC';
+                const timezone = profile?.timezone || DEFAULT_TIMEZONE;
                 const now = new Date();
                 
                 const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -1616,7 +1617,7 @@ export class PatchService {
                 
                 // 2. Determine replan date (today) and correct week start (Monday) relative to user timezone
                 const { data: profile } = await supabase.from('profiles').select('timezone').eq('id', userId).single();
-                const timezone = profile?.timezone || 'UTC';
+                const timezone = profile?.timezone || DEFAULT_TIMEZONE;
                 const now = new Date();
                 
                 const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });

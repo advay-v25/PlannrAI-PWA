@@ -1,4 +1,5 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
+import { DEFAULT_TIMEZONE, nowInTimezone } from '@/lib/timezone';
 
 /**
  * V1 Mission Control State Machine Logic
@@ -38,7 +39,7 @@ export const GET = secureApiRoute(
             }
 
             // Use user's timezone for date/time calculations (safely fallback if invalid)
-            let timezone = profile?.timezone || 'UTC';
+            let timezone = profile?.timezone || DEFAULT_TIMEZONE;
             const now = new Date();
             let dateFormatter: Intl.DateTimeFormat;
             let timeFormatter: Intl.DateTimeFormat;
@@ -46,10 +47,10 @@ export const GET = secureApiRoute(
                 dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
                 timeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false });
             } catch (e) {
-                console.warn(`[HomeState] Invalid timezone string: ${timezone}, falling back to UTC`);
-                timezone = 'UTC';
-                dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' });
-                timeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false });
+                console.warn(`[HomeState] Invalid timezone string: ${timezone}, falling back to ${DEFAULT_TIMEZONE}`);
+                timezone = DEFAULT_TIMEZONE;
+                dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: DEFAULT_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit' });
+                timeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: DEFAULT_TIMEZONE, hour: '2-digit', minute: '2-digit', hour12: false });
             }
 
             // Use provided date param or the user's local date
@@ -242,10 +243,12 @@ export const GET = secureApiRoute(
             });
         } catch (error: any) {
             console.error('[HomeState] Unexpected error:', error);
-            // Return safe fallback instead of 500
+            // Return safe fallback instead of 500 — compute in the app's default
+            // timezone rather than the server's local clock (Vercel runs UTC).
+            const fallbackNow = nowInTimezone(DEFAULT_TIMEZONE);
             return apiSuccess({
-                date: new Date().toISOString().split('T')[0],
-                current_time: new Date().toTimeString().slice(0, 5),
+                date: fallbackNow.date,
+                current_time: fallbackNow.time,
                 state: 'NO_SCHEDULE' as HomeState,
                 active_block: null,
                 next_block: null,

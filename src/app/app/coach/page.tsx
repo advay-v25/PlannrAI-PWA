@@ -6,7 +6,7 @@ import { useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { useCoach } from '@/hooks/use-coach';
-import { DynamicBackground } from '@/components/ui/DynamicBackground';
+import { PageBackground } from '@/components/ui/PageBackground';
 import { dispatchAppEvent } from '@/lib/events';
 
 function CoachPageInner() {
@@ -54,6 +54,7 @@ function CoachPageInner() {
 
     return (
         <div className="w-full h-full relative overflow-hidden flex flex-col">
+            <PageBackground color="orange" variant="rising" intensity="medium" />
             <div className="relative z-10 w-full h-full flex flex-col">
                 <CoachDashboard
                     onCalendarUpdate={() => {
