@@ -2,7 +2,8 @@ import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protect
 import { executeAI } from '@/lib/ai/ai-service';
 import { createClient } from '@/lib/supabase/server';
 import { logAIRequest } from '@/lib/security/audit-logger';
-import { startOfDay, subDays, format } from 'date-fns';
+import { subDays, format, parseISO } from 'date-fns';
+import { DEFAULT_TIMEZONE, nowInTimezone } from '@/lib/timezone';
 
 export const maxDuration = 60;
 
@@ -27,7 +28,19 @@ const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours
 export const GET = secureApiRoute(
     async (context) => {
         const userId = context.userId;
-        const today = format(startOfDay(new Date()), 'yyyy-MM-dd');
+        const supabase = await createClient();
+
+        // Check AI permission (fetched first so "today" can be computed in the
+        // user's timezone rather than the server's — Vercel runs UTC, and IST
+        // is 5.5h ahead, so a naive server-date would be wrong for part of the day).
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('ai_can_suggest, display_name, work_hours_start, work_hours_end, timezone')
+            .eq('id', userId)
+            .single();
+
+        const timezone = profile?.timezone || DEFAULT_TIMEZONE;
+        const today = nowInTimezone(timezone).date;
         const cacheKey = `${userId}-${today}`;
 
         // Check cache first
@@ -39,15 +52,6 @@ export const GET = secureApiRoute(
                 generatedAt: new Date(cached.timestamp).toISOString(),
             });
         }
-
-        const supabase = await createClient();
-
-        // Check AI permission
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('ai_can_suggest, display_name, work_hours_start, work_hours_end')
-            .eq('id', userId)
-            .single();
 
         if (!profile?.ai_can_suggest) {
             return apiSuccess({
@@ -63,7 +67,7 @@ export const GET = secureApiRoute(
 
         try {
             // Gather context data
-            const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+            const yesterday = format(subDays(parseISO(today), 1), 'yyyy-MM-dd');
             const [goalsResult, blocksResult, energyResult] = await Promise.all([
                 supabase
                     .from('goals')
@@ -108,7 +112,7 @@ export const GET = secureApiRoute(
 
             // Map AI response to DailyInsight-compatible structure for the UI
             const insight: DailyInsight = {
-                greeting: `Good ${getTimeOfDay()}, ${profile.display_name || 'Friend'}!`,
+                greeting: `Good ${getTimeOfDay(profile.timezone)}, ${profile.display_name || 'Friend'}!`,
                 insight: response?.briefing || 'Today is a fresh start.',
                 focusSuggestion: response?.priorities?.[0] || 'Focus on your top priority today.',
                 encouragement: response?.tone === 'gentle' ? "Take it easy today." : "The path is clear. Execute.",
@@ -132,7 +136,7 @@ export const GET = secureApiRoute(
             // Return fallback insight
             return apiSuccess({
                 insight: {
-                    greeting: `Good ${getTimeOfDay()}!`,
+                    greeting: `Good ${getTimeOfDay(profile.timezone)}!`,
                     insight: 'Today is a fresh start.',
                     focusSuggestion: 'Focus on what matters most to you.',
                     encouragement: 'You\'re capable of amazing things!',
@@ -148,8 +152,8 @@ export const GET = secureApiRoute(
     }
 );
 
-function getTimeOfDay(): string {
-    const hour = new Date().getHours();
+function getTimeOfDay(timezone: string = DEFAULT_TIMEZONE): string {
+    const hour = parseInt(nowInTimezone(timezone).time.split(':')[0], 10);
     if (hour < 12) return 'morning';
     if (hour < 17) return 'afternoon';
     return 'evening';

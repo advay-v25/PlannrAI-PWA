@@ -60,19 +60,6 @@ export function Step1Identity() {
                         autoFocus
                     />
                 </div>
-                
-                <div className="space-y-3 text-left">
-                    <label className="text-[10px] font-bold text-[var(--text-primary)]/50 uppercase tracking-widest pl-1 flex items-center justify-between">
-                        <span>Timezone</span>
-                        <span className="text-[var(--text-primary)]/30 text-[9px] bg-[var(--glass-bg)] px-2 py-0.5 rounded-full border border-[var(--glass-border)]">Auto-detected</span>
-                    </label>
-                    <Input
-                        type="text"
-                        value={data.timezone}
-                        onChange={(e) => updateData({ timezone: e.target.value })}
-                        className="bg-[var(--glass-bg-active)] border-[var(--glass-border)] text-[var(--text-primary)]/50 text-base py-5 rounded-xl focus:border-[var(--glass-border)] font-bold tracking-wide shadow-inner"
-                    />
-                </div>
             </motion.div>
         </div>
     );

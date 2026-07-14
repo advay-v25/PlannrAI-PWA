@@ -4,6 +4,7 @@ import { classifyIntent, CoachIntent } from '@/lib/coach/intent-classifier';
 import { generateCoachResponse } from '@/lib/coach/response-generator';
 import { secureApiRoute, SecureApiContext } from '@/lib/security/api-protection';
 import { ConflictService } from '@/lib/scheduling/conflict-service';
+import { DEFAULT_TIMEZONE } from '@/lib/timezone';
 
 export const maxDuration = 60;
 
@@ -81,7 +82,7 @@ export const POST = secureApiRoute(
 
         // OPTIMIZATION: Only build light context for intent classification
         const profileRes = await supabase.from('profiles').select('id, first_name, timezone').eq('id', user.id).single();
-        const timezone = profileRes.data?.timezone || clientTimezone || 'UTC';
+        const timezone = profileRes.data?.timezone || clientTimezone || DEFAULT_TIMEZONE;
         const now = clientDate ? new Date(clientDate) : new Date();
         const hour = parseInt(new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: 'numeric', hour12: false }).format(now));
         

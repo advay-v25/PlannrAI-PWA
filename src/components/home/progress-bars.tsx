@@ -61,7 +61,7 @@ export function ProgressBars({ daily, weekly }: ProgressBarsProps) {
             <div>
                 <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                        <Trophy className="w-4 h-4 text-purple-400" />
+                        <Trophy className="w-4 h-4 text-[var(--color-mind)]" />
                         <span className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)]">This Week</span>
                     </div>
                     <span className="text-xs font-bold text-[var(--text-primary)]">{weeklyPercent}%</span>
@@ -71,7 +71,7 @@ export function ProgressBars({ daily, weekly }: ProgressBarsProps) {
                         initial={{ width: 0 }}
                         animate={{ width: `${weeklyPercent}%` }}
                         transition={{ duration: 1, delay: 0.4, ease: "easeOut" }}
-                        className="h-full bg-purple-400 rounded-full shadow-[0_0_10px_rgba(192,132,252,0.3)]"
+                        className="h-full bg-[var(--color-mind)] rounded-full shadow-[0_0_10px_var(--color-mind-glow)]"
                     />
                 </div>
                 <div className="flex justify-between mt-2 text-[10px] text-[var(--text-secondary)] font-medium uppercase tracking-wider">

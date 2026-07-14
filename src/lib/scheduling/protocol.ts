@@ -191,6 +191,20 @@ export class SchedulingProtocol {
     }
 
     /**
+     * Canonical mode config for an EXPLICITLY known strategy — no energy/mood
+     * re-derivation. Use this when the mode is already decided (e.g. an
+     * explicit user selection) so the energy/mood routing table isn't
+     * silently consulted again and can't diverge from what was chosen.
+     */
+    static getModeConfig(strategy: ScheduleStrategy): ScheduleMode {
+        const config = MODE_CONFIGS[strategy];
+        return {
+            ...config,
+            shouldSuggestReoptimize: strategy !== 'balanced',
+        };
+    }
+
+    /**
      * Get the plan-week strategy override.
      * If the user didn't explicitly choose a mode, auto-select based on energy.
      */

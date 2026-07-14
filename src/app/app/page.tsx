@@ -6,7 +6,6 @@ import { HomeLayout } from '@/components/home/home-layout';
 import { CommandCenter } from '@/components/home/command-center';
 import { DashboardCards } from '@/components/home/dashboard-cards';
 import { LinearTimeline } from '@/components/home/linear-timeline';
-import { CollapsedInsights } from '@/components/home/collapsed-insights';
 import { ProgressBars } from '@/components/home/progress-bars';
 import { PillarBalance } from '@/components/home/pillar-balance';
 import { EnergyCheckin } from '@/components/home/energy-checkin';
@@ -508,8 +507,15 @@ export default function HomePage() {
                         }}
                     />
                 }
+                energyCheckin={
+                    <EnergyCheckin
+                        currentEnergy={effectiveData.user_state?.energy_level > 0 ? effectiveData.user_state.energy_level : undefined}
+                        currentMood={effectiveData.user_state?.emotional_state !== 'neutral' ? effectiveData.user_state.emotional_state : undefined}
+                        onCheckin={handleEnergyCheckin}
+                    />
+                }
                 dashboardCards={
-                    <DashboardCards 
+                    <DashboardCards
                         goals={effectiveData.goals || []}
                         insight={effectiveData.insight?.text || briefing || effectiveState.proactive_insight?.message}
                         topTask={effectiveData.top_task}
@@ -534,16 +540,7 @@ export default function HomePage() {
                 insights={
                     <div className="flex flex-col gap-6">
                         <PillarBalance blocks={effectiveData.schedule_blocks} />
-                        <CollapsedInsights 
-                            progressBars={<ProgressBars daily={effectiveData.metrics} weekly={effectiveData.weekly_metrics} />}
-                            energyCheckin={
-                                <EnergyCheckin
-                                    currentEnergy={effectiveData.user_state?.energy_level > 0 ? effectiveData.user_state.energy_level : undefined}
-                                    currentMood={effectiveData.user_state?.emotional_state !== 'neutral' ? effectiveData.user_state.emotional_state : undefined}
-                                    onCheckin={handleEnergyCheckin}
-                                />
-                            }
-                        />
+                        <ProgressBars daily={effectiveData.metrics} weekly={effectiveData.weekly_metrics} />
                     </div>
                 }
             />

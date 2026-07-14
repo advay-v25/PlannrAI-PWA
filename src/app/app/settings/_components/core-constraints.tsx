@@ -45,6 +45,21 @@ export default function CoreConstraints({ preferences, onChange }: Props) {
                         />
                     </div>
                     <div className="space-y-2">
+                        <Label>Energy Type</Label>
+                        <Select
+                            value={preferences.chronotype || 'bear'}
+                            onValueChange={(v: string) => onChange({ chronotype: v as 'lark' | 'bear' | 'owl' | 'wolf' })}
+                        >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="lark">Early Bird — sharpest right after waking</SelectItem>
+                                <SelectItem value="bear">Standard — peak mid-morning to early afternoon</SelectItem>
+                                <SelectItem value="owl">Night Owl — peak late afternoon to evening</SelectItem>
+                                <SelectItem value="wolf">Very Late — slow start, sharpest at night</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
                         <Label>Wind Down (Minutes)</Label>
                         <Select
                             value={String(preferences.wind_down_min)}

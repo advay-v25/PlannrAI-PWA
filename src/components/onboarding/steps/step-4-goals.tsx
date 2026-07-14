@@ -17,10 +17,11 @@ const GOAL_TEMPLATES = {
     ]
 };
 
+// Theme-token-driven so onboarding matches the pillar colors used everywhere else in the app.
 const PILLARS = [
-    { id: 'mind', label: 'Mind', icon: Brain, color: 'text-blue-400', bg: 'bg-blue-400/10', border: 'border-blue-400/30' },
-    { id: 'body', label: 'Body', icon: Dumbbell, color: 'text-green-400', bg: 'bg-green-400/10', border: 'border-green-400/30' },
-    { id: 'craft', label: 'Craft', icon: Paintbrush, color: 'text-orange-400', bg: 'bg-orange-400/10', border: 'border-orange-400/30' },
+    { id: 'mind', label: 'Mind', icon: Brain, color: 'text-[var(--color-mind)]', bg: 'bg-[var(--color-mind)]/10', border: 'border-[var(--color-mind)]/30' },
+    { id: 'body', label: 'Body', icon: Dumbbell, color: 'text-[var(--color-body)]', bg: 'bg-[var(--color-body)]/10', border: 'border-[var(--color-body)]/30' },
+    { id: 'craft', label: 'Craft', icon: Paintbrush, color: 'text-[var(--color-craft)]', bg: 'bg-[var(--color-craft)]/10', border: 'border-[var(--color-craft)]/30' },
 ];
 
 export function Step4Goals() {

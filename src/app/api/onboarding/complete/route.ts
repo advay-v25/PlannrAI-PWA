@@ -18,6 +18,7 @@ const onboardingSchema = z.object({
     goals: z.array(z.any()).optional().default([]),
     failure_modes: z.array(z.string()).optional().default([]),
     selected_variant_id: z.string().nullable().optional(),
+    chronotype: z.enum(['lark', 'bear', 'owl', 'wolf']).optional().default('bear'),
 });
 
 export const maxDuration = 60; // Allow 60s for AI processing
@@ -35,7 +36,7 @@ export const POST = secureApiRoute(
             meals_per_day, meal_timing, default_buffer_duration,
             two_meals_selection, custom_meal_times,
             commitments, goals, failure_modes,
-            selected_variant_id
+            selected_variant_id, chronotype
         } = parsed.data as any;
 
         const addMinsToTime = (timeStr: string, mins: number) => {
@@ -83,6 +84,7 @@ export const POST = secureApiRoute(
                     default_buffer_duration: default_buffer_duration || 10,
                     initialized_at: new Date().toISOString()
                 },
+                body_preferences: { chronotype: chronotype || 'bear' },
                 onboarding_complete: true,
                 updated_at: new Date().toISOString()
             });
@@ -184,6 +186,9 @@ export const POST = secureApiRoute(
                     minutes_per_day: g.target_minutes_per_day,
                     energy_demand: g.energy_demand || 'medium',
                     weekly_target_minutes: g.target_minutes_per_day * (g.days_per_week || 7),
+                    preferred_windows: g.preferred_time_of_day && g.preferred_time_of_day !== 'flexible'
+                        ? { time_of_day: g.preferred_time_of_day }
+                        : null,
                     status: 'active'
                 })));
 

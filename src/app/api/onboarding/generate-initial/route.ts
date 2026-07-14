@@ -1,4 +1,5 @@
 import { secureApiRoute, apiSuccess } from '@/lib/security/api-protection';
+import { DEFAULT_TIMEZONE, nowInTimezone } from '@/lib/timezone';
 
 export const POST = secureApiRoute(
     async (context, body) => {
@@ -10,7 +11,7 @@ export const POST = secureApiRoute(
         const { generateWeekPlan } = await import('@/lib/calendar/ai/plan-week');
         const { PatchService } = await import('@/lib/services/patch-service');
         
-        const today = new Date().toISOString().split('T')[0];
+        const today = nowInTimezone(DEFAULT_TIMEZONE).date;
         let blocksCreated = 0;
 
         try {

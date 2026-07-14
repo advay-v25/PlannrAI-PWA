@@ -1,3 +1,5 @@
+import { DEFAULT_TIMEZONE } from '@/lib/timezone';
+
 export interface CoachContext {
     user: {
         id: string;
@@ -130,7 +132,7 @@ export async function buildCoachContext(
     // 1. Fetch profile first to get the user's timezone
     const profileRes = await supabase.from('profiles').select('*').eq('id', userId).single();
     const profile = profileRes.data || {};
-    const timezone = profile.timezone || clientTimezoneFallback || 'UTC';
+    const timezone = profile.timezone || clientTimezoneFallback || DEFAULT_TIMEZONE;
 
     // 2. Calculate dates and times relative to the user's timezone
     const now = clientIsoTimestamp ? new Date(clientIsoTimestamp) : new Date();
@@ -353,7 +355,7 @@ export async function buildCoachContext(
             sleep_end: profile.sleep_end || '07:00',
             wind_down_mins: profile.wind_down_mins || 60,
             morning_routine_mins: profilePrefs.morning_routine_min || profile.morning_routine_mins || 0,
-            timezone: profile.timezone || 'UTC',
+            timezone: profile.timezone || DEFAULT_TIMEZONE,
             meals_per_day: profilePrefs.meals_per_day || profile.meals_per_day || 3,
             buffer_min: profilePrefs.buffer_min || 10,
             weekend_intensity: profilePrefs.weekend_intensity || profile.weekend_intensity || 'light',

@@ -1,4 +1,3 @@
-import { cn } from '@/lib/utils';
 import { ProfilePreferences } from '@/lib/types/settings';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -46,10 +45,10 @@ export default function WorkPreferences({ preferences, onChange }: Props) {
                         {['mind', 'body', 'craft'].map((pillar) => (
                             <div key={pillar} className="flex items-center justify-between p-3 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg)]/50">
                                 <div className="flex items-center gap-3">
-                                    <div className={cn("w-2 h-2 rounded-full",
-                                        pillar === 'mind' ? 'bg-blue-400' :
-                                            pillar === 'body' ? 'bg-green-400' : 'bg-purple-400'
-                                    )} />
+                                    <div
+                                        className="w-2 h-2 rounded-full"
+                                        style={{ backgroundColor: `var(--color-${pillar})` }}
+                                    />
                                     <span className="capitalize text-sm font-medium">{pillar}</span>
                                 </div>
                                 <div className="text-right">

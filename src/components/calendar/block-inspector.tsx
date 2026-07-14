@@ -18,27 +18,30 @@ interface BlockInspectorProps {
     onAction: (action: string, payload?: any) => void;
 }
 
+// Theme-token-driven, matching week-grid.tsx's PILLAR_COLORS so the inspector
+// panel and the calendar grid always agree on a pillar's color in both themes.
 const PILLAR_COLORS: Record<string, { accent: string; bg: string; border: string }> = {
-    mind: { accent: 'text-zinc-900 dark:text-indigo-400', bg: 'bg-gradient-to-br from-purple-400/40 to-indigo-400/25 dark:bg-indigo-500/10', border: 'border-purple-500/40 dark:border-indigo-500/20' },
-    body: { accent: 'text-zinc-900 dark:text-emerald-400', bg: 'bg-gradient-to-br from-emerald-400/40 to-teal-400/25 dark:bg-emerald-500/10', border: 'border-emerald-500/40 dark:border-emerald-500/20' },
-    craft: { accent: 'text-zinc-900 dark:text-amber-400', bg: 'bg-gradient-to-br from-amber-400/45 to-orange-400/30 dark:bg-amber-500/10', border: 'border-amber-500/40 dark:border-amber-500/20' },
+    mind: { accent: 'text-[var(--text-primary)] dark:text-[var(--color-mind)]', bg: 'bg-gradient-to-br from-[var(--color-mind)]/40 to-[var(--color-mind)]/25 dark:from-[var(--color-mind)]/20 dark:to-[var(--color-mind)]/10', border: 'border-[var(--color-mind)]/40 dark:border-[var(--color-mind)]/30' },
+    body: { accent: 'text-[var(--text-primary)] dark:text-[var(--color-body)]', bg: 'bg-gradient-to-br from-[var(--color-body)]/40 to-[var(--color-body)]/25 dark:from-[var(--color-body)]/20 dark:to-[var(--color-body)]/10', border: 'border-[var(--color-body)]/40 dark:border-[var(--color-body)]/30' },
+    craft: { accent: 'text-[var(--text-primary)] dark:text-[var(--color-craft)]', bg: 'bg-gradient-to-br from-[var(--color-craft)]/40 to-[var(--color-craft)]/25 dark:from-[var(--color-craft)]/20 dark:to-[var(--color-craft)]/10', border: 'border-[var(--color-craft)]/40 dark:border-[var(--color-craft)]/30' },
+    meal: { accent: 'text-[var(--text-primary)] dark:text-[var(--color-meal)]', bg: 'bg-gradient-to-br from-[var(--color-meal)]/40 to-[var(--color-meal)]/25 dark:from-[var(--color-meal)]/20 dark:to-[var(--color-meal)]/10', border: 'border-[var(--color-meal)]/40 dark:border-[var(--color-meal)]/30' },
     soul: { accent: 'text-zinc-900 dark:text-rose-400', bg: 'bg-gradient-to-br from-rose-300/45 to-rose-400/30 dark:bg-rose-500/10', border: 'border-rose-500/40 dark:border-rose-500/20' },
 };
 
 const BLOCK_TYPE_META: Record<string, { label: string; icon: string; color: string }> = {
     focus: { label: 'Focus', icon: '🎯', color: 'text-blue-400' },
-    routine: { label: 'Routine', icon: '🔄', color: 'text-purple-400' },
-    meal: { label: 'Meal', icon: '🍽', color: 'text-orange-400' },
-    body: { label: 'Body', icon: '💪', color: 'text-emerald-400' },
-    mind: { label: 'Mind', icon: '🧠', color: 'text-indigo-400' },
-    craft: { label: 'Craft', icon: '⚡', color: 'text-amber-400' },
+    routine: { label: 'Routine', icon: '🔄', color: 'text-[var(--color-routine)]' },
+    meal: { label: 'Meal', icon: '🍽', color: 'text-[var(--color-meal)]' },
+    body: { label: 'Body', icon: '💪', color: 'text-[var(--color-body)]' },
+    mind: { label: 'Mind', icon: '🧠', color: 'text-[var(--color-mind)]' },
+    craft: { label: 'Craft', icon: '⚡', color: 'text-[var(--color-craft)]' },
     break: { label: 'Break', icon: '☕', color: 'text-gray-400' },
     task: { label: 'Task', icon: '📋', color: 'text-blue-300' },
     anchor: { label: 'Anchor', icon: '📌', color: 'text-slate-400' },
     sleep: { label: 'Sleep', icon: '😴', color: 'text-gray-500' },
     buffer: { label: 'Buffer', icon: '☕', color: 'text-blue-400' },
-    flex: { label: 'Flex', icon: '📋', color: 'text-amber-300' },
-    wind_down: { label: 'Wind Down', icon: '🌙', color: 'text-indigo-400' },
+    flex: { label: 'Flex', icon: '📋', color: 'text-[var(--color-craft)]' },
+    wind_down: { label: 'Wind Down', icon: '🌙', color: 'text-[var(--color-mind)]' },
     goal: { label: 'Goal', icon: '🎯', color: 'text-orange-400' },
 };
 
@@ -60,8 +63,8 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
 
     const isAnchor = block.block_type === 'anchor' || block.id?.startsWith('virt-cmt-');
     const isReadOnly = isAnchor || READ_ONLY_TYPES.includes(block.block_type);
-    const pillar = (block.pillar || block.goal?.pillar || '').toLowerCase();
-    // Blocks without a pillar (anchors, meals, routines…) have no PILLAR_COLORS
+    const pillar = (block.pillar || block.goal?.pillar || (block.block_type === 'meal' ? 'meal' : '')).toLowerCase();
+    // Blocks without a pillar (anchors, routines…) have no PILLAR_COLORS
     // entry — fall back to null and guard every usage so the panel never crashes.
     const pillarStyle = PILLAR_COLORS[pillar] || null;
     const blockMeta = BLOCK_TYPE_META[block.block_type] || BLOCK_TYPE_META.task;

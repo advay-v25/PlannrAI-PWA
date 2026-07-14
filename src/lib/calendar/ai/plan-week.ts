@@ -6,6 +6,17 @@
 
 import type { CalendarContext } from '@/lib/calendar/context-builder';
 import { addDays, format, parseISO } from 'date-fns';
+import {
+    computeDayPhases,
+    type DayPhase,
+    filterWindowsByEnergyCompat,
+    scoreWindowAffinity,
+    getDaySessionState,
+    computeSessionRoomLeft,
+    requiresSessionBreakGap,
+    resolveAdjacencyBuffer,
+    getFailureModeAdjustments,
+} from './practical-constraints';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -32,6 +43,7 @@ interface PlanBlock {
     goal_id?: string;
     pillar?: string;
     checklist?: Array<{ text: string }>;
+    energy_demand?: string; // stored on goal blocks so later adjacency checks don't need to re-look-up the goal
 }
 
 // ── Utilities ────────────────────────────────────────────────────
@@ -69,6 +81,321 @@ export interface ProtocolConfig {
     maxGoalBlocksPerDay?: number;
     maxDeepWorkMins?: number;
 }
+
+// ── Buffer Routing Helper ────────────────────────────────────────
+
+/**
+ * Returns the appropriate buffer size (minutes) for a given strategy and variant.
+ * Ensures strategy choice is respected consistently throughout plan generation.
+ *
+ * MOMENTUM: 0 min (back-to-back blocks for maximum output)
+ * BALANCED: 15 min (default cognitive switching buffer)
+ * RECOVERY: 60-120 min (depends on variant: Spaced Mindfulness/Gentle Afternoon=120, Weekend Shift=60)
+ */
+function getBufferMinutes(
+    strategyId: string,
+    timeFocus?: 'morning' | 'afternoon' | 'evening' | 'weekend' | 'weekday',
+    userDefaultBuffer?: number
+): number {
+    if (strategyId === 'momentum') {
+        return 0; // Zero buffers: back-to-back blocks
+    } else if (strategyId === 'balanced') {
+        return userDefaultBuffer || 15; // Default cognitive switching buffer
+    } else if (strategyId === 'recovery') {
+        // Recovery variants have different spacing:
+        // - Spaced Mindfulness: 120 min gaps (timeFocus undefined)
+        // - Weekend Shift: 60 min gaps (timeFocus 'weekend')
+        // - Gentle Afternoon (no-weekend fallback): 120 min gaps (timeFocus 'afternoon', forceLightWeekend true)
+        return timeFocus === 'weekend' ? 60 : 120; // 60 for Weekend Shift, 120 for others
+    }
+    return userDefaultBuffer || 15; // Safe default
+}
+
+// ── Day-Capacity Helpers ──────────────────────────────────────────
+
+const RECOVERY_LIGHT_LOAD_THRESHOLD = 0.75;
+
+/**
+ * Relaxes mode-level daily caps (maxGoalBlocksPerDay / maxDeepWorkMins) when
+ * the user's total weekly goal load is already comfortably under what the
+ * caps would allow across the week. The caps exist to force lighter days
+ * when there's real cramming pressure — they shouldn't block a genuinely
+ * light week from being fully scheduled.
+ */
+function computeEffectiveDailyCaps(
+    totalWeeklyMinsNeeded: number,
+    protocolConfig: ProtocolConfig | undefined,
+    eligibleDayCount: number
+): { maxGoalBlocksPerDay?: number; maxDeepWorkMins?: number } {
+    if (!protocolConfig?.maxDeepWorkMins) {
+        return { maxGoalBlocksPerDay: protocolConfig?.maxGoalBlocksPerDay, maxDeepWorkMins: protocolConfig?.maxDeepWorkMins };
+    }
+    const weeklyCapacityUnderCaps = protocolConfig.maxDeepWorkMins * Math.max(1, eligibleDayCount);
+    const isLightLoad = totalWeeklyMinsNeeded <= weeklyCapacityUnderCaps * RECOVERY_LIGHT_LOAD_THRESHOLD;
+    if (isLightLoad) {
+        return { maxGoalBlocksPerDay: undefined, maxDeepWorkMins: undefined };
+    }
+    return { maxGoalBlocksPerDay: protocolConfig.maxGoalBlocksPerDay, maxDeepWorkMins: protocolConfig.maxDeepWorkMins };
+}
+
+interface DayCapacity {
+    hasBlockRoom: boolean;
+    minutesHeadroom: number; // Infinity if no cap is set
+}
+
+/**
+ * Checks remaining room for a given day against the (possibly relaxed)
+ * daily caps. Block-count and minutes are tracked GLOBALLY per day across
+ * ALL goals within one generateVariant() run — the caps are a total-per-day
+ * ceiling, not per-goal or per-pillar.
+ */
+function getDayCapacity(
+    isoDay: number,
+    goalBlockCountPerDay: Map<number, number>,
+    workloadPerDay: Map<number, number>,
+    effectiveCaps: { maxGoalBlocksPerDay?: number; maxDeepWorkMins?: number }
+): DayCapacity {
+    const maxBlocks = effectiveCaps.maxGoalBlocksPerDay ?? Infinity;
+    const maxMins = effectiveCaps.maxDeepWorkMins ?? Infinity;
+    const blockCount = goalBlockCountPerDay.get(isoDay) || 0;
+    const minutesUsed = workloadPerDay.get(isoDay) || 0;
+    return {
+        hasBlockRoom: blockCount < maxBlocks,
+        minutesHeadroom: Math.max(0, maxMins - minutesUsed),
+    };
+}
+
+/**
+ * Records a placed block against BOTH global per-day trackers in one call —
+ * keeps block-count tracking from ever drifting out of sync with minutes.
+ */
+function recordGoalBlockPlacement(
+    isoDay: number,
+    minsPlaced: number,
+    goalBlockCountPerDay: Map<number, number>,
+    workloadPerDay: Map<number, number>
+): void {
+    goalBlockCountPerDay.set(isoDay, (goalBlockCountPerDay.get(isoDay) || 0) + 1);
+    workloadPerDay.set(isoDay, (workloadPerDay.get(isoDay) || 0) + minsPlaced);
+}
+
+// ── Window Ordering & Anchoring Helpers ───────────────────────────
+
+/**
+ * Orders candidate windows within a day by mode/timeFocus preference. Shared
+ * by both Pass 1 and the Cram Pass so they can't drift apart — previously
+ * only Pass 1 had this and Cram Pass fell back to raw chronological order.
+ */
+function sortWindowsByPreference(
+    windows: Array<{ start: number; end: number }>,
+    opts: {
+        timeFocus?: 'morning' | 'afternoon' | 'evening' | 'weekend' | 'weekday';
+        pillar?: string;
+        strategyId: string;
+        goalImportance?: number;
+        // "Energy-Synced" variant only: energy-phase affinity becomes the
+        // PRIMARY sort key (windows in the goal's best-matched phase come
+        // first) instead of the usual time-of-day/pillar tiebreakers, which
+        // only apply among windows of equal affinity.
+        energyPrimary?: { goalEnergy: 'low' | 'medium' | 'high'; phases: DayPhase[] };
+    }
+): Array<{ start: number; end: number }> {
+    const { timeFocus, pillar, strategyId, goalImportance, energyPrimary } = opts;
+    return [...windows].sort((a, b) => {
+        if (energyPrimary) {
+            const aScore = scoreWindowAffinity(a.start, energyPrimary.goalEnergy, energyPrimary.phases);
+            const bScore = scoreWindowAffinity(b.start, energyPrimary.goalEnergy, energyPrimary.phases);
+            if (aScore !== bScore) return bScore - aScore; // best-matched phase first
+        }
+        if (timeFocus === 'morning') return a.start - b.start;
+        if (timeFocus === 'afternoon') return Math.abs(a.start - 780) - Math.abs(b.start - 780);
+        if (timeFocus === 'evening') return b.start - a.start;
+
+        if (pillar === 'mind') return a.start - b.start;
+        if (pillar === 'body') {
+            if (strategyId === 'momentum') {
+                if ((goalImportance || 5) >= 8) return a.start - b.start; // Frog-eating: early morning
+                return a.start - b.start;
+            }
+            if (strategyId === 'recovery') {
+                const aIsAfternoon = a.start >= 720;
+                const bIsAfternoon = b.start >= 720;
+                if (aIsAfternoon && !bIsAfternoon) return -1;
+                if (!aIsAfternoon && bIsAfternoon) return 1;
+                return a.start - b.start;
+            }
+            return a.start - b.start; // balanced: flexible/ascending
+        }
+        return a.start - b.start;
+    });
+}
+
+/**
+ * Decides WHERE within a chosen window a block starts. An explicit
+ * timeFocus anchors the block toward that edge of the window (the window
+ * itself was already preference-ordered by sortWindowsByPreference);
+ * mathematical centering is reserved for the mode's undefined-timeFocus
+ * ("Standard"/default) variant. Momentum always packs at the early edge.
+ */
+function computeWindowAnchorStart(
+    winStart: number,
+    winEnd: number,
+    blockMins: number,
+    buffer: number,
+    strategyId: string,
+    timeFocus?: 'morning' | 'afternoon' | 'evening' | 'weekend' | 'weekday'
+): number {
+    if (strategyId !== 'balanced' && strategyId !== 'recovery') {
+        return winStart; // momentum: pack at the window's early edge
+    }
+    if (timeFocus === 'evening') {
+        return Math.max(winStart, winEnd - blockMins); // hug the late edge
+    }
+    if (timeFocus === 'morning' || timeFocus === 'afternoon') {
+        // Window was already chosen for morning/afternoon proximity; hug its
+        // early edge rather than centering further within it.
+        return winStart;
+    }
+    // timeFocus undefined (mode's default/"Standard" variant): original
+    // mathematical-centering behavior, preserved as-is.
+    const available = winEnd - winStart;
+    if (available > blockMins + buffer * 2) {
+        const freeSpace = available - blockMins;
+        return winStart + Math.floor(freeSpace / 2);
+    }
+    if (strategyId === 'recovery') {
+        const possibleStart = winStart + Math.min(buffer, available - blockMins);
+        return Math.max(winStart, possibleStart);
+    }
+    return winStart;
+}
+
+function slugify(label: string): string {
+    return label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
+}
+
+/**
+ * Finds the nearest already-placed goal block or anchor ending at-or-before
+ * `candidateStart` on the same day — used by the cross-goal/cross-pillar
+ * adjacency floor to know what a new placement would actually sit next to.
+ */
+function findPrevAdjacentBlock(
+    dateStr: string,
+    candidateStart: number,
+    dayBlocks: PlanBlock[],
+    dayExclusions: Array<{ start: number; end: number; title: string; type: string }>
+): { pillar?: string; energy_demand?: string; block_type: string } | null {
+    let best: { end: number; pillar?: string; energy_demand?: string; block_type: string } | null = null;
+
+    for (const b of dayBlocks) {
+        if (b.date !== dateStr || b.block_type !== 'goal') continue;
+        const bEnd = timeToMinutes(b.end_time);
+        if (bEnd <= candidateStart && (!best || bEnd > best.end)) {
+            best = { end: bEnd, pillar: b.pillar, energy_demand: b.energy_demand, block_type: 'goal' };
+        }
+    }
+    for (const ex of dayExclusions) {
+        if (ex.type !== 'anchor') continue;
+        if (ex.end <= candidateStart && (!best || ex.end > best.end)) {
+            best = { end: ex.end, block_type: 'anchor' };
+        }
+    }
+    return best;
+}
+
+// ── Tier-2 Bio-Block Overlap Resolver ─────────────────────────────
+// Anchors (Tier 1) are never moved. Meals/sleep/routine/wind-down (Tier 2)
+// are movable ONLY by the minimum amount needed to clear a Tier-1 overlap —
+// this is that minimal-nudge algorithm, applied uniformly to every bio
+// element so none of them can silently double-book with an anchor.
+
+interface HardZone { start: number; end: number; }
+
+function mergeIntervals(sorted: HardZone[]): HardZone[] {
+    const out: HardZone[] = [];
+    for (const z of sorted) {
+        const last = out[out.length - 1];
+        if (last && z.start <= last.end) last.end = Math.max(last.end, z.end);
+        else out.push({ ...z });
+    }
+    return out;
+}
+
+/**
+ * Computes the smallest forward/backward shift of a bio block's template
+ * [start, end) that clears all overlaps with a day's hard zones (anchors +
+ * already-resolved earlier bio blocks that day), preserving the block's
+ * original duration. Returns null if no placement fits anywhere within
+ * [minBound, maxBound) — caller should skip the element for that day only.
+ */
+function resolveBioBlockOverlap(
+    tmplStart: number,
+    tmplEnd: number,
+    hardZones: HardZone[],
+    minBound: number,
+    maxBound: number
+): { start: number; end: number } | null {
+    const duration = tmplEnd - tmplStart;
+    const merged = mergeIntervals([...hardZones].sort((a, b) => a.start - b.start));
+
+    const firstOverlap = (s: number): HardZone | null => {
+        const e = s + duration;
+        for (const z of merged) { if (s < z.end && e > z.start) return z; }
+        return null;
+    };
+
+    const tryForward = (): number | null => {
+        let s = tmplStart;
+        let guard = 0;
+        while (guard++ <= merged.length + 1) {
+            if (s + duration > maxBound) return null;
+            const z = firstOverlap(s);
+            if (!z) return s;
+            s = z.end;
+        }
+        return null;
+    };
+
+    const tryBackward = (): number | null => {
+        let s = tmplStart;
+        let guard = 0;
+        while (guard++ <= merged.length + 1) {
+            if (s < minBound) return null;
+            const z = firstOverlap(s);
+            if (!z) return s;
+            const newS = z.start - duration;
+            if (newS < minBound) return null;
+            s = newS;
+        }
+        return null;
+    };
+
+    const z0 = firstOverlap(tmplStart);
+    if (!z0) return { start: tmplStart, end: tmplEnd }; // no overlap at all
+
+    // Pure trailing-edge overlap (zone starts inside the block, extends past
+    // its end) prefers pulling the block earlier first; leading-edge and
+    // full-span overlaps default to pushing the block later first.
+    const isTrailingEdge = z0.start > tmplStart && z0.start < tmplEnd && z0.end >= tmplEnd;
+    const order = isTrailingEdge ? [tryBackward, tryForward] : [tryForward, tryBackward];
+
+    for (const attempt of order) {
+        const s = attempt();
+        if (s !== null) return { start: s, end: s + duration };
+    }
+    return null; // no room anywhere — skip this bio element for this day
+}
+
+/**
+ * Computes energy affinity score for placing a goal in a given time window.
+ * Matches goal energy_demand with phase allowed_energy to optimize placement.
+ *
+ * Returns multiplier 0.5x (poor fit) to 2.0x (excellent fit).
+ * High-energy goals strongly prefer peak/rebound; low-energy prefer trough/wind_down.
+ */
+// (Energy-affinity scoring now lives in practical-constraints.ts as
+// scoreWindowAffinity, alongside the hard energy-phase filter it complements
+// — this file's own long-dead copy of the same logic has been removed.)
 
 // ── Main Deterministic Generator ─────────────────────────────────
 
@@ -120,8 +447,21 @@ export async function generateWeekPlan(
         }
     }
 
-    // Morning routine occupies wake → wake + routine mins; breakfast must never clash with it
+    // Morning routine occupies wake → wake + routine mins; breakfast must never clash with it.
+    // Built BEFORE the meal templates (and pushed into bioTemplates first) so the
+    // Tier-2 resolver processes it first and Breakfast naturally lands after
+    // wherever Morning Routine's REAL (possibly anchor-shifted) position ends up.
     const morningRoutineMins = (context.user as any).morning_routine_mins || 0;
+    if (morningRoutineMins > 0) {
+        const wakeTimeMins = timeToMinutes(context.user.sleep_end || '07:00');
+        const morningRoutineEnd = wakeTimeMins + morningRoutineMins;
+        bioTemplates.push({
+            title: 'Morning Routine',
+            block_type: 'routine',
+            start: minutesToTime(wakeTimeMins),
+            end: minutesToTime(morningRoutineEnd)
+        });
+    }
 
     if (mealsPerDay >= 1) {
         const wakeTime = context.user.sleep_end || '07:00';
@@ -176,32 +516,11 @@ export async function generateWeekPlan(
         }
     }
 
-    // Morning routine: block generated identically to Wind Down
-    if (morningRoutineMins > 0) {
-        const wakeTimeMins = timeToMinutes(context.user.sleep_end || '07:00');
-        const morningRoutineEnd = wakeTimeMins + morningRoutineMins;
-        
-        bioTemplates.push({
-            title: 'Morning Routine',
-            block_type: 'routine',
-            start: minutesToTime(wakeTimeMins),
-            end: minutesToTime(morningRoutineEnd)
-        });
-    }
-
-    // Load bio blocks into exclusion zones. The Morning Routine MUST stay in the
-    // exclusions — without it, goal placement starts at wake and overlaps the
-    // routine block on every day.
-    for (let d = 1; d <= 7; d++) {
-        for (const bio of bioTemplates) {
-            commitmentsByDay.get(d)!.push({
-                start: timeToMinutes(bio.start),
-                end: timeToMinutes(bio.end) + (bio.block_type === 'meal' ? 15 : 0), // 15m after meals
-                title: bio.title,
-                type: bio.block_type
-            });
-        }
-    }
+    // NOTE: bio blocks (Sleep/Wind Down/Morning Routine/meals) are deliberately
+    // NOT loaded into commitmentsByDay/baseExclusions here anymore. They are
+    // resolved per-day against anchors inside generateVariant() (Tier-2 nudge
+    // resolver) since their real position can shift; baseExclusions now holds
+    // ONLY anchors and existing/fixed blocks (Tier 1 — truly immovable).
 
     // NEW: Load existing schedule blocks (fixed or done) into exclusion zones to prevent overwrites
     for (const block of context.schedule.this_week) {
@@ -218,23 +537,34 @@ export async function generateWeekPlan(
         }
     }
 
-    // Generate Variants
+    // Generate Variants: 2-option matrix per mode (6 total). Reduced from the
+    // earlier 8-option matrix — fewer, more practically-trustworthy choices
+    // rather than many numerically-differentiated ones. Index 0 of every
+    // mode keeps its original label/identity since patch-service.ts's coach
+    // replan path relies on variants[0].
     const variants: WeekPlanVariant[] = [];
 
     if (mode === 'balanced') {
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Standard Balanced', 'Evenly distributed tasks to maintain an ultradian rhythm.', 'Consistency builds momentum.', false, false, protocolConfig, undefined, replanFromDate));
-        if (allowWeekend) {
-            variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Afternoon Flow', 'Balanced distribution but prioritizes scheduling tasks after lunch.', 'Optimizes for post-lunch energy.', false, false, protocolConfig, 'afternoon', replanFromDate));
-        }
+        // BALANCED MODE: Consistency & Rhythm
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Standard Balanced', 'Evenly distributed tasks throughout the week to maintain consistent rhythm and ultradian rhythm.', 'Consistency builds momentum.', false, false, protocolConfig, undefined, replanFromDate));
+        // Energy-Synced: energy-phase affinity is the PRIMARY window sort key
+        // (not just a tiebreaker) — goals actively chase their chronotype-
+        // matched peak/rebound window instead of following a flat time rule.
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'balanced', 'Energy-Synced', 'Tasks are matched to your personal energy phases (chronotype-aware) instead of a fixed time-of-day rule — demanding work lands when you are naturally sharpest.', 'Work with your energy, not against it.', false, false, protocolConfig, undefined, replanFromDate, true));
     } else if (mode === 'momentum') {
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Morning Rush', 'Back-to-back blocks tightly packed in the early day.', 'Tackle the hardest things first.', false, false, protocolConfig, 'morning', replanFromDate));
-        variants.push(generateVariant(context, weekStartDate, false, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Sprint Days', 'Highly compressed Mon-Thu schedule with zero buffers.', 'Maximum output.', false, false, protocolConfig, 'weekday', replanFromDate));
+        // MOMENTUM MODE: Output Maximization
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Peak Hour Blitz', 'Zero buffers, hard goals clustered at chronotype peak (usually 9am-12pm). High intensity, high output.', 'Attack your peak energy.', false, false, protocolConfig, 'morning', replanFromDate));
+        variants.push(generateVariant(context, weekStartDate, false, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Weekday Sprint', 'Compress hard goals Mon-Thu with back-to-back blocks and minimal buffers; Fri-Sun are lighter or off.', 'Sprint mode: full throttle Mon-Thu.', false, false, protocolConfig, 'weekday', replanFromDate));
     } else if (mode === 'recovery') {
-        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Spaced Out', 'Maximized gaps between sessions for mental resets.', 'Slow and steady.', false, false, protocolConfig, undefined, replanFromDate));
+        // RECOVERY MODE: Sustainable Pace
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Spaced Mindfulness', '120-min gaps between sessions for mental reset and genuine recovery. Max 2 blocks/day.', 'Slow and steady wins.', false, false, protocolConfig, undefined, replanFromDate));
         if (allowWeekend) {
-            variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Weekend Focus', 'Shifts the heavier lifting to the weekend to keep workdays light.', 'Prioritizes workday rest.', false, false, protocolConfig, 'weekend', replanFromDate));
+            variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Weekend Shift', 'Concentrate goals Fri-Sun to protect weekday lightness. 60-min buffers for gentle spacing.', 'Protect your weekdays.', false, false, protocolConfig, 'weekend', replanFromDate));
         } else {
-            variants.push(generateVariant(context, weekStartDate, false, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Quiet Recovery', 'Light load with spaced out blocks.', 'Rest focused.', true, false, protocolConfig, undefined, replanFromDate));
+            // Weekends are off entirely, so a weekend-shift identity makes no
+            // sense — fall back to an afternoon-leaning, ultra-spaced variant
+            // that still gives a genuinely different second choice.
+            variants.push(generateVariant(context, weekStartDate, false, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Gentle Afternoon', 'Ultra-light: 1-2 blocks/day max, afternoon preferred, generous spacing. Maximum whitespace.', 'Rest is productive.', true, false, protocolConfig, 'afternoon', replanFromDate));
         }
     }
 
@@ -257,7 +587,8 @@ function generateVariant(
     forceBonusFill: boolean = false,
     protocolConfig?: ProtocolConfig,
     timeFocus?: 'morning' | 'afternoon' | 'evening' | 'weekend' | 'weekday',
-    replanFromDate?: string
+    replanFromDate?: string,
+    energySyncPrimary: boolean = false
 ): WeekPlanVariant {
     const blocks: PlanBlock[] = [];
     const unscheduled_minutes: Record<string, number> = {};
@@ -265,60 +596,61 @@ function generateVariant(
     // Track workload per day to intelligently distribute goals
     const workloadPerDay = new Map<number, number>();
     for (let i = 1; i <= 7; i++) workloadPerDay.set(i, 0);
+    // Global per-day goal-block count, shared across ALL goals and BOTH Pass 1
+    // and the Cram Pass within this run — the mode's maxGoalBlocksPerDay cap
+    // is a total-per-day ceiling, not per-goal or per-pillar.
+    const goalBlockCountPerDay = new Map<number, number>();
+    for (let i = 1; i <= 7; i++) goalBlockCountPerDay.set(i, 0);
 
-    // 1. Add bio blocks directly to the schedule
-    const routineTmpl = bioTemplates.find(t => t.title === 'Morning Routine');
-    const effWakeMins = routineTmpl ? timeToMinutes(routineTmpl.end) : wakeMins;
-    // Per-day exclusion zones added at materialization time (e.g. a breakfast
-    // moved off its template time) — applied after the exclusions deep-copy.
-    const extraExclusions: Array<{ day: number; start: number; end: number }> = [];
+    // 1. Materialize bio blocks per day (Tier 2), resolving each against that
+    // day's Tier-1 anchors with the minimal-shift rule. Processed in
+    // bioTemplates order, accumulating each RESOLVED position as a hard zone
+    // for subsequent templates that day — this is why Sleep/Wind-Down/Morning
+    // Routine are constructed before the meals in generateWeekPlan(): Breakfast
+    // naturally lands after wherever Morning Routine's real (possibly
+    // anchor-shifted) position ends up, instead of a hardcoded fallback.
+    const resolvedBioByDay = new Map<number, Array<{ tmpl: any; start: number; end: number }>>();
 
     for (let day = 0; day < 7; day++) {
         const date = format(addDays(parseISO(weekStart), day), 'yyyy-MM-dd');
         const jsDay = parseISO(date).getDay();
         const dayNum = jsDay === 0 ? 7 : jsDay;
-        const hardZones = (baseExclusions.get(dayNum) || [])
-            .filter(x => x.type === 'anchor' || x.type === 'existing_block');
-        const overlapsHard = (s: number, e: number) => hardZones.some(x => s < x.end && e > x.start);
+        const hardZoneSeed: HardZone[] = (baseExclusions.get(dayNum) || [])
+            .filter(x => x.type === 'anchor' || x.type === 'existing_block')
+            .map(x => ({ start: x.start, end: x.end }));
+
+        const dayHardZones: HardZone[] = [...hardZoneSeed];
+        const resolvedForDay: Array<{ tmpl: any; start: number; end: number }> = [];
 
         for (const tmpl of bioTemplates) {
-            let start = tmpl.start;
-            let end = tmpl.end;
+            const tmplStart = timeToMinutes(tmpl.start);
+            const tmplEnd = timeToMinutes(tmpl.end);
+            // Sleep/Wind-Down midnight-wraparound pieces may touch 00:00/23:59;
+            // daytime elements are bounded by the user's actual wake/wind-down.
+            const isOvernightPiece = tmpl.block_type === 'sleep' || tmpl.block_type === 'wind_down';
+            const minBound = isOvernightPiece ? 0 : wakeMins;
+            const maxBound = isOvernightPiece ? 1439 : windDownMins;
 
-            // The morning routine must never clash with anchors or fixed blocks —
-            // if one owns the wake slot on this day, skip the routine entirely.
-            if (tmpl.title === 'Morning Routine'
-                && overlapsHard(timeToMinutes(start), timeToMinutes(end))) {
-                continue;
-            }
+            const resolved = resolveBioBlockOverlap(tmplStart, tmplEnd, dayHardZones, minBound, maxBound);
+            if (!resolved) continue; // no room anywhere today — skip this element only
 
-            // Breakfast: the user's preferred time first; if an anchor/fixed block
-            // occupies it, fall back to immediately after the morning routine;
-            // if that is blocked too, skip breakfast for this day.
-            if (tmpl.title === 'Breakfast') {
-                const dur = timeToMinutes(end) - timeToMinutes(start);
-                if (overlapsHard(timeToMinutes(start), timeToMinutes(end))) {
-                    const fbStart = effWakeMins;
-                    const fbEnd = effWakeMins + dur;
-                    if (overlapsHard(fbStart, fbEnd)) continue;
-                    start = minutesToTime(fbStart);
-                    end = minutesToTime(fbEnd);
-                    // Reserve the moved slot so goal blocks can't land on it
-                    extraExclusions.push({ day: dayNum, start: fbStart, end: fbEnd + 15 });
-                }
-            }
+            resolvedForDay.push({ tmpl, start: resolved.start, end: resolved.end });
+            const exclusionEnd = resolved.end + (tmpl.block_type === 'meal' ? 15 : 0);
+            dayHardZones.push({ start: resolved.start, end: exclusionEnd });
 
             blocks.push({
                 date,
-                start_time: start,
-                end_time: end,
+                start_time: minutesToTime(resolved.start),
+                end_time: minutesToTime(resolved.end),
                 title: tmpl.title,
                 block_type: tmpl.block_type
             });
         }
+        resolvedBioByDay.set(dayNum, resolvedForDay);
     }
 
-    // Deep copy exclusions so we can modify them per variant
+    // Deep copy exclusions so we can modify them per variant — Tier 1 only
+    // (anchors + existing/fixed blocks) at this point.
     const exclusions = new Map<number, Array<{ start: number; end: number; title: string, type: string }>>();
     const weekendIntensity = forceLightWeekend ? 'light' : (ctx.user.weekend_intensity || 'normal');
     // Light weekend = hard 4PM (960 mins) cutoff on Sat/Sun
@@ -327,21 +659,30 @@ function generateVariant(
     for (const [d, ex] of baseExclusions.entries()) {
         exclusions.set(d, ex.map(e => ({ ...e })));
     }
-    // Reserve slots for breakfasts that were moved off their template time
-    for (const extra of extraExclusions) {
-        exclusions.get(extra.day)?.push({ start: extra.start, end: extra.end, title: 'Breakfast', type: 'meal' });
+    // Add Tier-2 bio blocks from their REAL resolved positions (not stale
+    // template positions) so goal placement sees exactly what's on the
+    // rendered calendar.
+    for (const [d, resolvedList] of resolvedBioByDay.entries()) {
+        for (const { tmpl, start, end } of resolvedList) {
+            exclusions.get(d)?.push({
+                start,
+                end: end + (tmpl.block_type === 'meal' ? 15 : 0),
+                title: tmpl.title,
+                type: tmpl.block_type
+            });
+        }
     }
 
     // Sort goals using a mathematical probability tree: Weekly Progress -> Importance -> Energy Demand -> Total Minutes
-    const sortedGoals = [...ctx.goals].sort((a, b) => {
+    let sortedGoals = [...ctx.goals].sort((a, b) => {
         // Priority 1: Weekly Progress (Behind schedule comes first)
         const aProgress = ctx.goalProgress?.find(p => p.goal_id === a.id);
         const bProgress = ctx.goalProgress?.find(p => p.goal_id === b.id);
-        const aBehind = aProgress && aProgress.weekly_target_minutes > 0 
+        const aBehind = aProgress && aProgress.weekly_target_minutes > 0
             ? aProgress.completed_minutes_this_week / aProgress.weekly_target_minutes : 0;
-        const bBehind = bProgress && bProgress.weekly_target_minutes > 0 
+        const bBehind = bProgress && bProgress.weekly_target_minutes > 0
             ? bProgress.completed_minutes_this_week / bProgress.weekly_target_minutes : 0;
-        
+
         if (aBehind < 0.5 && bBehind >= 0.5) return -1;
         if (bBehind < 0.5 && aBehind >= 0.5) return 1;
 
@@ -361,6 +702,63 @@ function generateVariant(
         const bTotal = (b.days_per_week || 5) * (b.minutes_per_day || 60);
         return bTotal - aTotal;
     });
+
+    // ENERGY-AWARE FILTERING: Adjust sorting based on user's current energy level
+    // If user has low energy, deprioritize high-energy goals (move them down)
+    const userEnergy = ctx.dailyEnergyState?.energy_level || 3;
+    if (userEnergy < 3) {
+        // Low energy: separate high/medium/low energy goals, prioritize low energy
+        const lowEnergyGoals = sortedGoals.filter(g => (g.energy_demand || 'medium').toLowerCase() === 'low');
+        const mediumEnergyGoals = sortedGoals.filter(g => (g.energy_demand || 'medium').toLowerCase() === 'medium');
+        const highEnergyGoals = sortedGoals.filter(g => (g.energy_demand || 'medium').toLowerCase() === 'high');
+        sortedGoals = [...lowEnergyGoals, ...mediumEnergyGoals, ...highEnergyGoals];
+    } else if (userEnergy >= 4) {
+        // High energy: high-energy goals stay prioritized (no reordering needed)
+    }
+    // else moderate energy (3): use default sort as-is
+
+    // Light-load cap relaxation (#2/#3): sum each goal's remaining weekly
+    // minutes using the SAME formula the main loop below uses per-goal, so
+    // the light-load check reflects exactly what's about to be scheduled.
+    let totalWeeklyMinsNeeded = 0;
+    for (const g of sortedGoals) {
+        const gProgress = ctx.goalProgress?.find(p => p.goal_id === g.id);
+        let gRemaining = gProgress ? gProgress.remaining_minutes : (g.days_per_week || 5) * (g.minutes_per_day || 60);
+        if (replanFromDate) {
+            const gTargetMins = (g.days_per_week || 5) * (g.minutes_per_day || 60);
+            const gMinsBeforeReplan = ctx.schedule.this_week
+                .filter(b => b.goal_id === g.id && b.date < replanFromDate && b.status !== 'cancelled' && b.status !== 'missed')
+                .reduce((sum, b) => sum + Math.max(0, timeToMinutes(b.end_time) - timeToMinutes(b.start_time)), 0);
+            gRemaining = Math.max(0, gTargetMins - gMinsBeforeReplan);
+        }
+        totalWeeklyMinsNeeded += Math.max(0, gRemaining);
+    }
+    const eligibleDayCount = allowWeekend ? 7 : 5;
+    const effectiveCaps = computeEffectiveDailyCaps(totalWeeklyMinsNeeded, protocolConfig, eligibleDayCount);
+
+    // Failure-mode-driven protective adjustments (applied as a floor in every
+    // mode, tempered lighter for Momentum) — only meaningful when the daily
+    // caps are actually active (light-load relaxation above already handles
+    // "don't over-constrain a week with little to schedule").
+    const failureAdjustments = getFailureModeAdjustments((ctx.user as any).failure_modes, strategyId);
+    if (effectiveCaps.maxGoalBlocksPerDay !== undefined && failureAdjustments.blockCountDelta !== 0) {
+        effectiveCaps.maxGoalBlocksPerDay = Math.max(1, effectiveCaps.maxGoalBlocksPerDay + failureAdjustments.blockCountDelta);
+    }
+    if (effectiveCaps.maxDeepWorkMins !== undefined && failureAdjustments.minsMultiplier !== 1) {
+        effectiveCaps.maxDeepWorkMins = Math.max(30, Math.round(effectiveCaps.maxDeepWorkMins * failureAdjustments.minsMultiplier));
+    }
+
+    // Energy-phase model for this variant (ramp_up/peak/trough/rebound/wind_down)
+    // — chronotype now flows from onboarding/Settings; defaults to 'bear' for
+    // users who haven't set one, preserving today's behavior for them.
+    const chronotype = (ctx.user as any).chronotype || 'bear';
+    const phases: DayPhase[] = computeDayPhases(wakeMins, timeToMinutes(ctx.user.sleep_start || '23:00'), chronotype);
+    // low_afternoon_energy fully protects the trough phase regardless of the
+    // failure-mode temper factor (see practical-constraints.ts) — it's a
+    // factual self-report about this specific user, not a generic caution.
+    const effectivePhases: DayPhase[] = failureAdjustments.troughFullyProtected
+        ? phases.map(p => p.name === 'trough' ? { ...p, allowed_energy: ['low'] as Array<'high' | 'medium' | 'low'> } : p)
+        : phases;
 
     for (const goal of sortedGoals) {
         // NEW: Progress-aware scheduling. How much is ACTUALLY left to do?
@@ -383,6 +781,18 @@ function generateVariant(
 
         const targetMinsPerDay = goal.minutes_per_day || 60;
 
+        // Goal energy is already normalized to 'low'|'medium'|'high' at the
+        // CalendarContext ingestion boundary (context-builder.ts).
+        const goalEnergy = ((goal.energy_demand || 'medium').toLowerCase()) as 'low' | 'medium' | 'high';
+        // A goal's own stated preferred time of day (from onboarding) is a
+        // more specific, reliable signal than the variant's generic
+        // mode-level timeFocus — it wins for time-of-day-WITHIN-day window
+        // selection. The mode-level timeFocus still governs DAY selection
+        // (preferredDays sort below is untouched).
+        const goalTimeFocus = (goal.preferred_time_of_day && goal.preferred_time_of_day !== ('flexible' as any))
+            ? goal.preferred_time_of_day
+            : timeFocus;
+
         // Determine preferred days based on strategy
         let preferredDays = [1, 2, 3, 4, 5, 6, 7];
         if (!allowWeekend) preferredDays = [1, 2, 3, 4, 5];
@@ -394,23 +804,34 @@ function generateVariant(
                 if (aIsWeekend !== bIsWeekend) return bIsWeekend - aIsWeekend; // Weekend first
                 return (workloadPerDay.get(a) || 0) - (workloadPerDay.get(b) || 0);
             });
-        } else if (timeFocus === 'weekday' || strategyId === 'momentum') {
+        } else if (timeFocus === 'weekday') {
+            // Shared by Momentum's "Weekday Sprint" and Balanced's "Workday Focus":
+            // both want a genuine Mon-heavy concentration, not just "not weekend".
             preferredDays.sort((a, b) => {
                 const loadA = workloadPerDay.get(a) || 0;
                 const loadB = workloadPerDay.get(b) || 0;
-                // If it's a secondary variant (e.g. evening focus), reverse the day sweep to force layout diversity
-                const direction = timeFocus === 'evening' ? -1 : 1;
-                const weightA = a * 1000 * direction + loadA;
-                const weightB = b * 1000 * direction + loadB;
+                const weightA = a * 1000 + loadA;
+                const weightB = b * 1000 + loadB;
                 return weightA - weightB;
+            });
+        } else if (strategyId === 'momentum') {
+            // Peak Hour Blitz (timeFocus='morning'): no day-of-week concentration
+            // intent of its own — just fill the lightest day first. Its actual
+            // differentiation is window-level (morning-anchored placement).
+            preferredDays.sort((a, b) => {
+                const loadA = workloadPerDay.get(a) || 0;
+                const loadB = workloadPerDay.get(b) || 0;
+                if (loadA !== loadB) return loadA - loadB;
+                return a - b;
             });
         } else if (strategyId === 'recovery') {
             preferredDays.sort((a, b) => {
                 const loadA = workloadPerDay.get(a) || 0;
                 const loadB = workloadPerDay.get(b) || 0;
                 if (loadA !== loadB) return loadA - loadB;
-                // Secondary variants sweep from end of week to force visual difference
-                return timeFocus ? a - b : b - a; 
+                // Quiet Recovery (forceLightWeekend) sweeps end-of-week-first;
+                // Spaced Mindfulness sweeps start-of-week-first.
+                return forceLightWeekend ? b - a : a - b;
             });
         } else if (strategyId === 'balanced') {
             preferredDays.sort((a, b) => {
@@ -433,9 +854,25 @@ function generateVariant(
                 remainingMinsForDay = Math.ceil((remainingWeeklyMins / 2) / 15) * 15;
             }
 
+            // #2: enforce mode-level daily caps (global across all goals this
+            // run; relaxed for genuinely light weekly loads via effectiveCaps)
+            const dayCap = getDayCapacity(isoDay, goalBlockCountPerDay, workloadPerDay, effectiveCaps);
+            if (!dayCap.hasBlockRoom || dayCap.minutesHeadroom <= 0) continue; // try next preferred day
+            if (goal.pillar === 'body') {
+                if (dayCap.minutesHeadroom < remainingMinsForDay) continue; // body can't split — needs the full session to fit under the cap
+            } else {
+                remainingMinsForDay = Math.min(remainingMinsForDay, dayCap.minutesHeadroom);
+            }
+
             const dayWindDown = (isWeekend && weekendIntensity === 'light')
                 ? Math.min(LIGHT_WEEKEND_CUTOFF, windDownMins)
                 : windDownMins;
+            // Pre-wind-down decompression gap: medium/high-energy goals
+            // shouldn't abut bedtime (matches the wind_down phase's own
+            // "low energy only" intent). Low-energy goals are unaffected.
+            const preWindDownGapMins = goalEnergy === 'low' ? 0
+                : (strategyId === 'recovery' ? 30 : 20) + failureAdjustments.preWindDownGapBonus;
+            const effectiveDayWindDown = Math.max(wakeMins, dayWindDown - preWindDownGapMins);
             const dayExclusions = exclusions.get(isoDay)!;
             const dateStr = format(addDays(parseISO(weekStart), isoDay - 1), 'yyyy-MM-dd');
 
@@ -467,8 +904,14 @@ function generateVariant(
 
             for (const ex of dayExclusions) {
                 let exEnd = ex.end;
-                if (goal.pillar === 'body' && ex.type === 'meal') {
-                    exEnd += 15;
+                if (ex.type === 'meal') {
+                    // Digestion buffer: body goals always get it; mind/craft
+                    // goals get it too when they demand high energy (avoid a
+                    // hard cognitive task right after eating — same post-meal
+                    // dip the trough phase already models).
+                    if (goal.pillar === 'body' || goalEnergy === 'high') {
+                        exEnd += 45;
+                    }
                 }
 
                 if (cursor < ex.start) {
@@ -476,40 +919,41 @@ function generateVariant(
                 }
                 cursor = Math.max(cursor, exEnd);
             }
-            if (cursor < dayWindDown) {
-                windows.push({ start: cursor, end: dayWindDown });
+            if (cursor < effectiveDayWindDown) {
+                windows.push({ start: cursor, end: effectiveDayWindDown });
             }
 
-            // Body stacking constraint 1: Avoid opposite ends for the SAME body goal
+            // Body goal spacing: STRATEGY-SPECIFIC rules
+            // For MOMENTUM: Enforce opposite ends of day (morning AND evening, never back-to-back)
+            // For BALANCED: Flexible (no special spacing)
+            // For RECOVERY: Prefer afternoon scheduling (lighter in morning)
             if (goal.pillar === 'body' && blocksThisDayForGoal.length === 1) {
                 const existingStartMins = timeToMinutes(blocksThisDayForGoal[0].start_time);
-                if (existingStartMins < 720) {
-                    windows = windows.filter(w => w.end > 1020).map(w => ({ start: Math.max(w.start, 1020), end: w.end }));
-                } else {
-                    windows = windows.filter(w => w.start < 720).map(w => ({ start: w.start, end: Math.min(w.end, 720) }));
-                }
-            }
 
-            // (Body stacking constraint 2 removed: We now strictly enforce 1 body block per day globally above)
+                if (strategyId === 'momentum') {
+                    // MOMENTUM: Opposite ends of day (morning < 12:00 OR afternoon >= 17:00)
+                    if (existingStartMins < 720) {
+                        // First block in morning: place second in late afternoon/evening
+                        windows = windows.filter(w => w.end > 1020).map(w => ({ start: Math.max(w.start, 1020), end: w.end }));
+                    } else if (existingStartMins >= 1020) {
+                        // First block in evening: place second in morning
+                        windows = windows.filter(w => w.start < 720).map(w => ({ start: w.start, end: Math.min(w.end, 720) }));
+                    } else {
+                        // First block midday (shouldn't happen in momentum but handle it): allow afternoon preference
+                        windows = windows.filter(w => w.end > 1020).map(w => ({ start: Math.max(w.start, 1020), end: w.end }));
+                    }
+                } else if (strategyId === 'recovery') {
+                    // RECOVERY: Don't cluster body goals; prefer afternoon (slower start, gentler)
+                    windows = windows.filter(w => w.start >= 720 && w.end > 720); // Afternoon only
+                }
+                // BALANCED: No special constraint beyond 1 per day (already enforced above at line 471)
+            }
             
             windows = windows.filter(w => w.end > w.start);
-
-            windows.sort((a, b) => {
-                if (timeFocus === 'morning') return a.start - b.start;
-                if (timeFocus === 'afternoon') return Math.abs(a.start - 780) - Math.abs(b.start - 780);
-                if (timeFocus === 'evening') return b.start - a.start;
-
-                if (goal.pillar === 'mind') return a.start - b.start;
-                if (goal.pillar === 'body') {
-                    if ((goal.importance || 5) >= 8) return a.start - b.start; // Eat the frog
-                    const aIsAfternoon = a.start >= 720;
-                    const bIsAfternoon = b.start >= 720;
-                    if (aIsAfternoon && !bIsAfternoon) return -1;
-                    if (!aIsAfternoon && bIsAfternoon) return 1;
-                    return a.start - b.start;
-                }
-                return a.start - b.start;
-            });
+            // Hard energy-phase filter: a high-energy goal can't land in
+            // ramp_up/trough/wind_down; a low-energy goal is fine anywhere.
+            windows = filterWindowsByEnergyCompat(windows, effectivePhases, goalEnergy);
+            windows = sortWindowsByPreference(windows, { timeFocus: goalTimeFocus, pillar: goal.pillar, strategyId, goalImportance: goal.importance, energyPrimary: energySyncPrimary ? { goalEnergy: goalEnergy, phases: effectivePhases } : undefined });
 
             // ── BODY PILLAR: No splitting allowed ──────────────────────────────────
             // Body blocks (gym, running, sports, etc.) must be one contiguous session.
@@ -519,27 +963,16 @@ function generateVariant(
                 const fitWindows = windows.filter(w => (w.end - w.start) >= remainingMinsForDay);
                 if (fitWindows.length > 0) {
                     const win = fitWindows[0]; // already sorted by pillar/time preference above
-                    let start = win.start;
-                    // Small inset if the window is significantly larger than the block
-                    if ((win.end - win.start) > remainingMinsForDay + 30) {
+                    let buffer = protocolConfig?.bufferMinutes ?? getBufferMinutes(strategyId, goalTimeFocus, (ctx.user as any).default_buffer_duration);
+                    buffer = resolveAdjacencyBuffer(
+                        strategyId, buffer,
+                        findPrevAdjacentBlock(dateStr, win.start, blocks, dayExclusions),
+                        goalEnergy, goal.pillar
+                    ) + failureAdjustments.bufferFloorBonus;
+                    let start = computeWindowAnchorStart(win.start, win.end, remainingMinsForDay, buffer, strategyId, goalTimeFocus);
+                    // Small inset if the window is significantly larger than the block and we're packed at the edge
+                    if (start === win.start && (win.end - win.start) > remainingMinsForDay + 30) {
                         start += 15;
-                    }
-                    let buffer = protocolConfig?.bufferMinutes ?? 10;
-                    if (!protocolConfig?.bufferMinutes) {
-                        if (strategyId === 'momentum') buffer = 0;
-                        else if (strategyId === 'balanced') buffer = (ctx.user as any).default_buffer_duration || 15;
-                        else if (strategyId === 'recovery') buffer = 60; // Forced massive buffer
-                    }
-
-                    // MATHEMATICAL CENTERING: 
-                    // If balanced or recovery, and window is large, distribute by starting later in the window
-                    if ((strategyId === 'balanced' || strategyId === 'recovery') && (win.end - start) > remainingMinsForDay + buffer * 2) {
-                        const freeSpace = (win.end - start) - remainingMinsForDay;
-                        start = start + Math.floor(freeSpace / 2);
-                    } else if (strategyId === 'recovery') {
-                        // For recovery, even if we can't perfectly center, add as much gap as possible before
-                        const possibleStart = start + Math.min(buffer, (win.end - start) - remainingMinsForDay);
-                        start = Math.max(start, possibleStart);
                     }
 
                     if ((win.end - start) < remainingMinsForDay + buffer) {
@@ -553,6 +986,7 @@ function generateVariant(
                         block_type: 'goal',
                         goal_id: goal.id,
                         pillar: goal.pillar,
+                        energy_demand: goalEnergy,
                         checklist: goal.ai_strategy?.checklist || [{ text: 'Warm up' }, { text: 'Main session' }, { text: 'Cool down' }]
                     });
                     dayExclusions.push({
@@ -561,7 +995,7 @@ function generateVariant(
                         title: goal.title,
                         type: 'goal'
                     });
-                    workloadPerDay.set(isoDay, (workloadPerDay.get(isoDay) || 0) + remainingMinsForDay);
+                    recordGoalBlockPlacement(isoDay, remainingMinsForDay, goalBlockCountPerDay, workloadPerDay);
                     remainingWeeklyMins -= remainingMinsForDay;
                 }
                 // Whether placed or not, skip the splitting window loop for body goals
@@ -577,58 +1011,67 @@ function generateVariant(
                 let availableInWin = winEnd - winStart;
                 
                 while (remainingMinsForDay > 0 && availableInWin >= 30) {
-                    const MAX_BLOCK = 120;
+                    // #2: re-check daily cap headroom — a single goal can place
+                    // multiple chunks into the same day within this loop.
+                    const dayCapNow = getDayCapacity(isoDay, goalBlockCountPerDay, workloadPerDay, effectiveCaps);
+                    if (!dayCapNow.hasBlockRoom || dayCapNow.minutesHeadroom <= 0) break;
+
+                    // Ultradian session pacing: cap any single chunk at 90min
+                    // (down from 120 — matches flow-protocol.ts's own
+                    // session-length rule), and require a real break before a
+                    // 3rd+ same-day session.
+                    const sessionState = getDaySessionState(dateStr, blocks, winStart);
+                    const sessionMaxBlockMins = Math.min(90, failureAdjustments.maxSessionBlockMins);
+                    const sessionRoomLeft = computeSessionRoomLeft(sessionState, sessionMaxBlockMins);
+                    const breakShortfall = requiresSessionBreakGap(sessionState, winStart, failureAdjustments.sessionBreakAfterCount);
+                    if (breakShortfall > 0) {
+                        // Not enough gap since the last session yet — this
+                        // window can't host a new session right now.
+                        break;
+                    }
+                    if (sessionRoomLeft <= 0) break;
+
+                    const MAX_BLOCK = Math.min(120, sessionMaxBlockMins);
                     const MIN_BLOCK = 30;
-                    let minsToPlace = Math.min(remainingMinsForDay, availableInWin);
+                    let minsToPlace = Math.min(remainingMinsForDay, availableInWin, dayCapNow.minutesHeadroom, sessionRoomLeft);
 
                     if (remainingMinsForDay > Math.min(availableInWin, MAX_BLOCK)) {
-                        const maxAllowedChunk = Math.min(availableInWin, MAX_BLOCK);
-                        if (maxAllowedChunk < MIN_BLOCK) break; 
-                        
+                        const maxAllowedChunk = Math.min(availableInWin, MAX_BLOCK, sessionRoomLeft);
+                        if (maxAllowedChunk < MIN_BLOCK) break;
+
                         let numSplits = Math.ceil(remainingMinsForDay / maxAllowedChunk);
                         let bestSplitSize = Math.floor(remainingMinsForDay / numSplits);
-                        
+
                         while (numSplits > 1 && bestSplitSize < MIN_BLOCK) {
                             numSplits--;
                             bestSplitSize = Math.floor(remainingMinsForDay / numSplits);
                         }
-                        
+
                         if (bestSplitSize <= availableInWin && bestSplitSize <= MAX_BLOCK) {
-                            minsToPlace = bestSplitSize;
+                            minsToPlace = Math.min(bestSplitSize, dayCapNow.minutesHeadroom, sessionRoomLeft);
                         } else {
-                            minsToPlace = Math.min(MAX_BLOCK, availableInWin);
+                            minsToPlace = Math.min(MAX_BLOCK, availableInWin, dayCapNow.minutesHeadroom, sessionRoomLeft);
                             if (remainingMinsForDay - minsToPlace > 0 && remainingMinsForDay - minsToPlace < MIN_BLOCK) {
                                 minsToPlace = remainingMinsForDay - MIN_BLOCK;
-                                if (minsToPlace < MIN_BLOCK) break; 
+                                if (minsToPlace < MIN_BLOCK) break;
                             }
                         }
                     }
 
-                    let start = winStart;
+                    // Hard minimum: never place a mind/craft chunk shorter than 30 minutes
+                    if (minsToPlace < 30) break;
 
-                    let buffer = protocolConfig?.bufferMinutes ?? 10;
-                    if (!protocolConfig?.bufferMinutes) {
-                        if (strategyId === 'momentum') buffer = 0;
-                        else if (strategyId === 'balanced') buffer = (ctx.user as any).default_buffer_duration || 15;
-                        else if (strategyId === 'recovery') buffer = 60; // Forced massive buffer
-                    }
-
-                    // MATHEMATICAL CENTERING: 
-                    // If balanced or recovery, distribute block within available space
-                    if ((strategyId === 'balanced' || strategyId === 'recovery') && availableInWin > minsToPlace + buffer * 2) {
-                        const freeSpace = availableInWin - minsToPlace;
-                        start = winStart + Math.floor(freeSpace / 2);
-                    } else if (strategyId === 'recovery') {
-                        const possibleStart = winStart + Math.min(buffer, availableInWin - minsToPlace);
-                        start = Math.max(winStart, possibleStart);
-                    }
+                    let buffer = protocolConfig?.bufferMinutes ?? getBufferMinutes(strategyId, goalTimeFocus, (ctx.user as any).default_buffer_duration);
+                    buffer = resolveAdjacencyBuffer(
+                        strategyId, buffer,
+                        findPrevAdjacentBlock(dateStr, winStart, blocks, dayExclusions),
+                        goalEnergy, goal.pillar
+                    ) + failureAdjustments.bufferFloorBonus;
+                    const start = computeWindowAnchorStart(winStart, win.end, minsToPlace, buffer, strategyId, goalTimeFocus);
 
                     if ((win.end - start) < minsToPlace + buffer) {
                         buffer = Math.max(0, (win.end - start) - minsToPlace);
                     }
-
-                    // Hard minimum: never place a mind/craft chunk shorter than 30 minutes
-                    if (minsToPlace < 30) break;
 
                     blocks.push({
                         date: dateStr,
@@ -638,6 +1081,7 @@ function generateVariant(
                         block_type: 'goal',
                         goal_id: goal.id,
                         pillar: goal.pillar,
+                        energy_demand: goalEnergy,
                         checklist: goal.ai_strategy?.checklist || [{text: "Focus session"}, {text: "Review progress"}]
                     });
 
@@ -648,11 +1092,11 @@ function generateVariant(
                         type: 'goal'
                     });
 
-                    workloadPerDay.set(isoDay, (workloadPerDay.get(isoDay) || 0) + minsToPlace);
+                    recordGoalBlockPlacement(isoDay, minsToPlace, goalBlockCountPerDay, workloadPerDay);
 
                     remainingMinsForDay -= minsToPlace;
                     remainingWeeklyMins -= minsToPlace;
-                    
+
                     // Consume time from this window
                     const consumed = minsToPlace + buffer;
                     winStart += consumed;
@@ -683,37 +1127,57 @@ function generateVariant(
                     remainingToPlace = Math.ceil((remainingWeeklyMins / 2) / 15) * 15;
                 }
 
+                // #2: enforce mode-level daily caps (global across all goals this
+                // run; relaxed for genuinely light weekly loads via effectiveCaps)
+                const dayCap = getDayCapacity(isoDay, goalBlockCountPerDay, workloadPerDay, effectiveCaps);
+                if (!dayCap.hasBlockRoom || dayCap.minutesHeadroom <= 0) continue;
+                remainingToPlace = Math.min(remainingToPlace, dayCap.minutesHeadroom);
+                if (remainingToPlace < 30) continue;
+
                 // Body goals: skip this day in the cram pass if a block was already placed today
                 const otherBodyBlocks = blocks.filter(b => b.date === dateStr && b.pillar === 'body' && b.goal_id !== goal.id);
                 if (goal.pillar === 'body' && (blocksToday.length > 0 || otherBodyBlocks.length > 0)) continue;
 
                 const dayExclusions = exclusions.get(isoDay)!;
                 dayExclusions.sort((a, b) => a.start - b.start);
+                const isWeekendCram = isoDay >= 6;
+                const dayWindDownCram = (isWeekendCram && weekendIntensity === 'light')
+                    ? Math.min(LIGHT_WEEKEND_CUTOFF, windDownMins)
+                    : windDownMins;
+                const preWindDownGapMinsCram = goalEnergy === 'low' ? 0
+                    : (strategyId === 'recovery' ? 30 : 20) + failureAdjustments.preWindDownGapBonus;
+                const effectiveDayWindDownCram = Math.max(wakeMins, dayWindDownCram - preWindDownGapMinsCram);
+
                 let windows: Array<{ start: number; end: number }> = [];
                 // Same wake-time guard as Pass 1
                 let cursor = wakeMins;
                 for (const ex of dayExclusions) {
+                    let exEnd = ex.end;
+                    if (ex.type === 'meal' && (goal.pillar === 'body' || goalEnergy === 'high')) {
+                        exEnd += 45; // same digestion buffer as Pass 1
+                    }
                     if (cursor < ex.start) windows.push({ start: cursor, end: ex.start });
-                    cursor = Math.max(cursor, ex.end);
+                    cursor = Math.max(cursor, exEnd);
                 }
-                if (cursor < windDownMins) windows.push({ start: cursor, end: windDownMins });
+                if (cursor < effectiveDayWindDownCram) windows.push({ start: cursor, end: effectiveDayWindDownCram });
 
                 windows = windows.filter(w => w.end > w.start);
+                windows = filterWindowsByEnergyCompat(windows, effectivePhases, goalEnergy);
+                windows = sortWindowsByPreference(windows, { timeFocus: goalTimeFocus, pillar: goal.pillar, strategyId, goalImportance: goal.importance, energyPrimary: energySyncPrimary ? { goalEnergy: goalEnergy, phases: effectivePhases } : undefined });
 
                 // Body pillar in cram pass: same no-split rule — find full-fit window or skip
                 if (goal.pillar === 'body') {
+                    if (dayCap.minutesHeadroom < remainingToPlace) continue;
                     const fitWindows = windows.filter(w => (w.end - w.start) >= remainingToPlace);
                     if (fitWindows.length > 0) {
                         const win = fitWindows[0];
-                        let start = win.start;
-                        let buffer = 10;
-                        if ((strategyId === 'balanced' || strategyId === 'recovery') && (win.end - start) > remainingToPlace + buffer * 2) {
-                            const freeSpace = (win.end - start) - remainingToPlace;
-                            start = start + Math.floor(freeSpace / 2);
-                        } else if (strategyId === 'recovery') {
-                            const possibleStart = start + Math.min(buffer, (win.end - start) - remainingToPlace);
-                            start = Math.max(start, possibleStart);
-                        }
+                        let buffer = protocolConfig?.bufferMinutes ?? getBufferMinutes(strategyId, goalTimeFocus, (ctx.user as any).default_buffer_duration);
+                        buffer = resolveAdjacencyBuffer(
+                            strategyId, buffer,
+                            findPrevAdjacentBlock(dateStr, win.start, blocks, dayExclusions),
+                            goalEnergy, goal.pillar
+                        ) + failureAdjustments.bufferFloorBonus;
+                        const start = computeWindowAnchorStart(win.start, win.end, remainingToPlace, buffer, strategyId, goalTimeFocus);
                         blocks.push({
                             date: dateStr,
                             start_time: minutesToTime(start),
@@ -722,10 +1186,11 @@ function generateVariant(
                             block_type: 'goal',
                             goal_id: goal.id,
                             pillar: goal.pillar,
+                            energy_demand: goalEnergy,
                             checklist: goal.ai_strategy?.checklist || [{ text: 'Warm up' }, { text: 'Main session' }, { text: 'Cool down' }]
                         });
-                        dayExclusions.push({ start, end: start + remainingToPlace, title: goal.title, type: 'goal' });
-                        workloadPerDay.set(isoDay, (workloadPerDay.get(isoDay) || 0) + remainingToPlace);
+                        dayExclusions.push({ start, end: start + remainingToPlace + buffer, title: goal.title, type: 'goal' });
+                        recordGoalBlockPlacement(isoDay, remainingToPlace, goalBlockCountPerDay, workloadPerDay);
                         remainingWeeklyMins -= remainingToPlace;
                     }
                     continue; // Skip the splitting window loop for body goals
@@ -733,49 +1198,65 @@ function generateVariant(
 
                 for (const win of windows) {
                     if (remainingToPlace <= 0) break;
-                    
+
                     let winStart = win.start;
                     let winEnd = win.end;
                     let availableInWin = winEnd - winStart;
-                    
+
                     while (remainingToPlace > 0 && availableInWin >= 30) {
-                        const MAX_BLOCK = 120;
+                        // #2: re-check daily cap headroom — a single goal can place
+                        // multiple chunks into the same day within this loop.
+                        const dayCapNow = getDayCapacity(isoDay, goalBlockCountPerDay, workloadPerDay, effectiveCaps);
+                        if (!dayCapNow.hasBlockRoom || dayCapNow.minutesHeadroom <= 0) break;
+
+                        // Ultradian session pacing — same rules as Pass 1.
+                        const sessionState = getDaySessionState(dateStr, blocks, winStart);
+                        const sessionMaxBlockMins = Math.min(90, failureAdjustments.maxSessionBlockMins);
+                        const sessionRoomLeft = computeSessionRoomLeft(sessionState, sessionMaxBlockMins);
+                        const breakShortfall = requiresSessionBreakGap(sessionState, winStart, failureAdjustments.sessionBreakAfterCount);
+                        if (breakShortfall > 0) break;
+                        if (sessionRoomLeft <= 0) break;
+
+                        const MAX_BLOCK = Math.min(120, sessionMaxBlockMins);
                         const MIN_BLOCK = 30;
-                        let minsToPlace = Math.min(remainingToPlace, availableInWin);
+                        let minsToPlace = Math.min(remainingToPlace, availableInWin, dayCapNow.minutesHeadroom, sessionRoomLeft);
 
                         if (remainingToPlace > Math.min(availableInWin, MAX_BLOCK)) {
-                            const maxAllowedChunk = Math.min(availableInWin, MAX_BLOCK);
-                            if (maxAllowedChunk < MIN_BLOCK) break; 
-                            
+                            const maxAllowedChunk = Math.min(availableInWin, MAX_BLOCK, sessionRoomLeft);
+                            if (maxAllowedChunk < MIN_BLOCK) break;
+
                             let numSplits = Math.ceil(remainingToPlace / maxAllowedChunk);
                             let bestSplitSize = Math.floor(remainingToPlace / numSplits);
-                            
+
                             while (numSplits > 1 && bestSplitSize < MIN_BLOCK) {
                                 numSplits--;
                                 bestSplitSize = Math.floor(remainingToPlace / numSplits);
                             }
-                            
+
                             if (bestSplitSize <= availableInWin && bestSplitSize <= MAX_BLOCK) {
-                                minsToPlace = bestSplitSize;
+                                minsToPlace = Math.min(bestSplitSize, dayCapNow.minutesHeadroom, sessionRoomLeft);
                             } else {
-                                minsToPlace = Math.min(MAX_BLOCK, availableInWin);
+                                minsToPlace = Math.min(MAX_BLOCK, availableInWin, dayCapNow.minutesHeadroom, sessionRoomLeft);
                                 if (remainingToPlace - minsToPlace > 0 && remainingToPlace - minsToPlace < MIN_BLOCK) {
                                     minsToPlace = remainingToPlace - MIN_BLOCK;
-                                    if (minsToPlace < MIN_BLOCK) break; 
+                                    if (minsToPlace < MIN_BLOCK) break;
                                 }
                             }
                         }
 
-                        let start = winStart;
-                        let buffer = 10;
-                        if ((strategyId === 'balanced' || strategyId === 'recovery') && availableInWin > minsToPlace + buffer * 2) {
-                            const freeSpace = availableInWin - minsToPlace;
-                            start = winStart + Math.floor(freeSpace / 2);
-                        } else if (strategyId === 'recovery') {
-                            const possibleStart = winStart + Math.min(buffer, availableInWin - minsToPlace);
-                            start = Math.max(winStart, possibleStart);
+                        if (minsToPlace < 30) break;
+
+                        let buffer = protocolConfig?.bufferMinutes ?? getBufferMinutes(strategyId, goalTimeFocus, (ctx.user as any).default_buffer_duration);
+                        buffer = resolveAdjacencyBuffer(
+                            strategyId, buffer,
+                            findPrevAdjacentBlock(dateStr, winStart, blocks, dayExclusions),
+                            goalEnergy, goal.pillar
+                        ) + failureAdjustments.bufferFloorBonus;
+                        const start = computeWindowAnchorStart(winStart, win.end, minsToPlace, buffer, strategyId, goalTimeFocus);
+                        if ((win.end - start) < minsToPlace + buffer) {
+                            buffer = Math.max(0, (win.end - start) - minsToPlace);
                         }
-                        
+
                         blocks.push({
                             date: dateStr,
                             start_time: minutesToTime(start),
@@ -784,22 +1265,23 @@ function generateVariant(
                             block_type: 'goal',
                             goal_id: goal.id,
                             pillar: goal.pillar,
+                            energy_demand: goalEnergy,
                             checklist: goal.ai_strategy?.checklist || [{text: "Focus session"}, {text: "Review progress"}]
                         });
 
                         dayExclusions.push({
                             start: start,
-                            end: start + minsToPlace,
+                            end: start + minsToPlace + buffer,
                             title: goal.title,
                             type: 'goal'
                         });
 
-                        workloadPerDay.set(isoDay, (workloadPerDay.get(isoDay) || 0) + minsToPlace);
+                        recordGoalBlockPlacement(isoDay, minsToPlace, goalBlockCountPerDay, workloadPerDay);
 
                         remainingToPlace -= minsToPlace;
                         remainingWeeklyMins -= minsToPlace;
-                        
-                        const consumed = minsToPlace;
+
+                        const consumed = minsToPlace + buffer;
                         winStart += consumed;
                         availableInWin -= consumed;
                     }
@@ -828,7 +1310,7 @@ function generateVariant(
     const uniqueDays = new Set(finalBlocks.filter(b => b.block_type === 'goal').map(b => b.date));
 
     return {
-        id: strategyId,
+        id: `${strategyId}-${slugify(label)}`,
         label,
         description,
         philosophy,

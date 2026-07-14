@@ -6,6 +6,31 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { format, startOfWeek, endOfWeek, addWeeks, subDays, addDays } from 'date-fns';
+import { DEFAULT_TIMEZONE, nowInTimezone } from '@/lib/timezone';
+
+// ── Normalization Helpers ───────────────────────────────────────
+// Goals are stored with string enum values ('low'/'medium'/'high' importance,
+// 'light'/'medium'/'heavy' energy_demand from the onboarding UI) but the
+// scheduling engine needs numeric importance and a canonical 'low'/'medium'/
+// 'high' energy vocabulary. Without this, importance sorting silently
+// no-ops (string subtraction => NaN) and 'heavy'-demand goals (the actual
+// onboarding UI value) never match any 'high'-energy check anywhere in the
+// engine. Normalize ONCE here — the single ingestion boundary for goals
+// into the deterministic scheduler — so no downstream code needs to guess.
+const IMPORTANCE_MAP: Record<string, number> = { low: 2, medium: 5, high: 9 };
+function normalizeImportance(raw: unknown): number {
+    if (typeof raw === 'number' && !Number.isNaN(raw)) return raw;
+    return IMPORTANCE_MAP[String(raw ?? 'medium').toLowerCase()] ?? 5;
+}
+
+const ENERGY_DEMAND_MAP: Record<string, 'low' | 'medium' | 'high'> = {
+    light: 'low', low: 'low',
+    medium: 'medium',
+    heavy: 'high', high: 'high',
+};
+function normalizeEnergyDemand(raw: unknown): 'low' | 'medium' | 'high' {
+    return ENERGY_DEMAND_MAP[String(raw ?? 'medium').toLowerCase()] ?? 'medium';
+}
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -25,6 +50,7 @@ export interface CalendarContext {
         bio_data: any;
         chronotype: string;
         weekend_intensity: string;
+        timezone?: string; // e.g., 'America/New_York', defaults to 'UTC'
         default_buffer_duration?: number;
         failure_modes?: string[];
     };
@@ -42,6 +68,7 @@ export interface CalendarContext {
         energy_demand: string;
         is_active: boolean;
         ai_strategy?: any;
+        preferred_time_of_day?: 'morning' | 'afternoon' | 'evening';
     }>;
 
     commitments: Array<{
@@ -153,8 +180,13 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
     // Use provided supabase or create a new client
     const db = supabase || await createClient();
 
-    const now = new Date();
-    const todayStr = format(now, 'yyyy-MM-dd');
+    // "Today" is computed in the app's default timezone (Asia/Kolkata) rather
+    // than the server's local clock — Vercel runs UTC, which would otherwise
+    // put the date/weekday up to 5.5h behind the user's actual IST day.
+    const nowIst = nowInTimezone(DEFAULT_TIMEZONE);
+    const todayStr = nowIst.date;
+    const currentTimeStr = nowIst.time;
+    const now = new Date(`${todayStr}T00:00:00`); // anchor for pure calendar-day arithmetic below
     const weekStart = startOfWeek(now, { weekStartsOn: 1 });
     const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
     const weekStartStr = format(weekStart, 'yyyy-MM-dd');
@@ -166,7 +198,7 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
     const [profileRes, profilePrefsRes, goalsRes, commitmentsRes, habitStacksRes, todayBlocksRes, weekBlocksRes, perfBlocksRes, coachLearningsRes, behaviorPatternsRes, energyStateRes] = await Promise.all([
         // 1. Profile
         db.from('profiles')
-            .select('id, first_name, preferred_name, sleep_start, sleep_end, wind_down_mins, wind_down_minutes, morning_routine_mins, energy_level, stress_level, meals_per_day, meal_windows, meal_times, body_preferences, bio_data, peak_windows, low_windows, weekend_intensity')
+            .select('id, first_name, preferred_name, sleep_start, sleep_end, wind_down_mins, wind_down_minutes, morning_routine_mins, energy_level, stress_level, meals_per_day, meal_windows, meal_times, body_preferences, bio_data, peak_windows, low_windows, weekend_intensity, timezone')
             .eq('id', userId)
             .maybeSingle(),
 
@@ -178,7 +210,7 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
 
         // 2. Active Goals
         db.from('goals')
-            .select('id, title, pillar, category, importance, minutes_per_day, days_per_week, energy_demand, status, ai_strategy')
+            .select('id, title, pillar, category, importance, minutes_per_day, days_per_week, energy_demand, status, ai_strategy, preferred_windows')
             .eq('user_id', userId)
             .eq('status', 'active')
             .limit(20),
@@ -279,13 +311,14 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
         title: g.title,
         pillar: g.pillar || 'craft',
         category: g.category || 'general',
-        importance: g.importance || 5,
+        importance: normalizeImportance(g.importance),
         minutes_per_day: g.minutes_per_day || 60,
         days_per_week: g.days_per_week || 5,
         weekly_target_minutes: (g.minutes_per_day || 60) * (g.days_per_week || 5),
-        energy_demand: g.energy_demand || 'medium',
+        energy_demand: normalizeEnergyDemand(g.energy_demand),
         is_active: true,
         ai_strategy: g.ai_strategy,
+        preferred_time_of_day: (g.preferred_windows as any)?.time_of_day || undefined,
     }));
 
     const commitments = (commitmentsRes.data || []).map((c: any) => ({
@@ -418,6 +451,7 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
             default_buffer_duration: profile.default_buffer_duration || 10,
             chronotype: (profile.body_preferences as any)?.chronotype || 'bear',
             weekend_intensity: prefs?.weekend_intensity || profile.weekend_intensity || 'normal',
+            timezone: (profile as any).timezone || DEFAULT_TIMEZONE,
         },
 
         goals,
@@ -441,7 +475,7 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
         },
         current: {
             date: todayStr,
-            time: format(now, 'HH:mm'),
+            time: currentTimeStr,
             day_of_week: getDayOfWeek(now),
         },
 

@@ -3,6 +3,7 @@
 export interface HomeLayoutProps {
     header: React.ReactNode;
     commandCenter: React.ReactNode;
+    energyCheckin?: React.ReactNode;
     dashboardCards?: React.ReactNode;
     timeline: React.ReactNode;
     insights: React.ReactNode;
@@ -11,6 +12,7 @@ export interface HomeLayoutProps {
 export function HomeLayout({
     header,
     commandCenter,
+    energyCheckin,
     dashboardCards,
     timeline,
     insights
@@ -27,7 +29,14 @@ export function HomeLayout({
                 {commandCenter}
             </section>
 
-            {/* Section 1.5: Dashboard Cards (Goals, AI Insights, Focus) */}
+            {/* Section 1.5: Energy Check-in (promoted out of the System Insights dropdown) */}
+            {energyCheckin && (
+                <section className="w-full">
+                    {energyCheckin}
+                </section>
+            )}
+
+            {/* Section 1.75: Dashboard Cards (Goals, AI Insights, Focus) */}
             {dashboardCards && (
                 <section className="w-full">
                     {dashboardCards}
