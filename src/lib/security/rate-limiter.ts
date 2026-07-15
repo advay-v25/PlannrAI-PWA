@@ -41,6 +41,9 @@ const LIMITS = {
     // Default user strict for generic supbase DB writes/reads
     userStrict: { windowMs: 60 * 1000, maxRequests: 100 },
 
+    // Data action limits
+    dataExport: { windowMs: 7 * 24 * 60 * 60 * 1000, maxRequests: 5 }, // 5 req/week
+
     // Auth specific limits
     authLogin: { windowMs: 15 * 60 * 1000, maxRequests: 5 }, // 5 login attempts per 15 mins
     authEmail: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 2 }, // 2 reset/signup emails per 24 hours
@@ -206,7 +209,7 @@ export async function checkMultipleRateLimits(
     if (endpoint && endpointType) {
         let endpointKey = createRateLimitKey('endpoint', userId || ip, endpoint);
         
-        const isWeeklyReset = endpointType === 'aiPlanWeek' || endpointType === 'aiWeeklyReview';
+        const isWeeklyReset = endpointType === 'aiPlanWeek' || endpointType === 'aiWeeklyReview' || endpointType === 'dataExport';
         const isDailyReset = endpointType === 'aiPlanDay' || endpointType === 'aiCoach' || endpointType === 'aiHabits' || endpointType === 'aiStrategy';
 
         if (isWeeklyReset) {

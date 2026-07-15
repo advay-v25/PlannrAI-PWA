@@ -222,8 +222,19 @@ function CalendarPageInner() {
     const [showPlanWeekModal, setShowPlanWeekModal] = useState(false);
     const [showOptimizerModal, setShowOptimizerModal] = useState(false);
 
-    const [isGeneratingToday, setIsGeneratingToday] = useState(false);
     const [autoPlanned, setAutoPlanned] = useState(false);
+
+    // Saved "Weekend Work" preference (Settings → Structure) — Plan Week
+    // must default to this instead of always scheduling weekends.
+    const [allowWeekendPref, setAllowWeekendPref] = useState(true);
+    useEffect(() => {
+        apiClient.get<any>('/api/profile/me')
+            .then(res => {
+                const pref = res?.preferences?.allow_weekend_work;
+                if (typeof pref === 'boolean') setAllowWeekendPref(pref);
+            })
+            .catch(() => { /* keep default */ });
+    }, []);
 
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     const viewDateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -281,48 +292,12 @@ function CalendarPageInner() {
     const todayBlocks = useMemo(() => blocks.filter(b => b.date === todayStr), [blocks, todayStr]);
     const hasScheduleToday = todayBlocks.length > 0;
 
-    // ── Generate Today ───────────────────────────────────────────
-    const handleGenerateToday = async (targetDateOverride?: string) => {
-        if (isGeneratingToday) return;
-        setIsGeneratingToday(true);
-        const targetDate = targetDateOverride || format(new Date(), 'yyyy-MM-dd');
-        showToast('🤖 Planning your day...', 'info');
-        try {
-            const res = await apiClient.post<any>('/api/calendar/generate-today', { date: targetDate, force: true, mode: 'balanced' });
-            
-            if (!res.success) {
-                throw new Error(res.error?.message || 'Failed to generate plan');
-            }
-            const planData = res.data;
-            const options = planData.options || [];
-            if (options.length === 0) {
-                showToast('No schedule generated. Add goals first.', 'error');
-                return;
-            }
-            const firstOption = options[0];
-            const ops = firstOption.patch?.ops || [];
-            const addBlocks = ops
-                .filter((o: any) => o.op === 'create_event' || o.op === 'create')
-                .map((o: any) => o.payload || o.event || {});
-
-            const applyRes = await apiClient.post<any>('/api/calendar/apply-schedule', {
-                action: 'optimize_day',
-                clear_date: targetDate,
-                patch: { add: addBlocks },
-            });
-            
-            if (!applyRes.success) throw new Error(applyRes.error?.message || 'Failed to apply schedule');
-            
-            const added = applyRes.data?.added || addBlocks.length;
-            showToast(`✅ Day planned! ${added} blocks created.`, 'success');
-            await refresh();
-        } catch (e: any) {
-            console.error('Generate today failed:', e);
-            showToast(e.message || 'Failed to generate schedule', 'error');
-        } finally {
-            setIsGeneratingToday(false);
-        }
-    };
+    // "Plan Today with AI" (empty-day CTA) now opens the same DayOptimizerModal
+    // used by the "Optimize" button — see the empty-state button below. This
+    // gives every AI-generated day plan the same real preview/confirm step
+    // instead of silently deleting and auto-applying (generate-today itself
+    // no longer performs any writes; apply-schedule does, only after the user
+    // explicitly confirms in the modal).
 
     // ── Handlers ─────────────────────────────────────────────────
     const handleBlockMove = async (id: string, date: string, start: string, end: string) => {
@@ -579,17 +554,12 @@ function CalendarPageInner() {
                                     Let AI plan your entire day based on your goals, energy, and commitments.
                                 </p>
                                 <LiquidGlassButton
-                                    onClick={() => handleGenerateToday(viewDateStr)}
-                                    disabled={isGeneratingToday}
+                                    onClick={() => setShowOptimizerModal(true)}
                                     variant="primary"
                                     size="md"
                                     className="mx-auto"
                                 >
-                                    {isGeneratingToday ? (
-                                        <><div className="w-4 h-4 rounded-full border-2 border-[var(--text-muted)] border-t-[var(--text-primary)] dark:border-t-white animate-spin" /> Planning...</>
-                                    ) : (
-                                        <><Sparkles className="w-4 h-4" /> Plan {viewDateStr === todayStr ? 'Today' : 'This Day'} with AI</>
-                                    )}
+                                    <Sparkles className="w-4 h-4" /> Plan {viewDateStr === todayStr ? 'Today' : 'This Day'} with AI
                                 </LiquidGlassButton>
                             </div>
                         </motion.div>
@@ -672,6 +642,7 @@ function CalendarPageInner() {
                         onApply={(opt) => { applyOption(opt); setShowPlanWeekModal(false); }}
                         planWeek={planWeek}
                         context={null}
+                        defaultAllowWeekend={allowWeekendPref}
                     />
                 )}
             </AnimatePresence>

@@ -26,9 +26,13 @@ interface PlanWeekModalProps {
     onApply: (option: CalendarOption) => void;
     planWeek: (options: { mode: 'balanced' | 'momentum' | 'recovery', allow_weekend?: boolean }) => Promise<{ summary: string, options: CalendarOption[], warnings: string[], note: string | undefined }>;
     context: any;
+    /** The user's saved "Weekend Work" preference (Settings → Structure). Used
+     * as this run's default so Plan Week respects it instead of always
+     * scheduling weekends — the user can still override for a single run. */
+    defaultAllowWeekend?: boolean;
 }
 
-export function PlanWeekModal({ onClose, onApply, planWeek, context }: PlanWeekModalProps) {
+export function PlanWeekModal({ onClose, onApply, planWeek, context, defaultAllowWeekend = true }: PlanWeekModalProps) {
     const [step, setStep] = useState<'mode' | 'generating' | 'selection'>('mode');
     const [selectedMode, setSelectedMode] = useState<'balanced' | 'momentum' | 'recovery'>('balanced');
     const [options, setOptions] = useState<CalendarOption[]>([]);
@@ -50,13 +54,20 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context }: PlanWeekM
         return () => clearInterval(interval);
     }, [step]);
 
+    // Derived rather than synced via effect: defaults to the saved preference
+    // (which may still be loading when this modal first mounts — it's fetched
+    // separately by the calendar page) until the user explicitly overrides it
+    // for this run, at which point the override wins regardless of prop changes.
+    const [weekendOverride, setWeekendOverride] = useState<boolean | null>(null);
+    const allowWeekend = weekendOverride === null ? defaultAllowWeekend : weekendOverride;
+
     const handleGenerate = async () => {
         setStep('generating');
         try {
             // Call API via the passed hook function
             const result = await planWeek({
                 mode: selectedMode,
-                allow_weekend: true // Schedule the entire week, including weekends
+                allow_weekend: allowWeekend
             });
 
             if (result && result.options) {
@@ -183,6 +194,27 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context }: PlanWeekM
                                         desc="Prioritize rest, lighten load, focus on essentials."
                                     />
                                 </div>
+
+                                {/* Respects the saved Weekend Work setting by default (Settings →
+                                    Structure) — overridable for this run only. */}
+                                <button
+                                    type="button"
+                                    onClick={() => setWeekendOverride(!allowWeekend)}
+                                    className="w-full flex items-center justify-between p-3 rounded-xl glass-panel hover:bg-[var(--glass-bg-hover)] dark:hover:bg-white/[0.08] transition-all"
+                                >
+                                    <div className="text-left">
+                                        <p className="text-sm font-semibold text-[var(--text-primary)]">Include weekends</p>
+                                        <p className="text-xs text-[var(--text-tertiary)]">
+                                            {allowWeekend ? 'Sat & Sun may get scheduled work' : 'Sat & Sun stay free'}
+                                        </p>
+                                    </div>
+                                    <div className={`w-10 h-6 rounded-full flex items-center px-0.5 transition-colors shrink-0 ${
+                                        allowWeekend ? 'bg-[var(--color-primary)] justify-end' : 'bg-[var(--glass-bg-active)] justify-start'
+                                    }`}>
+                                        <div className="w-5 h-5 rounded-full bg-white shadow" />
+                                    </div>
+                                </button>
+
                                 <LiquidGlassButton variant="primary" size="md" className="w-full mt-4" onClick={handleGenerate}>
                                     Generate Plan <ArrowRight className="w-4 h-4 ml-2" />
                                 </LiquidGlassButton>

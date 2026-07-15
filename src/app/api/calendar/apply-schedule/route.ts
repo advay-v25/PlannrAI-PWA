@@ -95,10 +95,14 @@ export const POST = secureApiRoute(
                 if (action === 'manual') {
                     deleteQuery = deleteQuery.or('is_locked.is.null,is_locked.eq.false');
                 } else {
-                    // AI Re-planning must NEVER delete Anchors or user-locked chunks.
-                    // However, it SHOULD clear previous planner-generated meals/sleep to allow fresh placement.
+                    // AI Re-planning must NEVER delete Anchors, user-locked chunks,
+                    // or blocks the user has already completed/is currently working
+                    // on — those aren't "planner scratch state" to be discarded.
+                    // It SHOULD clear previous planner-generated meals/sleep/buffer
+                    // to allow fresh placement.
                     deleteQuery = deleteQuery.or('is_locked.is.null,is_locked.eq.false,block_type.eq.meal,block_type.eq.sleep,block_type.eq.buffer')
-                                             .neq('block_type', 'anchor');
+                                             .neq('block_type', 'anchor')
+                                             .not('status', 'in', '("done","in_progress")');
                 }
 
                 const { count: deletedCount, error: deleteError } = await deleteQuery;
@@ -122,10 +126,14 @@ export const POST = secureApiRoute(
                 if (action === 'manual') {
                     deleteQuery = deleteQuery.or('is_locked.is.null,is_locked.eq.false');
                 } else {
-                    // AI Re-planning must NEVER delete Anchors or user-locked chunks.
-                    // However, it SHOULD clear previous planner-generated meals/sleep to allow fresh placement.
+                    // AI Re-planning must NEVER delete Anchors, user-locked chunks,
+                    // or blocks the user has already completed/is currently working
+                    // on — those aren't "planner scratch state" to be discarded.
+                    // It SHOULD clear previous planner-generated meals/sleep/buffer
+                    // to allow fresh placement.
                     deleteQuery = deleteQuery.or('is_locked.is.null,is_locked.eq.false,block_type.eq.meal,block_type.eq.sleep,block_type.eq.buffer')
-                                             .neq('block_type', 'anchor');
+                                             .neq('block_type', 'anchor')
+                                             .not('status', 'in', '("done","in_progress")');
                 }
 
                 const { count: deletedCount, error: deleteError } = await deleteQuery;
@@ -300,6 +308,21 @@ export const POST = secureApiRoute(
                 if (skipped > 0) {
                     console.log(`[ApplySchedule] Skipped ${skipped} blocks that overlapped with commitments`);
                 }
+            }
+
+            // Clear needs_rescheduling once an AI-generated day/week plan has
+            // actually been applied (not merely previewed/generated) — matches
+            // the flag's intent: "there's a pending plan the user hasn't acted on".
+            if ((action === 'optimize_day' || action === 'plan_week') && added > 0) {
+                try {
+                    const { data: profile } = await supabase.from('profiles').select('bio_data').eq('id', userId).single();
+                    const bioData = (profile?.bio_data as any) || {};
+                    if (bioData.needs_rescheduling) {
+                        await supabase.from('profiles').update({
+                            bio_data: { ...bioData, needs_rescheduling: false }
+                        }).eq('id', userId);
+                    }
+                } catch (e) { /* non-blocking */ }
             }
 
             console.log(`[ApplySchedule] Transaction Complete: +${added} ~${updated} -${removed} | Version: ${versionId}`);

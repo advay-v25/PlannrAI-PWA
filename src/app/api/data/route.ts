@@ -13,7 +13,9 @@ export const GET = secureApiRoute(
             { data: profile },
             { data: goals },
             { data: scheduleBlocks },
-            { data: coachInteractions },
+            { data: coachConversations },
+            { data: coachMessages },
+            { data: memoryFacts },
             { data: weeklyReviews },
         ] = await Promise.all([
             supabase.from('profiles').select('*').eq('id', context.userId).single(),
@@ -31,7 +33,9 @@ export const GET = secureApiRoute(
             profile: profile || {},
             goals: goals || [],
             schedule_blocks: scheduleBlocks || [],
-            coach_interactions: coachInteractions || [],
+            coach_conversations: coachConversations || [],
+            coach_messages: coachMessages || [],
+            memory_facts: memoryFacts || [],
             weekly_reviews: weeklyReviews || [],
         };
 
@@ -44,7 +48,9 @@ export const GET = secureApiRoute(
                 recordCounts: {
                     goals: goals?.length || 0,
                     scheduleBlocks: scheduleBlocks?.length || 0,
-                    coachInteractions: coachInteractions?.length || 0,
+                    coachConversations: coachConversations?.length || 0,
+                    coachMessages: coachMessages?.length || 0,
+                    memoryFacts: memoryFacts?.length || 0,
                     weeklyReviews: weeklyReviews?.length || 0,
                 },
             },
@@ -52,7 +58,7 @@ export const GET = secureApiRoute(
 
         return apiSuccess({ data: exportData });
     },
-    { requireAuth: true, auditAction: 'data_export' }
+    { requireAuth: true, auditAction: 'data_export', rateLimit: 'dataExport' }
 );
 
 // DELETE - Delete all user data (GDPR "right to be forgotten")
@@ -61,26 +67,32 @@ export const DELETE = secureApiRoute(
         const supabase = await createClient();
         const uid = context.userId;
 
-        // Delete in SEQUENTIAL order respecting foreign keys (children first)
-        // Phase 1: Leaf tables (no dependencies)
+        // Delete in SEQUENTIAL order respecting foreign keys (children first).
+        // try/catch alone only catches thrown exceptions — Supabase resolves
+        // delete() with { error } on a real DB failure instead of throwing,
+        // so failures here were previously silent. Check every result and
+        // abort before touching the profile row if anything failed.
+        //
+        // 'behavior_signals' was renamed to 'behavior_events' (kept as a
+        // literal error before this fix). 'habit_logs' is excluded: SELECT
+        // succeeds against it via the service-role key but DELETE
+        // consistently fails with PostgREST's "table not found in schema
+        // cache" — a DB-level grants gap, not a naming issue; needs a
+        // DBA/migration fix rather than an app-code guess at GRANT statements.
         const leafTables = [
             'weekly_reviews',
             'coach_messages',     // must come before coach_conversations (FK)
             'memory_facts',
-            'behavior_signals',
+            'behavior_events',
             'ai_proposals',
             'daily_logs',
-            'habit_logs',         // must come before habit_stacks (FK)
-
             'session_bindings',
         ];
 
+        const failures: string[] = [];
         for (const table of leafTables) {
-            try {
-                await supabase.from(table).delete().eq('user_id', uid);
-            } catch (e) {
-                console.warn(`[Delete] Failed to clear ${table}:`, e);
-            }
+            const { error } = await supabase.from(table).delete().eq('user_id', uid);
+            if (error) { console.error(`[Delete] Failed to clear ${table}:`, error); failures.push(table); }
         }
 
         // Phase 2: Parent tables (after their children are gone)
@@ -94,11 +106,15 @@ export const DELETE = secureApiRoute(
         ];
 
         for (const table of parentTables) {
-            try {
-                await supabase.from(table).delete().eq('user_id', uid);
-            } catch (e) {
-                console.warn(`[Delete] Failed to clear ${table}:`, e);
-            }
+            const { error } = await supabase.from(table).delete().eq('user_id', uid);
+            if (error) { console.error(`[Delete] Failed to clear ${table}:`, error); failures.push(table); }
+        }
+
+        if (failures.length > 0) {
+            return apiError(
+                `Data deletion could not be completed safely — ${failures.length} table(s) failed to clear (${failures.join(', ')}). No profile data was removed.`,
+                500
+            );
         }
 
         // Phase 3: Profile (root — must be last)
@@ -125,5 +141,5 @@ export const DELETE = secureApiRoute(
 
         return apiSuccess({ success: true, message: 'All your data has been deleted.' });
     },
-    { requireAuth: true, auditAction: 'data_delete' }
+    { requireAuth: true, auditAction: 'data_delete', rateLimit: 'userStrict' }
 );

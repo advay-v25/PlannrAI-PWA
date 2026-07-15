@@ -210,6 +210,18 @@ function sortWindowsByPreference(
         if (timeFocus === 'morning') return a.start - b.start;
         if (timeFocus === 'afternoon') return Math.abs(a.start - 780) - Math.abs(b.start - 780);
         if (timeFocus === 'evening') return b.start - a.start;
+        // Weekday Sprint's real identity isn't a time-of-day preference at
+        // all (unlike morning/afternoon/evening) — it's day-of-week
+        // concentration, already handled by the Mon-Thu day-bucket sort
+        // above. But leaving window-level ordering unhandled here meant it
+        // silently fell through to the same pillar-based default Peak Hour
+        // Blitz uses, which under abundant capacity converges to a
+        // byte-identical schedule (day order alone doesn't change the final
+        // block set once every day has room). Bias toward later-in-day
+        // slots — "grinding through Mon-Thu" rather than Blitz's strict
+        // early-morning clustering — so the two variants stay genuinely
+        // distinct even when nothing is capacity-constrained.
+        if (timeFocus === 'weekday') return b.start - a.start;
 
         if (pillar === 'mind') return a.start - b.start;
         if (pillar === 'body') {
@@ -272,6 +284,70 @@ function computeWindowAnchorStart(
 
 function slugify(label: string): string {
     return label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
+}
+
+/**
+ * How many minutes of this goal are actually left to schedule this week.
+ * Single source of truth shared by the main per-goal placement loop and the
+ * body-pillar day-lane apportionment (which runs before that loop) — they
+ * must never compute this independently or the lane math can drift out of
+ * sync with what the main loop actually tries to place.
+ */
+function computeRemainingWeeklyMins(
+    goal: any,
+    ctx: CalendarContext,
+    replanFromDate?: string
+): number {
+    const progress = ctx.goalProgress?.find(p => p.goal_id === goal.id);
+    const remainingMins = progress ? progress.remaining_minutes : (goal.days_per_week || 5) * (goal.minutes_per_day || 60);
+    if (!replanFromDate) return remainingMins;
+    const targetMins = (goal.days_per_week || 5) * (goal.minutes_per_day || 60);
+    const minsBeforeReplan = ctx.schedule.this_week
+        .filter(b => b.goal_id === goal.id && b.date < replanFromDate && b.status !== 'cancelled' && b.status !== 'missed')
+        .reduce((sum, b) => {
+            const duration = timeToMinutes(b.end_time) - timeToMinutes(b.start_time);
+            return sum + Math.max(0, duration);
+        }, 0);
+    return Math.max(0, targetMins - minsBeforeReplan);
+}
+
+/**
+ * Largest Remainder Method: apportions `totalSlots` integer slots across
+ * `needs` proportionally to each entry's `need`, capped so no entry ever
+ * receives more than its own `need`. Used to split a week's body-pillar
+ * "1 block/day" slots fairly between competing body goals when their
+ * combined need exceeds what the week can hold.
+ */
+function largestRemainderApportion(
+    needs: Array<{ id: string; need: number }>,
+    totalSlots: number
+): Map<string, number> {
+    const totalNeed = needs.reduce((s, n) => s + n.need, 0);
+    const quotas = new Map<string, number>();
+    if (totalNeed === 0) {
+        needs.forEach(n => quotas.set(n.id, 0));
+        return quotas;
+    }
+    const entries = needs.map(n => {
+        const exact = totalSlots * n.need / totalNeed;
+        return { id: n.id, need: n.need, floor: Math.floor(exact), frac: exact - Math.floor(exact) };
+    });
+    entries.forEach(e => quotas.set(e.id, Math.min(e.floor, e.need)));
+    let remainder = totalSlots - entries.reduce((s, e) => s + quotas.get(e.id)!, 0);
+    const byFracDesc = [...entries].sort((a, b) => b.frac - a.frac);
+    let idx = 0;
+    let safety = 0;
+    while (remainder > 0 && safety < byFracDesc.length * 3) {
+        const e = byFracDesc[idx % byFracDesc.length];
+        const current = quotas.get(e.id)!;
+        if (current < e.need) {
+            quotas.set(e.id, current + 1);
+            remainder--;
+        }
+        idx++;
+        safety++;
+    }
+    return quotas;
 }
 
 /**
@@ -554,7 +630,15 @@ export async function generateWeekPlan(
     } else if (mode === 'momentum') {
         // MOMENTUM MODE: Output Maximization
         variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Peak Hour Blitz', 'Zero buffers, hard goals clustered at chronotype peak (usually 9am-12pm). High intensity, high output.', 'Attack your peak energy.', false, false, protocolConfig, 'morning', replanFromDate));
-        variants.push(generateVariant(context, weekStartDate, false, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Weekday Sprint', 'Compress hard goals Mon-Thu with back-to-back blocks and minimal buffers; Fri-Sun are lighter or off.', 'Sprint mode: full throttle Mon-Thu.', false, false, protocolConfig, 'weekday', replanFromDate));
+        // NOTE: previously hardcoded `false` here, permanently locking this
+        // variant out of weekends regardless of the user's real Weekend Work
+        // setting or how much was left unfulfilled. `timeFocus:'weekday'`'s
+        // day-sort is day-number-dominated (Mon tried before Sun in every
+        // pass, including fully-relaxed ones), so "Fri-Sun lighter" still
+        // emerges naturally as the first preference — weekends now remain
+        // available as real overflow capacity instead of being categorically
+        // excluded.
+        variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'momentum', 'Weekday Sprint', 'Compress hard goals Mon-Thu with back-to-back blocks and minimal buffers; Fri-Sun are lighter unless needed to fully cover your goals.', 'Sprint mode: full throttle Mon-Thu.', false, false, protocolConfig, 'weekday', replanFromDate));
     } else if (mode === 'recovery') {
         // RECOVERY MODE: Sustainable Pace
         variants.push(generateVariant(context, weekStartDate, allowWeekend, wakeMins, windDownMins, bioTemplates, commitmentsByDay, 'recovery', 'Spaced Mindfulness', '120-min gaps between sessions for mental reset and genuine recovery. Max 2 blocks/day.', 'Slow and steady wins.', false, false, protocolConfig, undefined, replanFromDate));
@@ -760,23 +844,72 @@ function generateVariant(
         ? phases.map(p => p.name === 'trough' ? { ...p, allowed_energy: ['low'] as Array<'high' | 'medium' | 'low'> } : p)
         : phases;
 
-    for (const goal of sortedGoals) {
-        // NEW: Progress-aware scheduling. How much is ACTUALLY left to do?
-        const progress = ctx.goalProgress?.find(p => p.goal_id === goal.id);
-        const remainingMins = progress ? progress.remaining_minutes : (goal.days_per_week || 5) * (goal.minutes_per_day || 60);
-        
-        let remainingWeeklyMins = remainingMins;
-        if (replanFromDate) {
-            const targetMins = (goal.days_per_week || 5) * (goal.minutes_per_day || 60);
-            const minsBeforeReplan = ctx.schedule.this_week
-                .filter(b => b.goal_id === goal.id && b.date < replanFromDate && b.status !== 'cancelled' && b.status !== 'missed')
-                .reduce((sum, b) => {
-                    const duration = timeToMinutes(b.end_time) - timeToMinutes(b.start_time);
-                    return sum + Math.max(0, duration);
-                }, 0);
-            remainingWeeklyMins = Math.max(0, targetMins - minsBeforeReplan);
+    // Body-pillar goals share a single "1 body block per day" slot (avoids
+    // stacking two tough physical sessions on the same day). With only one
+    // body goal that's a non-issue, but with 2+, the week's eligible days
+    // must be apportioned between them based on how much each ACTUALLY still
+    // needs — not by goal identity/sort order, which used to let whichever
+    // goal sorted first permanently lock a fixed day-lane regardless of
+    // whether it still needed all of it, starving a hungrier goal even after
+    // a mid-week replan shrank the first goal's remaining work.
+    const bodyGoalDayQuota = new Map<string, Set<number>>();
+    {
+        const eligibleDays = allowWeekend ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5];
+        const bodyGoals = sortedGoals
+            .filter(g => g.pillar === 'body')
+            .map(g => ({
+                id: g.id,
+                targetPerDay: Math.max(1, g.minutes_per_day || 60),
+                remaining: computeRemainingWeeklyMins(g, ctx, replanFromDate),
+            }));
+
+        if (bodyGoals.length > 1) {
+            const needs = bodyGoals.map(g => ({
+                id: g.id,
+                need: Math.min(eligibleDays.length, Math.ceil(g.remaining / g.targetPerDay)),
+            }));
+            const totalNeed = needs.reduce((s, n) => s + n.need, 0);
+
+            if (totalNeed > eligibleDays.length) {
+                // Genuine contention: no day-splitting scheme can give every
+                // goal every day it wants, so apportion the week's slots
+                // proportionally to need (capped per-goal at its own need),
+                // then hand out days via greedy fair-queueing — repeatedly
+                // give the next day to whichever under-quota goal has used
+                // the smallest fraction of its quota so far. This spreads
+                // each goal's days evenly through the week instead of
+                // clumping them at the start or end.
+                const quotas = largestRemainderApportion(needs, eligibleDays.length);
+                const assigned = new Map<string, number>();
+                for (const n of needs) { assigned.set(n.id, 0); bodyGoalDayQuota.set(n.id, new Set()); }
+                for (const day of eligibleDays) {
+                    let bestId: string | null = null;
+                    let bestRatio = Infinity;
+                    for (const n of needs) {
+                        const quota = quotas.get(n.id) || 0;
+                        const used = assigned.get(n.id)!;
+                        if (used >= quota) continue;
+                        const ratio = quota > 0 ? used / quota : Infinity;
+                        if (ratio < bestRatio) { bestRatio = ratio; bestId = n.id; }
+                    }
+                    if (!bestId) continue; // every goal already at its quota
+                    bodyGoalDayQuota.get(bestId)!.add(day);
+                    assigned.set(bestId, assigned.get(bestId)! + 1);
+                }
+            }
+            // else: totalNeed <= eligibleDays.length — no contention this
+            // week, leave the map empty for these goals (unrestricted); each
+            // goal's own remainingWeeklyMins stopping condition already caps
+            // it at exactly what it needs, so no lane is required.
         }
-        
+    }
+
+    for (const goal of sortedGoals) {
+        // Progress-aware scheduling: how much is ACTUALLY left to do this
+        // week, shared with the body-lane computation above so they can't
+        // drift out of sync with each other.
+        let remainingWeeklyMins = computeRemainingWeeklyMins(goal, ctx, replanFromDate);
+
         if (remainingWeeklyMins <= 0) continue; // Goal already reached for the week!
 
         const targetMinsPerDay = goal.minutes_per_day || 60;
@@ -806,13 +939,24 @@ function generateVariant(
             });
         } else if (timeFocus === 'weekday') {
             // Shared by Momentum's "Weekday Sprint" and Balanced's "Workday Focus":
-            // both want a genuine Mon-heavy concentration, not just "not weekend".
+            // both want a genuine Mon-Thu-heavy concentration, not just "not
+            // weekend" — bucket Mon-Thu before Fri-Sun explicitly (mirroring
+            // the 'weekend' branch above), THEN load-balance within each
+            // bucket. A pure `day*1000 + load` weight (the old formula) lets
+            // day-number dominate so completely that it converges on the
+            // same order as a plain least-loaded-day sort once every day
+            // ends up with blocks — collapsing this variant's identity into
+            // Peak Hour Blitz's whenever the week fills up. The explicit
+            // bucket keeps Mon-Thu genuinely preferred while still allowing
+            // Fri-Sun as real overflow capacity once Mon-Thu is exhausted.
             preferredDays.sort((a, b) => {
+                const aIsCore = a <= 4 ? 0 : 1;
+                const bIsCore = b <= 4 ? 0 : 1;
+                if (aIsCore !== bIsCore) return aIsCore - bIsCore;
                 const loadA = workloadPerDay.get(a) || 0;
                 const loadB = workloadPerDay.get(b) || 0;
-                const weightA = a * 1000 + loadA;
-                const weightB = b * 1000 + loadB;
-                return weightA - weightB;
+                if (loadA !== loadB) return loadA - loadB;
+                return a - b;
             });
         } else if (strategyId === 'momentum') {
             // Peak Hour Blitz (timeFocus='morning'): no day-of-week concentration
@@ -874,6 +1018,14 @@ function generateVariant(
                     if (blocksThisDayForGoal.length > 0) continue;
                     const otherBodyBlocks = blocks.filter(b => b.date === dateStr && b.pillar === 'body' && b.goal_id !== goal.id);
                     if (otherBodyBlocks.length > 0) continue;
+                    // With 2+ competing body goals, "1 body block per day globally"
+                    // means whichever goal sorts first can claim every day of the
+                    // week before a second body goal ever gets a turn — total,
+                    // permanent starvation, not just same-day avoidance. Give each
+                    // body goal its own round-robin lane of days in the early
+                    // (strict) passes; later passes fall back to whatever's left.
+                    const bodyLane = bodyGoalDayQuota.get(goal.id);
+                    if (bodyLane && !bodyLane.has(isoDay)) continue;
                 } else {
                     // Mind/craft goals:
                     // Only restrict max 2 blocks per day in Pass 0 (Strict) to preserve strategy
@@ -895,8 +1047,13 @@ function generateVariant(
                     if (!dayCap.hasBlockRoom || dayCap.minutesHeadroom <= 0) continue;
                     remainingToPlace = Math.min(remainingToPlace, dayCap.minutesHeadroom);
                 }
-                
-                if (remainingToPlace < 30 && goal.pillar !== 'body') continue;
+
+                // The 30-min anti-fragmentation floor must not exceed the goal's
+                // OWN daily target — a 15min/day meditation goal is never going
+                // to clear a hardcoded 30min bar and would be permanently
+                // unplaceable otherwise.
+                const minBlockFloor = Math.min(30, targetMinsPerDay);
+                if (remainingToPlace < minBlockFloor && goal.pillar !== 'body') continue;
                 if (goal.pillar === 'body' && !isRelaxedDayCaps && dayCap.minutesHeadroom < remainingToPlace) continue;
 
                 // Build exclusions and wind down...
@@ -1001,7 +1158,7 @@ function generateVariant(
                     let winEnd = win.end;
                     let availableInWin = winEnd - winStart;
 
-                    while (remainingToPlace > 0 && availableInWin >= 30) {
+                    while (remainingToPlace > 0 && availableInWin >= minBlockFloor) {
                         const dayCapNow = getDayCapacity(isoDay, goalBlockCountPerDay, workloadPerDay, effectiveCaps);
                         if (!isRelaxedDayCaps) {
                             if (!dayCapNow.hasBlockRoom || dayCapNow.minutesHeadroom <= 0) break;
@@ -1064,7 +1221,7 @@ function generateVariant(
                             }
                         }
 
-                        if (minsToPlace < 30) break;
+                        if (minsToPlace < minBlockFloor) break;
 
                         let buffer = protocolConfig?.bufferMinutes ?? getBufferMinutes(strategyId, goalTimeFocus, (ctx.user as any).default_buffer_duration);
                         if (isRelaxedBuffer) {
@@ -1126,11 +1283,129 @@ function generateVariant(
         }
     }
 
-    // Phase 2: Bonus Fill — REMOVED
-    // Previously, this loop kept cramming additional blocks for each goal into every
-    // free window, causing goals set to 90 min/day to fill 5-6 slots per day.
-    // Each goal is now placed exactly once per day (at minutes_per_day duration)
-    // up to days_per_week times. No bonus blocks.
+    // Phase 2: Bounded, capacity-aware top-up pass.
+    //
+    // A prior "Bonus Fill" pass here was removed for repeatedly over-cramming
+    // already-satisfied goals (5-6 blocks/day for a goal that wanted 1). This
+    // replacement is deliberately narrow, with each guard answering directly
+    // why that one was reverted:
+    //  - only iterates goals still present in `unscheduled_minutes` with a
+    //    real shortfall — a goal the main loop fully placed is never touched;
+    //  - capped at exactly that goal's own remaining shortfall, never a
+    //    separate bonus budget;
+    //  - only runs when the week is confirmed NOT overcommitted
+    //    (`ctx.capacity.is_overcommitted === false`) and the total shortfall
+    //    clears a minimum threshold — skipped entirely for rounding noise or
+    //    a genuinely tight week;
+    //  - single goal-minor sweep (day-outer, under-filled-goal-inner) rather
+    //    than the main loop's goal-major structure, so one goal can't
+    //    monopolize the sweep before others get a turn — and single-chunk
+    //    placement only (no splinter/session-pacing logic), since this is a
+    //    small residual mop-up, not a second full placement engine.
+    // Body-pillar goals still respect the "1 block/day globally" fatigue
+    // rule and their day-lane from the apportionment above — this pass finds
+    // genuinely idle capacity elsewhere in the week, it does not relax
+    // practical constraints to manufacture room that isn't really there.
+    if (ctx.capacity.is_overcommitted === false) {
+        const shortfallGoals = sortedGoals.filter(g => (unscheduled_minutes[g.title] || 0) > 0);
+        const totalShortfall = shortfallGoals.reduce((s, g) => s + (unscheduled_minutes[g.title] || 0), 0);
+        const topUpThreshold = Math.max(15, totalWeeklyMinsNeeded * 0.02);
+
+        if (totalShortfall >= topUpThreshold) {
+            const topUpDays = [1, 2, 3, 4, 5, 6, 7];
+            for (const isoDay of topUpDays) {
+                const isWeekend = isoDay >= 6;
+                if (!allowWeekend && isWeekend) continue;
+                const dateStr = format(addDays(parseISO(weekStart), isoDay - 1), 'yyyy-MM-dd');
+                if (replanFromDate && dateStr < replanFromDate) continue;
+
+                for (const goal of shortfallGoals) {
+                    const remaining = unscheduled_minutes[goal.title] || 0;
+                    if (remaining <= 0) continue;
+
+                    const goalEnergy = ((goal.energy_demand || 'medium').toLowerCase()) as 'low' | 'medium' | 'high';
+                    const targetMinsPerDay = goal.minutes_per_day || 60;
+                    const blocksThisDayForGoal = blocks.filter(b => b.date === dateStr && b.goal_id === goal.id);
+
+                    if (goal.pillar === 'body') {
+                        if (blocksThisDayForGoal.length > 0) continue;
+                        const otherBodyBlocks = blocks.filter(b => b.date === dateStr && b.pillar === 'body' && b.goal_id !== goal.id);
+                        if (otherBodyBlocks.length > 0) continue;
+                        const bodyLane = bodyGoalDayQuota.get(goal.id);
+                        if (bodyLane && !bodyLane.has(isoDay)) continue;
+                    } else if (blocksThisDayForGoal.length >= 2) {
+                        continue; // don't cram a 3rd+ block for the same goal on the same day even in top-up
+                    }
+
+                    const scheduledToday = blocksThisDayForGoal.reduce((s, b) => s + (timeToMinutes(b.end_time) - timeToMinutes(b.start_time)), 0);
+                    const remainingMinsForDayCap = Math.max(0, targetMinsPerDay - scheduledToday);
+                    if (remainingMinsForDayCap <= 0) continue;
+                    const toPlace = Math.min(remaining, remainingMinsForDayCap);
+                    const minBlockFloor = Math.min(30, targetMinsPerDay);
+                    // Below the anti-fragmentation floor: a handful of scattered
+                    // <30min slivers across the week isn't worth creating even
+                    // as a last-resort top-up — same floor concept as the main
+                    // loop's, deliberately NOT relaxed here.
+                    if (toPlace < minBlockFloor && goal.pillar !== 'body') continue;
+
+                    const dayWindDown = (isWeekend && weekendIntensity === 'light')
+                        ? Math.min(LIGHT_WEEKEND_CUTOFF, windDownMins)
+                        : windDownMins;
+                    const effectiveDayWindDown = Math.max(wakeMins, dayWindDown - (goalEnergy === 'low' ? 0 : 15));
+                    const dayExclusions = exclusions.get(isoDay)!;
+                    dayExclusions.sort((a, b) => a.start - b.start);
+
+                    let windows: Array<{ start: number; end: number }> = [];
+                    let cursor = wakeMins;
+                    for (const ex of dayExclusions) {
+                        let exEnd = ex.end;
+                        if (ex.type === 'meal' && (goal.pillar === 'body' || goalEnergy === 'high')) exEnd += 45;
+                        if (cursor < ex.start) windows.push({ start: cursor, end: ex.start });
+                        cursor = Math.max(cursor, exEnd);
+                    }
+                    if (cursor < effectiveDayWindDown) windows.push({ start: cursor, end: effectiveDayWindDown });
+                    windows = windows.filter(w => w.end > w.start);
+
+                    // Single-chunk only: place as much of `toPlace` as fits in the
+                    // single largest window — never split across multiple windows
+                    // in the same day, that's the main loop's job, not this pass's.
+                    const goalTimeFocus = (goal.preferred_time_of_day && goal.preferred_time_of_day !== ('flexible' as any))
+                        ? goal.preferred_time_of_day
+                        : timeFocus;
+                    const buffer = getBufferMinutes(strategyId, goalTimeFocus, (ctx.user as any).default_buffer_duration);
+                    let bestWindow: { start: number; end: number } | null = null;
+                    for (const w of windows) {
+                        const avail = w.end - w.start;
+                        if (avail < minBlockFloor + buffer) continue;
+                        if (!bestWindow || avail > (bestWindow.end - bestWindow.start)) bestWindow = w;
+                    }
+                    if (!bestWindow) continue;
+
+                    const placedMins = Math.min(toPlace, (bestWindow.end - bestWindow.start) - buffer);
+                    if (placedMins <= 0 || (placedMins < minBlockFloor && goal.pillar !== 'body')) continue;
+
+                    const start = bestWindow.start;
+                    blocks.push({
+                        date: dateStr,
+                        start_time: minutesToTime(start),
+                        end_time: minutesToTime(start + placedMins),
+                        title: goal.title,
+                        block_type: 'goal',
+                        goal_id: goal.id,
+                        pillar: goal.pillar,
+                        energy_demand: goalEnergy,
+                        checklist: goal.ai_strategy?.checklist || [{ text: 'Focus session' }, { text: 'Review progress' }],
+                    });
+                    dayExclusions.push({ start, end: start + placedMins + buffer, title: goal.title, type: 'goal' });
+                    recordGoalBlockPlacement(isoDay, placedMins, goalBlockCountPerDay, workloadPerDay);
+
+                    const newRemaining = Math.max(0, remaining - placedMins);
+                    if (newRemaining <= 0) delete unscheduled_minutes[goal.title];
+                    else unscheduled_minutes[goal.title] = newRemaining;
+                }
+            }
+        }
+    }
 
     const finalBlocks = blocks;
 

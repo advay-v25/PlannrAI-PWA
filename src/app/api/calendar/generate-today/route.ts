@@ -54,26 +54,20 @@ export const POST = secureApiRoute(
                 .eq('date', targetDate)
                 .order('start_time');
 
-            // If >3 blocks exist and user didn't force regeneration, warn them
+            // If >3 blocks exist and the caller didn't pass force, warn instead of
+            // generating — force here only means "generate a plan anyway despite
+            // existing blocks", NOT "delete anything". This endpoint never writes
+            // to schedule_blocks: it is a pure preview generator. The caller must
+            // review the returned option and explicitly apply it via
+            // /api/calendar/apply-schedule (which snapshots for undo and protects
+            // anchors/locked blocks) before anything is persisted.
             if (!force && existingBlocks && existingBlocks.length > 3) {
                 return apiSuccess({
-                    message: 'You already have a schedule for today. Use force=true to clear and regenerate.',
+                    message: 'You already have a schedule for today. Use force=true to generate anyway.',
                     has_existing: true,
                     blocks_count: existingBlocks.length,
                     options: []
                 });
-            }
-
-            // If force=true and existing blocks, clear ALL of them for a clean slate
-            if (force && existingBlocks && existingBlocks.length > 0) {
-                const blockIds = existingBlocks.map((b: any) => b.id);
-                if (blockIds.length > 0) {
-                    await supabase
-                        .from('schedule_blocks')
-                        .delete()
-                        .in('id', blockIds)
-                        .eq('user_id', userId);
-                }
             }
 
             // 2. Compute energy phases for this user's chronotype
@@ -594,42 +588,13 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
 
             const finalBlocks = flowValidation.fixedBlocks;
 
-            // 8. Auto-apply when force=true — write directly to schedule_blocks
-            let appliedCount = 0;
-            if (force && finalBlocks.length > 0) {
-                const blocksToInsert = finalBlocks.map((b: any) => ({
-                    ...b,
-                    user_id: userId,
-                    status: b.status || 'planned',
-                }));
-
-                const { data: inserted, error: insertError } = await supabase
-                    .from('schedule_blocks')
-                    .insert(blocksToInsert)
-                    .select('id');
-
-                if (insertError) {
-                    console.error('[GenerateToday] Auto-apply insert failed:', insertError);
-                } else {
-                    appliedCount = inserted?.length || 0;
-                    console.log(`[GenerateToday] Auto-applied ${appliedCount} blocks for ${targetDate}`);
-                }
-
-                // Clear needs_rescheduling flag after successful generation
-                try {
-                    const { data: profile } = await supabase.from('profiles').select('bio_data').eq('id', userId).single();
-                    if (profile) {
-                        const bioData = (profile.bio_data as any) || {};
-                        if (bioData.needs_rescheduling) {
-                            await supabase.from('profiles').update({
-                                bio_data: { ...bioData, needs_rescheduling: false }
-                            }).eq('id', userId);
-                        }
-                    }
-                } catch (e) { /* non-blocking */ }
-            }
-
-            // 9. Return as a single option (also usable for manual apply)
+            // 8. Return as a single option for the caller to review — this
+            // endpoint performs ZERO writes. The caller must POST the returned
+            // patch to /api/calendar/apply-schedule (after explicit user
+            // confirmation) to actually persist anything. This also means
+            // existing blocks for the date are never touched here; apply-schedule
+            // is solely responsible for clearing/replacing them, and it already
+            // protects anchors and user-locked blocks when it does.
             const option = {
                 id: 'today_schedule',
                 label: `${dayName} Schedule`,
@@ -648,7 +613,6 @@ ${ctx.performance.last_7_days_completion_rate < 50 ? '⚠️ LOW COMPLETION — 
             return apiSuccess({
                 plan_summary: summary,
                 options: [option],
-                auto_applied: force ? appliedCount : 0,
                 warnings: flowValidation.violations.map(v => `${v.block_title}: ${v.violation}`),
             });
 
