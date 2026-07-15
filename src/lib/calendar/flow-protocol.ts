@@ -66,14 +66,21 @@ export function computeDayPhases(
     };
 
     const offset = chronoOffset[chronotype.toLowerCase()] || 0;
-    const windDownMinutes = sleepMinutes - 30; // 30 min before sleep
+
+    // Normalize sleep onto a continuous wake-to-sleep timeline FIRST. A
+    // bedtime at or before wake time (e.g. wake 07:00, sleep 00:00) is past
+    // midnight and must be treated as wake + ~17h, not as an earlier clock
+    // minute — computing windDownMinutes from the raw clock value before
+    // this normalization previously went negative for any such bedtime,
+    // which clamped every phase boundary below it and silently produced
+    // zero phases for the whole day.
+    let actualSleepMinutes = sleepMinutes;
+    if (actualSleepMinutes <= wakeMinutes) {
+        actualSleepMinutes += 1440; // Add 24 hours
+    }
+    const windDownMinutes = actualSleepMinutes - 30; // 30 min before sleep
 
     // VALIDATION: Ensure wake and sleep times make sense (within 16-20 hours)
-    let actualSleepMinutes = sleepMinutes;
-    if (sleepMinutes < wakeMinutes) {
-        // Sleep time is past midnight (e.g., sleep at 1am = 60 mins)
-        actualSleepMinutes = sleepMinutes + 1440; // Add 24 hours
-    }
     const awakeHours = (actualSleepMinutes - wakeMinutes) / 60;
     if (awakeHours < 16 || awakeHours > 20) {
         // Log warning but don't fail - could be valid edge case (shift worker)

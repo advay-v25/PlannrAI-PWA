@@ -101,6 +101,15 @@ export function scoreWindowAffinity(
     if (!phase.allowed_energy.includes(goalEnergy)) return 0.5;
     if (goalEnergy === 'high' && (phase.name === 'peak' || phase.name === 'rebound')) return 2.0;
     if (goalEnergy === 'low' && (phase.name === 'trough' || phase.name === 'wind_down')) return 2.0;
+    // 'medium' is the most common real-world energy_demand value — without its
+    // own differentiation every window scored a flat 1.0, which made
+    // "Energy-Synced" placement indistinguishable from a plain chronological
+    // sort for the majority of goals (its whole premise is a no-op if the
+    // primary sort key never varies). Give it a real, if milder than high/low,
+    // preference: peak/rebound are still meaningfully better than a post-lunch
+    // trough dip even for moderate-demand work.
+    if (goalEnergy === 'medium' && (phase.name === 'peak' || phase.name === 'rebound')) return 1.5;
+    if (goalEnergy === 'medium' && phase.name === 'trough') return 0.85;
     return 1.0;
 }
 

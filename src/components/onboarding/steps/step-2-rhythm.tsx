@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOnboardingStore } from '@/stores';
+import { CHRONOTYPE_ARCHETYPES } from '@/lib/chronotype';
 
 export function Step2Rhythm() {
     const { data, updateData } = useOnboardingStore();
@@ -140,21 +141,16 @@ export function Step2Rhythm() {
                     </div>
                 </div>
 
-                {/* ⏰ CHRONOTYPE */}
+                {/* ⏰ ARCHETYPE */}
                 <div className="space-y-6 bg-[var(--glass-bg)] border border-[var(--glass-border)] p-7 rounded-3xl backdrop-blur-md shadow-lg">
                     <div className="flex items-center gap-3 text-lg font-bold text-[var(--text-primary)] uppercase tracking-widest border-b border-[var(--glass-border)] pb-4">
-                        <span className="text-2xl drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">⏰</span> ENERGY TYPE
+                        <span className="text-2xl drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">⏰</span> ARCHETYPE
                     </div>
 
                     <div className="space-y-3">
                         <label className="text-[10px] font-bold tracking-widest text-[var(--text-primary)]/50 uppercase ml-1">When are you sharpest?</label>
                         <div className="grid grid-cols-2 gap-2.5">
-                            {[
-                                { id: 'lark', label: 'Early Bird', hint: 'Sharpest right after waking' },
-                                { id: 'bear', label: 'Standard', hint: 'Peak mid-morning to early afternoon' },
-                                { id: 'owl', label: 'Night Owl', hint: 'Peak late afternoon to evening' },
-                                { id: 'wolf', label: 'Very Late', hint: 'Slow start, sharpest at night' },
-                            ].map((opt) => (
+                            {CHRONOTYPE_ARCHETYPES.map((opt) => (
                                 <button
                                     key={opt.id}
                                     type="button"

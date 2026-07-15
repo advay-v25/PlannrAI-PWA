@@ -21,16 +21,97 @@ interface WeekGridProps {
 const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 6am - 11pm
 const CELL_HEIGHT = 120;
 
-// Pillar colors using CSS variables for consistency across pages
-const PILLAR_COLORS: Record<string, { bg: string; border: string; text: string; metaText: string; dot: string; glow: string }> = {
-    mind:    { bg: '[background:linear-gradient(135deg,_var(--color-mind)/30_0%,_var(--color-mind)/15_100%)] dark:[background:linear-gradient(135deg,_var(--color-mind)/12_0%,_var(--color-mind)/6_100%)]', border: 'border-[var(--color-mind)]/40 dark:border-[var(--color-mind)]/20', text: 'text-[var(--text-primary)] dark:text-[var(--color-mind)]/90', metaText: 'text-[var(--text-secondary)] dark:text-[var(--color-mind)]/70', dot: 'bg-[var(--color-mind)] dark:bg-[var(--color-mind)]', glow: 'block-glow-mind dark:block-glow-mind' },
-    body:    { bg: '[background:linear-gradient(135deg,_var(--color-body)/30_0%,_var(--color-body)/15_100%)] dark:[background:linear-gradient(135deg,_var(--color-body)/12_0%,_var(--color-body)/6_100%)]', border: 'border-[var(--color-body)]/40 dark:border-[var(--color-body)]/20', text: 'text-[var(--text-primary)] dark:text-[var(--color-body)]/90', metaText: 'text-[var(--text-secondary)] dark:text-[var(--color-body)]/70', dot: 'bg-[var(--color-body)] dark:bg-[var(--color-body)]', glow: 'block-glow-body dark:block-glow-body' },
-    craft:   { bg: '[background:linear-gradient(135deg,_var(--color-craft)/30_0%,_var(--color-craft)/15_100%)] dark:[background:linear-gradient(135deg,_var(--color-craft)/12_0%,_var(--color-craft)/6_100%)]', border: 'border-[var(--color-craft)]/40 dark:border-[var(--color-craft)]/20', text: 'text-[var(--text-primary)] dark:text-[var(--color-craft)]/90', metaText: 'text-[var(--text-secondary)] dark:text-[var(--color-craft)]/70', dot: 'bg-[var(--color-craft)] dark:bg-[var(--color-craft)]', glow: 'block-glow-craft dark:block-glow-craft' },
-    anchor:  { bg: 'bg-zinc-400/35 dark:bg-zinc-700/30', border: 'border-zinc-500/40 dark:border-zinc-500/15', text: 'text-[var(--text-primary)] dark:text-zinc-300', metaText: 'text-[var(--text-secondary)] dark:text-zinc-400', dot: 'bg-zinc-500 dark:bg-zinc-500', glow: 'block-glow-anchor dark:block-glow-anchor' },
-    meal:    { bg: '[background:linear-gradient(135deg,_var(--color-meal)/30_0%,_var(--color-meal)/15_100%)] dark:[background:linear-gradient(135deg,_var(--color-meal)/20_0%,_var(--color-meal)/10_100%)]', border: 'border-[var(--color-meal)]/40 dark:border-[var(--color-meal)]/30', text: 'text-[var(--text-primary)] dark:text-[var(--color-meal)]', metaText: 'text-[var(--text-secondary)] dark:text-[var(--color-meal)]/80', dot: 'bg-[var(--color-meal)] dark:bg-[var(--color-meal)]', glow: 'block-glow-meal dark:block-glow-meal' },
-    sleep:   { bg: 'bg-slate-400/35 dark:bg-[var(--glass-bg)]', border: 'border-slate-400/40 dark:border-[var(--glass-border)]', text: 'text-[var(--text-primary)] dark:text-[var(--text-tertiary)]', metaText: 'text-[var(--text-secondary)] dark:text-[var(--text-tertiary)]', dot: 'bg-slate-500 dark:bg-[var(--glass-bg)]', glow: '' },
-    break:   { bg: 'bg-transparent dark:bg-transparent', border: 'border-[var(--glass-border)]', text: 'text-[var(--text-secondary)] dark:text-[var(--text-tertiary)]', metaText: 'text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]', dot: 'bg-zinc-400 dark:bg-white/20', glow: '' },
-    default: { bg: '[background:linear-gradient(135deg,_var(--color-mind)/25_0%,_var(--color-mind)/12_100%)] dark:[background:linear-gradient(135deg,_var(--color-mind)/10_0%,_var(--color-mind)/5_100%)]', border: 'border-[var(--color-mind)]/40 dark:border-[var(--color-mind)]/20', text: 'text-[var(--text-primary)] dark:text-[var(--color-mind)]/90', metaText: 'text-[var(--text-secondary)] dark:text-[var(--color-mind)]/70', dot: 'bg-[var(--color-mind)] dark:bg-[var(--color-mind)]', glow: 'block-glow-routine dark:block-glow-routine' },
+// Pillar colors using CSS variables for consistency across pages.
+//
+// Each colored block gets a layered "satin" treatment instead of a flat
+// tint: a diagonal glass-sheen streak (rgba white, fades in/out) stacked
+// over a richer color wash, plus a solid 3px accent stripe on the leading
+// edge (`edge`) so the pillar is unambiguous even before reading the tint —
+// this is what keeps visually-close hues (e.g. meal vs. craft) from being
+// confused with each other, on top of the hue separation in globals.css.
+//
+// IMPORTANT: these must be fully-literal strings, not built via template
+// interpolation of a color variable — Tailwind's build-time scanner only
+// picks up class names it can find as literal text in the source, so a
+// helper like `` `border-[${cssVar}]/55` `` would silently compile to
+// nothing. Also note `var(--x)/NN` opacity shorthand only works on
+// Tailwind's own color utilities (e.g. `border-[var(--x)]/55`) — inside a
+// raw arbitrary `[background:...]` property it is NOT valid CSS and
+// silently drops the whole declaration, so those use color-mix() instead
+// (the same technique Tailwind itself compiles that shorthand down to).
+const PILLAR_COLORS: Record<string, { bg: string; border: string; text: string; metaText: string; dot: string; glow: string; edge: string }> = {
+    mind: {
+        bg: '[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.55)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-mind)_38%,_transparent)_0%,_color-mix(in_oklab,_var(--color-mind)_18%,_transparent)_100%)] dark:[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.10)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-mind)_16%,_transparent)_0%,_color-mix(in_oklab,_var(--color-mind)_7%,_transparent)_100%)]',
+        border: 'border-[var(--color-mind)]/55 dark:border-[var(--color-mind)]/32',
+        text: 'text-[var(--text-primary)] dark:text-white',
+        metaText: 'text-[var(--text-secondary)] dark:text-white/70',
+        dot: 'bg-[var(--color-mind)] dark:bg-[var(--color-mind)]',
+        edge: 'shadow-[inset_3px_0_0_0_var(--color-mind),inset_0_1px_1px_rgba(255,255,255,0.28)] dark:shadow-[inset_3px_0_0_0_var(--color-mind),inset_0_1px_1px_rgba(255,255,255,0.08)]',
+        glow: 'block-glow-mind dark:block-glow-mind',
+    },
+    body: {
+        bg: '[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.55)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-body)_38%,_transparent)_0%,_color-mix(in_oklab,_var(--color-body)_18%,_transparent)_100%)] dark:[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.10)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-body)_16%,_transparent)_0%,_color-mix(in_oklab,_var(--color-body)_7%,_transparent)_100%)]',
+        border: 'border-[var(--color-body)]/55 dark:border-[var(--color-body)]/32',
+        text: 'text-[var(--text-primary)] dark:text-white',
+        metaText: 'text-[var(--text-secondary)] dark:text-white/70',
+        dot: 'bg-[var(--color-body)] dark:bg-[var(--color-body)]',
+        edge: 'shadow-[inset_3px_0_0_0_var(--color-body),inset_0_1px_1px_rgba(255,255,255,0.28)] dark:shadow-[inset_3px_0_0_0_var(--color-body),inset_0_1px_1px_rgba(255,255,255,0.08)]',
+        glow: 'block-glow-body dark:block-glow-body',
+    },
+    craft: {
+        bg: '[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.55)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-craft)_38%,_transparent)_0%,_color-mix(in_oklab,_var(--color-craft)_18%,_transparent)_100%)] dark:[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.10)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-craft)_16%,_transparent)_0%,_color-mix(in_oklab,_var(--color-craft)_7%,_transparent)_100%)]',
+        border: 'border-[var(--color-craft)]/55 dark:border-[var(--color-craft)]/32',
+        text: 'text-[var(--text-primary)] dark:text-white',
+        metaText: 'text-[var(--text-secondary)] dark:text-white/70',
+        dot: 'bg-[var(--color-craft)] dark:bg-[var(--color-craft)]',
+        edge: 'shadow-[inset_3px_0_0_0_var(--color-craft),inset_0_1px_1px_rgba(255,255,255,0.28)] dark:shadow-[inset_3px_0_0_0_var(--color-craft),inset_0_1px_1px_rgba(255,255,255,0.08)]',
+        glow: 'block-glow-craft dark:block-glow-craft',
+    },
+    anchor: {
+        bg: '[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.4)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_rgba(113,113,122,0.30)_0%,_rgba(113,113,122,0.14)_100%)] dark:[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.08)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_rgba(113,113,122,0.24)_0%,_rgba(113,113,122,0.10)_100%)]',
+        border: 'border-[rgba(113,113,122,0.5)] dark:border-[rgba(113,113,122,0.28)]',
+        text: 'text-[var(--text-primary)] dark:text-white',
+        metaText: 'text-[var(--text-secondary)] dark:text-white/70',
+        dot: 'bg-zinc-500 dark:bg-zinc-500',
+        edge: 'shadow-[inset_3px_0_0_0_rgba(113,113,122,0.9),inset_0_1px_1px_rgba(255,255,255,0.28)] dark:shadow-[inset_3px_0_0_0_rgba(113,113,122,0.7),inset_0_1px_1px_rgba(255,255,255,0.08)]',
+        glow: 'block-glow-anchor dark:block-glow-anchor',
+    },
+    meal: {
+        bg: '[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.55)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-meal)_38%,_transparent)_0%,_color-mix(in_oklab,_var(--color-meal)_18%,_transparent)_100%)] dark:[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.10)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-meal)_16%,_transparent)_0%,_color-mix(in_oklab,_var(--color-meal)_7%,_transparent)_100%)]',
+        border: 'border-[var(--color-meal)]/55 dark:border-[var(--color-meal)]/32',
+        text: 'text-[var(--text-primary)] dark:text-white',
+        metaText: 'text-[var(--text-secondary)] dark:text-white/70',
+        dot: 'bg-[var(--color-meal)] dark:bg-[var(--color-meal)]',
+        edge: 'shadow-[inset_3px_0_0_0_var(--color-meal),inset_0_1px_1px_rgba(255,255,255,0.28)] dark:shadow-[inset_3px_0_0_0_var(--color-meal),inset_0_1px_1px_rgba(255,255,255,0.08)]',
+        glow: 'block-glow-meal dark:block-glow-meal',
+    },
+    sleep: {
+        bg: 'bg-slate-400/35 dark:bg-[var(--glass-bg)]',
+        border: 'border-slate-400/40 dark:border-[var(--glass-border)]',
+        text: 'text-[var(--text-primary)] dark:text-[var(--text-tertiary)]',
+        metaText: 'text-[var(--text-secondary)] dark:text-[var(--text-tertiary)]',
+        dot: 'bg-slate-500 dark:bg-[var(--glass-bg)]',
+        glow: '',
+        edge: 'shadow-[inset_3px_0_0_0_rgba(100,116,139,0.5),inset_0_1px_1px_rgba(255,255,255,0.2)] dark:shadow-[inset_3px_0_0_0_rgba(100,116,139,0.35),inset_0_1px_1px_rgba(255,255,255,0.06)]',
+    },
+    break: {
+        bg: 'bg-transparent dark:bg-transparent',
+        border: 'border-[var(--glass-border)]',
+        text: 'text-[var(--text-secondary)] dark:text-[var(--text-tertiary)]',
+        metaText: 'text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]',
+        dot: 'bg-zinc-400 dark:bg-white/20',
+        glow: '',
+        edge: 'shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)]',
+    },
+    default: {
+        bg: '[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.55)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-mind)_38%,_transparent)_0%,_color-mix(in_oklab,_var(--color-mind)_18%,_transparent)_100%)] dark:[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.10)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-mind)_16%,_transparent)_0%,_color-mix(in_oklab,_var(--color-mind)_7%,_transparent)_100%)]',
+        border: 'border-[var(--color-mind)]/55 dark:border-[var(--color-mind)]/32',
+        text: 'text-[var(--text-primary)] dark:text-white',
+        metaText: 'text-[var(--text-secondary)] dark:text-white/70',
+        dot: 'bg-[var(--color-mind)] dark:bg-[var(--color-mind)]',
+        edge: 'shadow-[inset_3px_0_0_0_var(--color-mind),inset_0_1px_1px_rgba(255,255,255,0.28)] dark:shadow-[inset_3px_0_0_0_var(--color-mind),inset_0_1px_1px_rgba(255,255,255,0.08)]',
+        glow: 'block-glow-mind dark:block-glow-mind',
+    },
 };
 
 function getBlockColors(block: any) {
@@ -323,8 +404,8 @@ function BlockCard({ block, layout, onClick, isDayView, index = 0 }: { block: an
             onClick={() => { if (!isDragging) onClick(); }}
             className={cn(
                 "absolute rounded-xl overflow-hidden cursor-pointer flex flex-col touch-manipulation",
-                "transition-all duration-300 hover:scale-[1.03] hover:z-20 group border backdrop-blur-xl shadow-lg",
-                isDragging ? "opacity-60 z-50 shadow-[0_20px_40px_rgba(249,115,22,0.4)] ring-2 ring-orange-400/80 scale-[1.05]" : "shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]",
+                "transition-all duration-300 hover:scale-[1.03] hover:z-20 group border-[1.5px] backdrop-blur-xl shadow-lg",
+                isDragging ? "opacity-60 z-50 shadow-[0_20px_40px_rgba(249,115,22,0.4)] ring-2 ring-orange-400/80 scale-[1.05]" : colors.edge,
                 colors.bg, colors.border, colors.glow,
                 STATUS_STYLES[block.status] || ''
             )}

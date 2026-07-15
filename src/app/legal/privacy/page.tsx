@@ -53,11 +53,17 @@ export default function PrivacyPage() {
       <p className="mb-4 leading-relaxed">
         This automatically collected information is used solely for the purpose of maintaining and improving the App's technical performance and user experience. It is not used for advertising or sold to third parties.
       </p>
-      <h3 className="text-lg font-medium text-white mt-6 mb-3">3.3 AI Interaction Data — Important Limitation</h3>
+      <h3 className="text-lg font-medium text-white mt-6 mb-3">3.3 AI Interaction Data</h3>
       <div className="p-4 bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 rounded-xl mb-4">
-        <p className="font-semibold text-white mb-2">PlannrAI cannot see, access, read, or store the specific content of your AI prompts, conversations, or interactions with Donna or any other AI feature within the App.</p>
+        <p className="font-semibold text-white mb-2">PlannrAI stores your conversations with Donna and other AI features so the coach can maintain context across sessions and so you can review, export, or delete that history at any time.</p>
         <p className="text-sm leading-relaxed">
-          AI interactions within PlannrAI are processed in real time to generate your personalised schedule and coaching responses. The content of your prompts and the AI's responses are not retained by PlannrAI beyond the active session in which they occur. We do not have access to what you ask the AI or what the AI tells you. This is a deliberate architectural decision to protect your privacy.
+          When you interact with an AI feature, your messages and the AI's responses are saved to your account (as "coach conversations" and "coach messages"). PlannrAI may also derive and store a small number of persistent "memory facts" from what you say — for example, a stated constraint or goal — so future coaching can stay consistent with what you've already told it. This content is used solely to generate and improve your personalised schedule and coaching responses; it is not sold, and it is not used to train third-party AI models.
+        </p>
+        <p className="text-sm leading-relaxed mt-2">
+          To generate a response, your prompt is sent to one or more third-party AI infrastructure providers (which may include NVIDIA, Groq, Google, OpenRouter, and Cerebras, selected automatically based on availability and performance) solely to produce that response — these providers do not receive your other account data.
+        </p>
+        <p className="text-sm leading-relaxed mt-2">
+          You can review this content at any time via the "Export My Data" feature in Settings (see Section 9), and you can delete it — along with everything else in your account — by deleting your account, or by contacting us to request deletion of AI conversation history specifically.
         </p>
       </div>
       <h3 className="text-lg font-medium text-white mt-6 mb-3">3.4 Information We Do Not Collect</h3>

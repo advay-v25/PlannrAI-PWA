@@ -26,8 +26,8 @@
   --color-anchor-glow: hsla(16, 95%, 52%, 0.25);
   --color-routine: hsl(16, 90%, 48%);        /* deeper orange-brown */
   --color-routine-glow: hsla(16, 90%, 48%, 0.25);
-  --color-meal: hsl(24, 90%, 52%);           /* warm orange, distinct from routine/anchor */
-  --color-meal-glow: hsla(24, 90%, 52%, 0.25);
+  --color-meal: hsl(350, 75%, 56%);          /* warm rose-red — moved off the anchor/routine/craft orange-gold cluster (was 24°, sandwiched between anchor 16° and craft 43°, nearly indistinguishable as a light-mode tint) */
+  --color-meal-glow: hsla(350, 75%, 56%, 0.25);
 
   /* Light Theme Defaults (Premium Warm Palette — Overridden in .dark) */
   --color-bg-primary: #faf8f6;     /* warm off-white, stone-50 + warmth */
@@ -1040,7 +1040,7 @@ textarea::placeholder {
 .block-glow-craft:hover { box-shadow: 0 4px 14px rgba(234, 179, 8, 0.18), inset 0 1px 0 rgba(234, 179, 8, 0.05); }
 .block-glow-anchor:hover { box-shadow: 0 4px 14px rgba(113, 113, 122, 0.18), inset 0 1px 0 rgba(113, 113, 122, 0.05); }
 .block-glow-routine:hover { box-shadow: 0 4px 14px rgba(249, 115, 22, 0.18), inset 0 1px 0 rgba(249, 115, 22, 0.05); }
-.block-glow-meal:hover { box-shadow: 0 4px 14px rgba(234, 116, 26, 0.18), inset 0 1px 0 rgba(234, 116, 26, 0.05); }
+.block-glow-meal:hover { box-shadow: 0 4px 14px rgba(227, 59, 87, 0.18), inset 0 1px 0 rgba(227, 59, 87, 0.05); }
 
 /* Dark mode: each pillar keeps its own hue at hover (previously all fell back to orange) */
 .dark .block-glow-mind:hover { box-shadow: 0 0 20px rgba(168, 85, 247, 0.3), inset 0 1px 0 rgba(168, 85, 247, 0.15); }
@@ -1048,7 +1048,7 @@ textarea::placeholder {
 .dark .block-glow-craft:hover { box-shadow: 0 0 20px rgba(234, 179, 8, 0.3), inset 0 1px 0 rgba(234, 179, 8, 0.15); }
 .dark .block-glow-anchor:hover { box-shadow: 0 0 20px rgba(161, 161, 170, 0.25), inset 0 1px 0 rgba(161, 161, 170, 0.15); }
 .dark .block-glow-routine:hover { box-shadow: 0 0 20px rgba(249, 115, 22, 0.3), inset 0 1px 0 rgba(249, 115, 22, 0.15); }
-.dark .block-glow-meal:hover { box-shadow: 0 0 20px rgba(234, 116, 26, 0.3), inset 0 1px 0 rgba(234, 116, 26, 0.15); }
+.dark .block-glow-meal:hover { box-shadow: 0 0 20px rgba(227, 59, 87, 0.3), inset 0 1px 0 rgba(227, 59, 87, 0.15); }
 
 /* Current hour row highlight (light/dark aware) */
 @keyframes current-hour-pulse-light {

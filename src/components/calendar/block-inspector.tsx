@@ -20,12 +20,14 @@ interface BlockInspectorProps {
 
 // Theme-token-driven, matching week-grid.tsx's PILLAR_COLORS so the inspector
 // panel and the calendar grid always agree on a pillar's color in both themes.
-const PILLAR_COLORS: Record<string, { accent: string; bg: string; border: string }> = {
-    mind: { accent: 'text-[var(--text-primary)] dark:text-[var(--color-mind)]', bg: 'bg-gradient-to-br from-[var(--color-mind)]/40 to-[var(--color-mind)]/25 dark:from-[var(--color-mind)]/20 dark:to-[var(--color-mind)]/10', border: 'border-[var(--color-mind)]/40 dark:border-[var(--color-mind)]/30' },
-    body: { accent: 'text-[var(--text-primary)] dark:text-[var(--color-body)]', bg: 'bg-gradient-to-br from-[var(--color-body)]/40 to-[var(--color-body)]/25 dark:from-[var(--color-body)]/20 dark:to-[var(--color-body)]/10', border: 'border-[var(--color-body)]/40 dark:border-[var(--color-body)]/30' },
-    craft: { accent: 'text-[var(--text-primary)] dark:text-[var(--color-craft)]', bg: 'bg-gradient-to-br from-[var(--color-craft)]/40 to-[var(--color-craft)]/25 dark:from-[var(--color-craft)]/20 dark:to-[var(--color-craft)]/10', border: 'border-[var(--color-craft)]/40 dark:border-[var(--color-craft)]/30' },
-    meal: { accent: 'text-[var(--text-primary)] dark:text-[var(--color-meal)]', bg: 'bg-gradient-to-br from-[var(--color-meal)]/40 to-[var(--color-meal)]/25 dark:from-[var(--color-meal)]/20 dark:to-[var(--color-meal)]/10', border: 'border-[var(--color-meal)]/40 dark:border-[var(--color-meal)]/30' },
-    soul: { accent: 'text-zinc-900 dark:text-rose-400', bg: 'bg-gradient-to-br from-rose-300/45 to-rose-400/30 dark:bg-rose-500/10', border: 'border-rose-500/40 dark:border-rose-500/20' },
+// `edge` adds the same solid leading-edge accent stripe used on grid blocks
+// so the pillar reads unambiguously even where the tint alone is subtle.
+const PILLAR_COLORS: Record<string, { accent: string; bg: string; border: string; edge: string }> = {
+    mind: { accent: 'text-[var(--text-primary)] dark:text-[var(--color-mind)]', bg: 'bg-gradient-to-br from-[var(--color-mind)]/40 to-[var(--color-mind)]/25 dark:from-[var(--color-mind)]/20 dark:to-[var(--color-mind)]/10', border: 'border-[var(--color-mind)]/45 dark:border-[var(--color-mind)]/30', edge: 'shadow-[inset_3px_0_0_0_var(--color-mind)]' },
+    body: { accent: 'text-[var(--text-primary)] dark:text-[var(--color-body)]', bg: 'bg-gradient-to-br from-[var(--color-body)]/40 to-[var(--color-body)]/25 dark:from-[var(--color-body)]/20 dark:to-[var(--color-body)]/10', border: 'border-[var(--color-body)]/45 dark:border-[var(--color-body)]/30', edge: 'shadow-[inset_3px_0_0_0_var(--color-body)]' },
+    craft: { accent: 'text-[var(--text-primary)] dark:text-[var(--color-craft)]', bg: 'bg-gradient-to-br from-[var(--color-craft)]/40 to-[var(--color-craft)]/25 dark:from-[var(--color-craft)]/20 dark:to-[var(--color-craft)]/10', border: 'border-[var(--color-craft)]/45 dark:border-[var(--color-craft)]/30', edge: 'shadow-[inset_3px_0_0_0_var(--color-craft)]' },
+    meal: { accent: 'text-[var(--text-primary)] dark:text-[var(--color-meal)]', bg: 'bg-gradient-to-br from-[var(--color-meal)]/40 to-[var(--color-meal)]/25 dark:from-[var(--color-meal)]/20 dark:to-[var(--color-meal)]/10', border: 'border-[var(--color-meal)]/45 dark:border-[var(--color-meal)]/30', edge: 'shadow-[inset_3px_0_0_0_var(--color-meal)]' },
+    soul: { accent: 'text-zinc-900 dark:text-rose-400', bg: 'bg-gradient-to-br from-rose-300/45 to-rose-400/30 dark:bg-rose-500/10', border: 'border-rose-500/40 dark:border-rose-500/20', edge: 'shadow-[inset_3px_0_0_0_rgb(244,63,94)]' },
 };
 
 const BLOCK_TYPE_META: Record<string, { label: string; icon: string; color: string }> = {
@@ -140,7 +142,8 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
                 "px-5 py-4 flex items-start justify-between",
                 pillarStyle?.bg,
                 pillarStyle?.border,
-                "border-b"
+                pillarStyle?.edge,
+                "border-b-[1.5px]"
             )}>
                 <div className="flex-1 min-w-0">
                     {/* Block type tag */}
