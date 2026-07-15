@@ -155,8 +155,14 @@ export function useCalendar(initialDate: Date = new Date()) {
     const moveBlock = async (id: string, newStart: string, newEnd: string, newDate?: string) => {
         const targetDate = newDate || format(selectedDate, 'yyyy-MM-dd');
 
-        // Optimistic Update
-        const originalBlocks = [...state.blocks];
+        // Snapshot only the single block being moved — not the whole array.
+        // Reverting the whole array on failure used to clobber any other
+        // block that had been optimistically moved by a second, concurrent
+        // drag started while this request was still in flight (e.g. it
+        // could snap a fully-succeeded second move back to its pre-drag
+        // position for no reason related to this failure).
+        const originalBlock = state.blocks.find(b => b.id === id);
+
         setState(prev => ({
             ...prev,
             blocks: prev.blocks.map(b => b.id === id ? { ...b, start_time: newStart, end_time: newEnd, date: targetDate } : b)
@@ -166,8 +172,14 @@ export function useCalendar(initialDate: Date = new Date()) {
             await apiClient.schedule.moveBlock(id, targetDate, newStart, newEnd);
             showToast("Block moved", "success");
         } catch (e: any) {
-            // Revert
-            setState(prev => ({ ...prev, blocks: originalBlocks }));
+            // Revert only this block, leaving any other in-flight optimistic
+            // updates untouched.
+            if (originalBlock) {
+                setState(prev => ({
+                    ...prev,
+                    blocks: prev.blocks.map(b => b.id === id ? originalBlock : b)
+                }));
+            }
 
             const conflictData = e.data?.error?.details || e.data;
             if (e.status === 409 && conflictData?.conflict) {

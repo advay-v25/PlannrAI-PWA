@@ -22,7 +22,7 @@ export function CoachOptionCard({
     const [isExpanded, setIsExpanded] = useState(false);
 
     const severityColors = {
-        info: 'bg-primary/5 text-primary/80 border-primary/10',
+        info: 'bg-[var(--color-primary)]/5 text-[var(--color-primary)]/80 border-[var(--color-primary)]/10',
         caution: 'bg-yellow-500/5 text-yellow-500/80 border-yellow-500/10',
         warning: 'bg-red-500/5 text-red-500/80 border-red-500/10',
     };
@@ -33,10 +33,16 @@ export function CoachOptionCard({
         low: 'bg-red-500/10 text-red-400 border-red-500/20',
     };
 
+    const confidenceDotColors = {
+        high: 'bg-emerald-400',
+        medium: 'bg-yellow-400',
+        low: 'bg-red-400',
+    };
+
     const confidenceLabels = {
-        high: '🟢 High Confidence',
-        medium: '🟡 Medium Confidence',
-        low: '🔴 Low Confidence',
+        high: 'High Confidence',
+        medium: 'Medium Confidence',
+        low: 'Low Confidence',
     };
 
 
@@ -48,7 +54,7 @@ export function CoachOptionCard({
                 onClick={() => !disabled && onSelect()}
             >
                 <div className="flex flex-col">
-                    <h4 className="text-sm font-bold text-foreground leading-tight tracking-tight group-hover:text-orange-500 transition-colors">
+                    <h4 className="text-sm font-bold text-[var(--text-primary)] leading-tight tracking-tight group-hover:text-orange-500 transition-colors">
                         {option.title}
                     </h4>
                     {option.impact && (
@@ -98,7 +104,8 @@ export function CoachOptionCard({
                                 </span>
                             )}
                             {option.confidence_score && (
-                                <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-sm border ${confidenceColors[option.confidence_score]}`}>
+                                <span className={`inline-flex items-center gap-1.5 text-[9px] font-bold uppercase px-2 py-0.5 rounded-sm border ${confidenceColors[option.confidence_score]}`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${confidenceDotColors[option.confidence_score]}`} aria-hidden="true" />
                                     {confidenceLabels[option.confidence_score]}
                                 </span>
                             )}
@@ -148,7 +155,7 @@ export function CoachOptionCard({
                                 e.stopPropagation();
                                 setIsExpanded(!isExpanded);
                             }}
-                            className="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest bg-[var(--glass-bg)] text-foreground/60 hover:bg-[var(--glass-bg)] hover:text-foreground transition-colors"
+                            className="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest bg-[var(--glass-bg)] text-[var(--text-primary)]/60 hover:bg-[var(--glass-bg)] hover:text-[var(--text-primary)] transition-colors"
                         >
                             {isExpanded ? 'Hide' : 'See Why'}
                         </button>

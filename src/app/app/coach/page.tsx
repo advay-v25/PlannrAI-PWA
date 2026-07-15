@@ -17,6 +17,9 @@ function CoachPageInner() {
     const { messages, sendMessage } = useCoach();
     const initialized = useRef(false);
 
+    const quickActionContexts = ['do_more_today', 'fix_today_schedule', 'reduce_today_load'] as const;
+    const initialQuickAction = quickActionContexts.find(c => c === context);
+
     useEffect(() => {
         if (!initialized.current && messages.length === 0) {
             let handled = false;
@@ -26,19 +29,8 @@ function CoachPageInner() {
             } else if (context === 'calendar') {
                 sendMessage("I'm looking at my calendar and need some help.");
                 handled = true;
-            } else if (context === 'do_more_today' || context === 'fix_today_schedule' || context === 'reduce_today_load') {
-                // Trigger the quick action bubble click if available
-                setTimeout(() => {
-                    const texts: Record<string, string> = {
-                        'do_more_today': 'Do more today',
-                        'fix_today_schedule': "Fix today's schedule",
-                        'reduce_today_load': "Reduce today's load"
-                    };
-                    const label = texts[context];
-                    const buttons = Array.from(document.querySelectorAll('button'));
-                    const target = buttons.find(b => b.textContent?.toLowerCase().includes(label.toLowerCase()));
-                    if (target) target.click();
-                }, 100);
+            } else if (initialQuickAction) {
+                // Handled declaratively via CoachDashboard's initialQuickAction prop below.
                 handled = true;
             }
 
@@ -50,7 +42,7 @@ function CoachPageInner() {
                 window.history.replaceState({}, '', url.toString());
             }
         }
-    }, [context, prompt, messages.length, sendMessage]);
+    }, [context, prompt, messages.length, sendMessage, initialQuickAction]);
 
     return (
         <div className="w-full h-full relative overflow-hidden flex flex-col">
@@ -61,6 +53,7 @@ function CoachPageInner() {
                         router.refresh();
                         dispatchAppEvent({ type: 'calendar-refresh' });
                     }}
+                    initialQuickAction={initialQuickAction}
                 />
             </div>
         </div>
@@ -69,7 +62,7 @@ function CoachPageInner() {
 
 export default function CoachPage() {
     return (
-        <Suspense fallback={<div className="flex items-center justify-center h-full text-foreground/40">Loading coach...</div>}>
+        <Suspense fallback={<div className="flex items-center justify-center h-full text-[var(--text-primary)]/40">Loading coach...</div>}>
             <CoachPageInner />
         </Suspense>
     );
