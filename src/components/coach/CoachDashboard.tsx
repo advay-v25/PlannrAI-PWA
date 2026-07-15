@@ -5,7 +5,12 @@ import { CoachChat } from './CoachChat';
 import { motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 
-export function CoachDashboard({ onCalendarUpdate }: { onCalendarUpdate?: () => void }) {
+interface CoachDashboardProps {
+    onCalendarUpdate?: () => void;
+    initialQuickAction?: 'reduce_today_load' | 'fix_today_schedule' | 'do_more_today';
+}
+
+export function CoachDashboard({ onCalendarUpdate, initialQuickAction }: CoachDashboardProps) {
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => { setMounted(true); }, []);
@@ -24,7 +29,7 @@ export function CoachDashboard({ onCalendarUpdate }: { onCalendarUpdate?: () => 
             className="flex flex-col h-full w-full"
         >
             <div className="flex-1 min-h-0">
-                <CoachChat onCalendarUpdate={onCalendarUpdate} />
+                <CoachChat onCalendarUpdate={onCalendarUpdate} initialQuickAction={initialQuickAction} />
             </div>
         </motion.div>
     );

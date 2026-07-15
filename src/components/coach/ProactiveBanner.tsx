@@ -1,5 +1,6 @@
 'use client';
 
+import { Lightbulb } from 'lucide-react';
 import { ProactiveSuggestion } from '@/types/coach-v4';
 
 
@@ -25,7 +26,7 @@ export function ProactiveBanner({
             <div className="flex justify-between items-start">
                 <div className="flex-1">
                     <h4 className="font-semibold text-[var(--text-primary)] mb-1 flex items-center gap-2">
-                        <span className="text-lg">💡</span> {suggestion.title}
+                        <Lightbulb className="w-4 h-4 text-[var(--color-warning)] shrink-0" aria-hidden="true" /> {suggestion.title}
                     </h4>
                     <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
                         {suggestion.description}

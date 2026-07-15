@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Sparkles } from 'lucide-react';
 import { CoachMessage } from '@/hooks/use-coach';
 import { cn } from '@/lib/utils';
 
@@ -23,7 +24,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
         if (bulletMatch) {
             elements.push(
                 <div key={lineIdx} className="flex items-start gap-1.5 pl-1">
-                    <span className="text-primary/60 mt-0.5 text-[10px]">•</span>
+                    <span className="text-[var(--color-primary)]/60 mt-0.5 text-[10px]">•</span>
                     <span>{renderInline(bulletMatch[1])}</span>
                 </div>
             );
@@ -35,7 +36,7 @@ function renderMarkdown(text: string): React.ReactNode[] {
         if (numberedMatch) {
             elements.push(
                 <div key={lineIdx} className="flex items-start gap-1.5 pl-1">
-                    <span className="text-primary/60 font-bold text-[10px] mt-0.5 min-w-[14px]">{numberedMatch[1]}.</span>
+                    <span className="text-[var(--color-primary)]/60 font-bold text-[10px] mt-0.5 min-w-[14px]">{numberedMatch[1]}.</span>
                     <span>{renderInline(numberedMatch[2])}</span>
                 </div>
             );
@@ -78,14 +79,14 @@ function renderInline(text: string): React.ReactNode[] {
 
         if (match[2]) {
             // **bold**
-            parts.push(<strong key={match.index} className="font-bold text-foreground">{match[2]}</strong>);
+            parts.push(<strong key={match.index} className="font-bold text-[var(--text-primary)]">{match[2]}</strong>);
         } else if (match[3]) {
             // *italic*
-            parts.push(<em key={match.index} className="italic text-foreground/80">{match[3]}</em>);
+            parts.push(<em key={match.index} className="italic text-[var(--text-primary)]/80">{match[3]}</em>);
         } else if (match[4]) {
             // `code`
             parts.push(
-                <code key={match.index} className="text-[10px] px-1 py-0.5 rounded bg-[var(--glass-bg)] text-primary font-mono">
+                <code key={match.index} className="text-[10px] px-1 py-0.5 rounded bg-[var(--glass-bg)] text-[var(--color-primary)] font-mono">
                     {match[4]}
                 </code>
             );
@@ -164,7 +165,7 @@ export function CoachMessageBubble({ message }: CoachMessageBubbleProps) {
                     {!isUser && (
                         <div className="flex items-center gap-2 mb-2">
                             <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-orange-600 flex items-center justify-center shadow-[0_0_10px_var(--color-primary-glow)]">
-                                <span className="text-white text-[10px]">⚡</span>
+                                <Sparkles className="w-3 h-3 text-white" />
                             </div>
                             <span className="text-[10px] font-black uppercase tracking-widest text-[var(--color-primary)]">
                                 Donna

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, FormEvent, useRef, useEffect } from 'react';
+import { Sparkles, BatteryLow, RefreshCw, Zap } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import { apiClient } from '@/lib/api-client';
 import { formatDistanceToNow } from 'date-fns';
@@ -13,26 +14,26 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 interface CoachChatProps {
     onCalendarUpdate?: () => void;
-    onClose?: () => void;
+    initialQuickAction?: 'reduce_today_load' | 'fix_today_schedule' | 'do_more_today';
 }
 
 // ── Quick action bubbles shown on empty state ────────────────────────────────
 const quickBubbles = [
     {
         label: "Reduce today's load",
-        emoji: '😵‍💫',
+        icon: BatteryLow,
         action: 'reduce_today_load' as const,
         description: 'Move low-priority blocks to later in the week',
     },
     {
         label: "Fix today's schedule",
-        emoji: '🔄',
+        icon: RefreshCw,
         action: 'fix_today_schedule' as const,
         description: 'Reschedule overdue blocks to open slots',
     },
     {
         label: "Do more today",
-        emoji: '⚡️',
+        icon: Zap,
         action: 'do_more_today' as const,
         description: 'Find something to tackle right now',
     },
@@ -209,7 +210,7 @@ function InlineOptionCard({
 }
 
 // ── Main component ───────────────────────────────────────────────────────────
-export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
+export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatProps) {
     const { showToast } = useToast();
     const {
         messages,
@@ -247,6 +248,8 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
+    const [showNewMessagePill, setShowNewMessagePill] = useState(false);
 
     const [input, setInput] = useState('');
     const [pendingOption, setPendingOption] = useState<ProposedOption | null>(null);
@@ -262,9 +265,20 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
     const [loadingConvId, setLoadingConvId] = useState<string | null>(null);
     const [quickConversationId, setQuickConversationId] = useState<string | null>(null);
 
-    // Auto-scroll when either message source updates
+    // Auto-scroll when either message source updates — but only if the user
+    // is already near the bottom. Force-scrolling regardless of scroll
+    // position used to yank someone back down mid-read of earlier messages;
+    // if they've scrolled up, surface a "new message" pill instead so they
+    // can jump down on their own terms.
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        const container = messagesContainerRef.current;
+        const nearBottom = !container || (container.scrollHeight - container.scrollTop - container.clientHeight < 150);
+        if (nearBottom) {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            setShowNewMessagePill(false);
+        } else {
+            setShowNewMessagePill(true);
+        }
     }, [messages, syntheticMessages]);
 
     // Combined ordered display list
@@ -451,6 +465,19 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
         }
     };
 
+    // Fire a quick action automatically when the page navigates in with one
+    // pre-selected (e.g. a dashboard "Do more today" shortcut) — replaces a
+    // prior implementation that DOM-queried and .click()'d the quick-action
+    // bubble by its label text, which broke silently on any copy change.
+    const firedInitialQuickAction = useRef(false);
+    useEffect(() => {
+        if (initialQuickAction && !firedInitialQuickAction.current) {
+            firedInitialQuickAction.current = true;
+            handleQuickAction(initialQuickAction);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [initialQuickAction]);
+
     // ── Option select (handles both synthetic + real message options) ─────────
     const handleOptionSelect = async (option: ProposedOption, parentMessageId: string) => {
         const isSynthetic = parentMessageId.startsWith('assistant_') || parentMessageId.startsWith('local_');
@@ -571,7 +598,8 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                     <button
                         onClick={handleNewChat}
                         title="New conversation"
-                        className="p-1.5 rounded-lg hover:bg-[var(--glass-bg)] transition-colors text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                        aria-label="Start a new conversation"
+                        className="p-2.5 -m-1 rounded-lg hover:bg-[var(--glass-bg)] transition-colors text-[var(--text-tertiary)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/50"
                     >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
@@ -583,9 +611,9 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                 <div className="px-3 pt-3 pb-2 shrink-0">
                     <button
                         onClick={handleNewChat}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 hover:bg-[var(--color-primary)]/15 transition-all text-left group"
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 hover:bg-[var(--color-primary)]/15 transition-all text-left group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/50"
                     >
-                        <span className="text-[var(--color-primary)] text-base">⚡</span>
+                        <Sparkles className="w-4 h-4 text-[var(--color-primary)] shrink-0" />
                         <span className="text-[12px] font-bold text-[var(--color-primary)] group-hover:text-[var(--color-primary-hover)]">New Chat</span>
                     </button>
                 </div>
@@ -635,8 +663,9 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                 </button>
                                 <button
                                     onClick={e => handleDeleteChat(e, conv.id)}
-                                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-[var(--text-muted)] opacity-0 group-hover/item:opacity-100 hover:text-[var(--color-error)] hover:bg-[var(--color-error)]/10 transition-all"
+                                    className="absolute right-1 top-1/2 -translate-y-1/2 p-2 rounded-md text-[var(--text-muted)] opacity-40 group-hover/item:opacity-100 focus-visible:opacity-100 hover:text-[var(--color-error)] hover:bg-[var(--color-error)]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-error)]/50 transition-all"
                                     title="Delete"
+                                    aria-label={`Delete conversation: ${conv.primary_topic || 'Strategy Session'}`}
                                 >
                                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -671,7 +700,8 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                         <button
                             onClick={handleNewChat}
                             title="New conversation"
-                            className="p-2 rounded-xl hover:bg-[var(--glass-bg)] transition-colors text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                            aria-label="Start a new conversation"
+                            className="p-2.5 rounded-xl hover:bg-[var(--glass-bg)] transition-colors text-[var(--text-tertiary)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/50"
                         >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -684,12 +714,16 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                 {error && (
                     <div className="z-10 bg-[var(--color-error)]/10 border-b border-[var(--color-error)]/20 px-4 py-2 flex justify-between items-center backdrop-blur-md shrink-0">
                         <span className="text-xs text-[var(--color-error)] font-medium">{error}</span>
-                        <button onClick={clearError} className="text-[var(--color-error)]/60 hover:text-[var(--color-error)] text-lg leading-none">×</button>
+                        <button
+                            onClick={clearError}
+                            aria-label="Dismiss error"
+                            className="text-[var(--color-error)]/60 hover:text-[var(--color-error)] text-lg leading-none p-1.5 -m-1.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-error)]/50"
+                        >×</button>
                     </div>
                 )}
 
                 {/* ── Messages ── */}
-                <div className="z-10 flex-1 overflow-y-auto overscroll-contain px-4 md:px-8 py-6 space-y-6 scrollbar-hide">
+                <div ref={messagesContainerRef} className="z-10 flex-1 overflow-y-auto overscroll-contain px-4 md:px-8 py-6 space-y-6 scrollbar-hide">
 
                     {/* Skeleton loader for history */}
                     {isLoadingHistory && allMessages.length === 0 && (
@@ -700,11 +734,11 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                         </div>
                     )}
 
-                    {/* Empty state — 2 quick-action bubbles */}
+                    {/* Empty state — 3 quick-action bubbles */}
                     {allMessages.length === 0 && !showLoadingIndicator && !isLoadingHistory && (
                         <div className="flex flex-col items-center mt-10 animate-fade-in">
                             <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[var(--color-primary)] to-orange-600/60 mx-auto mb-5 flex items-center justify-center shadow-[0_0_30px_var(--color-primary-glow)]">
-                                <span className="text-white text-2xl">⚡️</span>
+                                <Sparkles className="w-6 h-6 text-white" />
                             </div>
                             <p className="text-xl md:text-2xl font-bold tracking-tight text-[var(--text-primary)] mb-1.5">How shall we architect today?</p>
                             <p className="text-xs text-[var(--text-tertiary)] italic mb-8">Or type anything below to start a conversation.</p>
@@ -717,7 +751,7 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                         disabled={showLoadingIndicator}
                                         className="flex-1 flex flex-col items-start gap-2 p-5 rounded-2xl bg-[var(--glass-bg)] border border-[var(--glass-border)] hover:border-[var(--color-primary)]/25 hover:bg-[var(--color-primary)]/5 transition-all duration-200 text-left disabled:opacity-50 disabled:pointer-events-none group shadow-[var(--shadow-sm)]"
                                     >
-                                        <span className="text-2xl">{bubble.emoji}</span>
+                                        <bubble.icon className="w-6 h-6 text-[var(--color-primary)]" aria-hidden="true" />
                                         <span className="font-semibold text-[var(--text-primary)] text-[15px] group-hover:text-[var(--color-primary)] transition-colors">{bubble.label}</span>
                                         <span className="text-xs text-[var(--text-tertiary)]">{bubble.description}</span>
                                     </button>
@@ -883,6 +917,21 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                     <div ref={messagesEndRef} />
                 </div>
 
+                {/* New message pill — shown instead of force-scrolling when the
+                    user has scrolled up to read earlier messages */}
+                {showNewMessagePill && (
+                    <button
+                        onClick={() => {
+                            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                            setShowNewMessagePill(false);
+                        }}
+                        className="absolute bottom-28 md:bottom-24 left-1/2 -translate-x-1/2 z-40 bg-[var(--color-primary)] text-[var(--text-primary)] px-4 py-2 rounded-full shadow-[0_0_20px_var(--color-primary-glow)] flex items-center gap-2 text-xs font-bold uppercase tracking-widest animate-fade-in hover:brightness-110 transition-all"
+                    >
+                        <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                        New message ↓
+                    </button>
+                )}
+
                 {/* Changes in progress toast */}
                 {isApplyingChanges && (
                     <div className="absolute bottom-32 md:bottom-24 left-1/2 -translate-x-1/2 z-50 bg-[var(--color-primary)] text-[var(--text-primary)] px-6 py-3 rounded-full shadow-[0_0_20px_rgba(var(--color-primary-rgb),0.5)] flex items-center gap-3 animate-fade-in">
@@ -913,7 +962,8 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                 value={input}
                                 onChange={e => setInput(e.target.value)}
                                 placeholder={allMessages.length > 0 ? 'Message Donna…' : 'Or type anything to start a conversation…'}
-                                disabled={showLoadingIndicator}
+                                disabled={showLoadingIndicator || isApplyingChanges}
+                                aria-label="Message Donna"
                                 className="flex-1 bg-transparent px-4 py-3.5 text-[15px] focus:outline-none placeholder:text-[var(--text-tertiary)] text-[var(--text-primary)] font-medium relative z-10"
                             />
                             {isLoading ? (
@@ -923,16 +973,18 @@ export function CoachChat({ onCalendarUpdate, onClose }: CoachChatProps) {
                                         const returnedContent = await stopGenerating();
                                         if (returnedContent) setInput(returnedContent);
                                     }}
-                                    className="w-12 h-12 bg-[var(--color-error)]/10 hover:bg-[var(--color-error)]/20 rounded-2xl flex items-center justify-center transition-all text-[var(--color-error)] border border-[var(--color-error)]/20 relative z-10 group"
+                                    className="w-12 h-12 bg-[var(--color-error)]/10 hover:bg-[var(--color-error)]/20 rounded-2xl flex items-center justify-center transition-all text-[var(--color-error)] border border-[var(--color-error)]/20 relative z-10 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-error)]/50"
                                     title="Stop Generating & Edit"
+                                    aria-label="Stop generating and edit message"
                                 >
                                     <div className="w-3.5 h-3.5 bg-[var(--color-error)] group-hover:bg-[var(--color-error)]/80 rounded-[3px]" />
                                 </button>
                             ) : (
                                 <button
                                     type="submit"
-                                    disabled={isQuickActionLoading || !input.trim()}
-                                    className="w-12 h-12 bg-[var(--color-primary)] text-white dark:bg-[var(--glass-bg)] hover:bg-[var(--color-primary-hover)] dark:hover:bg-gradient-to-tr dark:hover:from-[var(--color-primary)] dark:hover:to-orange-600 rounded-2xl flex items-center justify-center transition-all dark:text-[var(--text-tertiary)] dark:hover:text-white disabled:opacity-30 disabled:hover:bg-[var(--color-primary)] dark:disabled:hover:bg-[var(--glass-bg)] relative z-10"
+                                    disabled={isQuickActionLoading || isApplyingChanges || !input.trim()}
+                                    aria-label="Send message"
+                                    className="w-12 h-12 bg-[var(--color-primary)] text-white dark:bg-[var(--glass-bg)] hover:bg-[var(--color-primary-hover)] dark:hover:bg-gradient-to-tr dark:hover:from-[var(--color-primary)] dark:hover:to-orange-600 rounded-2xl flex items-center justify-center transition-all dark:text-[var(--text-tertiary)] dark:hover:text-white disabled:opacity-30 disabled:hover:bg-[var(--color-primary)] dark:disabled:hover:bg-[var(--glass-bg)] relative z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/50"
                                 >
                                     <svg className="w-5 h-5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

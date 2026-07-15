@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { format, addDays, startOfWeek, isSameDay, differenceInMinutes } from 'date-fns';
-import { DndContext, useDraggable, useDroppable, DragEndEvent, useSensor, useSensors, PointerSensor, TouchSensor } from '@dnd-kit/core';
+import { DndContext, useDraggable, useDroppable, DragEndEvent, useSensor, useSensors, MouseSensor, TouchSensor } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
 import { Lock, Check, Plus } from 'lucide-react';
 import { calculateLayout, LayoutBlock } from '@/lib/calendar-layout';
@@ -23,12 +23,17 @@ const CELL_HEIGHT = 120;
 
 // Pillar colors using CSS variables for consistency across pages.
 //
-// Each colored block gets a layered "satin" treatment instead of a flat
-// tint: a diagonal glass-sheen streak (rgba white, fades in/out) stacked
-// over a richer color wash, plus a solid 3px accent stripe on the leading
-// edge (`edge`) so the pillar is unambiguous even before reading the tint —
-// this is what keeps visually-close hues (e.g. meal vs. craft) from being
-// confused with each other, on top of the hue separation in globals.css.
+// Two distinct visual treatments by category:
+//  - Fixed/structural blocks (anchor/meal/sleep) stay FILLED and translucent
+//    — a layered "satin" wash (diagonal glass-sheen over a color tint) plus
+//    a solid 3px accent stripe on the leading edge, so these read as solid,
+//    settled parts of the day.
+//  - Planned/goal blocks (mind/body/craft/default) are outline-first: a
+//    neutral glass background with NO pillar-colored fill, and a thicker,
+//    stronger-opacity border carrying the pillar identity instead — this
+//    keeps the grid calmer at a glance (a week full of solid-colored tiles
+//    reads as "jarring") while a thick, well-defined outline is still
+//    unambiguous per pillar, especially against the border-only lookalikes.
 //
 // IMPORTANT: these must be fully-literal strings, not built via template
 // interpolation of a color variable — Tailwind's build-time scanner only
@@ -39,64 +44,82 @@ const CELL_HEIGHT = 120;
 // raw arbitrary `[background:...]` property it is NOT valid CSS and
 // silently drops the whole declaration, so those use color-mix() instead
 // (the same technique Tailwind itself compiles that shorthand down to).
-const PILLAR_COLORS: Record<string, { bg: string; border: string; text: string; metaText: string; dot: string; glow: string; edge: string }> = {
+const PILLAR_COLORS: Record<string, { bg: string; border: string; borderWidth: string; text: string; metaText: string; dot: string; glow: string; edge: string }> = {
+    // A full-perimeter saturated color ring around a near-white card reads
+    // as a coloring-book sticker, not a premium app — so every block type
+    // now shares the SAME thin, mostly-neutral border, and each pillar's
+    // color is demoted to a single restrained left accent stripe (the same
+    // convention Google Calendar/Notion Calendar/Fantastical use), plus a
+    // subtle top-highlight/bottom-shade bevel and a tight outer glow for
+    // depth. One consistent border language across all types = "unified";
+    // color as an accent rather than an outline = "clean" instead of loud.
     mind: {
-        bg: '[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.55)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-mind)_38%,_transparent)_0%,_color-mix(in_oklab,_var(--color-mind)_18%,_transparent)_100%)] dark:[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.10)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-mind)_16%,_transparent)_0%,_color-mix(in_oklab,_var(--color-mind)_7%,_transparent)_100%)]',
-        border: 'border-[var(--color-mind)]/55 dark:border-[var(--color-mind)]/32',
+        bg: 'bg-[var(--glass-bg)] dark:bg-white/[0.04]',
+        border: 'border-[var(--glass-border)] dark:border-white/10',
+        borderWidth: 'border',
         text: 'text-[var(--text-primary)] dark:text-white',
         metaText: 'text-[var(--text-secondary)] dark:text-white/70',
         dot: 'bg-[var(--color-mind)] dark:bg-[var(--color-mind)]',
-        edge: 'shadow-[inset_3px_0_0_0_var(--color-mind),inset_0_1px_1px_rgba(255,255,255,0.28)] dark:shadow-[inset_3px_0_0_0_var(--color-mind),inset_0_1px_1px_rgba(255,255,255,0.08)]',
+        edge: 'shadow-[inset_3px_0_0_0_var(--color-mind),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-mind)_40%,_black),0_0_10px_-5px_var(--color-mind-glow)] dark:shadow-[inset_3px_0_0_0_var(--color-mind),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-mind)_40%,_black),0_0_12px_-5px_var(--color-mind-glow)]',
         glow: 'block-glow-mind dark:block-glow-mind',
     },
     body: {
-        bg: '[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.55)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-body)_38%,_transparent)_0%,_color-mix(in_oklab,_var(--color-body)_18%,_transparent)_100%)] dark:[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.10)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-body)_16%,_transparent)_0%,_color-mix(in_oklab,_var(--color-body)_7%,_transparent)_100%)]',
-        border: 'border-[var(--color-body)]/55 dark:border-[var(--color-body)]/32',
+        bg: 'bg-[var(--glass-bg)] dark:bg-white/[0.04]',
+        border: 'border-[var(--glass-border)] dark:border-white/10',
+        borderWidth: 'border',
         text: 'text-[var(--text-primary)] dark:text-white',
         metaText: 'text-[var(--text-secondary)] dark:text-white/70',
         dot: 'bg-[var(--color-body)] dark:bg-[var(--color-body)]',
-        edge: 'shadow-[inset_3px_0_0_0_var(--color-body),inset_0_1px_1px_rgba(255,255,255,0.28)] dark:shadow-[inset_3px_0_0_0_var(--color-body),inset_0_1px_1px_rgba(255,255,255,0.08)]',
+        edge: 'shadow-[inset_3px_0_0_0_var(--color-body),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-body)_40%,_black),0_0_10px_-5px_var(--color-body-glow)] dark:shadow-[inset_3px_0_0_0_var(--color-body),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-body)_40%,_black),0_0_12px_-5px_var(--color-body-glow)]',
         glow: 'block-glow-body dark:block-glow-body',
     },
     craft: {
-        bg: '[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.55)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-craft)_38%,_transparent)_0%,_color-mix(in_oklab,_var(--color-craft)_18%,_transparent)_100%)] dark:[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.10)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-craft)_16%,_transparent)_0%,_color-mix(in_oklab,_var(--color-craft)_7%,_transparent)_100%)]',
-        border: 'border-[var(--color-craft)]/55 dark:border-[var(--color-craft)]/32',
+        bg: 'bg-[var(--glass-bg)] dark:bg-white/[0.04]',
+        border: 'border-[var(--glass-border)] dark:border-white/10',
+        borderWidth: 'border',
         text: 'text-[var(--text-primary)] dark:text-white',
         metaText: 'text-[var(--text-secondary)] dark:text-white/70',
         dot: 'bg-[var(--color-craft)] dark:bg-[var(--color-craft)]',
-        edge: 'shadow-[inset_3px_0_0_0_var(--color-craft),inset_0_1px_1px_rgba(255,255,255,0.28)] dark:shadow-[inset_3px_0_0_0_var(--color-craft),inset_0_1px_1px_rgba(255,255,255,0.08)]',
+        edge: 'shadow-[inset_3px_0_0_0_var(--color-craft),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-craft)_40%,_black),0_0_10px_-5px_var(--color-craft-glow)] dark:shadow-[inset_3px_0_0_0_var(--color-craft),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-craft)_40%,_black),0_0_12px_-5px_var(--color-craft-glow)]',
         glow: 'block-glow-craft dark:block-glow-craft',
     },
     anchor: {
         bg: '[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.4)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_rgba(113,113,122,0.30)_0%,_rgba(113,113,122,0.14)_100%)] dark:[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.08)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_rgba(113,113,122,0.24)_0%,_rgba(113,113,122,0.10)_100%)]',
-        border: 'border-[rgba(113,113,122,0.5)] dark:border-[rgba(113,113,122,0.28)]',
+        border: 'border-[var(--glass-border)] dark:border-white/10',
+        borderWidth: 'border',
         text: 'text-[var(--text-primary)] dark:text-white',
         metaText: 'text-[var(--text-secondary)] dark:text-white/70',
         dot: 'bg-zinc-500 dark:bg-zinc-500',
-        edge: 'shadow-[inset_3px_0_0_0_rgba(113,113,122,0.9),inset_0_1px_1px_rgba(255,255,255,0.28)] dark:shadow-[inset_3px_0_0_0_rgba(113,113,122,0.7),inset_0_1px_1px_rgba(255,255,255,0.08)]',
+        edge: 'shadow-[inset_3px_0_0_0_rgba(113,113,122,0.9),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_rgba(63,63,70,0.35),0_0_10px_-5px_rgba(113,113,122,0.3)] dark:shadow-[inset_3px_0_0_0_rgba(113,113,122,0.7),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_rgba(0,0,0,0.4),0_0_12px_-5px_rgba(113,113,122,0.25)]',
         glow: 'block-glow-anchor dark:block-glow-anchor',
     },
     meal: {
-        bg: '[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.55)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-meal)_38%,_transparent)_0%,_color-mix(in_oklab,_var(--color-meal)_18%,_transparent)_100%)] dark:[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.10)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-meal)_16%,_transparent)_0%,_color-mix(in_oklab,_var(--color-meal)_7%,_transparent)_100%)]',
-        border: 'border-[var(--color-meal)]/55 dark:border-[var(--color-meal)]/32',
-        text: 'text-[var(--text-primary)] dark:text-white',
-        metaText: 'text-[var(--text-secondary)] dark:text-white/70',
-        dot: 'bg-[var(--color-meal)] dark:bg-[var(--color-meal)]',
-        edge: 'shadow-[inset_3px_0_0_0_var(--color-meal),inset_0_1px_1px_rgba(255,255,255,0.28)] dark:shadow-[inset_3px_0_0_0_var(--color-meal),inset_0_1px_1px_rgba(255,255,255,0.08)]',
+        // Slate/steel scheme sleep used to have — swapped so sleep can own
+        // the blue metallic identity below.
+        bg: 'bg-slate-400/35 dark:bg-[var(--glass-bg)]',
+        border: 'border-[var(--glass-border)] dark:border-white/10',
+        borderWidth: 'border',
+        text: 'text-[var(--text-primary)] dark:text-[var(--text-tertiary)]',
+        metaText: 'text-[var(--text-secondary)] dark:text-[var(--text-tertiary)]',
+        dot: 'bg-slate-500 dark:bg-slate-400',
+        edge: 'shadow-[inset_3px_0_0_0_rgba(100,116,139,0.9),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_rgba(51,65,85,0.3),0_0_10px_-5px_rgba(100,116,139,0.35)] dark:shadow-[inset_3px_0_0_0_rgba(148,163,184,0.7),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_rgba(0,0,0,0.4),0_0_12px_-5px_rgba(148,163,184,0.3)]',
         glow: 'block-glow-meal dark:block-glow-meal',
     },
     sleep: {
-        bg: 'bg-slate-400/35 dark:bg-[var(--glass-bg)]',
-        border: 'border-slate-400/40 dark:border-[var(--glass-border)]',
-        text: 'text-[var(--text-primary)] dark:text-[var(--text-tertiary)]',
-        metaText: 'text-[var(--text-secondary)] dark:text-[var(--text-tertiary)]',
-        dot: 'bg-slate-500 dark:bg-[var(--glass-bg)]',
-        glow: '',
-        edge: 'shadow-[inset_3px_0_0_0_rgba(100,116,139,0.5),inset_0_1px_1px_rgba(255,255,255,0.2)] dark:shadow-[inset_3px_0_0_0_rgba(100,116,139,0.35),inset_0_1px_1px_rgba(255,255,255,0.06)]',
+        // New blue metallic identity (previously plain slate/gray).
+        bg: '[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.55)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-sleep)_36%,_transparent)_0%,_color-mix(in_oklab,_var(--color-sleep)_16%,_transparent)_100%)] dark:[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.10)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-sleep)_16%,_transparent)_0%,_color-mix(in_oklab,_var(--color-sleep)_7%,_transparent)_100%)]',
+        border: 'border-[var(--glass-border)] dark:border-white/10',
+        borderWidth: 'border',
+        text: 'text-[var(--text-primary)] dark:text-white',
+        metaText: 'text-[var(--text-secondary)] dark:text-white/70',
+        dot: 'bg-[var(--color-sleep)] dark:bg-[var(--color-sleep)]',
+        edge: 'shadow-[inset_3px_0_0_0_var(--color-sleep),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_rgba(30,58,138,0.3),0_0_10px_-5px_var(--color-sleep-glow)] dark:shadow-[inset_3px_0_0_0_var(--color-sleep),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_rgba(0,0,0,0.4),0_0_12px_-5px_var(--color-sleep-glow)]',
+        glow: 'block-glow-sleep dark:block-glow-sleep',
     },
     break: {
         bg: 'bg-transparent dark:bg-transparent',
         border: 'border-[var(--glass-border)]',
+        borderWidth: 'border',
         text: 'text-[var(--text-secondary)] dark:text-[var(--text-tertiary)]',
         metaText: 'text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]',
         dot: 'bg-zinc-400 dark:bg-white/20',
@@ -104,21 +127,37 @@ const PILLAR_COLORS: Record<string, { bg: string; border: string; text: string; 
         edge: 'shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)]',
     },
     default: {
-        bg: '[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.55)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-mind)_38%,_transparent)_0%,_color-mix(in_oklab,_var(--color-mind)_18%,_transparent)_100%)] dark:[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.10)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-mind)_16%,_transparent)_0%,_color-mix(in_oklab,_var(--color-mind)_7%,_transparent)_100%)]',
-        border: 'border-[var(--color-mind)]/55 dark:border-[var(--color-mind)]/32',
+        bg: 'bg-[var(--glass-bg)] dark:bg-white/[0.04]',
+        border: 'border-[var(--glass-border)] dark:border-white/10',
+        borderWidth: 'border',
         text: 'text-[var(--text-primary)] dark:text-white',
         metaText: 'text-[var(--text-secondary)] dark:text-white/70',
         dot: 'bg-[var(--color-mind)] dark:bg-[var(--color-mind)]',
-        edge: 'shadow-[inset_3px_0_0_0_var(--color-mind),inset_0_1px_1px_rgba(255,255,255,0.28)] dark:shadow-[inset_3px_0_0_0_var(--color-mind),inset_0_1px_1px_rgba(255,255,255,0.08)]',
+        edge: 'shadow-[inset_3px_0_0_0_var(--color-mind),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-mind)_40%,_black),0_0_10px_-5px_var(--color-mind-glow)] dark:shadow-[inset_3px_0_0_0_var(--color-mind),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-mind)_40%,_black),0_0_12px_-5px_var(--color-mind-glow)]',
         glow: 'block-glow-mind dark:block-glow-mind',
     },
 };
 
+// Some meals (e.g. a user-defined recurring "Breakfast" set up the same way
+// as a fixed commitment like "College") get created via the commitments/
+// anchor path rather than the AI meal generator, storing them as block_type
+// 'anchor' instead of 'meal' — but they should still read visually as a
+// meal, not collapse into the generic gray anchor treatment used for actual
+// fixed commitments. Match on title so this only catches genuine meals.
+const MEAL_TITLE_PATTERN = /^(breakfast|lunch|dinner|snack)s?$/i;
+
 function getBlockColors(block: any) {
-    if (block.is_locked || block.block_type === 'anchor') return PILLAR_COLORS.anchor;
-    if (block.block_type === 'meal') return PILLAR_COLORS.meal;
+    // block_type identity takes priority over lock status — a locked meal
+    // (e.g. a protected breakfast slot) must still read as a meal block, not
+    // collapse into the generic gray anchor treatment. Only truly
+    // uncategorized locked blocks fall back to anchor styling.
+    if (block.block_type === 'meal' || (block.block_type === 'anchor' && MEAL_TITLE_PATTERN.test((block.title || '').trim()))) {
+        return PILLAR_COLORS.meal;
+    }
+    if (block.block_type === 'anchor') return PILLAR_COLORS.anchor;
     if (block.block_type === 'sleep') return PILLAR_COLORS.sleep;
     if (block.block_type === 'break' || block.block_type === 'buffer') return PILLAR_COLORS.break;
+    if (block.is_locked) return PILLAR_COLORS.anchor;
     const pillar = (block.goal?.category || block.goal?.pillar || block.pillar || '').toLowerCase();
     return PILLAR_COLORS[pillar] || PILLAR_COLORS.default;
 }
@@ -179,28 +218,63 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
-        if (over && active.id !== over.id) {
-            const parts = (over.id as string).split('-');
-            const dayIndex = parseInt(parts[1]);
-            const hour = parseInt(parts[2]);
-            const targetDate = format(days[dayIndex], 'yyyy-MM-dd');
-            const targetStart = `${hour.toString().padStart(2, '0')}:00`;
-            const block = blocks.find(b => b.id === active.id);
-            if (block) {
-                const duration = differenceInMinutes(
-                    new Date(`2000-01-01T${block.end_time}`),
-                    new Date(`2000-01-01T${block.start_time}`)
-                );
-                const endDateObj = new Date(`2000-01-01T${targetStart}`);
-                endDateObj.setMinutes(endDateObj.getMinutes() + duration);
-                const targetEnd = format(endDateObj, 'HH:mm');
-                onBlockMove(active.id as string, targetDate, targetStart, targetEnd);
-            }
+        if (!over) return;
+
+        const block = blocks.find(b => b.id === active.id);
+        if (!block) return;
+
+        const parts = (over.id as string).split('-');
+        const dayIndex = parseInt(parts[1]);
+        const hour = parseInt(parts[2]);
+        const targetDate = format(days[dayIndex], 'yyyy-MM-dd');
+
+        // Snap to the nearest 15 min based on where within the hour cell the
+        // block was actually dropped — previously this always reset to :00
+        // regardless of drop position, so small in-hour nudges were silent
+        // no-ops and crossing a cell boundary always jumped a full 60 min.
+        const activeRect = active.rect.current.translated;
+        const overRect = over.rect;
+        let snappedMinutes = 0;
+        if (activeRect && overRect) {
+            const offsetPx = activeRect.top - overRect.top;
+            const minutesWithinHour = (offsetPx / CELL_HEIGHT) * 60;
+            snappedMinutes = Math.min(45, Math.max(0, Math.round(minutesWithinHour / 15) * 15));
         }
+
+        const duration = differenceInMinutes(
+            new Date(`2000-01-01T${block.end_time}`),
+            new Date(`2000-01-01T${block.start_time}`)
+        );
+
+        // Plain minute-of-day math instead of round-tripping through Date
+        // objects — the old Date-based approach silently rolled past
+        // midnight into "00:30" for a drop near the end of the day, producing
+        // an end time earlier than the start time on the same date. Clamp
+        // to 23:59 instead since blocks don't span across midnight.
+        const startTotalMinutes = hour * 60 + snappedMinutes;
+        const endTotalMinutes = Math.min(23 * 60 + 59, startTotalMinutes + duration);
+        const toHHMM = (totalMinutes: number) =>
+            `${Math.floor(totalMinutes / 60).toString().padStart(2, '0')}:${(totalMinutes % 60).toString().padStart(2, '0')}`;
+        const targetStart = toHHMM(startTotalMinutes);
+        const targetEnd = toHHMM(endTotalMinutes);
+
+        // Skip if the block would land back in the exact slot it started
+        // in — `active.id !== over.id` used to guard this but can never be
+        // false (a block id and a "cell-x-y" id never match), so it never
+        // actually caught a no-op drop and fired an unnecessary API call.
+        if (block.date === targetDate && block.start_time === targetStart) return;
+
+        onBlockMove(active.id as string, targetDate, targetStart, targetEnd);
     };
 
+    // MouseSensor (not PointerSensor) alongside TouchSensor: PointerSensor
+    // also fires for touch pointer events, which raced against TouchSensor's
+    // 250ms long-press delay and could win the "is this a drag or a scroll"
+    // decision — causing accidental drags when a user tried to scroll the
+    // grid on mobile. Splitting mouse and touch onto dedicated sensors
+    // removes that race entirely.
     const sensors = useSensors(
-        useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+        useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
         useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } })
     );
 
@@ -363,17 +437,23 @@ function BlockCard({ block, layout, onClick, isDayView, index = 0 }: { block: an
     const leftPercent = widthPercent * layout.colIndex;
     const gap = isDayView ? 4 : 2;
 
-    const style: React.CSSProperties = transform ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-        zIndex: 50,
-        width: isDayView ? '300px' : '180px',
-        height: `${layout.height}px`
-    } : {
+    // dnd-kit's `transform` is a pointer *delta*, not an absolute position —
+    // it must be layered on top of the block's resting top/left/width, never
+    // replace them. Swapping the whole style object here used to make the
+    // block jump to a hardcoded size/position the instant a drag started,
+    // before jerking into following the cursor.
+    const restingStyle: React.CSSProperties = {
         top: `${layout.top}px`,
         height: `${Math.max(layout.height, 28)}px`,
         left: `calc(${leftPercent}% + ${gap}px)`,
         width: `calc(${widthPercent}% - ${gap * 2}px)`
     };
+
+    const style: React.CSSProperties = transform ? {
+        ...restingStyle,
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        zIndex: 50,
+    } : restingStyle;
 
     const animatingBlocks = usePremiumCalendar(state => state.animatingBlocks);
     const animBlock = animatingBlocks.find(b => b.id === block.id);
@@ -404,9 +484,9 @@ function BlockCard({ block, layout, onClick, isDayView, index = 0 }: { block: an
             onClick={() => { if (!isDragging) onClick(); }}
             className={cn(
                 "absolute rounded-xl overflow-hidden cursor-pointer flex flex-col touch-manipulation",
-                "transition-all duration-300 hover:scale-[1.03] hover:z-20 group border-[1.5px] backdrop-blur-xl shadow-lg",
+                "transition-all duration-300 hover:scale-[1.03] hover:z-20 group backdrop-blur-xl shadow-lg",
                 isDragging ? "opacity-60 z-50 shadow-[0_20px_40px_rgba(249,115,22,0.4)] ring-2 ring-orange-400/80 scale-[1.05]" : colors.edge,
-                colors.bg, colors.border, colors.glow,
+                colors.bg, colors.border, colors.borderWidth, colors.glow,
                 STATUS_STYLES[block.status] || ''
             )}
         >
@@ -433,8 +513,11 @@ function BlockCard({ block, layout, onClick, isDayView, index = 0 }: { block: an
 
                 {layout.height > 60 && (
                     <div className="mt-auto pt-1 flex items-center justify-between border-t border-[var(--glass-border)]">
-                        <div className={cn("text-[9px] font-bold uppercase tracking-wider truncate", colors.metaText)}>
-                            {block.goal?.category || block.goal?.pillar || block.pillar || block.block_type || 'general'}
+                        <div className="flex items-center gap-1.5 min-w-0">
+                            <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", colors.dot)} aria-hidden="true" />
+                            <div className={cn("text-[9px] font-bold uppercase tracking-wider truncate", colors.metaText)}>
+                                {block.goal?.category || block.goal?.pillar || block.pillar || block.block_type || 'general'}
+                            </div>
                         </div>
                         {isDone && (
                             <div className="text-[9px] text-emerald-400/60 font-bold">DONE</div>
