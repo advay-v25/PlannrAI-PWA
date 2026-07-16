@@ -319,6 +319,26 @@ function normalizePatchForService(patch: any): any {
                         op: 'update_settings' as const,
                         payload: operation.data || {},
                     };
+                case 'update_memory':
+                    return {
+                        op: 'update_memory' as const,
+                        key: operation.key,
+                        value: operation.value,
+                        kind: operation.kind || 'preference',
+                    };
+                case 'create_anchor':
+                    return {
+                        op: 'create_anchor' as const,
+                        title: operation.data?.title || operation.title,
+                        start_time: operation.data?.start_time || operation.start_time,
+                        end_time: operation.data?.end_time || operation.end_time,
+                        days_of_week: operation.data?.days_of_week || operation.days_of_week,
+                    };
+                case 'delete_anchor':
+                    return {
+                        op: 'delete_anchor' as const,
+                        anchor_id: operation.anchor_id,
+                    };
                 default:
                     console.warn('[Coach Apply] Unknown operation type:', opType);
                     return null;

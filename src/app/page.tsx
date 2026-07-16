@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Sparkles, ArrowRight, Shield, Heart, Brain, Target, Calendar, BarChart3, Zap } from 'lucide-react';
+import { Sparkles, Compass, ArrowRight, Shield, Heart, Brain, Target, Calendar, BarChart3, Zap } from 'lucide-react';
 import { SciFiEarthBackground } from '@/components/ui/SciFiEarthBackground';
 import { OrbitalScheduleEngine } from '@/components/ui/orbital-schedule-engine';
 import { LiquidGlassButton } from '@/components/ui/liquid-glass-button';
@@ -96,7 +96,7 @@ export default function LandingPage() {
               color="from-[var(--color-mind)] to-[var(--color-mind-glow)]"
             />
             <FeatureCard
-              icon={<Sparkles className="w-6 h-6" />}
+              icon={<Compass className="w-6 h-6" />}
               title="AI Coach (Donna)"
               description="Your proactive Chief of Staff. Get strategic advice, context-aware suggestions, and conflict resolution without the guilt."
               color="from-[var(--color-body)] to-[var(--color-body-glow)]"

@@ -50,9 +50,10 @@ export interface ProposedOption {
 export interface ProactiveSuggestion {
     id: string;
     title: string;
-    description: string;
-    severity: 'high' | 'medium' | 'low';
-    action: string;
+    message: string;
+    priority: 'high' | 'medium' | 'low';
+    action_label: string;
+    trigger_type?: string;
     dismiss_uid?: string;
     query?: string;
 }

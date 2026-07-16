@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LayoutDashboard, Calendar, Brain, Activity, User, Sparkles, Target, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { LayoutDashboard, Calendar, Brain, Activity, User, Sparkles, Compass, Target, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import Image from 'next/image';
 import { CommandMenu } from '@/components/ui/command-menu';
 import { cn } from '@/lib/utils';
@@ -41,7 +41,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { href: '/app/tasks', icon: Brain, label: 'Mindspace' },
         { href: '/app/calendar', icon: Calendar, label: 'Calendar' },
         { href: '/app/goals', icon: Target, label: 'Goals' },
-        { href: '/app/coach', icon: Sparkles, label: 'Coach Hub' },
+        { href: '/app/coach', icon: Compass, label: 'Coach Hub' },
         { href: '/app/weekly-review', icon: Activity, label: 'Review', badge: 'Soon', disabled: true },
     ];
 

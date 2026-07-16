@@ -21,6 +21,11 @@ export interface CoachMessage {
   selected_option_id?: string;
   undoToken?: string | null;
   timestamp?: number;
+  // Set on messages that originate from a quick-action (not the running
+  // `conversationId`) — quick-action always persists as its own separate
+  // coach_conversations row server-side, so applying an option from one of
+  // these messages must target this id, not the store's main conversationId.
+  conversationId?: string;
 }
 
 interface PersistentCoachData {
@@ -44,6 +49,8 @@ interface CoachState extends PersistentCoachData {
   abortController: AbortController | null;
   
   sendMessage: (text: string) => Promise<{ success: boolean; error?: string }>;
+  appendMessages: (msgs: CoachMessage[]) => void;
+  updateMessage: (messageId: string, changes: Partial<CoachMessage>) => void;
   stopGenerating: () => Promise<string>;
   applyOption: (messageId: string, optionId: string) => Promise<ProposedOption | boolean>;
   undo: () => Promise<boolean>;
@@ -324,6 +331,21 @@ export const useCoach = create<CoachState>()(
 
           return { success: false, error: errorMessage };
         }
+      },
+
+      // Appends messages that were produced outside the normal sendMessage
+      // flow (currently: quick-action results) into the same persisted
+      // `messages` array, so they survive navigation/remount exactly like
+      // regular chat turns instead of living in a separate, unpersisted
+      // component-local array.
+      appendMessages: (msgs: CoachMessage[]) => {
+        set(state => ({ messages: [...state.messages, ...msgs] }));
+      },
+
+      updateMessage: (messageId: string, changes: Partial<CoachMessage>) => {
+        set(state => ({
+          messages: state.messages.map(m => m.id === messageId ? { ...m, ...changes } : m)
+        }));
       },
 
       getLatestMessageWithOptions: () => {
