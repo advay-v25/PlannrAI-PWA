@@ -511,13 +511,11 @@ export const POST = secureApiRoute(
                     
                     if (slot) {
                         ops.push({
-                            op: 'update_block',
+                            type: 'move_block',
                             block_id: b.id,
-                            changes: {
-                                date: todayStr,
-                                start_time: slot.start,
-                                end_time: slot.end
-                            }
+                            new_date: todayStr,
+                            new_start: slot.start,
+                            new_end: slot.end
                         });
                         // Add tentative block for subsequent placements
                         tentativeDayBlocks.push({

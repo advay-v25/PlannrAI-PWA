@@ -1316,7 +1316,7 @@ export class PatchService {
                 const id = op.goal_id;
                 const fields = op.fields || op.payload;
                 if (!id) throw new Error('Update goal requires goal_id');
-                const allowedGoalFields = ['title', 'pillar', 'category', 'importance', 'days_per_week', 'minutes_per_day', 'energy_demand', 'weekly_target_minutes', 'status', 'is_active', 'priority', 'description', 'color', 'emoji', 'is_archived', 'start_date', 'target_date'];
+                const allowedGoalFields = ['title', 'pillar', 'category', 'importance', 'days_per_week', 'minutes_per_day', 'energy_demand', 'weekly_target_minutes', 'status', 'is_active', 'priority', 'description', 'color', 'emoji', 'is_archived', 'start_date', 'target_date', 'preferred_windows'];
                 const sanitizedFields: any = {};
                 for (const key of allowedGoalFields) {
                     if (fields[key] !== undefined) {

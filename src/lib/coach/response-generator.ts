@@ -28,7 +28,16 @@ type PatchOperation =
     | { type: 'update_habit_stack'; stack_id: string; changes: Partial<HabitStackData> }
     | { type: 'delete_habit_stack'; stack_id: string }
     | { type: 'update_settings'; data: any }
-    | { type: 'update_memory'; key: string; value: any; kind?: string };
+    | { type: 'update_memory'; key: string; value: any; kind?: string }
+    | { type: 'create_anchor'; data: NewAnchorData }
+    | { type: 'delete_anchor'; anchor_id: string };
+
+interface NewAnchorData {
+    title: string;
+    start_time: string;
+    end_time: string;
+    days_of_week: number[];
+}
 
 interface NewHabitStackData {
     name: string;
@@ -1097,16 +1106,21 @@ STRATEGIC DIRECTIVES:
 🛠️ AGENTIC MODIFICATIONS & SETTINGS (NEW CAPABILITIES):
 - You have the power to modify the user's core configuration if they ask.
 - \`update_settings\`: Use this to alter global settings. Valid fields in data payload:
-  - \`sleep_start\`, \`sleep_end\` (HH:MM string)
-  - \`meal_time_1\`, \`meal_time_2\`, \`meal_time_3\` (HH:MM string)
-  - \`theme\` ('light', 'dark', 'system')
-  - Example: User says "Change my lunch to 1pm". You output: \`{ "type": "update_settings", "data": { "meal_time_2": "13:00" } }\`.
+  - \`sleep_start\`, \`wake_time\` (HH:MM string), \`wind_down_min\` (number)
+  - \`meal_windows\` (e.g., {"breakfast": {"start": "07:00", "end": "08:00"}})
+  - \`allow_weekend_work\` (boolean), \`weekend_intensity\` ('off'|'light'|'normal')
+  - \`ask_before_changes\` (boolean), \`notifications_enabled\` (boolean), \`is_workout_protected\` (boolean)
+  - Example: User says "Stop scheduling anything on weekends". You output: \`{ "type": "update_settings", "data": { "allow_weekend_work": false } }\`.
 - \`update_goal\`: Use this to alter an existing goal. Valid fields in changes:
-  - \`title\` (string), \`pillar\` ('mind'|'body'|'craft'), \`minutes_per_day\` (number), \`days_per_week\` (number), \`priority\` (1|2|3).
+  - \`title\` (string), \`pillar\` ('mind'|'body'|'craft'), \`minutes_per_day\` (number), \`days_per_week\` (number), \`priority\` (1|2|3), \`status\` ('active'|'paused'), \`preferred_windows\` ({ time_of_day: 'morning'|'afternoon'|'evening'|'flexible' }).
   - Example: User says "Reduce my gym goal to 3 days". Output: \`{ "type": "update_goal", "goal_id": "...", "changes": { "days_per_week": 3 } }\`.
+  - Example: User says "I always want Gym in the mornings from now on". Output: \`{ "type": "update_goal", "goal_id": "...", "changes": { "preferred_windows": { "time_of_day": "morning" } } }\` — this is the durable mechanism for a goal-specific time preference (the planner reads it on every future replan); do NOT use \`update_memory\` for this, memory facts are not consulted by the scheduler.
+  - Example: User says "Pause my gym goal, I'm injured". Output: \`{ "type": "update_goal", "goal_id": "...", "changes": { "status": "paused" } }\` — a paused goal is automatically excluded from all future planning without deleting it; resume later with \`status: "active"\`.
 - \`create_goal\`: Use to create a brand new goal. Fields: \`title\`, \`pillar\`, \`minutes_per_day\`, \`days_per_week\`, \`priority\`.
-- \`update_memory\`: Use to record mindspace or long-term facts.
-  - Example: User says "I prefer to workout in the mornings". Output: \`{ "type": "update_memory", "key": "workout_preference", "value": "mornings", "kind": "preference" }\`.
+- \`create_anchor\` / \`delete_anchor\`: Use to create or remove a PERMANENT recurring fixed commitment (e.g. college, a work shift, a standing meeting) — distinct from a one-off \`create_block\`. Fields for create_anchor: \`data: { title, start_time, end_time, days_of_week }\` (days_of_week is an array of 0=Sunday..6=Saturday). Fields for delete_anchor: \`anchor_id\`.
+  - Example: User says "I have College every Mon/Wed/Fri 9am-3pm, block that out permanently". Output: \`{ "type": "create_anchor", "data": { "title": "College", "start_time": "09:00", "end_time": "15:00", "days_of_week": [1,3,5] } }\`.
+- \`update_memory\`: Use to record general preferences/constraints/facts that aren't tied to a specific goal or settings field (e.g. "I hate deep work after 6pm", "my commute is 30 minutes"). For a GOAL's time-of-day preference use \`update_goal\`'s \`preferred_windows\` instead (see above) — it's actually read by the scheduler, memory facts are not.
+  - Example: User says "Remember I hate scheduling deep work after 6pm". Output: \`{ "type": "update_memory", "key": "deep_work_cutoff", "value": "18:00", "kind": "constraint" }\`.
 - \`create_todo\` / \`update_todo\` / \`delete_todo\`: Use for managing standalone tasks that don't need calendar blocks right now.
 
 🚫 IMMUTABLE BLOCKS (PROCEED WITH CAUTION):
@@ -1232,11 +1246,13 @@ PATCH OPERATION TYPES:
 - update_block: { type: "update_block", block_id: string, changes: { title?: string, start_time?: string, end_time?: string } }
 - replan_day: { type: "replan_day", mode: "balanced|momentum|recovery" }
 - replan_week: { type: "replan_week", mode: "balanced|momentum|recovery" }
-- update_settings: { type: "update_settings", data: { sleep_start?: string, sleep_end?: string, meal_time_1?: string, meal_time_2?: string, meal_time_3?: string, theme?: string } }
+- update_settings: { type: "update_settings", data: { sleep_start?: string, wake_time?: string, wind_down_min?: number, meal_windows?: object, allow_weekend_work?: boolean, weekend_intensity?: "off"|"light"|"normal", ask_before_changes?: boolean, notifications_enabled?: boolean, is_workout_protected?: boolean } }
 - update_memory: { type: "update_memory", key: string, value: any, kind: string }
 - create_goal: { type: "create_goal", data: { title: string, pillar: "mind"|"body"|"craft", minutes_per_day: number, days_per_week: number, priority?: number } }
-- update_goal: { type: "update_goal", goal_id: string, changes: { title?: string, minutes_per_day?: number, days_per_week?: number, priority?: number } }
+- update_goal: { type: "update_goal", goal_id: string, changes: { title?: string, minutes_per_day?: number, days_per_week?: number, priority?: number, status?: "active"|"paused", preferred_windows?: { time_of_day: "morning"|"afternoon"|"evening"|"flexible" } } }
 - delete_goal: { type: "delete_goal", goal_id: string }
+- create_anchor: { type: "create_anchor", data: { title: string, start_time: string, end_time: string, days_of_week: number[] } }
+- delete_anchor: { type: "delete_anchor", anchor_id: string }
 - create_todo: { type: "create_todo", data: { title: string, due_date?: string, priority?: string } }
 - update_todo: { type: "update_todo", todo_id: string, changes: { title?: string, is_completed?: boolean, due_date?: string, priority?: string } }
 - delete_todo: { type: "delete_todo", todo_id: string }
@@ -1938,6 +1954,21 @@ function normalizeOperation(op: any): PatchOperation {
                 value: op.value,
                 kind: op.kind
             };
+        case 'create_anchor':
+            return {
+                type: 'create_anchor',
+                data: {
+                    title: op.data?.title || op.title,
+                    start_time: op.data?.start_time || op.start_time,
+                    end_time: op.data?.end_time || op.end_time,
+                    days_of_week: op.data?.days_of_week || op.days_of_week || [1, 2, 3, 4, 5],
+                },
+            };
+        case 'delete_anchor':
+            return {
+                type: 'delete_anchor',
+                anchor_id: op.anchor_id || op.id,
+            };
         default:
             console.warn('[CoachAI] Unknown operation type:', type);
             return op;
@@ -2044,6 +2075,18 @@ function convertToCalendarPatchOp(op: PatchOperation): any {
                 value: op.value,
                 kind: op.kind,
                 title: 'Update Memory'
+            };
+        case 'create_anchor':
+            return {
+                op: 'create_anchor',
+                payload: op.data,
+                title: op.data?.title || 'New Commitment',
+            };
+        case 'delete_anchor':
+            return {
+                op: 'delete_anchor',
+                anchor_id: op.anchor_id,
+                title: 'Remove Commitment',
             };
         default:
             return op;

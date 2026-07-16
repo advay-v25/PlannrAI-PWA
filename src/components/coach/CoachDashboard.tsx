@@ -17,7 +17,7 @@ export function CoachDashboard({ onCalendarUpdate, initialQuickAction }: CoachDa
 
     if (!mounted) return (
         <div className="flex items-center justify-center h-full">
-            <Loader2 className="w-8 h-8 text-[var(--text-muted)] dark:text-white/20 animate-spin" />
+            <Loader2 className="w-8 h-8 text-[var(--text-muted)] animate-spin" />
         </div>
     );
 
@@ -25,7 +25,7 @@ export function CoachDashboard({ onCalendarUpdate, initialQuickAction }: CoachDa
         <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
+            transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
             className="flex flex-col h-full w-full"
         >
             <div className="flex-1 min-h-0">

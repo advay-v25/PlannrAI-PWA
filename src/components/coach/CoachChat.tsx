@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, FormEvent, useRef, useEffect } from 'react';
-import { Sparkles, BatteryLow, RefreshCw, Zap } from 'lucide-react';
+import { Compass, MessageSquarePlus, BatteryLow, RefreshCw, Zap, Star, Loader2, Check, X, Undo2, RotateCcw, ChevronDown, Plus, Trash2, Send } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
 import { apiClient } from '@/lib/api-client';
 import { formatDistanceToNow } from 'date-fns';
-import { useCoach, CoachMessage } from '@/hooks/use-coach';
+import { useCoach } from '@/hooks/use-coach';
 import { ProposedOption } from '@/types/coach-v4';
 import { CoachMessageBubble } from './CoachMessageBubble';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -69,16 +69,17 @@ function InlineOptionCard({
         <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
+            whileHover={disabled ? undefined : { y: -2 }}
             transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
             className={`group relative p-4 rounded-2xl border transition-all duration-200 ${
                 option.recommended
-                    ? 'border-[var(--color-primary)]/30 bg-[var(--color-primary)]/5'
-                    : 'border-[var(--glass-border)] bg-[var(--glass-bg)]'
+                    ? 'border-[var(--color-primary)]/50 bg-[var(--color-primary)]/5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-primary)_45%,_black),0_0_14px_-4px_var(--color-primary-glow)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.14),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-primary)_45%,_black),0_0_16px_-4px_var(--color-primary-glow)] hover:border-[var(--color-primary)]/70'
+                    : 'border-[var(--color-primary)]/25 bg-[var(--glass-bg)] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.4),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-primary)_32%,_black),0_0_8px_-5px_var(--color-primary-glow)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-primary)_32%,_black),0_0_10px_-5px_var(--color-primary-glow)] hover:border-[var(--color-primary)]/45'
             } ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
         >
             {option.recommended && (
-                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--color-primary)] mb-1.5 block">
-                    ✦ Recommended
+                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--color-primary)] mb-1.5 flex items-center gap-1">
+                    <Star className="w-3 h-3" fill="currentColor" aria-hidden="true" /> Recommended
                 </span>
             )}
 
@@ -101,24 +102,24 @@ function InlineOptionCard({
             )}
 
             <div className="mt-3 flex items-center gap-2">
-                <button
+                <motion.button
+                    whileHover={disabled ? undefined : { scale: 1.03 }}
+                    whileTap={disabled ? undefined : { scale: 0.96 }}
                     onClick={e => { e.stopPropagation(); setReviewOpen(!reviewOpen); }}
                     disabled={disabled}
-                    className={`px-4 py-1.5 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-colors ${
-                        option.recommended
-                            ? 'bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] shadow-[0_0_12px_var(--color-primary-glow)]'
-                            : 'bg-[var(--glass-bg)] text-[var(--text-secondary)] hover:bg-[var(--glass-bg-hover)]'
-                    }`}
+                    className="px-4 py-1.5 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all bg-[var(--color-primary)]/15 backdrop-blur-xl border border-[var(--color-primary)]/30 text-[var(--color-primary)] shadow-[0_0_16px_-4px_var(--color-primary-glow),inset_0_1px_0_0_rgba(255,255,255,0.25)] hover:bg-[var(--color-primary)]/25 hover:border-[var(--color-primary)]/50"
                 >
                     {reviewOpen ? 'Hide Review' : 'Review & Execute'}
-                </button>
+                </motion.button>
                 {option.scenario_analysis && (
-                    <button
+                    <motion.button
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.96 }}
                         onClick={e => { e.stopPropagation(); setReviewOpen(!reviewOpen); }}
                         className="px-3 py-1.5 rounded-xl text-[11px] font-bold uppercase tracking-widest bg-[var(--glass-bg)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
                     >
                         Why?
-                    </button>
+                    </motion.button>
                 )}
             </div>
 
@@ -128,7 +129,7 @@ function InlineOptionCard({
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2 }}
+                        transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
                         className="mt-3 overflow-hidden"
                     >
                         <div className="p-3 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] space-y-3">
@@ -191,7 +192,9 @@ function InlineOptionCard({
                             {option.scenario_analysis && (
                                 <p className="text-xs text-[var(--text-tertiary)] leading-relaxed">{option.scenario_analysis}</p>
                             )}
-                            <button
+                            <motion.button
+                                whileHover={disabled ? undefined : { scale: 1.02 }}
+                                whileTap={disabled ? undefined : { scale: 0.97 }}
                                 onClick={e => {
                                     e.stopPropagation();
                                     if (!disabled) { setReviewOpen(false); onSelect(); }
@@ -200,7 +203,7 @@ function InlineOptionCard({
                                 className="w-full py-2.5 rounded-xl text-[12px] font-bold uppercase tracking-widest bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] transition-colors shadow-[0_0_20px_var(--color-primary-glow)] disabled:opacity-50"
                             >
                                 Apply Changes
-                            </button>
+                            </motion.button>
                         </div>
                     </motion.div>
                 )}
@@ -228,11 +231,13 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
         conversationId,
     } = useCoach();
 
-    // Always open to a fresh blank chat when the user lands on Coach Hub.
-    // Past chats are accessible via the left sidebar.
+    // Resume whatever conversation was already in progress — `useCoach` is a
+    // persisted Zustand store, so it survives navigating away and back. This
+    // effect used to unconditionally clear it on every mount, which meant an
+    // in-progress chat (and any options shown, unselected) vanished the
+    // moment the user visited another tab and came back. "New Chat" (below)
+    // remains the explicit, intentional way to start fresh.
     useEffect(() => {
-        clearConversation();
-        setSyntheticMessages([]);
         // Fetch past conversations for the left sidebar on mount
         (async () => {
             try {
@@ -245,7 +250,7 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
                 setIsLoadingHistoryList(false);
             }
         })();
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, []);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -258,18 +263,13 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
     const [isApplyingChanges, setIsApplyingChanges] = useState(false);
     const [isQuickActionLoading, setIsQuickActionLoading] = useState(false);
 
-    // Synthetic messages from quick-action endpoint. The endpoint also persists
-    // the exchange as a coach conversation (so it appears in the sidebar and
-    // reloads read-only like manual prompts); this holds the live-session copy.
-    const [syntheticMessages, setSyntheticMessages] = useState<CoachMessage[]>([]);
     const [loadingConvId, setLoadingConvId] = useState<string | null>(null);
-    const [quickConversationId, setQuickConversationId] = useState<string | null>(null);
 
-    // Auto-scroll when either message source updates — but only if the user
-    // is already near the bottom. Force-scrolling regardless of scroll
-    // position used to yank someone back down mid-read of earlier messages;
-    // if they've scrolled up, surface a "new message" pill instead so they
-    // can jump down on their own terms.
+    // Auto-scroll when messages update — but only if the user is already
+    // near the bottom. Force-scrolling regardless of scroll position used to
+    // yank someone back down mid-read of earlier messages; if they've
+    // scrolled up, surface a "new message" pill instead so they can jump
+    // down on their own terms.
     useEffect(() => {
         const container = messagesContainerRef.current;
         const nearBottom = !container || (container.scrollHeight - container.scrollTop - container.clientHeight < 150);
@@ -279,10 +279,12 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
         } else {
             setShowNewMessagePill(true);
         }
-    }, [messages, syntheticMessages]);
+    }, [messages]);
 
-    // Combined ordered display list
-    const allMessages = [...messages, ...syntheticMessages].sort(
+    // Quick-action results append into the same persisted `messages` array
+    // (via appendMessages) as regular chat, but resolve out of strict append
+    // order if two async operations land back-to-back — sort defensively.
+    const allMessages = [...messages].sort(
         (a, b) => (a.timestamp || 0) - (b.timestamp || 0)
     );
 
@@ -301,10 +303,8 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
             const res = await apiClient.delete<any>(`/api/coach/conversations?id=${id}`);
             if (res) {
                 setPastConversations(prev => prev.filter(c => c.id !== id));
-                if (conversationId === id || quickConversationId === id) {
+                if (conversationId === id || messages.some(m => m.conversationId === id)) {
                     clearConversation();
-                    setSyntheticMessages([]);
-                    setQuickConversationId(null);
                 }
                 showToast('Chat deleted', 'success');
             }
@@ -367,11 +367,13 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
 
             const { summary, ops, options: multiOptions, proposed_options } = raw;
             const assistantId = `assistant_${Date.now()}`;
+            // Quick-action always persists as its own separate coach_conversations
+            // row server-side — stamped onto each message below (not a shared outer
+            // variable) so a second quick action in the same session can't clobber
+            // which conversation the first one's option should apply against.
+            const thisConversationId: string | undefined = raw.conversation_id;
 
-            // The quick action is persisted server-side as a conversation — track it
-            // so applying the option records against it, and refresh the sidebar.
             if (raw.conversation_id) {
-                setQuickConversationId(raw.conversation_id);
                 apiClient.get<any>('/api/coach/conversations')
                     .then(res => { if (res) setPastConversations(res.conversations || []); })
                     .catch(() => { /* sidebar refresh is best-effort */ });
@@ -381,13 +383,13 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
 
             if (effectiveOptions && Array.isArray(effectiveOptions) && effectiveOptions.length > 0) {
                 // Multi-option response path (e.g. do_more_today)
-                setSyntheticMessages(prev => [
-                    ...prev,
+                useCoach.getState().appendMessages([
                     {
                         id: `user_${Date.now()}`,
                         role: 'user' as const,
                         content: labelMap[action],
                         timestamp: Date.now(),
+                        conversationId: thisConversationId,
                     },
                     {
                         id: assistantId,
@@ -410,6 +412,7 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
                             recommended: opt.recommended,
                         })) as ProposedOption[],
                         timestamp: Date.now() + 1,
+                        conversationId: thisConversationId,
                     },
                 ]);
             } else {
@@ -440,13 +443,13 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
                     recommended: true,
                 };
 
-                setSyntheticMessages(prev => [
-                    ...prev,
+                useCoach.getState().appendMessages([
                     {
                         id: `user_${Date.now()}`,
                         role: 'user' as const,
                         content: labelMap[action],
                         timestamp: Date.now(),
+                        conversationId: thisConversationId,
                     },
                     {
                         id: assistantId,
@@ -454,6 +457,7 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
                         content: summary,
                         options: ops && ops.length > 0 ? [option] : undefined,
                         timestamp: Date.now() + 1,
+                        conversationId: thisConversationId,
                     },
                 ]);
             }
@@ -497,18 +501,15 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
 
         if (isSynthetic) {
             try {
+                const parentMessage = messages.find(m => m.id === parentMessageId);
                 const result = await apiClient.post<any>('/api/coach/apply', {
-                    conversation_id: quickConversationId,
+                    conversation_id: parentMessage?.conversationId,
                     option_id: option.id,
                     patch: option.ledger,
                 });
 
                 if (result.applied_operations > 0 || result.undo_token) {
-                    setSyntheticMessages(prev => prev.map(m =>
-                        m.id === parentMessageId
-                            ? { ...m, selected_option_id: option.id, undoToken: result.undo_token }
-                            : m
-                    ));
+                    useCoach.getState().updateMessage(parentMessageId, { selected_option_id: option.id, undoToken: result.undo_token });
                     // Sync the shared coach store so the global Undo strip works
                     // the same way it does for manual prompts
                     if (result.undo_token) {
@@ -583,8 +584,6 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
 
     const handleNewChat = () => {
         clearConversation();
-        setSyntheticMessages([]);
-        setQuickConversationId(null);
     };
 
     return (
@@ -594,16 +593,14 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
             <div className="w-56 shrink-0 hidden md:flex flex-col border-r border-[var(--glass-border)] bg-[var(--color-bg-secondary)]/40 backdrop-blur-xl">
                 {/* Sidebar header */}
                 <div className="px-4 py-4 flex items-center justify-between border-b border-[var(--glass-border)] shrink-0">
-                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--text-tertiary)]">Coach Hub</span>
+                    <span className="text-overline">Coach Hub</span>
                     <button
                         onClick={handleNewChat}
                         title="New conversation"
                         aria-label="Start a new conversation"
                         className="p-2.5 -m-1 rounded-lg hover:bg-[var(--glass-bg)] transition-colors text-[var(--text-tertiary)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/50"
                     >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                        </svg>
+                        <Plus className="w-3.5 h-3.5" />
                     </button>
                 </div>
 
@@ -613,14 +610,14 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
                         onClick={handleNewChat}
                         className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[var(--color-primary)]/10 border border-[var(--color-primary)]/20 hover:bg-[var(--color-primary)]/15 transition-all text-left group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/50"
                     >
-                        <Sparkles className="w-4 h-4 text-[var(--color-primary)] shrink-0" />
+                        <MessageSquarePlus className="w-4 h-4 text-[var(--color-primary)] shrink-0" aria-hidden="true" />
                         <span className="text-[12px] font-bold text-[var(--color-primary)] group-hover:text-[var(--color-primary-hover)]">New Chat</span>
                     </button>
                 </div>
 
                 {/* Recents label */}
                 <div className="px-4 pt-2 pb-1 shrink-0">
-                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-tertiary)]">Recents</span>
+                    <span className="text-overline">Recents</span>
                 </div>
 
                 {/* Conversation list */}
@@ -646,11 +643,9 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
                                         if (isLoadingHistory) return;
                                         setLoadingConvId(conv.id);
                                         clearConversation();
-                                        setSyntheticMessages([]);
-                                        setQuickConversationId(null);
                                         loadHistory(conv.id).finally(() => setLoadingConvId(null));
                                     }}
-                                    className={`w-full text-left px-3 py-2.5 rounded-xl hover:bg-[var(--glass-bg)] border border-transparent hover:border-[var(--glass-border)] transition-all flex flex-col gap-0.5 pr-8 ${loadingConvId === conv.id ? 'bg-[var(--glass-bg)] border-[var(--glass-border)]' : ''}`}
+                                    className={`w-full text-left px-3 py-2.5 rounded-xl hover:bg-[var(--glass-bg)] border transition-all flex flex-col gap-0.5 pr-8 ${loadingConvId === conv.id ? 'bg-[var(--glass-bg)] border-[var(--glass-border)]' : 'border-transparent hover:border-[var(--glass-border)]'}`}
                                 >
                                     <span className="text-[12px] font-medium text-[var(--text-primary)]/80 group-hover:text-[var(--color-primary)] transition-colors truncate leading-snug">
                                         {conv.primary_topic || 'Strategy Session'}
@@ -667,9 +662,7 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
                                     title="Delete"
                                     aria-label={`Delete conversation: ${conv.primary_topic || 'Strategy Session'}`}
                                 >
-                                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
+                                    <Trash2 className="w-3 h-3" />
                                 </button>
                             </div>
                         ))
@@ -683,8 +676,8 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
                 {/* ── Header ── */}
                 <div className="z-20 px-5 py-4 flex justify-between items-center border-b border-[var(--glass-border)] bg-[var(--glass-bg-elevated)] backdrop-blur-xl shrink-0">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-orange-600 flex items-center justify-center shadow-[0_0_15px_var(--color-primary-glow)]">
-                            <span className="text-white text-sm">⚡</span>
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-soft)] flex items-center justify-center shadow-[0_0_15px_var(--color-primary-glow)]">
+                            <Compass className="w-4 h-4 text-white" />
                         </div>
                         <div>
                             <span className="text-[15px] font-bold text-[var(--text-primary)] tracking-tight flex items-center gap-1.5">
@@ -692,7 +685,7 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
                                 <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)] animate-scifi-blink" />
                             </span>
                             <span className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider block">
-                                Strategic Mode · Calendar · Goals · Tasks
+                                Your Chief of Staff
                             </span>
                         </div>
                     </div>
@@ -703,9 +696,7 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
                             aria-label="Start a new conversation"
                             className="p-2.5 rounded-xl hover:bg-[var(--glass-bg)] transition-colors text-[var(--text-tertiary)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/50"
                         >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
+                            <Plus className="w-4 h-4" />
                         </button>
                     </div>
                 </div>
@@ -717,8 +708,8 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
                         <button
                             onClick={clearError}
                             aria-label="Dismiss error"
-                            className="text-[var(--color-error)]/60 hover:text-[var(--color-error)] text-lg leading-none p-1.5 -m-1.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-error)]/50"
-                        >×</button>
+                            className="text-[var(--color-error)]/60 hover:text-[var(--color-error)] p-1.5 -m-1.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-error)]/50"
+                        ><X className="w-3.5 h-3.5" /></button>
                     </div>
                 )}
 
@@ -737,8 +728,8 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
                     {/* Empty state — 3 quick-action bubbles */}
                     {allMessages.length === 0 && !showLoadingIndicator && !isLoadingHistory && (
                         <div className="flex flex-col items-center mt-10 animate-fade-in">
-                            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[var(--color-primary)] to-orange-600/60 mx-auto mb-5 flex items-center justify-center shadow-[0_0_30px_var(--color-primary-glow)]">
-                                <Sparkles className="w-6 h-6 text-white" />
+                            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-[var(--color-primary)] to-[var(--color-primary-soft)]/60 mx-auto mb-5 flex items-center justify-center shadow-[0_0_30px_var(--color-primary-glow)]">
+                                <Compass className="w-6 h-6 text-white" />
                             </div>
                             <p className="text-xl md:text-2xl font-bold tracking-tight text-[var(--text-primary)] mb-1.5">How shall we architect today?</p>
                             <p className="text-xs text-[var(--text-tertiary)] italic mb-8">Or type anything below to start a conversation.</p>
@@ -794,11 +785,11 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
                                 message.options.length > 0 &&
                                 message.isApplying && (
                                 <div className="pl-2">
-                                    <div className="p-3 rounded-xl bg-[var(--color-warning)]/5 border border-[var(--color-warning)]/20 flex items-center gap-3 animate-pulse">
+                                    <div className="p-3 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] shadow-[inset_3px_0_0_0_var(--color-warning),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-warning)_40%,_black)] dark:shadow-[inset_3px_0_0_0_var(--color-warning),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-warning)_40%,_black)] flex items-center gap-3 animate-pulse">
                                         <div className="w-5 h-5 rounded-full bg-[var(--color-warning)]/20 flex items-center justify-center">
-                                            <span className="text-[10px] text-[var(--color-warning)] animate-spin">⚡</span>
+                                            <Loader2 className="w-3 h-3 text-[var(--color-warning)] animate-spin" aria-hidden="true" />
                                         </div>
-                                        <span className="text-[11px] font-bold text-[var(--color-warning)] uppercase tracking-wider">Applying Changes…</span>
+                                        <span className="text-[11px] font-bold text-[var(--color-warning)] uppercase tracking-wide">Applying Changes…</span>
                                     </div>
                                 </div>
                             )}
@@ -808,11 +799,13 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
                                 message.selected_option_id &&
                                 !message.isApplying && (
                                 <div className="pl-2">
-                                    <div className="p-3 rounded-xl bg-[var(--color-primary)]/5 border border-[var(--color-primary)]/20 flex items-center justify-between">
+                                    <div className="p-3 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] shadow-[inset_3px_0_0_0_var(--color-primary),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-primary)_40%,_black)] dark:shadow-[inset_3px_0_0_0_var(--color-primary),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-primary)_40%,_black)] flex items-center justify-between">
                                         <div className="flex items-start gap-3 w-full">
-                                            <div className="mt-0.5 w-5 h-5 rounded-full bg-[var(--color-primary)] flex-shrink-0 flex items-center justify-center text-[10px] text-[var(--text-primary)]">✓</div>
+                                            <div className="mt-0.5 w-5 h-5 rounded-full bg-[var(--color-primary)] flex-shrink-0 flex items-center justify-center text-white">
+                                                <Check className="w-3 h-3" strokeWidth={3} aria-hidden="true" />
+                                            </div>
                                             <div className="flex-1 min-w-0">
-                                                <span className="text-[10px] font-bold text-[var(--color-primary)] uppercase block mb-1">Applied</span>
+                                                <span className="text-overline text-[var(--color-primary)] block mb-1">Applied</span>
                                                 <div className="flex flex-col gap-1.5 w-full">
                                                     {(() => {
                                                         const opt = message.options?.find(o => o.id === message.selected_option_id);
@@ -859,9 +852,9 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
                                             <button
                                                 onClick={e => { e.stopPropagation(); handleUndo(); }}
                                                 disabled={isLoading}
-                                                className="ml-2 flex-shrink-0 px-3 py-1.5 rounded-lg bg-[var(--color-error)]/10 border border-[var(--color-error)]/20 text-[10px] font-bold text-[var(--color-error)] uppercase tracking-wider hover:bg-[var(--color-error)]/20 transition-all disabled:opacity-50"
+                                                className="ml-2 flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[var(--color-error)]/10 border border-[var(--color-error)]/20 text-[10px] font-bold text-[var(--color-error)] uppercase tracking-wide hover:bg-[var(--color-error)]/20 transition-all disabled:opacity-50"
                                             >
-                                                ↩ Undo
+                                                <Undo2 className="w-3 h-3" aria-hidden="true" /> Undo
                                             </button>
                                         )}
                                     </div>
@@ -906,7 +899,7 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
                                         <div className="flex gap-1 shrink-0">
                                             <span className="w-1.5 h-1.5 bg-[var(--color-primary)] rounded-full animate-bounce shadow-[0_0_8px_var(--color-primary-glow)]" style={{ animationDelay: '0s' }} />
                                             <span className="w-1.5 h-1.5 bg-[var(--color-mind)] rounded-full animate-bounce shadow-[0_0_8px_var(--color-mind-glow)]" style={{ animationDelay: '0.2s' }} />
-                                            <span className="w-1.5 h-1.5 bg-pink-400 rounded-full animate-bounce shadow-[0_0_8px_rgba(236,72,153,0.8)]" style={{ animationDelay: '0.4s' }} />
+                                            <span className="w-1.5 h-1.5 bg-[var(--color-craft)] rounded-full animate-bounce shadow-[0_0_8px_var(--color-craft-glow)]" style={{ animationDelay: '0.4s' }} />
                                         </div>
                                     </div>
                                 </div>
@@ -925,16 +918,16 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
                             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
                             setShowNewMessagePill(false);
                         }}
-                        className="absolute bottom-28 md:bottom-24 left-1/2 -translate-x-1/2 z-40 bg-[var(--color-primary)] text-[var(--text-primary)] px-4 py-2 rounded-full shadow-[0_0_20px_var(--color-primary-glow)] flex items-center gap-2 text-xs font-bold uppercase tracking-widest animate-fade-in hover:brightness-110 transition-all"
+                        className="absolute bottom-28 md:bottom-24 left-1/2 -translate-x-1/2 z-40 bg-[var(--color-primary)] text-white px-4 py-2 rounded-full shadow-[0_0_20px_var(--color-primary-glow)] flex items-center gap-2 text-xs font-bold uppercase tracking-wide animate-fade-in hover:brightness-110 transition-all"
                     >
                         <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
-                        New message ↓
+                        New message <ChevronDown className="w-3.5 h-3.5" aria-hidden="true" />
                     </button>
                 )}
 
                 {/* Changes in progress toast */}
                 {isApplyingChanges && (
-                    <div className="absolute bottom-32 md:bottom-24 left-1/2 -translate-x-1/2 z-50 bg-[var(--color-primary)] text-[var(--text-primary)] px-6 py-3 rounded-full shadow-[0_0_20px_rgba(var(--color-primary-rgb),0.5)] flex items-center gap-3 animate-fade-in">
+                    <div className="absolute bottom-32 md:bottom-24 left-1/2 -translate-x-1/2 z-50 bg-[var(--color-primary)] text-white px-6 py-3 rounded-full shadow-[0_0_20px_rgba(var(--color-primary-rgb),0.5)] flex items-center gap-3 animate-fade-in">
                         <div className="w-2.5 h-2.5 bg-white rounded-full animate-pulse" />
                         <span className="font-bold tracking-wide text-sm uppercase">Applying Changes</span>
                     </div>
@@ -945,9 +938,9 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
                     <div className="z-10 px-4 md:px-8 py-3 border-t border-[var(--glass-border)] bg-[var(--glass-bg)] backdrop-blur-sm flex justify-center shrink-0">
                         <button
                             onClick={handleUndo}
-                            className="text-[10px] font-bold text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] uppercase tracking-widest flex items-center gap-2"
+                            className="text-[10px] font-bold text-[var(--color-primary)] hover:text-[var(--color-primary-hover)] uppercase tracking-wide flex items-center gap-2"
                         >
-                            Revert Last Protocol ↩
+                            <RotateCcw className="w-3 h-3" aria-hidden="true" /> Revert Last Protocol
                         </button>
                     </div>
                 )}
@@ -956,7 +949,7 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
                 <div className="z-10 w-full border-t border-[var(--glass-border)] bg-[var(--glass-bg-elevated)] backdrop-blur-3xl pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-4 shrink-0">
                     <form onSubmit={handleSubmit} className="px-4 md:px-8 py-3">
                         <div className="flex items-center gap-3 bg-[var(--color-bg-secondary)] dark:bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-3xl p-1.5 shadow-[var(--shadow-lg)] transition-all focus-within:border-[var(--color-primary)]/50 focus-within:shadow-[0_0_40px_var(--color-primary-glow)] group relative overflow-hidden">
-                            <div className="absolute inset-0 bg-gradient-to-r from-[var(--color-primary)]/5 to-orange-600/5 opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
+                            <div className="absolute inset-0 bg-gradient-to-r from-[var(--color-primary)]/5 to-[var(--color-primary-soft)]/5 opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none" />
                             <input
                                 type="text"
                                 value={input}
@@ -984,11 +977,9 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
                                     type="submit"
                                     disabled={isQuickActionLoading || isApplyingChanges || !input.trim()}
                                     aria-label="Send message"
-                                    className="w-12 h-12 bg-[var(--color-primary)] text-white dark:bg-[var(--glass-bg)] hover:bg-[var(--color-primary-hover)] dark:hover:bg-gradient-to-tr dark:hover:from-[var(--color-primary)] dark:hover:to-orange-600 rounded-2xl flex items-center justify-center transition-all dark:text-[var(--text-tertiary)] dark:hover:text-white disabled:opacity-30 disabled:hover:bg-[var(--color-primary)] dark:disabled:hover:bg-[var(--glass-bg)] relative z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/50"
+                                    className="w-12 h-12 bg-[var(--color-primary)] text-white dark:bg-[var(--glass-bg)] hover:bg-[var(--color-primary-hover)] dark:hover:bg-gradient-to-tr dark:hover:from-[var(--color-primary)] dark:hover:to-[var(--color-primary-soft)] rounded-2xl flex items-center justify-center transition-all dark:text-[var(--text-tertiary)] dark:hover:text-white disabled:opacity-30 disabled:hover:bg-[var(--color-primary)] dark:disabled:hover:bg-[var(--glass-bg)] relative z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/50"
                                 >
-                                    <svg className="w-5 h-5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                                    </svg>
+                                    <Send className="w-5 h-5" />
                                 </button>
                             )}
                         </div>
@@ -997,7 +988,7 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
 
                 {/* Confirmation modal */}
                 {showPreview && pendingOption && (
-                    <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/30 dark:bg-black/50 backdrop-blur-md">
+                    <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-md">
                         <ConfirmationModal
                             option={pendingOption}
                             onConfirm={() => {

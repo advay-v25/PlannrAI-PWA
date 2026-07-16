@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Sparkles } from 'lucide-react';
+import { Compass, ChevronDown } from 'lucide-react';
 import { CoachMessage } from '@/hooks/use-coach';
 import { cn } from '@/lib/utils';
 
@@ -153,8 +153,8 @@ export function CoachMessageBubble({ message }: CoachMessageBubbleProps) {
             className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
         >
             <div
-                className={`max-w-[85%] md:max-w-[70%] px-6 py-5 rounded-[2rem] shadow-sm relative group ${isUser
-                        ? 'bg-gradient-to-b from-[var(--color-primary)] to-orange-700 text-white ml-12 rounded-tr-md shadow-lg border border-[var(--color-primary)]/30 backdrop-blur-md'
+                className={`max-w-[85%] md:max-w-[70%] px-6 py-5 rounded-[2rem] relative group ${isUser
+                        ? 'bg-gradient-to-b from-[var(--color-primary)] to-[color-mix(in_oklab,_var(--color-primary)_70%,_black)] text-white ml-12 rounded-tr-md shadow-lg border border-[var(--color-primary)]/30 backdrop-blur-md'
                         : 'bg-[var(--glass-bg)] backdrop-blur-3xl border border-[var(--glass-border)] text-[var(--text-primary)] mr-12 rounded-tl-md shadow-2xl'
                     }`}
             >
@@ -164,10 +164,10 @@ export function CoachMessageBubble({ message }: CoachMessageBubbleProps) {
                 <div className="flex flex-col space-y-1 relative z-10">
                     {!isUser && (
                         <div className="flex items-center gap-2 mb-2">
-                            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-orange-600 flex items-center justify-center shadow-[0_0_10px_var(--color-primary-glow)]">
-                                <Sparkles className="w-3 h-3 text-white" />
+                            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-soft)] flex items-center justify-center shadow-[0_0_10px_var(--color-primary-glow)]">
+                                <Compass className="w-3 h-3 text-white" />
                             </div>
-                            <span className="text-[10px] font-black uppercase tracking-widest text-[var(--color-primary)]">
+                            <span className="text-overline text-[var(--color-primary)]">
                                 Donna
                             </span>
                         </div>
@@ -181,15 +181,16 @@ export function CoachMessageBubble({ message }: CoachMessageBubbleProps) {
                         <div className="mt-3 pt-3 border-t border-[var(--glass-border)]">
                             <button
                                 onClick={() => setShowThinking(!showThinking)}
-                                className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-[var(--text-tertiary)] hover:text-[var(--color-primary)] transition-colors"
+                                className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-tertiary)] hover:text-[var(--color-primary)] transition-colors"
                             >
-                                <span className="text-[10px]">{showThinking ? '▾' : '▸'}</span>
+                                <ChevronDown className={cn("w-3 h-3 transition-transform", !showThinking && "-rotate-90")} aria-hidden="true" />
                                 Donna&apos;s Reasoning ({message.thinking!.length} steps)
                             </button>
                             {showThinking && (
                                 <motion.div
                                     initial={{ opacity: 0, height: 0 }}
                                     animate={{ opacity: 1, height: 'auto' }}
+                                    transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
                                     className="mt-2 space-y-1 overflow-hidden"
                                 >
                                     {message.thinking!.map((step, i) => (
@@ -209,7 +210,7 @@ export function CoachMessageBubble({ message }: CoachMessageBubbleProps) {
                             {message.contextUsed.map((ctx, i) => (
                                 <span
                                     key={i}
-                                    className="text-[8px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-[var(--glass-bg)] text-[var(--text-tertiary)] border border-[var(--glass-border)]"
+                                    className="text-[8px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full bg-[var(--glass-bg)] text-[var(--text-tertiary)] border border-[var(--glass-border)]"
                                 >
                                     {ctx}
                                 </span>
