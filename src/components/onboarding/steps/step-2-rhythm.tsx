@@ -25,9 +25,13 @@ export function Step2Rhythm() {
     const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
     const getStoreValue = (m1: 'breakfast' | 'lunch' | 'dinner', m2: 'breakfast' | 'lunch' | 'dinner') => {
-        const sorted = [m1, m2].sort();
-        if (sorted[0] === 'breakfast' && sorted[1] === 'lunch') return 'breakfast_lunch';
-        if (sorted[0] === 'lunch' && sorted[1] === 'dinner') return 'lunch_dinner';
+        // Membership check, not sort order — `.sort()` is alphabetical
+        // ('dinner' < 'lunch'), so comparing against a fixed [lo, hi] pair
+        // after sorting silently misclassified Lunch+Dinner as
+        // Breakfast+Dinner (the catch-all fallback) every time.
+        const set = new Set([m1, m2]);
+        if (set.has('breakfast') && set.has('lunch')) return 'breakfast_lunch';
+        if (set.has('lunch') && set.has('dinner')) return 'lunch_dinner';
         return 'breakfast_dinner';
     };
 

@@ -20,14 +20,21 @@ interface BlockInspectorProps {
 
 // Theme-token-driven, matching week-grid.tsx's PILLAR_COLORS so the inspector
 // panel and the calendar grid always agree on a pillar's color in both themes.
-// `edge` adds the same solid leading-edge accent stripe used on grid blocks
-// so the pillar reads unambiguously even where the tint alone is subtle.
+// Background/border stay neutral — color identity lives entirely in `edge`'s
+// left accent stripe + bevel + soft glow (an inset box-shadow, not a
+// full-perimeter colored border+fill), the same restrained language used on
+// grid blocks. A saturated gradient fill + colored 1px border on all sides
+// (the previous version of this object) is exactly the "full colored ring"
+// look the grid redesign deliberately moved away from.
 const PILLAR_COLORS: Record<string, { accent: string; bg: string; border: string; edge: string }> = {
-    mind: { accent: 'text-[var(--text-primary)] dark:text-[var(--color-mind)]', bg: 'bg-gradient-to-br from-[var(--color-mind)]/40 to-[var(--color-mind)]/25 dark:from-[var(--color-mind)]/20 dark:to-[var(--color-mind)]/10', border: 'border-[var(--color-mind)]/45 dark:border-[var(--color-mind)]/30', edge: 'shadow-[inset_3px_0_0_0_var(--color-mind)]' },
-    body: { accent: 'text-[var(--text-primary)] dark:text-[var(--color-body)]', bg: 'bg-gradient-to-br from-[var(--color-body)]/40 to-[var(--color-body)]/25 dark:from-[var(--color-body)]/20 dark:to-[var(--color-body)]/10', border: 'border-[var(--color-body)]/45 dark:border-[var(--color-body)]/30', edge: 'shadow-[inset_3px_0_0_0_var(--color-body)]' },
-    craft: { accent: 'text-[var(--text-primary)] dark:text-[var(--color-craft)]', bg: 'bg-gradient-to-br from-[var(--color-craft)]/40 to-[var(--color-craft)]/25 dark:from-[var(--color-craft)]/20 dark:to-[var(--color-craft)]/10', border: 'border-[var(--color-craft)]/45 dark:border-[var(--color-craft)]/30', edge: 'shadow-[inset_3px_0_0_0_var(--color-craft)]' },
-    meal: { accent: 'text-[var(--text-primary)] dark:text-[var(--color-meal)]', bg: 'bg-gradient-to-br from-[var(--color-meal)]/40 to-[var(--color-meal)]/25 dark:from-[var(--color-meal)]/20 dark:to-[var(--color-meal)]/10', border: 'border-[var(--color-meal)]/45 dark:border-[var(--color-meal)]/30', edge: 'shadow-[inset_3px_0_0_0_var(--color-meal)]' },
-    soul: { accent: 'text-zinc-900 dark:text-rose-400', bg: 'bg-gradient-to-br from-rose-300/45 to-rose-400/30 dark:bg-rose-500/10', border: 'border-rose-500/40 dark:border-rose-500/20', edge: 'shadow-[inset_3px_0_0_0_rgb(244,63,94)]' },
+    mind: { accent: 'text-[var(--text-primary)] dark:text-[var(--color-mind)]', bg: 'bg-[var(--glass-bg)] dark:bg-white/[0.04]', border: 'border-[var(--glass-border)] dark:border-white/10', edge: 'shadow-[inset_3px_0_0_0_var(--color-mind),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-mind)_40%,_black),0_0_10px_-5px_var(--color-mind-glow)] dark:shadow-[inset_3px_0_0_0_var(--color-mind),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-mind)_40%,_black),0_0_12px_-5px_var(--color-mind-glow)]' },
+    body: { accent: 'text-[var(--text-primary)] dark:text-[var(--color-body)]', bg: 'bg-[var(--glass-bg)] dark:bg-white/[0.04]', border: 'border-[var(--glass-border)] dark:border-white/10', edge: 'shadow-[inset_3px_0_0_0_var(--color-body),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-body)_40%,_black),0_0_10px_-5px_var(--color-body-glow)] dark:shadow-[inset_3px_0_0_0_var(--color-body),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-body)_40%,_black),0_0_12px_-5px_var(--color-body-glow)]' },
+    craft: { accent: 'text-[var(--text-primary)] dark:text-[var(--color-craft)]', bg: 'bg-[var(--glass-bg)] dark:bg-white/[0.04]', border: 'border-[var(--glass-border)] dark:border-white/10', edge: 'shadow-[inset_3px_0_0_0_var(--color-craft),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-craft)_40%,_black),0_0_10px_-5px_var(--color-craft-glow)] dark:shadow-[inset_3px_0_0_0_var(--color-craft),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-craft)_40%,_black),0_0_12px_-5px_var(--color-craft-glow)]' },
+    // Slate/steel — matches week-grid.tsx's current meal treatment (meal and
+    // sleep swapped identities earlier this session; meal now uses the
+    // neutral slate scheme sleep used to have).
+    meal: { accent: 'text-[var(--text-primary)] dark:text-slate-300', bg: 'bg-slate-400/35 dark:bg-[var(--glass-bg)]', border: 'border-[var(--glass-border)] dark:border-white/10', edge: 'shadow-[inset_3px_0_0_0_rgba(100,116,139,0.9),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_rgba(51,65,85,0.3),0_0_10px_-5px_rgba(100,116,139,0.35)] dark:shadow-[inset_3px_0_0_0_rgba(148,163,184,0.7),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_rgba(0,0,0,0.4),0_0_12px_-5px_rgba(148,163,184,0.3)]' },
+    sleep: { accent: 'text-[var(--text-primary)] dark:text-[var(--color-sleep)]', bg: 'bg-[var(--glass-bg)] dark:bg-white/[0.04]', border: 'border-[var(--glass-border)] dark:border-white/10', edge: 'shadow-[inset_3px_0_0_0_var(--color-sleep),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_rgba(30,58,138,0.3),0_0_10px_-5px_var(--color-sleep-glow)] dark:shadow-[inset_3px_0_0_0_var(--color-sleep),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_rgba(0,0,0,0.4),0_0_12px_-5px_var(--color-sleep-glow)]' },
 };
 
 const BLOCK_TYPE_META: Record<string, { label: string; icon: string; color: string }> = {
@@ -65,7 +72,7 @@ export function BlockInspector({ block, onClose, onAction }: BlockInspectorProps
 
     const isAnchor = block.block_type === 'anchor' || block.id?.startsWith('virt-cmt-');
     const isReadOnly = isAnchor || READ_ONLY_TYPES.includes(block.block_type);
-    const pillar = (block.pillar || block.goal?.pillar || (block.block_type === 'meal' ? 'meal' : '')).toLowerCase();
+    const pillar = (block.pillar || block.goal?.pillar || (block.block_type === 'meal' ? 'meal' : block.block_type === 'sleep' ? 'sleep' : '')).toLowerCase();
     // Blocks without a pillar (anchors, routines…) have no PILLAR_COLORS
     // entry — fall back to null and guard every usage so the panel never crashes.
     const pillarStyle = PILLAR_COLORS[pillar] || null;

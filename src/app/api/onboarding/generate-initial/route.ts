@@ -1,5 +1,6 @@
 import { secureApiRoute, apiSuccess } from '@/lib/security/api-protection';
 import { DEFAULT_TIMEZONE, nowInTimezone } from '@/lib/timezone';
+import { startOfWeek, format } from 'date-fns';
 
 export const POST = secureApiRoute(
     async (context, body) => {
@@ -12,6 +13,13 @@ export const POST = secureApiRoute(
         const { PatchService } = await import('@/lib/services/patch-service');
         
         const today = nowInTimezone(DEFAULT_TIMEZONE).date;
+        // Anchor to Monday like the in-app Plan Week feature does (so the
+        // underlying Mon..Sun generation loop lands on the right calendar
+        // days), but bound the actual output to today..Sunday via
+        // replanFromDate — the user's first plan shouldn't backfill days
+        // before they started onboarding. From next Monday they generate a
+        // fresh week normally via Plan Week.
+        const weekStart = format(startOfWeek(new Date(`${today}T00:00:00`), { weekStartsOn: 1 }), 'yyyy-MM-dd');
         let blocksCreated = 0;
 
         try {
@@ -25,7 +33,7 @@ export const POST = secureApiRoute(
             };
             const genMode = modeMap[selected_variant_id || 'balanced'] || 'balanced';
             
-            const variants = await generateWeekPlan(calendarCtx, today, genMode, true);
+            const variants = await generateWeekPlan(calendarCtx, weekStart, genMode, true, undefined, today);
 
             if (variants.length > 0) {
                 const bestVariant = variants[0]; // Take standard balanced variant

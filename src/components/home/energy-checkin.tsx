@@ -210,6 +210,10 @@ export function EnergyCheckin({ currentEnergy, currentMood, onCheckin }: EnergyC
                             : null,
                         banner: isNonDefault ? {
                             type: finalEnergy <= 2 || finalMood === 'rough' ? 'recovery' : 'momentum',
+                            schedule_mode_label: finalEnergy <= 2 || finalMood === 'rough' ? 'Recovery Mode' : 'Momentum Mode',
+                            message: finalEnergy <= 2 || finalMood === 'rough'
+                                ? '🛡 Recovery Mode — Light schedule. Only essentials today.'
+                                : '⚡ Momentum Mode — Full power. Push for maximum output.',
                             action_label: finalEnergy <= 2 ? 'Talk to Coach' : 'Boost Schedule',
                         } : null,
                     }
