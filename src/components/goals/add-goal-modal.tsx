@@ -7,6 +7,7 @@ import { useGoalsStore } from '@/stores';
 import { GlassButton } from '@/components/ui/glass-button';
 import { LiquidGlassButton } from '@/components/ui/liquid-glass-button';
 import { GlassInput } from '@/components/ui/glass-input'; // Ensure this exists or use html input
+import { useToast } from '@/components/ui/toast';
 import {
     Brain, Dumbbell, Briefcase, // Pillars
     Clock, Zap, Sparkles, X, Plus, CalendarDays
@@ -28,6 +29,7 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
 }) {
     const supabase = createClient();
     const { addGoal } = useGoalsStore();
+    const { showToast } = useToast();
 
     // Form State
     const [title, setTitle] = useState(initialValues?.title || '');
@@ -105,12 +107,7 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
 
             if (response?.goal) {
                 addGoal(response.goal);
-
-                // Notify user via Toast that Coach is thinking
-                const { useToast } = await import('@/components/ui/toast');
-                // Note: We can't easily access hook here if not imported at top level, 
-                // but we can assume success if no error.
-                // The parent component might handle toast, or we rely on 'addGoal' updating UI.
+                showToast('Goal created — Donna is reviewing your schedule', 'success');
             }
 
             if (onSuccess) onSuccess();
@@ -118,7 +115,7 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
 
         } catch (error) {
             console.error('Failed to create goal:', error);
-            // Ideally show error toast here
+            showToast('Failed to create goal. Please try again.', 'error');
         } finally {
             setIsSubmitting(false);
         }

@@ -282,6 +282,18 @@ function computeWindowAnchorStart(
     return winStart;
 }
 
+// Snap a computed start time to the nearest 15-minute mark. Nothing in this
+// file previously snapped a start (only a duration, at the splinter-prevention
+// site above), so centering math like `winStart + Math.floor(freeSpace / 2)`
+// — and non-15 buffer/gap constants feeding a chained `winStart += consumed`
+// — could drift a block onto an arbitrary minute (e.g. 17:11). Clamped back
+// inside [winStart, winEnd - blockMins] so rounding can never push a block
+// past its window's real edge into whatever it was placed to avoid.
+function snapStartToGrid(start: number, winStart: number, winEnd: number, blockMins: number): number {
+    const snapped = Math.round(start / 15) * 15;
+    return Math.max(winStart, Math.min(snapped, winEnd - blockMins));
+}
+
 function slugify(label: string): string {
     return label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
 }
@@ -722,13 +734,21 @@ function generateVariant(
             const exclusionEnd = resolved.end + (tmpl.block_type === 'meal' ? 15 : 0);
             dayHardZones.push({ start: resolved.start, end: exclusionEnd });
 
-            blocks.push({
-                date,
-                start_time: minutesToTime(resolved.start),
-                end_time: minutesToTime(resolved.end),
-                title: tmpl.title,
-                block_type: tmpl.block_type
-            });
+            // Keep resolving/simulating bio blocks for every day of the week
+            // (hard-zone tracking below depends on it) but only emit blocks
+            // for days on/after replanFromDate — this is what lets an
+            // initial onboarding generation start mid-week (e.g. Wed) and
+            // stop at Sunday without also backfilling Sleep/meals/etc. onto
+            // days that have already passed (Mon/Tue).
+            if (!replanFromDate || date >= replanFromDate) {
+                blocks.push({
+                    date,
+                    start_time: minutesToTime(resolved.start),
+                    end_time: minutesToTime(resolved.end),
+                    title: tmpl.title,
+                    block_type: tmpl.block_type
+                });
+            }
         }
         resolvedBioByDay.set(dayNum, resolvedForDay);
     }
@@ -1123,6 +1143,7 @@ function generateVariant(
                         if (start === win.start && (win.end - win.start) > remainingToPlace + 30) {
                             start += 15;
                         }
+                        start = snapStartToGrid(start, win.start, win.end, remainingToPlace);
 
                         if ((win.end - start) < remainingToPlace + buffer) {
                             buffer = Math.max(0, (win.end - start) - remainingToPlace);
@@ -1240,7 +1261,8 @@ function generateVariant(
                             buffer = Math.max(5, buffer);
                         }
 
-                        const start = computeWindowAnchorStart(winStart, win.end, minsToPlace, buffer, strategyId, goalTimeFocus);
+                        let start = computeWindowAnchorStart(winStart, win.end, minsToPlace, buffer, strategyId, goalTimeFocus);
+                        start = snapStartToGrid(start, winStart, win.end, minsToPlace);
 
                         if ((win.end - start) < minsToPlace + buffer) {
                             buffer = Math.max(0, (win.end - start) - minsToPlace);
@@ -1270,7 +1292,18 @@ function generateVariant(
                         remainingToPlace -= minsToPlace;
                         remainingWeeklyMins -= minsToPlace;
 
-                        const consumed = minsToPlace + buffer;
+                        // Advance the cursor from the block's ACTUAL placed
+                        // position, not the pre-centering winStart. Centering
+                        // (computeWindowAnchorStart's default branch) can
+                        // return a start well past winStart — advancing from
+                        // winStart instead of start left this loop's
+                        // "free space begins here" bookkeeping desynced from
+                        // the dayExclusions entry just pushed above, so the
+                        // NEXT same-goal same-day session's search could
+                        // start before this one's real end, landing inside
+                        // its own already-recorded exclusion (the same-day
+                        // "(Part)" overlap).
+                        const consumed = (start - winStart) + minsToPlace + buffer;
                         winStart += consumed;
                         availableInWin -= consumed;
                     }

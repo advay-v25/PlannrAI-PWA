@@ -25,6 +25,7 @@ export default function GoalDetailPage() {
     const router = useRouter();
     const { goals, fetchGoals, updateGoal } = useGoalsManager();
     const [goal, setGoal] = useState<Goal | null>(null);
+    const [notFound, setNotFound] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [isWizardOpen, setIsWizardOpen] = useState(false);
 
@@ -39,9 +40,26 @@ export default function GoalDetailPage() {
             const found = goals.find(g => g.id === params.id);
             if (found) {
                 setGoal(found);
+                setNotFound(false);
+            } else {
+                // Goals have loaded but this id isn't among them — deleted
+                // goal or a stale/incorrect link. Without this, the page
+                // showed "Loading Goal Physics..." forever with no way out.
+                setNotFound(true);
             }
         }
     }, [params.id, goals]);
+
+    if (notFound) return (
+        <div className="flex flex-col justify-center items-center py-10 md:py-20 gap-4 text-center">
+            <Target className="w-8 h-8 text-[var(--text-tertiary)]" />
+            <div>
+                <p className="text-[var(--text-primary)] font-semibold">Goal not found</p>
+                <p className="text-[var(--text-tertiary)] text-sm mt-1">It may have been deleted, or the link is incorrect.</p>
+            </div>
+            <GlassButton onClick={() => router.push('/app/goals')}>Back to Goals</GlassButton>
+        </div>
+    );
 
     if (!goal) return (
         <div className="flex justify-center items-center py-10 md:py-20">

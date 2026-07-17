@@ -151,10 +151,10 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context, defaultAllo
                                 {context?.user_state?.energy_level && (
                                     <div className={`text-xs px-3 py-2 rounded-lg flex items-center gap-2 ${
                                         context.user_state.energy_level >= 4
-                                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'
                                             : context.user_state.energy_level <= 2
-                                            ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
-                                            : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                                            ? 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-500/20'
+                                            : 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20'
                                     }`}>
                                         {context.user_state.energy_level >= 4 ? (
                                             <>
@@ -284,12 +284,12 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context, defaultAllo
                                             
                                             {opt.analysis?.unscheduled && Object.keys(opt.analysis.unscheduled).length > 0 && (
                                                 <div className="mt-3 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                                                    <p className="text-[10px] text-amber-400 font-bold mb-1 flex items-center gap-1">
+                                                    <p className="text-[10px] text-amber-700 dark:text-amber-400 font-bold mb-1 flex items-center gap-1">
                                                         <AlertTriangle className="w-3 h-3" /> GAP ANALYSIS:
                                                     </p>
                                                     <div className="space-y-0.5">
                                                         {Object.entries(opt.analysis.unscheduled).map(([goal, mins]) => (
-                                                            <p key={goal} className="text-[10px] text-amber-200/70">
+                                                            <p key={goal} className="text-[10px] text-amber-800/80 dark:text-amber-200/70">
                                                                 • {goal}: {mins}m unfilled
                                                             </p>
                                                         ))}

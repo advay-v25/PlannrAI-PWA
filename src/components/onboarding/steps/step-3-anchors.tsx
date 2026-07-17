@@ -6,8 +6,8 @@ import { useOnboardingStore, OnboardingCommitment } from '@/stores';
 import { X, Plus, Calendar, Clock } from 'lucide-react';
 
 const TEMPLATES = [
-    { title: '🏢 Work', start_time: '09:00', end_time: '17:00', days_of_week: [1, 2, 3, 4, 5] },
-    { title: '🎓 College', start_time: '09:00', end_time: '15:00', days_of_week: [1, 2, 3, 4, 5] }
+    { title: '🎓 College', start_time: '09:00', end_time: '15:00', days_of_week: [1, 2, 3, 4, 5] },
+    { title: '📚 Study Block', start_time: '18:00', end_time: '20:00', days_of_week: [1, 2, 3, 4, 5] }
 ];
 
 const DAYS = [

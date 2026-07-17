@@ -192,7 +192,7 @@ export function Step4Goals() {
                                                 </div>
 
                                                 <input
-                                                    placeholder="Goal Title (e.g. Master TypeScript)"
+                                                    placeholder="Goal Title (e.g. Learn Spanish)"
                                                     value={goal.title}
                                                     onChange={e => updateGoal(i, { title: e.target.value })}
                                                     className="w-full bg-transparent border-b-2 border-[var(--glass-border)] hover:border-[var(--glass-border)] focus:border-[var(--color-primary)] text-2xl text-[var(--text-primary)] py-3 focus:outline-none placeholder:text-[var(--text-primary)]/20 transition-all font-black tracking-tight"

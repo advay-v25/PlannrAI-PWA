@@ -48,16 +48,11 @@ export default function WeeklyReviewPage() {
     // Semi-auto state
     const [approvedChanges, setApprovedChanges] = useState<Set<string>>(new Set());
 
-    if (!isPreviewEnabled()) {
-        return (
-            <div className="w-full h-full p-4 overflow-y-auto">
-                <ComingSoon title="Weekly Review" subtitle="Coming soon in a future update." />
-            </div>
-        );
-    }
-
+    // Hooks must run unconditionally on every render (Rules of Hooks) — the
+    // feature-flag early return lives below, after every hook is declared,
+    // not before. Each effect guards its own body instead.
     useEffect(() => {
-        if (!isLoading) return;
+        if (!isPreviewEnabled() || !isLoading) return;
         const messages = [
             'Gathering your weekly data...',
             'Analyzing completion rates...',
@@ -74,6 +69,7 @@ export default function WeeklyReviewPage() {
     }, [isLoading]);
 
     useEffect(() => {
+        if (!isPreviewEnabled()) return;
         // Fetch AI Report
         const fetchReport = async () => {
             try {
@@ -151,6 +147,14 @@ export default function WeeklyReviewPage() {
     const exitReview = () => {
         router.push('/app');
     };
+
+    if (!isPreviewEnabled()) {
+        return (
+            <div className="w-full h-full p-4 overflow-y-auto">
+                <ComingSoon title="Weekly Review" subtitle="Coming soon in a future update." />
+            </div>
+        );
+    }
 
     return (
         <div className="w-full min-h-screen min-h-dvh relative overflow-x-hidden">

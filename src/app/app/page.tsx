@@ -517,7 +517,7 @@ export default function HomePage() {
                 dashboardCards={
                     <DashboardCards
                         goals={effectiveData.goals || []}
-                        insight={effectiveData.insight?.text || briefing || effectiveState.proactive_insight?.message}
+                        insight={effectiveData.insight?.text || briefing || effectiveState.proactive_insight}
                         topTask={effectiveData.top_task}
                         isPreview={isPreview}
                     />
