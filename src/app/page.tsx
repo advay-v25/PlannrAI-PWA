@@ -10,47 +10,56 @@ export default function LandingPage() {
       {/* Cinematic Sci-Fi Background */}
       <SciFiEarthBackground />
 
-      {/* Hero Section */}
-      <section className="relative px-4 pt-12 pb-16 md:pb-28 overflow-hidden flex flex-col min-h-[100dvh]">
-        <div className="max-w-5xl mx-auto w-full flex flex-col flex-1 relative z-10">
-          
-          <header className="text-center shrink-0 mb-4 md:mb-6 mt-0 flex flex-col items-center relative z-30 pointer-events-none">
-            <h1 className="text-6xl sm:text-7xl md:text-8xl lg:text-[7.5rem] font-extrabold mb-4 tracking-tighter leading-[1.1]">
+      {/* Hero Section — hard-capped to the viewport (h-[100dvh], not
+          min-h-[100dvh]) so the CTA can never be pushed below the fold on
+          short viewports (e.g. a 13" laptop's browser chrome eats a lot of
+          vertical space). Header and the button block are shrink-0 (fixed,
+          always fully shown); the orbital art in between is flex-1 with a
+          low min-height floor so it's what absorbs the squeeze on short
+          screens instead of the button. */}
+      <section className="relative px-4 pt-6 sm:pt-10 pb-4 sm:pb-6 overflow-hidden flex flex-col h-[100dvh]">
+        <div className="max-w-5xl mx-auto w-full flex flex-col flex-1 min-h-0 relative z-10">
+
+          <header className="text-center shrink-0 mb-2 md:mb-4 mt-0 flex flex-col items-center relative z-30 pointer-events-none">
+            <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-[6rem] font-extrabold mb-3 tracking-tighter leading-[1.1]">
               <span className="text-transparent bg-clip-text bg-gradient-to-b from-white via-white/90 to-white/30 drop-shadow-[0_0_40px_rgba(255,255,255,0.1)]">
                 PlannrAI
               </span>
             </h1>
-            
-            <p className="text-xl md:text-3xl text-white/80 font-medium mb-4 max-w-3xl mx-auto tracking-tight">
+
+            <p className="text-lg sm:text-xl md:text-2xl text-white/80 font-medium mb-3 max-w-3xl mx-auto tracking-tight">
               Build how you want to, adapt when you need to.
             </p>
 
-            <p className="text-base md:text-lg text-[var(--text-secondary)] max-w-2xl mx-auto leading-relaxed tracking-wide font-light hidden sm:block">
+            <p className="text-sm md:text-base text-[var(--text-secondary)] max-w-2xl mx-auto leading-relaxed tracking-wide font-light hidden sm:block">
               Absorb mental chaos. See what matters today. Adapt to low-energy days.
               Protect your long-term goals without pressure or judgment.
             </p>
           </header>
 
-          {/* Tactical Orbital Schedule Engine Centerpiece */}
-          <div className="relative flex-1 flex items-center justify-center min-h-[300px] sm:min-h-[400px] z-10 pointer-events-none">
-            <OrbitalScheduleEngine className="absolute w-[min(120vw,800px)] h-[min(120vw,800px)] md:w-[1000px] md:h-[1000px] opacity-90" />
+          {/* Tactical Orbital Schedule Engine Centerpiece — flexible, low
+              floor so it's the element that shrinks on short viewports */}
+          <div className="relative flex-1 flex items-center justify-center min-h-[140px] z-10 pointer-events-none">
+            <OrbitalScheduleEngine className="absolute w-[min(100vw,700px)] h-[min(100vw,700px)] md:w-[850px] md:h-[850px] opacity-90" />
           </div>
 
-          <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto shrink-0 mt-6 relative z-30 pointer-events-none">
+          <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto shrink-0 mt-2 relative z-30 pointer-events-none">
             <div className="pointer-events-auto w-full">
                 <LiquidGlassButton href="/login" size="lg" className="w-full text-lg tracking-wide">
                 Get Started Free
                 <ArrowRight className="w-5 h-5 ml-2 opacity-70 group-hover:translate-x-1 transition-transform" />
                 </LiquidGlassButton>
             </div>
-            
-            {/* Subtle scroll indicator */}
-            <div className="flex flex-col items-center text-[var(--text-secondary)] opacity-50 hover:opacity-100 transition-opacity mt-12 pointer-events-auto">
-              <span className="text-[10px] tracking-[0.3em] uppercase font-semibold mb-4">Discover</span>
-              <div className="w-px h-16 bg-gradient-to-b from-white/40 to-transparent" />
+
+            {/* Subtle scroll indicator — kept deliberately small (not the
+                mt-12/h-16 it used to be) so it never competes with the
+                button for space on short viewports; purely decorative. */}
+            <div className="flex flex-col items-center text-[var(--text-secondary)] opacity-50 hover:opacity-100 transition-opacity mt-3 pointer-events-auto">
+              <span className="text-[10px] tracking-[0.3em] uppercase font-semibold mb-2">Discover</span>
+              <div className="w-px h-6 bg-gradient-to-b from-white/40 to-transparent" />
             </div>
           </div>
-          
+
         </div>
       </section>
 

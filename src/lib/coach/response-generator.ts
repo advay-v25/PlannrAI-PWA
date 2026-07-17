@@ -57,6 +57,7 @@ interface NewGoalData {
     pillar: string;
     minutes_per_day: number;
     days_per_week: number;
+    preferred_windows?: { time_of_day: 'morning' | 'afternoon' | 'evening' | 'flexible' } | null;
 }
 
 interface NewTodoData {
@@ -1116,7 +1117,7 @@ STRATEGIC DIRECTIVES:
   - Example: User says "Reduce my gym goal to 3 days". Output: \`{ "type": "update_goal", "goal_id": "...", "changes": { "days_per_week": 3 } }\`.
   - Example: User says "I always want Gym in the mornings from now on". Output: \`{ "type": "update_goal", "goal_id": "...", "changes": { "preferred_windows": { "time_of_day": "morning" } } }\` — this is the durable mechanism for a goal-specific time preference (the planner reads it on every future replan); do NOT use \`update_memory\` for this, memory facts are not consulted by the scheduler.
   - Example: User says "Pause my gym goal, I'm injured". Output: \`{ "type": "update_goal", "goal_id": "...", "changes": { "status": "paused" } }\` — a paused goal is automatically excluded from all future planning without deleting it; resume later with \`status: "active"\`.
-- \`create_goal\`: Use to create a brand new goal. Fields: \`title\`, \`pillar\`, \`minutes_per_day\`, \`days_per_week\`, \`priority\`.
+- \`create_goal\`: Use to create a brand new goal. Fields: \`title\`, \`pillar\`, \`minutes_per_day\`, \`days_per_week\`, \`priority\`, \`preferred_windows\` ({ time_of_day: 'morning'|'afternoon'|'evening'|'flexible' }, optional — same mechanism as update_goal above).
 - \`create_anchor\` / \`delete_anchor\`: Use to create or remove a PERMANENT recurring fixed commitment (e.g. college, a work shift, a standing meeting) — distinct from a one-off \`create_block\`. Fields for create_anchor: \`data: { title, start_time, end_time, days_of_week }\` (days_of_week is an array of 0=Sunday..6=Saturday). Fields for delete_anchor: \`anchor_id\`.
   - Example: User says "I have College every Mon/Wed/Fri 9am-3pm, block that out permanently". Output: \`{ "type": "create_anchor", "data": { "title": "College", "start_time": "09:00", "end_time": "15:00", "days_of_week": [1,3,5] } }\`.
 - \`update_memory\`: Use to record general preferences/constraints/facts that aren't tied to a specific goal or settings field (e.g. "I hate deep work after 6pm", "my commute is 30 minutes"). For a GOAL's time-of-day preference use \`update_goal\`'s \`preferred_windows\` instead (see above) — it's actually read by the scheduler, memory facts are not.
@@ -1248,7 +1249,7 @@ PATCH OPERATION TYPES:
 - replan_week: { type: "replan_week", mode: "balanced|momentum|recovery" }
 - update_settings: { type: "update_settings", data: { sleep_start?: string, wake_time?: string, wind_down_min?: number, meal_windows?: object, allow_weekend_work?: boolean, weekend_intensity?: "off"|"light"|"normal", ask_before_changes?: boolean, notifications_enabled?: boolean, is_workout_protected?: boolean } }
 - update_memory: { type: "update_memory", key: string, value: any, kind: string }
-- create_goal: { type: "create_goal", data: { title: string, pillar: "mind"|"body"|"craft", minutes_per_day: number, days_per_week: number, priority?: number } }
+- create_goal: { type: "create_goal", data: { title: string, pillar: "mind"|"body"|"craft", minutes_per_day: number, days_per_week: number, priority?: number, preferred_windows?: { time_of_day: "morning"|"afternoon"|"evening"|"flexible" } } }
 - update_goal: { type: "update_goal", goal_id: string, changes: { title?: string, minutes_per_day?: number, days_per_week?: number, priority?: number, status?: "active"|"paused", preferred_windows?: { time_of_day: "morning"|"afternoon"|"evening"|"flexible" } } }
 - delete_goal: { type: "delete_goal", goal_id: string }
 - create_anchor: { type: "create_anchor", data: { title: string, start_time: string, end_time: string, days_of_week: number[] } }
@@ -1909,6 +1910,7 @@ function normalizeOperation(op: any): PatchOperation {
                     pillar: op.data?.pillar || op.pillar || 'General',
                     minutes_per_day: op.data?.minutes_per_day || op.minutes_per_day || 60,
                     days_per_week: op.data?.days_per_week || op.days_per_week || 5,
+                    preferred_windows: op.data?.preferred_windows || op.preferred_windows || undefined,
                 },
             };
         case 'update_goal':

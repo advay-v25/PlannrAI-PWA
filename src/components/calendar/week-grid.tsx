@@ -262,7 +262,7 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
         // in — `active.id !== over.id` used to guard this but can never be
         // false (a block id and a "cell-x-y" id never match), so it never
         // actually caught a no-op drop and fired an unnecessary API call.
-        if (block.date === targetDate && block.start_time === targetStart) return;
+        if (block.date === targetDate && block.start_time?.slice(0, 5) === targetStart) return;
 
         onBlockMove(active.id as string, targetDate, targetStart, targetEnd);
     };

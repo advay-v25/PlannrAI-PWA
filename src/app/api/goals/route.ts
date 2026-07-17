@@ -112,6 +112,9 @@ export const POST = secureApiRoute(
             non_negotiables: z.array(z.string()).optional(),
             time_commitment_mins: z.number().optional(),
             status: z.string().optional(),
+            preferred_windows: z.object({
+                time_of_day: z.enum(['morning', 'afternoon', 'evening', 'flexible'])
+            }).nullable().optional(),
         });
 
         const validation = validateWithZod(GoalSchema, body);
@@ -175,6 +178,7 @@ export const POST = secureApiRoute(
                 non_negotiables: non_negotiables || [],
                 time_commitment_mins,
                 sort_order,
+                preferred_windows: validation.data.preferred_windows ?? null,
             })
             .select()
             .single();
@@ -222,6 +226,9 @@ export const PUT = secureApiRoute(
             milestone_progress: z.number().optional(),
             sort_order: z.number().optional(),
             ai_strategy: z.unknown().optional(),
+            preferred_windows: z.object({
+                time_of_day: z.enum(['morning', 'afternoon', 'evening', 'flexible'])
+            }).nullable().optional(),
         });
 
         const validation = validateWithZod(UpdateGoalSchema, body);
@@ -246,6 +253,7 @@ export const PUT = secureApiRoute(
         if (data.time_commitment_mins !== undefined) updates.time_commitment_mins = data.time_commitment_mins;
         if (data.milestone_progress !== undefined) updates.milestone_progress = data.milestone_progress;
         if (data.sort_order !== undefined) updates.sort_order = data.sort_order;
+        if (data.preferred_windows !== undefined) updates.preferred_windows = data.preferred_windows;
         if (data.ai_strategy !== undefined) updates.ai_strategy = data.ai_strategy;
 
         if (Object.keys(updates).length === 0) {
@@ -266,9 +274,12 @@ export const PUT = secureApiRoute(
             return apiError('Failed to update goal', 500);
         }
 
-        // If paused, remove future schedule blocks for this goal
+        // If paused or archived, remove future schedule blocks for this goal
+        // (only 'active' goals are fetched for new-week generation, but
+        // blocks already generated before the status change stick around
+        // otherwise — archived goals had the same gap as paused ones).
         let blocksRemoved = 0;
-        if (updates.status === 'paused' || updates.is_paused === true) {
+        if (updates.status === 'paused' || updates.status === 'archived' || updates.is_paused === true) {
             const today = new Date().toISOString().split('T')[0];
             const { data: deleted } = await supabase
                 .from('schedule_blocks')

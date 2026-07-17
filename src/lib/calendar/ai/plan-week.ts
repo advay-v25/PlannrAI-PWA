@@ -1123,7 +1123,27 @@ function generateVariant(
 
                 // Placement loop (body vs mind/craft)
                 if (goal.pillar === 'body') {
-                    const fitWindows = windows.filter(w => (w.end - w.start) >= remainingToPlace);
+                    let fitWindows = windows.filter(w => (w.end - w.start) >= remainingToPlace);
+                    let sessionMins = remainingToPlace;
+                    if (fitWindows.length === 0) {
+                        // No single window fits the FULL session today — most
+                        // commonly a shortened day (e.g. a light-weekend
+                        // cutoff) leaving only fragmented gaps. `preferred_windows`
+                        // (via sortWindowsByPreference above) is a ranking bias
+                        // for WHICH window to try first, never a hard
+                        // requirement — falling all the way through to "skip
+                        // this goal today" here would turn a soft preference
+                        // into a hard one. Fall back to the single largest
+                        // available window and shorten the session to fit it,
+                        // so the goal still lands somewhere today (e.g. a
+                        // shortened morning session) instead of vanishing.
+                        const candidates = windows.filter(w => (w.end - w.start) >= minBlockFloor);
+                        if (candidates.length > 0) {
+                            const largest = candidates.reduce((a, b) => (b.end - b.start) > (a.end - a.start) ? b : a);
+                            fitWindows = [largest];
+                            sessionMins = Math.min(remainingToPlace, largest.end - largest.start);
+                        }
+                    }
                     if (fitWindows.length > 0) {
                         const win = fitWindows[0];
                         let buffer = protocolConfig?.bufferMinutes ?? getBufferMinutes(strategyId, goalTimeFocus, (ctx.user as any).default_buffer_duration);
@@ -1137,23 +1157,23 @@ function generateVariant(
                                 goalEnergy, goal.pillar
                             ) + failureAdjustments.bufferFloorBonus;
                         }
-                        
-                        let start = computeWindowAnchorStart(win.start, win.end, remainingToPlace, buffer, strategyId, goalTimeFocus);
+
+                        let start = computeWindowAnchorStart(win.start, win.end, sessionMins, buffer, strategyId, goalTimeFocus);
                         // Small inset if the window is significantly larger than the block and we're packed at the edge
-                        if (start === win.start && (win.end - win.start) > remainingToPlace + 30) {
+                        if (start === win.start && (win.end - win.start) > sessionMins + 30) {
                             start += 15;
                         }
-                        start = snapStartToGrid(start, win.start, win.end, remainingToPlace);
+                        start = snapStartToGrid(start, win.start, win.end, sessionMins);
 
-                        if ((win.end - start) < remainingToPlace + buffer) {
-                            buffer = Math.max(0, (win.end - start) - remainingToPlace);
+                        if ((win.end - start) < sessionMins + buffer) {
+                            buffer = Math.max(0, (win.end - start) - sessionMins);
                         }
-                        
+
                         blocks.push({
                             date: dateStr,
                             start_time: minutesToTime(start),
-                            end_time: minutesToTime(start + remainingToPlace),
-                            title: goal.title,
+                            end_time: minutesToTime(start + sessionMins),
+                            title: sessionMins < remainingToPlace ? `${goal.title} (Shortened)` : goal.title,
                             block_type: 'goal',
                             goal_id: goal.id,
                             pillar: goal.pillar,
@@ -1162,12 +1182,12 @@ function generateVariant(
                         });
                         dayExclusions.push({
                             start,
-                            end: start + remainingToPlace + buffer,
+                            end: start + sessionMins + buffer,
                             title: goal.title,
                             type: 'goal'
                         });
-                        recordGoalBlockPlacement(isoDay, remainingToPlace, goalBlockCountPerDay, workloadPerDay);
-                        remainingWeeklyMins -= remainingToPlace;
+                        recordGoalBlockPlacement(isoDay, sessionMins, goalBlockCountPerDay, workloadPerDay);
+                        remainingWeeklyMins -= sessionMins;
                     }
                     continue; // Skip the rest of the window loop for body
                 }
@@ -1417,7 +1437,7 @@ function generateVariant(
                     const placedMins = Math.min(toPlace, (bestWindow.end - bestWindow.start) - buffer);
                     if (placedMins <= 0 || (placedMins < minBlockFloor && goal.pillar !== 'body')) continue;
 
-                    const start = bestWindow.start;
+                    const start = snapStartToGrid(bestWindow.start, bestWindow.start, bestWindow.end, placedMins);
                     blocks.push({
                         date: dateStr,
                         start_time: minutesToTime(start),

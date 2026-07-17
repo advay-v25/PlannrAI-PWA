@@ -25,12 +25,26 @@ export function ClearGoalsDialog({ onClose }: { onClose: () => void }) {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            if (mode === 'archive') {
-                await supabase.from('goals').update({ status: 'archived' }).eq('user_id', user.id).eq('status', 'active');
-                setGoals(goals.map(g => g.status === 'active' ? { ...g, status: 'archived' } : g));
-            } else if (mode === 'pause') {
-                await supabase.from('goals').update({ status: 'paused' }).eq('user_id', user.id).eq('status', 'active');
-                setGoals(goals.map(g => g.status === 'active' ? { ...g, status: 'paused' } : g));
+            if (mode === 'archive' || mode === 'pause') {
+                const newStatus = mode === 'archive' ? 'archived' : 'paused';
+                const activeGoalIds = goals.filter(g => g.status === 'active').map(g => g.id);
+
+                await supabase.from('goals').update({ status: newStatus }).eq('user_id', user.id).eq('status', 'active');
+
+                // Archiving/pausing only stops FUTURE week generation from
+                // picking these goals back up — it doesn't retroactively
+                // remove blocks already generated for them, so do that
+                // cleanup here too (mirrors PUT /api/goals's per-goal logic).
+                if (activeGoalIds.length > 0) {
+                    const today = new Date().toISOString().split('T')[0];
+                    await supabase.from('schedule_blocks')
+                        .delete()
+                        .eq('user_id', user.id)
+                        .in('goal_id', activeGoalIds)
+                        .gte('date', today);
+                }
+
+                setGoals(goals.map(g => g.status === 'active' ? { ...g, status: newStatus } : g));
             } else if (mode === 'delete') {
                 await supabase.from('goals').delete().eq('user_id', user.id);
                 setGoals([]);

@@ -38,7 +38,7 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
     const [daysPerWeek, setDaysPerWeek] = useState(initialValues?.days_per_week || 7);
     const [importance, setImportance] = useState<GoalImportance>(initialValues?.importance || 'medium');
     const [energy, setEnergy] = useState<EnergyDemand>(initialValues?.energy_demand || 'medium');
-    const [preferredTime, setPreferredTime] = useState<'morning' | 'afternoon' | 'evening' | 'any'>(initialValues?.constraints?.preferred_time || 'any');
+    const [preferredTime, setPreferredTime] = useState<'morning' | 'afternoon' | 'evening' | 'any'>(initialValues?.preferred_windows?.time_of_day || 'any');
 
     // AI Suggestions & Loading State
     const [loadingSuggestions, setLoadingSuggestions] = useState(false);
@@ -90,7 +90,12 @@ export function AddGoalModal({ onClose, onSuccess, onSave, initialValues }: {
             importance,
             energy_demand: energy,
             status: 'active',
-            constraints: { preferred_time: preferredTime } // Store preference
+            // This used to be stashed under `constraints.preferred_time`,
+            // a key the scheduler never reads — the AI planner only reads
+            // `preferred_windows.time_of_day` (via context-builder.ts),
+            // matching the shape onboarding already writes. `any` means no
+            // preference, same as onboarding's `flexible` -> null.
+            preferred_windows: preferredTime === 'any' ? null : { time_of_day: preferredTime }
         };
 
         if (onSave) {
