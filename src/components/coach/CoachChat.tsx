@@ -9,6 +9,7 @@ import { useCoach } from '@/hooks/use-coach';
 import { ProposedOption } from '@/types/coach-v4';
 import { CoachMessageBubble } from './CoachMessageBubble';
 import { ConfirmationModal } from './ConfirmationModal';
+import { ProactiveBanner } from './ProactiveBanner';
 import { usePremiumCalendar } from '@/components/calendar/premium-calendar-styles';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -229,7 +230,21 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
         clearConversation,
         stopGenerating,
         conversationId,
+        proactiveSuggestion,
+        hasLoadedProactive,
+        loadProactiveInsight,
+        dismissProactive,
+        actOnProactive,
     } = useCoach();
+
+    // Built, styled, and wired into the store since earlier this session, but
+    // nothing ever called loadProactiveInsight() or rendered the banner here
+    // — proactiveSuggestion stayed permanently null on this page. (The home
+    // page has its own separate, hand-rolled proactive banner fed by the
+    // same API, unrelated to this store slice.)
+    useEffect(() => {
+        if (!hasLoadedProactive) loadProactiveInsight();
+    }, [hasLoadedProactive, loadProactiveInsight]);
 
     // Resume whatever conversation was already in progress — `useCoach` is a
     // persisted Zustand store, so it survives navigating away and back. This
@@ -700,6 +715,17 @@ export function CoachChat({ onCalendarUpdate, initialQuickAction }: CoachChatPro
                         </button>
                     </div>
                 </div>
+
+                {/* ── Proactive suggestion banner ── */}
+                {proactiveSuggestion && (
+                    <div className="z-10 px-4 md:px-8 pt-4 shrink-0">
+                        <ProactiveBanner
+                            suggestion={proactiveSuggestion}
+                            onAct={actOnProactive}
+                            onDismiss={dismissProactive}
+                        />
+                    </div>
+                )}
 
                 {/* ── Error banner ── */}
                 {error && (

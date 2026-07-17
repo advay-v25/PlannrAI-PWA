@@ -22,6 +22,7 @@ export interface ProfilePreferences {
     wind_down_min: number;
     morning_routine_min: number;
     meals_per_day: 2 | 3;
+    two_meals_selection: 'breakfast_lunch' | 'lunch_dinner' | 'breakfast_dinner' | null;
     meal_windows: {
         breakfast?: MealWindow;
         lunch?: MealWindow;
@@ -73,6 +74,7 @@ export const DEFAULT_PREFERENCES: Omit<ProfilePreferences, 'user_id' | 'updated_
     wind_down_min: 30,
     morning_routine_min: 0,
     meals_per_day: 3,
+    two_meals_selection: 'breakfast_dinner',
     meal_windows: {
         breakfast: { start: "07:00", end: "10:00" },
         lunch: { start: "12:00", end: "15:00" },

@@ -15,6 +15,10 @@ import { useRouter } from 'next/navigation';
 import CoreConstraints from './_components/core-constraints';
 import AIControls from './_components/ai-controls';
 import CommitmentsManager from './_components/commitments-manager';
+import BodyDiet from './_components/body-diet';
+import WorkPreferences from './_components/work-preferences';
+import ProductivityProfile from './_components/productivity-profile';
+import PersonalRulesManager from './_components/personal-rules-manager';
 import { ProfilePreferences } from '@/lib/types/settings';
 import { dispatchAppEvent } from '@/lib/events';
 import { UnifiedWorkspaceSkeleton } from '@/components/ui/skeletons/unified-workspace-skeleton';
@@ -154,10 +158,14 @@ export default function SettingsPage() {
                         {preferences && (
                             <>
                                 <CoreConstraints preferences={preferences} onChange={handleUpdate} />
+                                <BodyDiet preferences={preferences} onChange={handleUpdate} />
+                                <WorkPreferences preferences={preferences} onChange={handleUpdate} />
                                 <div className="border border-[var(--glass-border)] bg-[var(--glass-bg)] p-6 rounded-2xl">
                                     <CommitmentsManager />
                                 </div>
+                                <ProductivityProfile />
                                 <AIControls preferences={preferences} onChange={handleUpdate} />
+                                <PersonalRulesManager />
                             </>
                         )}
                     </div>

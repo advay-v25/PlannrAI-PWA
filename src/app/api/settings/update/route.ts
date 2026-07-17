@@ -26,6 +26,7 @@ const PreferencesUpdateSchema = z.object({
     wind_down_min: z.number().min(0).max(180).optional(),
     morning_routine_min: z.number().min(0).max(120).optional(),
     meals_per_day: z.union([z.literal(2), z.literal(3)]).optional(),
+    two_meals_selection: z.enum(['breakfast_lunch', 'lunch_dinner', 'breakfast_dinner']).nullable().optional(),
     meal_windows: z.object({
         breakfast: MealWindowSchema.optional(),
         lunch: MealWindowSchema.optional(),

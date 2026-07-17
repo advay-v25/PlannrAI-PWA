@@ -609,12 +609,18 @@ export class PatchService {
             const { updates, creates, deletes, preExecState } = simResult;
 
             // 3. Sequential database execution
+            // Deletes/updates/creates are three independent Supabase calls
+            // (no wrapping transaction), so a failure partway leaves earlier
+            // steps already committed. `changes` tracks what actually landed
+            // so a partial-failure response doesn't misreport "0 changes"
+            // when the DB has, in fact, been mutated — the caller/UI must be
+            // able to tell a real partial-apply apart from a true no-op.
             // A. Deletes
             if (deletes.length > 0) {
                 const { error: delErr } = await supabase.from('schedule_blocks').delete().in('id', deletes).eq('user_id', userId);
                 if (delErr) {
                     console.error('[PatchService] DB Delete failed:', delErr.message);
-                    return { success: false, undo_token: null, changes: 0, errors: [`Delete failed: ${delErr.message}`] };
+                    return { success: false, undo_token: null, changes, errors: [`Delete failed: ${delErr.message}`] };
                 }
                 changes += deletes.length;
             }
@@ -624,7 +630,7 @@ export class PatchService {
                 const { error: updErr } = await supabase.from('schedule_blocks').update(upd.fields).eq('id', upd.id).eq('user_id', userId);
                 if (updErr) {
                     console.error('[PatchService] DB Update failed:', updErr.message);
-                    return { success: false, undo_token: null, changes: 0, errors: [`Update failed: ${updErr.message}`] };
+                    return { success: false, undo_token: null, changes, errors: [`Update failed: ${updErr.message} (${changes} change(s) already applied and cannot be auto-undone)`] };
                 }
                 changes += 1;
             }
@@ -634,7 +640,7 @@ export class PatchService {
                 const { error: insErr } = await supabase.from('schedule_blocks').insert(creates);
                 if (insErr) {
                     console.error('[PatchService] DB Insert failed:', insErr.message);
-                    return { success: false, undo_token: null, changes: 0, errors: [`Insert failed: ${insErr.message}`] };
+                    return { success: false, undo_token: null, changes, errors: [`Insert failed: ${insErr.message} (${changes} change(s) already applied and cannot be auto-undone)`] };
                 }
                 changes += creates.length;
             }
@@ -1290,6 +1296,7 @@ export class PatchService {
                     is_active: true,
                     priority: 5,
                 };
+                if (payload.preferred_windows !== undefined) insertData.preferred_windows = payload.preferred_windows;
                 const { data, error } = await supabase
                     .from('goals')
                     .insert(insertData)
