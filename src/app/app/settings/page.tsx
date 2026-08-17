@@ -20,6 +20,9 @@ import WorkPreferences from './_components/work-preferences';
 import ProductivityProfile from './_components/productivity-profile';
 import PersonalRulesManager from './_components/personal-rules-manager';
 import { ProfilePreferences } from '@/lib/types/settings';
+import { Switch } from '@/components/ui/switch';
+import { writeNotificationsEnabled } from '@/components/home/notification-scheduler';
+import { ensurePushSubscription, removePushSubscription } from '@/hooks/use-notifications';
 import { dispatchAppEvent } from '@/lib/events';
 import { UnifiedWorkspaceSkeleton } from '@/components/ui/skeletons/unified-workspace-skeleton';
 
@@ -58,6 +61,10 @@ export default function SettingsPage() {
             const res = await apiClient.get<{ profile: any; preferences: ProfilePreferences }>('/api/profile/me');
             setProfile(res.profile);
             setPreferences(res.preferences);
+            // Keep the scheduler's local copy of the flag in sync with the server
+            if (typeof res.preferences?.notifications_enabled === 'boolean') {
+                writeNotificationsEnabled(res.preferences.notifications_enabled);
+            }
         } catch (err) {
             toast.error('Failed to load settings');
         } finally {
@@ -94,6 +101,21 @@ export default function SettingsPage() {
             // Navigate to Coach with contextual prompt
             router.push('/app/coach?mode=strategic&prompt=' + 
                 encodeURIComponent('I\'m feeling overwhelmed. Help me handle or reschedule today\'s tasks.'));
+        }
+    };
+
+    // Notifications save immediately rather than through the Save bar — turning them
+    // off has to take effect the moment the user asks for it.
+    const setNotificationsEnabled = async (enabled: boolean) => {
+        const previous = preferences?.notifications_enabled ?? false;
+        setPreferences(prev => (prev ? { ...prev, notifications_enabled: enabled } : prev));
+        writeNotificationsEnabled(enabled);
+        try {
+            await apiClient.post('/api/settings/update', { notifications_enabled: enabled });
+        } catch {
+            setPreferences(prev => (prev ? { ...prev, notifications_enabled: previous } : prev));
+            writeNotificationsEnabled(previous);
+            toast.error('Failed to save notification preference');
         }
     };
 
@@ -149,7 +171,10 @@ export default function SettingsPage() {
                             isSigningOut={isSigningOut}
                         />
                         <AccessibilitySection />
-                        <DataPrivacySection />
+                        <DataPrivacySection
+                            notificationsEnabled={preferences?.notifications_enabled ?? false}
+                            onNotificationsEnabledChange={setNotificationsEnabled}
+                        />
                         <DangerZone />
                     </div>
 
@@ -523,10 +548,17 @@ function DangerZone() {
 
 // ── Data & Privacy Section ────────────────────────────────────────
 
-function DataPrivacySection() {
+function DataPrivacySection({
+    notificationsEnabled,
+    onNotificationsEnabledChange,
+}: {
+    notificationsEnabled: boolean;
+    onNotificationsEnabledChange: (enabled: boolean) => Promise<void>;
+}) {
     const [isExporting, setIsExporting] = useState(false);
     const [notifPermission, setNotifPermission] = useState<string>('default');
     const [notifSupported, setNotifSupported] = useState(false);
+    const [isTogglingNotif, setIsTogglingNotif] = useState(false);
 
     useEffect(() => {
         if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -547,27 +579,51 @@ function DataPrivacySection() {
         }
     };
 
-    const handleNotifToggle = async () => {
-        if (notifPermission === 'granted') {
-            toast.info('Notifications are already enabled. Manage them in your browser settings.');
+    // Permission is a prerequisite; `notifications_enabled` is the app-level switch.
+    const notifChecked = notifPermission === 'granted' && notificationsEnabled;
+
+    const handleNotifToggle = async (next: boolean) => {
+        if (notifPermission === 'denied' || isTogglingNotif) return;
+
+        // Turning off never touches browser permission — it must be instant.
+        if (!next || notifPermission === 'granted') {
+            setIsTogglingNotif(true);
+            await onNotificationsEnabledChange(next);
+            // Keep the push registry in step: off drops this device's endpoint,
+            // on re-registers it (permission is already granted here).
+            if (next) await ensurePushSubscription();
+            else await removePushSubscription();
+            setIsTogglingNotif(false);
             return;
         }
-        if (notifPermission === 'denied') {
-            toast.error('Notifications are blocked. Please enable them in your browser settings.');
-            return;
-        }
+
+        // permission === 'default': the request must stay inside the user gesture (iOS),
+        // so it runs before any other await.
+        let result: NotificationPermission;
         try {
-            const result = await Notification.requestPermission();
-            setNotifPermission(result);
-            if (result === 'granted') {
-                await navigator.serviceWorker.register('/sw.js');
-                toast.success('Notifications enabled! You\'ll be alerted when blocks start.');
-            } else {
-                toast.info('Notifications were not enabled.');
-            }
+            result = await Notification.requestPermission();
         } catch {
             toast.error('Failed to request notification permission');
+            return;
         }
+        setNotifPermission(result);
+        if (result !== 'granted') {
+            toast.info('Notifications were not enabled.');
+            return;
+        }
+
+        setIsTogglingNotif(true);
+        try {
+            if ('serviceWorker' in navigator) {
+                await navigator.serviceWorker.register('/sw.js');
+            }
+        } catch {
+            /* notifications still work locally without the SW registration */
+        }
+        await onNotificationsEnabledChange(true);
+        await ensurePushSubscription();
+        setIsTogglingNotif(false);
+        toast.success('Notifications enabled! You\'ll be alerted when blocks start.');
     };
 
     return (
@@ -580,28 +636,25 @@ function DataPrivacySection() {
             <div className="rounded-2xl bg-[var(--glass-bg)] border border-[var(--glass-border)] divide-y divide-[var(--glass-border)]">
                 {/* Notifications */}
                 {notifSupported && (
-                    <div className="flex items-center justify-between px-5 py-4">
-                        <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-purple-500/10 flex items-center justify-center">
+                    <div className="flex items-center justify-between gap-3 px-5 py-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-9 h-9 rounded-xl bg-purple-500/10 flex items-center justify-center shrink-0">
                                 <Bell className="w-4 h-4 text-purple-400" />
                             </div>
-                            <div>
-                                <p className="text-sm font-medium text-[var(--text-primary)]">Block Notifications</p>
-                                <p className="text-xs text-[var(--text-tertiary)]">Get notified when schedule blocks start</p>
+                            <div className="min-w-0">
+                                <p className="text-sm font-medium text-[var(--text-primary)]">Notifications</p>
+                                <p className="text-xs text-[var(--text-tertiary)]">Get notified before schedule blocks start</p>
+                                {notifPermission === 'denied' && (
+                                    <p className="text-xs text-[var(--text-secondary)] mt-1">Blocked in your browser settings</p>
+                                )}
                             </div>
                         </div>
-                        <button
-                            onClick={handleNotifToggle}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                notifPermission === 'granted'
-                                    ? 'bg-emerald-500/15 text-emerald-400'
-                                    : notifPermission === 'denied'
-                                    ? 'bg-red-500/15 text-red-400'
-                                    : 'bg-[var(--color-primary)]/15 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/25'
-                            }`}
-                        >
-                            {notifPermission === 'granted' ? 'Enabled' : notifPermission === 'denied' ? 'Blocked' : 'Enable'}
-                        </button>
+                        <Switch
+                            checked={notifChecked}
+                            disabled={notifPermission === 'denied' || isTogglingNotif}
+                            onCheckedChange={handleNotifToggle}
+                            className="shrink-0"
+                        />
                     </div>
                 )}
 

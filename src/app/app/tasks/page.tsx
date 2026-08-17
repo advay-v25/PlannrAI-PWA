@@ -105,18 +105,18 @@ export default function TasksPage() {
             </div>
 
             <div className="w-full h-full min-h-0 flex flex-col relative z-10">
-                <header className="pt-8 px-8 pb-6 relative shrink-0 z-10">
+                <header className="pt-6 px-4 pb-4 md:pt-8 md:px-8 md:pb-6 relative shrink-0 z-10">
                   <h1 className="text-[32px] sm:text-[40px] font-semibold tracking-tight text-[var(--text-primary)] leading-tight">Mindspace</h1>
                   <p className="text-sm font-medium text-[var(--text-muted)] tracking-tight mt-1">
                       Your digital corkboard. Dump anything from your mind and organize it effortlessly.
                   </p>
                 </header>
 
-                <div className="flex-1 min-h-0 px-8 pb-8 flex flex-col">
+                <div className="flex-1 min-h-0 px-3 pb-4 md:px-8 md:pb-8 flex flex-col">
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="flex-1 rounded-[32px] border border-[var(--glass-border)] bg-[var(--glass-bg)] dark:bg-[#1c1c1e]/40 backdrop-blur-3xl overflow-hidden shadow-lg dark:shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col"
+                        className="flex-1 rounded-2xl md:rounded-[32px] border border-[var(--glass-border)] bg-[var(--glass-bg)] dark:bg-[#1c1c1e]/40 backdrop-blur-3xl overflow-hidden shadow-lg dark:shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col"
                     >
                         <MindspaceBoard />
                     </motion.div>
