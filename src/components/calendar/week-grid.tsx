@@ -93,6 +93,26 @@ const PILLAR_COLORS: Record<string, { bg: string; border: string; borderWidth: s
         edge: 'shadow-[inset_3px_0_0_0_rgba(113,113,122,0.9),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_rgba(63,63,70,0.35),0_0_10px_-5px_rgba(113,113,122,0.3)] dark:shadow-[inset_3px_0_0_0_rgba(113,113,122,0.7),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_rgba(0,0,0,0.4),0_0_12px_-5px_rgba(113,113,122,0.25)]',
         glow: 'block-glow-anchor dark:block-glow-anchor',
     },
+    routine: {
+        bg: '[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.4)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_rgba(113,113,122,0.30)_0%,_rgba(113,113,122,0.14)_100%)] dark:[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.08)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_rgba(113,113,122,0.24)_0%,_rgba(113,113,122,0.10)_100%)]',
+        border: 'border-[var(--glass-border)] dark:border-white/10',
+        borderWidth: 'border',
+        text: 'text-[var(--text-primary)] dark:text-white',
+        metaText: 'text-[var(--text-secondary)] dark:text-white/70',
+        dot: 'bg-zinc-500 dark:bg-zinc-500',
+        edge: 'shadow-[inset_3px_0_0_0_rgba(113,113,122,0.9),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_rgba(63,63,70,0.35),0_0_10px_-5px_rgba(113,113,122,0.3)] dark:shadow-[inset_3px_0_0_0_rgba(113,113,122,0.7),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_rgba(0,0,0,0.4),0_0_12px_-5px_rgba(113,113,122,0.25)]',
+        glow: 'block-glow-anchor dark:block-glow-anchor',
+    },
+    wind_down: {
+        bg: '[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.4)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_rgba(113,113,122,0.30)_0%,_rgba(113,113,122,0.14)_100%)] dark:[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.08)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_rgba(113,113,122,0.24)_0%,_rgba(113,113,122,0.10)_100%)]',
+        border: 'border-[var(--glass-border)] dark:border-white/10',
+        borderWidth: 'border',
+        text: 'text-[var(--text-primary)] dark:text-white',
+        metaText: 'text-[var(--text-secondary)] dark:text-white/70',
+        dot: 'bg-zinc-500 dark:bg-zinc-500',
+        edge: 'shadow-[inset_3px_0_0_0_rgba(113,113,122,0.9),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_rgba(63,63,70,0.35),0_0_10px_-5px_rgba(113,113,122,0.3)] dark:shadow-[inset_3px_0_0_0_rgba(113,113,122,0.7),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_rgba(0,0,0,0.4),0_0_12px_-5px_rgba(113,113,122,0.25)]',
+        glow: 'block-glow-anchor dark:block-glow-anchor',
+    },
     meal: {
         // Slate/steel scheme sleep used to have — swapped so sleep can own
         // the blue metallic identity below.
@@ -123,8 +143,8 @@ const PILLAR_COLORS: Record<string, { bg: string; border: string; borderWidth: s
         text: 'text-[var(--text-secondary)] dark:text-[var(--text-tertiary)]',
         metaText: 'text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]',
         dot: 'bg-zinc-400 dark:bg-white/20',
+        edge: 'shadow-[inset_2px_0_0_0_#a1a1aa]',
         glow: '',
-        edge: 'shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)]',
     },
     default: {
         bg: 'bg-[var(--glass-bg)] dark:bg-white/[0.04]',
@@ -156,6 +176,8 @@ function getBlockColors(block: any) {
     }
     if (block.block_type === 'anchor') return PILLAR_COLORS.anchor;
     if (block.block_type === 'sleep') return PILLAR_COLORS.sleep;
+    if (block.block_type === 'routine') return PILLAR_COLORS.routine;
+    if (block.block_type === 'wind_down') return PILLAR_COLORS.wind_down;
     if (block.block_type === 'break' || block.block_type === 'buffer') return PILLAR_COLORS.break;
     if (block.is_locked) return PILLAR_COLORS.anchor;
     const pillar = (block.goal?.category || block.goal?.pillar || block.pillar || '').toLowerCase();
@@ -506,7 +528,7 @@ function BlockCard({ block, layout, onClick, isDayView, index = 0 }: { block: an
 
                 {/* Time display — always show in day view, or when block is tall enough */}
                 {(isDayView || layout.height > 35) && (
-                    <div className={cn("text-[10px] font-mono mt-0.5 opacity-60", colors.text)}>
+                    <div className="text-[10px] font-mono mt-0.5 text-[#8F8C84] dark:text-[#8B8B96]">
                         {block.start_time?.slice(0, 5)} - {block.end_time?.slice(0, 5)}
                     </div>
                 )}

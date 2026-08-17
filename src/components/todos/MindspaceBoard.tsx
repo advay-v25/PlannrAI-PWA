@@ -5,7 +5,7 @@ import DOMPurify from 'dompurify';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTodos, TodoItem } from '@/hooks/use-todos';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, Plus, Trash2, CheckCircle2, Circle, Archive, GripHorizontal, CalendarIcon, AlertCircle, Search, Pin, PinOff, MoreVertical, Edit2, ChevronDown, RotateCcw } from 'lucide-react';
+import { Loader2, Plus, Trash2, CheckCircle2, Circle, Archive, GripHorizontal, CalendarIcon, AlertCircle, Search, Pin, PinOff, MoreVertical, Edit2, ChevronDown, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, formatDistanceToNow, startOfWeek, endOfWeek, isWithinInterval, subDays } from 'date-fns';
 import { RichTextEditor } from './RichTextEditor';
@@ -310,6 +310,43 @@ export function MindspaceBoard() {
         };
     });
 
+    // Mobile column pager (presentation only — drives the existing horizontal scroller)
+    const boardScrollRef = useRef<HTMLDivElement>(null);
+    const [visibleColumn, setVisibleColumn] = useState(0);
+
+    // One "page" = a column plus the gap between columns, measured from the live DOM
+    const getColumnStep = () => {
+        const scroller = boardScrollRef.current;
+        if (!scroller) return 0;
+        const row = scroller.firstElementChild as HTMLElement | null;
+        const firstColumn = row?.firstElementChild as HTMLElement | null;
+        if (!row || !firstColumn) return 0;
+        const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
+        return firstColumn.getBoundingClientRect().width + gap;
+    };
+
+    const scrollToColumn = (index: number) => {
+        const scroller = boardScrollRef.current;
+        const step = getColumnStep();
+        if (!scroller || !step) return;
+        const clamped = Math.max(0, Math.min(columns.length - 1, index));
+        scroller.scrollTo({ left: clamped * step, behavior: 'smooth' });
+    };
+
+    // Keep the label/index in sync with manual swipes
+    useEffect(() => {
+        const scroller = boardScrollRef.current;
+        if (!scroller) return;
+        const handleScroll = () => {
+            const step = getColumnStep();
+            if (!step) return;
+            const index = Math.round(scroller.scrollLeft / step);
+            setVisibleColumn(Math.max(0, Math.min(columns.length - 1, index)));
+        };
+        scroller.addEventListener('scroll', handleScroll, { passive: true });
+        return () => scroller.removeEventListener('scroll', handleScroll);
+    }, [columns.length, isLoading]);
+
     // Weekly Stats Logic
     const weeklyStats = useMemo(() => {
         const now = new Date();
@@ -357,8 +394,8 @@ export function MindspaceBoard() {
         <div className="flex flex-col h-full w-full min-w-0 bg-transparent overflow-hidden">
 
             {/* HERO CAPTURE AREA */}
-            <div className="shrink-0 pt-6 px-4 md:pt-10 md:px-8 pb-6 flex flex-col items-center justify-center relative z-20 border-b border-[var(--glass-border)]">
-                <div className="max-w-2xl w-full flex flex-col gap-4">
+            <div className="shrink-0 pt-4 px-3 pb-4 md:pt-10 md:px-8 md:pb-6 flex flex-col items-center justify-center relative z-20 border-b border-[var(--glass-border)]">
+                <div className="max-w-2xl w-full flex flex-col gap-3 md:gap-4">
                     <form onSubmit={handleAdd} className="w-full relative">
                         <div className={cn(
                             "bg-[var(--glass-bg)] backdrop-blur-2xl border border-[var(--glass-border)] rounded-3xl overflow-hidden shadow-lg transition-all duration-300",
@@ -468,27 +505,28 @@ export function MindspaceBoard() {
                     {/* SEARCH BAR & ARCHIVE TOGGLE */}
                     <div className="flex items-center gap-3 w-full">
                         <div className="relative group flex-1">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)] group-focus-within:text-[var(--color-primary)] transition-colors" />
+                            <Search className="absolute left-3.5 md:left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)] group-focus-within:text-[var(--color-primary)] transition-colors" />
                             <input
                                 type="text"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 placeholder="Search your notes..."
-                                className="w-full bg-[var(--glass-bg)] backdrop-blur-md border border-[var(--glass-border)] focus:border-[var(--glass-border-hover)] rounded-full py-3 pl-11 pr-4 text-sm text-[var(--text-primary)] outline-none transition-all placeholder:text-[var(--text-muted)]"
+                                className="w-full bg-[var(--glass-bg)] backdrop-blur-md border border-[var(--glass-border)] focus:border-[var(--glass-border-hover)] rounded-full py-3 pl-10 pr-3 md:pl-11 md:pr-4 text-sm text-[var(--text-primary)] outline-none transition-all placeholder:text-[var(--text-muted)]"
                             />
                         </div>
                         <button
                             type="button"
                             onClick={() => setShowArchived(true)}
-                            className="flex items-center gap-2 px-5 py-3 rounded-full bg-[var(--glass-bg)] backdrop-blur-md border border-[var(--glass-border)] hover:border-[var(--glass-border-hover)] transition-all text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                            className="flex items-center gap-2 shrink-0 md:shrink px-3 md:px-5 py-3 rounded-full bg-[var(--glass-bg)] backdrop-blur-md border border-[var(--glass-border)] hover:border-[var(--glass-border-hover)] transition-all text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                         >
                             <Archive className="w-4 h-4" />
-                            <span>Vault ({archivedTodos.length}/5)</span>
+                            <span className="md:hidden whitespace-nowrap">Vault {archivedTodos.length}/5</span>
+                            <span className="hidden md:inline">Vault ({archivedTodos.length}/5)</span>
                         </button>
                     </div>
 
                     {/* WEEKLY STAT BAR */}
-                    <div className="w-full mt-4 flex flex-col gap-1.5 px-2">
+                    <div className="w-full mt-1 md:mt-4 flex flex-col gap-1.5 px-0 md:px-2">
                         <WeeklyStatsBar
                             added={weeklyStats.addedCount}
                             completed={weeklyStats.completedCount}
@@ -497,8 +535,35 @@ export function MindspaceBoard() {
                 </div>
             </div>
 
+            {/* MOBILE COLUMN PAGER — lives in the header strip so it can never overlap a card */}
+            {!(activeTodos.length === 0 && !searchQuery) && (
+                <div className="md:hidden shrink-0 flex items-center justify-between gap-2 px-3 py-1 border-b border-[var(--glass-border)]">
+                    <button
+                        type="button"
+                        aria-label="Previous column"
+                        disabled={visibleColumn === 0}
+                        onClick={() => scrollToColumn(visibleColumn - 1)}
+                        className="w-11 h-11 shrink-0 flex items-center justify-center rounded-full bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--text-secondary)] transition-opacity disabled:opacity-30"
+                    >
+                        <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <span className="text-xs font-semibold tracking-tight text-[var(--text-secondary)] truncate">
+                        {columns[visibleColumn]?.label} · {visibleColumn + 1}/{columns.length}
+                    </span>
+                    <button
+                        type="button"
+                        aria-label="Next column"
+                        disabled={visibleColumn === columns.length - 1}
+                        onClick={() => scrollToColumn(visibleColumn + 1)}
+                        className="w-11 h-11 shrink-0 flex items-center justify-center rounded-full bg-[var(--glass-bg)] border border-[var(--glass-border)] text-[var(--text-secondary)] transition-opacity disabled:opacity-30"
+                    >
+                        <ChevronRight className="w-5 h-5" />
+                    </button>
+                </div>
+            )}
+
             {/* KANBAN BOARD AREA */}
-            <div className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden snap-x snap-mandatory md:snap-none">
+            <div ref={boardScrollRef} className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden snap-x snap-mandatory md:snap-none">
                 {activeTodos.length === 0 && !searchQuery ? (
                     <div className="h-full flex flex-col items-center justify-center opacity-40 pointer-events-none pb-20">
                         <div className="w-20 h-20 rounded-3xl border border-dashed border-[var(--glass-border)] flex items-center justify-center mb-6 bg-[var(--glass-bg)]">
@@ -514,7 +579,7 @@ export function MindspaceBoard() {
                         onDragStart={handleDragStart}
                         onDragEnd={handleDragEnd}
                     >
-                        <div className="h-full flex w-max gap-4 px-4 md:px-8 pb-8 items-start pt-6">
+                        <div className="h-full flex w-max gap-4 px-3 md:px-8 pt-4 pb-4 md:pt-6 md:pb-8 items-start">
                             {columns.map(col => (
                                 <KanbanColumn 
                                     key={col.color}
@@ -630,7 +695,7 @@ function KanbanColumn({ color, label, todos, onUpdateLabel, updateTodo, deleteTo
     return (
         <div 
             ref={setNodeRef}
-            className="flex flex-col gap-4 h-full w-[85vw] shrink-0 snap-center md:w-auto md:flex-1 md:min-w-[200px]"
+            className="flex flex-col gap-4 h-full w-[calc(100vw_-_50px)] shrink-0 snap-center md:w-auto md:flex-1 md:min-w-[200px]"
         >
             {/* Column Header */}
             <div className="flex items-center justify-between px-1">

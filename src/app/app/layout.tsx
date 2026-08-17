@@ -15,6 +15,23 @@ import { QuickCaptureFAB } from '@/components/home/quick-capture-fab';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { RealtimeSync } from '@/components/realtime-sync';
 
+type NavItem = {
+    href: string;
+    icon: any;
+    label: string;
+    disabled?: boolean;
+    badge?: string;
+};
+
+const navItems: NavItem[] = [
+    { href: '/app', icon: LayoutDashboard, label: 'Home' },
+    { href: '/app/tasks', icon: Brain, label: 'Mindspace' },
+    { href: '/app/calendar', icon: Calendar, label: 'Calendar' },
+    { href: '/app/goals', icon: Target, label: 'Goals' },
+    { href: '/app/coach', icon: Compass, label: 'Coach Hub' },
+    { href: '/app/weekly-review', icon: Activity, label: 'Review', badge: 'Soon', disabled: true },
+];
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     // State hydration and realtime subscriptions are handled by <RealtimeSync />
@@ -27,23 +44,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         import('@/lib/featureFlags').then(m => setIsPreview(m.isPreviewEnabled()));
     }, []);
-
-    type NavItem = {
-        href: string;
-        icon: any;
-        label: string;
-        disabled?: boolean;
-        badge?: string;
-    };
-
-    const navItems: NavItem[] = [
-        { href: '/app', icon: LayoutDashboard, label: 'Home' },
-        { href: '/app/tasks', icon: Brain, label: 'Mindspace' },
-        { href: '/app/calendar', icon: Calendar, label: 'Calendar' },
-        { href: '/app/goals', icon: Target, label: 'Goals' },
-        { href: '/app/coach', icon: Compass, label: 'Coach Hub' },
-        { href: '/app/weekly-review', icon: Activity, label: 'Review', badge: 'Soon', disabled: true },
-    ];
 
     return (
         <ErrorBoundary>
@@ -173,7 +173,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 {/* Main Content */}
                 <main className="relative flex flex-col h-full overflow-hidden min-w-0 max-w-full">
                     {/* Top System Bar */}
-                    <header className="h-14 flex items-center justify-between px-6 border-b border-[var(--glass-border)] bg-[var(--color-bg-secondary)]/50 backdrop-blur-md z-20 md:hidden">
+                    <header className="h-auto min-h-14 pt-[env(safe-area-inset-top)] flex items-center justify-between px-6 border-b border-[var(--glass-border)] bg-[var(--color-bg-secondary)]/50 backdrop-blur-md z-20 md:hidden">
                         {/* Mobile Header Content */}
                         <div className="flex items-center gap-2">
                             <Image src="/logo.png" alt="PlannrAI" width={24} height={24} className="rounded-md" />
