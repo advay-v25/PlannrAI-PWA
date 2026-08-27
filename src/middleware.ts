@@ -38,7 +38,7 @@ export async function middleware(request: NextRequest) {
         const { pathname } = request.nextUrl;
         
         // Feature flag guard for preview features
-        if (pathname.startsWith('/api/weekly-review') || (pathname.startsWith('/api/habit-stack/') || pathname === '/api/habit-stack') || pathname.startsWith('/api/goals/plan') || pathname.startsWith('/api/goals/strategy') || pathname.startsWith('/api/goals/generate-strategy') || pathname.startsWith('/api/goals/auto-schedule')) {
+        if ((pathname.startsWith('/api/habit-stack/') || pathname === '/api/habit-stack') || pathname.startsWith('/api/goals/plan') || pathname.startsWith('/api/goals/strategy') || pathname.startsWith('/api/goals/generate-strategy') || pathname.startsWith('/api/goals/auto-schedule')) {
             const isPreviewEnabled = process.env.NEXT_PUBLIC_IS_PREVIEW_BUILD === 'true' || process.env.NODE_ENV !== 'production';
             if (!isPreviewEnabled) {
                 return new NextResponse(JSON.stringify({ ok: false, error: 'Feature disabled in production' }), { status: 403, headers: { 'Content-Type': 'application/json' } });

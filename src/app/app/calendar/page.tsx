@@ -160,9 +160,10 @@ function TaskCategories({ blocks }: { blocks: any[] }) {
     const categories = useMemo(() => {
         const map: Record<string, { count: number; color: string }> = {};
         const colorMap: Record<string, string> = {
-            goal: 'bg-orange-400', anchor: 'bg-zinc-400', meal: 'bg-emerald-400',
-            routine: 'bg-violet-400', buffer: 'bg-blue-400', flex: 'bg-amber-400',
-            sleep: 'bg-zinc-600', wind_down: 'bg-indigo-400',
+            goal: 'bg-[#B9954C] dark:bg-[#D6BB80]', anchor: 'bg-[#6E7889] dark:bg-[#9AA4B5]', meal: 'bg-[#B97F6E] dark:bg-[#D6A797]',
+            routine: 'bg-[#9782B5] dark:bg-[#BBA9D6]', buffer: 'bg-[#8F8C84] dark:bg-[#8B8B96]', flex: 'bg-[#7C6FC0] dark:bg-[#A99CE0]',
+            sleep: 'bg-[#6E7889] dark:bg-[#9AA4B5]', wind_down: 'bg-[#6E7889] dark:bg-[#9AA4B5]',
+            mind: 'bg-[#7C6FC0] dark:bg-[#A99CE0]', body: 'bg-[#5F9377] dark:bg-[#8FBFA3]', craft: 'bg-[#B9954C] dark:bg-[#D6BB80]',
         };
         blocks.forEach(b => {
             const type = b.block_type || 'other';

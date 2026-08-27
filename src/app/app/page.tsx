@@ -19,6 +19,7 @@ import { PageBackground } from '@/components/ui/PageBackground';
 import { motion } from 'framer-motion';
 import { useUserStore } from '@/stores';
 import { NotificationScheduler } from '@/components/home/notification-scheduler';
+import { DaySweep } from '@/components/home/day-sweep';
 
 export default function HomePage() {
     const router = useRouter();
@@ -298,6 +299,10 @@ export default function HomePage() {
               }} />
             </div>
             <NotificationScheduler blocks={effectiveData.schedule_blocks} date={today} />
+
+            {/* End-of-day completion sweep — the only place block status ever
+                gets collected. Dismissible, never blocking. */}
+            <DaySweep unmarked={stateData?.unmarked ?? null} onMarked={handleRefresh} />
 
             {/* Scheduling Mode Banner (from energy check-in) */}
             {currentMode && currentMode.type && (

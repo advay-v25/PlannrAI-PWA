@@ -17,7 +17,6 @@ import AIControls from './_components/ai-controls';
 import CommitmentsManager from './_components/commitments-manager';
 import BodyDiet from './_components/body-diet';
 import WorkPreferences from './_components/work-preferences';
-import ProductivityProfile from './_components/productivity-profile';
 import PersonalRulesManager from './_components/personal-rules-manager';
 import { ProfilePreferences } from '@/lib/types/settings';
 import { Switch } from '@/components/ui/switch';
@@ -188,7 +187,6 @@ export default function SettingsPage() {
                                 <div className="border border-[var(--glass-border)] bg-[var(--glass-bg)] p-6 rounded-2xl">
                                     <CommitmentsManager />
                                 </div>
-                                <ProductivityProfile />
                                 <AIControls preferences={preferences} onChange={handleUpdate} />
                                 <PersonalRulesManager />
                             </>

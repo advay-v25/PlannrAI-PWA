@@ -29,7 +29,7 @@ const navItems: NavItem[] = [
     { href: '/app/calendar', icon: Calendar, label: 'Calendar' },
     { href: '/app/goals', icon: Target, label: 'Goals' },
     { href: '/app/coach', icon: Compass, label: 'Coach Hub' },
-    { href: '/app/weekly-review', icon: Activity, label: 'Review', badge: 'Soon', disabled: true },
+    { href: '/app/weekly-review', icon: Activity, label: 'Review' },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

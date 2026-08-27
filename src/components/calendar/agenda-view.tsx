@@ -26,6 +26,34 @@ export function AgendaView({ blocks, onBlockClick, onStatusChange, onDelete }: A
         }
     };
 
+    const getPillarText = (block: ScheduleBlock & { goal?: Goal }) => {
+        const type = block.block_type;
+        if (type === 'goal' || type === 'flex') return 'text-[#B9954C] dark:text-[#D6BB80]';
+        if (type === 'routine') return 'text-[#9782B5] dark:text-[#BBA9D6]';
+        if (type === 'meal') return 'text-[#B97F6E] dark:text-[#D6A797]';
+        if (type === 'sleep' || type === 'wind_down' || type === 'anchor') return 'text-[#6E7889] dark:text-[#9AA4B5]';
+        if (type === 'break' || type === 'buffer') return 'text-[#8F8C84] dark:text-[#8B8B96]';
+        const pillar = block.pillar?.toLowerCase() || block.goal?.pillar?.toLowerCase();
+        if (pillar === 'mind') return 'text-[#7C6FC0] dark:text-[#A99CE0]';
+        if (pillar === 'body') return 'text-[#5F9377] dark:text-[#8FBFA3]';
+        if (pillar === 'craft') return 'text-[#B9954C] dark:text-[#D6BB80]';
+        return 'text-[#7C6FC0] dark:text-[#A99CE0]';
+    };
+
+    const getPillarBg = (block: ScheduleBlock & { goal?: Goal }) => {
+        const type = block.block_type;
+        if (type === 'goal' || type === 'flex') return 'bg-[#B9954C] dark:bg-[#D6BB80]';
+        if (type === 'routine') return 'bg-[#9782B5] dark:bg-[#BBA9D6]';
+        if (type === 'meal') return 'bg-[#B97F6E] dark:bg-[#D6A797]';
+        if (type === 'sleep' || type === 'wind_down' || type === 'anchor') return 'bg-[#6E7889] dark:bg-[#9AA4B5]';
+        if (type === 'break' || type === 'buffer') return 'bg-[#8F8C84] dark:bg-[#8B8B96]';
+        const pillar = block.pillar?.toLowerCase() || block.goal?.pillar?.toLowerCase();
+        if (pillar === 'mind') return 'bg-[#7C6FC0] dark:bg-[#A99CE0]';
+        if (pillar === 'body') return 'bg-[#5F9377] dark:bg-[#8FBFA3]';
+        if (pillar === 'craft') return 'bg-[#B9954C] dark:bg-[#D6BB80]';
+        return 'bg-[#7C6FC0] dark:text-[#A99CE0]';
+    };
+
     return (
         <div className="space-y-3">
             {sortedBlocks.length === 0 ? (
@@ -42,41 +70,38 @@ export function AgendaView({ blocks, onBlockClick, onStatusChange, onDelete }: A
                     >
                         <GlassCard
                             padding="sm"
-                            className={`group relative hover:border-white/10 transition-colors ${block.status === 'done' ? 'opacity-60' : ''
+                            className={`group relative hover:border-[#E7E4DC] dark:hover:border-[#2A2A31] transition-colors bg-[#FFFFFF] dark:bg-[#1B1B20] border border-[#E7E4DC] dark:border-[#2A2A31] ${block.status === 'done' ? 'opacity-60' : ''
                                 }`}
                             onClick={() => onBlockClick?.(block)}
                         >
                             <div className="flex items-center gap-4">
                                 {/* Time Column */}
                                 <div className="flex flex-col items-end min-w-[60px]">
-                                    <span className="text-sm font-bold font-mono text-[var(--text-primary)]">
+                                    <span className="text-sm font-bold font-mono text-[#8F8C84] dark:text-[#8B8B96]">
                                         {format(new Date(block.start_time), 'HH:mm')}
                                     </span>
-                                    <span className="text-xs text-[var(--text-tertiary)] font-mono">
+                                    <span className="text-xs font-mono text-[#8F8C84] dark:text-[#8B8B96]">
                                         {format(new Date(block.end_time), 'HH:mm')}
                                     </span>
                                 </div>
 
                                 {/* Status Line */}
-                                <div className={`w-1 h-10 rounded-full ${block.block_type === 'goal' ? 'bg-[var(--color-primary)]' :
-                                        block.block_type === 'routine' ? 'bg-purple-400' :
-                                            'bg-white/20'
-                                    }`} />
+                                <div className={`w-1 h-10 rounded-full ${getPillarBg(block)}`} />
 
                                 {/* Content */}
                                 <div className="flex-1 min-w-0">
-                                    <h4 className={`font-medium truncate ${block.status === 'done' ? 'line-through text-[var(--text-tertiary)]' : ''
+                                    <h4 className={`font-medium truncate ${block.status === 'done' ? 'line-through text-[var(--text-tertiary)]' : getPillarText(block)
                                         }`}>
                                         {block.title || block.context || 'Untitled Block'}
                                     </h4>
 
                                     <div className="flex items-center gap-2 mt-1">
                                         {block.goal && (
-                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/20 uppercase tracking-wider">
+                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#B9954C]/10 text-[#B9954C] dark:text-[#D6BB80] border border-[#B9954C]/20 uppercase tracking-wider">
                                                 {block.goal.title}
                                             </span>
                                         )}
-                                        <span className="text-xs text-[var(--text-tertiary)] capitalize">
+                                        <span className={`text-xs capitalize ${getPillarText(block)}`}>
                                             {block.block_type}
                                         </span>
                                     </div>

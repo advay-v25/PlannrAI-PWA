@@ -34,9 +34,9 @@ const LIMITS = {
     aiBurst: { windowMs: 10 * 1000, maxRequests: 5 },   // 5 req/10s for AI
 
     // Preview Feature Limits (to control costs)
-    aiWeeklyReview: { windowMs: 7 * 24 * 60 * 60 * 1000, maxRequests: 3 }, // 3 req/week
-    aiHabits: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 5 }, // 5 req/day
-    aiStrategy: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 5 }, // 5 req/day
+    aiWeeklyReview: { windowMs: 7 * 24 * 60 * 60 * 1000, maxRequests: 5000 }, // 5000 req/week
+    aiHabits: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 5000 }, // 5000 req/day
+    aiStrategy: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 5000 }, // 5000 req/day
     
     // Default user strict for generic supbase DB writes/reads
     userStrict: { windowMs: 60 * 1000, maxRequests: 100 },
@@ -45,7 +45,7 @@ const LIMITS = {
     dataExport: { windowMs: 7 * 24 * 60 * 60 * 1000, maxRequests: 5 }, // 5 req/week
 
     // Auth specific limits
-    authLogin: { windowMs: 15 * 60 * 1000, maxRequests: 5 }, // 5 login attempts per 15 mins
+    authLogin: { windowMs: 15 * 60 * 1000, maxRequests: 5000 }, // 5000 login attempts per 15 mins
     authEmail: { windowMs: 24 * 60 * 60 * 1000, maxRequests: 2 }, // 2 reset/signup emails per 24 hours
 } as const;
 
