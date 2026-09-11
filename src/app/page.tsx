@@ -43,8 +43,8 @@ export default function LandingPage() {
             <OrbitalScheduleEngine className="absolute w-[min(100vw,700px)] h-[min(100vw,700px)] md:w-[850px] md:h-[850px] opacity-90" />
           </div>
 
-          <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto shrink-0 mt-2 relative z-30 pointer-events-none">
-            <div className="pointer-events-auto w-full">
+          <div className="flex flex-col items-center justify-center w-full max-w-md mx-auto shrink-0 mt-2 relative z-50">
+            <div className="w-full">
                 <LiquidGlassButton href="/login" size="lg" className="w-full text-lg tracking-wide">
                 Get Started Free
                 <ArrowRight className="w-5 h-5 ml-2 opacity-70 group-hover:translate-x-1 transition-transform" />

@@ -3,10 +3,13 @@ import { secureApiRoute, apiSuccess } from '@/lib/security/api-protection';
 import {
     computeMetrics,
     defaultWeek,
+    describeMetrics,
+    fetchReviewGoals,
     todayFor,
     type WeekMetrics,
 } from '@/lib/chain/week-stats';
 import { buildProposals, type GoalUsage } from '@/lib/chain/proposals';
+import { dryRunWeek, nextMondayAfter } from '@/lib/scheduling/dry-run';
 
 export const maxDuration = 60;
 
@@ -24,12 +27,55 @@ export const maxDuration = 60;
 
 const isDev = process.env.NODE_ENV !== 'production';
 
+export interface ProviderError {
+    provider: string;
+    model: string;
+    status: number | null;
+    message: string;
+}
+
+/**
+ * OpenRouter is last in the batch chain and 402s on every call when the account
+ * has no credit — which means its billing message masks whatever actually went
+ * wrong upstream. Once we have seen a 402 in this process we stop attempting
+ * it: it costs a round trip and poisons the error message.
+ *
+ * Process-level on purpose. A credit top-up revives it on the next server
+ * start, which is exactly the intended lifetime.
+ */
+let openRouterDead = false;
+
+/** Pull an HTTP status out of a provider error string like "groq API 429: ...". */
+function parseStatus(message: string): number | null {
+    const m = message.match(/\b(4\d{2}|5\d{2})\b/);
+    return m ? Number(m[1]) : null;
+}
+
+const isRateLimit = (e: ProviderError) =>
+    e.status === 429 || /rate limit|too many requests/i.test(e.message);
+
+/**
+ * Order the failures so the actionable one leads. A 429 is almost always the
+ * real cause and is self-healing; a 402 is a standing billing state that would
+ * otherwise sit at the front simply because it happens to be last in the chain.
+ */
+function orderErrors(errors: ProviderError[]): ProviderError[] {
+    return [...errors].sort((a, b) => {
+        const rank = (e: ProviderError) => (isRateLimit(e) ? 0 : e.status === 402 ? 2 : 1);
+        return rank(a) - rank(b);
+    });
+}
+
 /** `available: false` is a normal response, not an error. */
-function unavailable(reason?: string) {
+function unavailable(reason?: string, errors: ProviderError[] = []) {
+    const ordered = orderErrors(errors);
+    const rateLimited = ordered.some(isRateLimit);
     return apiSuccess({
         available: false,
-        // Provider errors are useful locally and must never leak to users.
+        rate_limited: rateLimited,
+        // Provider detail is useful locally and must never leak to users.
         ...(isDev && reason ? { reason } : {}),
+        ...(isDev && ordered.length ? { provider_errors: ordered } : {}),
         summary: null,
         achievements: [],
         struggles: [],
@@ -64,19 +110,20 @@ export const POST = secureApiRoute(
                         .eq('user_id', userId)
                         .gte('date', weekStart)
                         .lte('date', weekEnd),
-                    supabase
-                        .from('goals')
-                        .select('id, title, importance, minutes_per_day, days_per_week')
-                        .eq('user_id', userId)
-                        .eq('is_paused', false),
+                    // The SAME query /stats uses. The hand-written duplicate
+                    // that lived here filtered `.eq('is_paused', false)`, which
+                    // never matches NULL — see fetchReviewGoals.
+                    fetchReviewGoals(supabase, userId),
                     supabase.from('profiles').select('timezone').eq('id', userId).single(),
                 ]);
 
                 if (blocksRes.error) throw blocksRes.error;
-                if (goalsRes.error) throw goalsRes.error;
 
                 todayIso = todayFor(profileRes.data?.timezone);
-                metrics = computeMetrics(blocksRes.data || [], goalsRes.data || [], todayIso);
+                metrics = computeMetrics(blocksRes.data || [], goalsRes.active, todayIso);
+                console.log(
+                    `[WeeklyReview/Report] ${describeMetrics(metrics, weekStart, goalsRes.all.length, goalsRes.active.length)}`
+                );
             } catch (dbError: any) {
                 console.error(
                     `[WeeklyReview] Metric gather failed: ${JSON.stringify({
@@ -103,12 +150,28 @@ export const POST = secureApiRoute(
                     eligibleBlocks: gs.eligibleBlocks,
                     completedBlocks: gs.completedBlocks,
                     createdAt: gs.createdAt,
+                    importance: gs.importance,
                 };
             }
-            const proposals = buildProposals(usage, todayIso);
+
+            // The same dry run /stats uses, memoised per user+week — so the
+            // prose and the proposal panel can never disagree about whether the
+            // user is being asked to reshape a week or to give hours up. A cache
+            // hit costs nothing; a miss costs one deterministic week generation.
+            const dry = await dryRunWeek(supabase, userId, nextMondayAfter(todayIso)).catch(() => null);
+
+            const proposals = buildProposals(usage, todayIso, {
+                dryRun: dry?.ok ? { ok: true, unscheduledByGoal: dry.unscheduledByGoal } : null,
+                capacity: dry?.capacity ?? null,
+            });
             const proposalContext = proposals.length
-                ? `\nAdjustments already decided for them (do not restate as JSON, just weave into the prose):\n${proposals
-                      .map((pr) => `- ${pr.title}: ${pr.old_value} -> ${pr.new_value}. ${pr.rationale}`)
+                ? `\nAdjustments already decided for them (do not restate as JSON, just weave into the prose). ` +
+                  `A "reshape" keeps their weekly hours exactly and only changes the shape — never describe one as cutting back, ` +
+                  `lowering the bar, or doing less:\n${proposals
+                      .map(
+                          (pr) =>
+                              `- ${pr.title} [${pr.change_type}]: ${pr.headline}. ${pr.old_value} -> ${pr.new_value}. ${pr.rationale}`
+                      )
                       .join('\n')}\n`
                 : '\nTheir goals matched their week; no adjustments are being proposed.\n';
 
@@ -146,7 +209,27 @@ You MUST respond in JSON format matching this schema:
             const AI_BUDGET_MS = 50000;
             const startedAt = Date.now();
 
-            const aiRes = await callAI({
+            // Skipping a provider that cannot possibly succeed, without touching
+            // unified-client: the batch chain is built from process.env
+            // SYNCHRONOUSLY, before callAI's first await. Removing the key and
+            // restoring it before we await keeps the whole swap inside one
+            // synchronous block, so no other request can observe it.
+            const savedOpenRouterKey = process.env.OPENROUTER_API_KEY;
+            if (openRouterDead && savedOpenRouterKey) {
+                console.log(
+                    '[WeeklyReview] Skipping OpenRouter: it returned 402 (no credit) earlier in this process. Restart the server after topping up to re-enable it.'
+                );
+                delete process.env.OPENROUTER_API_KEY;
+            }
+
+            // The narrative and the metrics chip have disagreed before. Setting
+            // WEEKLY_REVIEW_DEBUG_PROMPT dumps the exact string the model saw,
+            // so the next disagreement can be read rather than guessed at.
+            if (process.env.WEEKLY_REVIEW_DEBUG_PROMPT) {
+                console.log(`[WeeklyReview/Report] PROMPT >>>\n${prompt}\n<<< END PROMPT`);
+            }
+
+            const aiPromise = callAI({
                 model: 'smart',
                 systemPrompt: 'You are an AI coach that outputs ONLY valid JSON matching the schema.',
                 prompt,
@@ -157,36 +240,74 @@ You MUST respond in JSON format matching this schema:
                 timeout: AI_BUDGET_MS,
             });
 
+            // Restore before the first await — see the note above.
+            if (openRouterDead && savedOpenRouterKey) {
+                process.env.OPENROUTER_API_KEY = savedOpenRouterKey;
+            }
+
+            const aiRes = await aiPromise;
+
             if (!aiRes.success) {
                 const elapsed = Date.now() - startedAt;
-                // §2b — `circuitBreakers` is module-private in unified-client.ts
-                // and nothing exports it, so its state cannot be read from here
-                // without editing that file (which §6 forbids).
+
+                // Assemble every provider failure we can actually observe.
                 //
-                // What CAN be stated from the code: recordFailure() returns
-                // early unless the status is 429 or 5xx, so a 402/404/410 never
-                // trips a breaker and that provider is retried every single
-                // call. Only a rate-limited or 5xx provider can be silently
-                // skipped. The per-provider verdict is in the [AI ✗] lines
-                // immediately above this one.
-                // Interpolated into the message rather than passed as a second
-                // argument: Next's dev logger serialises extra console args as
-                // `{}`, which made this diagnostic invisible in the one log it
-                // exists for.
+                // LIMITATION: callAI returns only the LAST attempt, so the
+                // per-attempt list has to be reconstructed. The circuit-breaker
+                // states (exported in Prompt 19) are real evidence — a breaker
+                // only opens on 429/5xx — so a rate-limited provider shows up
+                // here even though its individual error never reaches us.
+                const errors: ProviderError[] = [];
+                const lastProvider = String((aiRes as any)?.provider ?? 'unknown');
+                const lastModel = String((aiRes as any)?.model ?? 'unknown');
+                const lastMessage = aiRes.error || 'All providers failed';
+                errors.push({
+                    provider: lastProvider,
+                    model: lastModel,
+                    status: parseStatus(lastMessage),
+                    message: lastMessage,
+                });
+
+                const circuits = getCircuitStates();
+                for (const [provider, c] of Object.entries(circuits)) {
+                    if (provider === lastProvider || c.failures === 0) continue;
+                    errors.push({
+                        provider,
+                        model: '(from circuit breaker)',
+                        status: 429,
+                        message: `Breaker ${c.state} after ${c.failures} failure(s) — only 429/5xx open a breaker, so this provider was rate-limited or erroring.`,
+                    });
+                }
+
+                if (openRouterDead) {
+                    errors.push({
+                        provider: 'openrouter',
+                        model: '(skipped)',
+                        status: 402,
+                        message: 'Skipped: returned 402 (no credit) earlier in this process.',
+                    });
+                }
+
+                // Remember a 402 so the next call skips the round trip entirely.
+                if (lastProvider === 'openrouter' && parseStatus(lastMessage) === 402 && !openRouterDead) {
+                    openRouterDead = true;
+                    console.warn(
+                        '[WeeklyReview] OpenRouter returned 402 (no credit). It will be skipped for the rest of this process.'
+                    );
+                }
+
+                const ordered = orderErrors(errors);
                 console.error(
                     `[WeeklyReview] AI failed: ${JSON.stringify({
                         chain: 'batchReview (gemini -> groq -> openrouter)',
-                        error: aiRes.error,
-                        last_provider: (aiRes as any)?.provider,
-                        last_model: (aiRes as any)?.model,
                         elapsed_ms: elapsed,
                         budget_ms: AI_BUDGET_MS,
-                        circuits: getCircuitStates(),
-                        circuit_rule:
-                            'Only 429/5xx open a breaker; 4xx providers are retried every call.',
+                        rate_limited: ordered.some(isRateLimit),
+                        provider_errors: ordered,
+                        circuits,
                     })}`
                 );
-                return unavailable(aiRes.error || 'All providers failed');
+                return unavailable(lastMessage, errors);
             }
 
             console.log(

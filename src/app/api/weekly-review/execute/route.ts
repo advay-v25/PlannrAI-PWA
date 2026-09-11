@@ -1,9 +1,43 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { PatchService } from '@/lib/services/patch-service';
+import { chooseWeekMode } from '@/lib/scheduling/dry-run';
 
-export const maxDuration = 45;
+// Every accepted review now runs a full week AI generation (generateWeekPlan)
+// after the goal writes, in series. 60s is the Vercel Hobby ceiling and matches
+// generate-report.
+export const maxDuration = 60;
+
+/**
+ * §6 belt-and-braces: two overlapping executions would generate next week
+ * twice. `isExecuting` guards the button, but a double-submit that slips past
+ * it must not double-plan. Keyed by user + reviewed week, 60s TTL.
+ *
+ * In-process rather than the suggested weekly_reviews check, because that row
+ * only sets lever_applied when a goal actually changed — so it could never
+ * cover the zero-proposal case, which is exactly the case this prompt adds.
+ */
+const recentRuns = new Map<string, { at: number; promise: Promise<any> }>();
+const IDEMPOTENCY_MS = 60_000;
 
 type ExecutionMode = 'auto' | 'semi-auto' | 'manual';
+
+/**
+ * Change types that write minutes/days on the goal.
+ *
+ * `update_time` and `update_days` are no longer generated — Prompt 28 replaced
+ * the two shrinking levers with `redistribute` — but they stay accepted so a
+ * page left open across the deploy submits a stale proposal and gets a 200
+ * rather than a 400.
+ */
+/**
+ * Prompt 38 §1: `reshape` is the only change the review can make. Legacy names
+ * are still accepted so a page left open across the deploy gets a 200 with a
+ * stated reason rather than a 400 — but nothing acts on them.
+ */
+const LEGACY_CHANGE_TYPES = new Set([
+    'pause', 'delete', 'reduce', 'increase', 'redistribute', 'shift_window',
+    'update_time', 'update_days',
+]);
 
 /** Every run of a weekly review has to leave a record, including a declined one. */
 const RESPONSE_BY_MODE: Record<ExecutionMode, 'accepted' | 'partial' | 'ignored'> = {
@@ -22,28 +56,64 @@ export const POST = secureApiRoute(
             return apiError(`Unknown execution mode "${mode}"`, 400);
         }
 
+        // §6: a duplicate submit for the same week returns the first result
+        // rather than generating next week a second time.
+        //
+        // The claim is made BEFORE the work and holds a promise, not a finished
+        // body — two genuinely concurrent requests both reach this point before
+        // either has anything to record, so a claim written at the end catches
+        // nothing and the week gets planned twice.
+        const idempotencyKey = `${userId}:${weekStart || 'default'}`;
+        const prior = recentRuns.get(idempotencyKey);
+        if (prior && Date.now() - prior.at < IDEMPOTENCY_MS) {
+            console.warn(
+                `[WeeklyReview] Duplicate execute for ${idempotencyKey} — awaiting the first run instead of replanning.`
+            );
+            const firstBody = await prior.promise;
+            return apiSuccess({ ...firstBody, idempotent: true });
+        }
+
+        const willPlan = mode === 'auto' || mode === 'semi-auto';
+        let settleFirstRun: (body: any) => void = () => {};
+        if (willPlan) {
+            recentRuns.set(idempotencyKey, {
+                at: Date.now(),
+                promise: new Promise((resolve) => {
+                    settleFirstRun = resolve;
+                }),
+            });
+        }
+
         // 1. Process explicit goal changes (for both auto and semi-auto).
         // If mode is 'auto', `changes` contains every proposal from /stats.
         // If mode is 'semi-auto', only the ones the user ticked.
         //
         // Only goals named in `changes` are ever touched — there is no blanket
         // update anywhere in this route.
+        // If anything below throws, waiters must not hang for the full TTL.
+        const failSafe = setTimeout(() => {
+            settleFirstRun({ success: false, mode, replanned: false, plan_error: 'Run did not complete.' });
+            recentRuns.delete(idempotencyKey);
+        }, maxDuration * 1000);
+
         const applied: any[] = [];
         const skipped: { goal_id: string; reason: string }[] = [];
-        // Goal edits go through PatchService as ops rather than direct writes,
-        // so the inverse patch covers them and one Undo restores BOTH the goals
-        // and the schedule.
-        const goalOps: any[] = [];
 
-        // Clamp so a malformed proposal can never write a target the scheduler
-        // will then try to satisfy.
-        const clampMinutes = (n: number) => Math.min(480, Math.max(10, Math.round(n)));
-        const clampDays = (n: number) => Math.min(7, Math.max(1, Math.round(n)));
-
+        // §1: the weekly review NEVER writes to the `goals` table.
+        //
+        // Every accepted proposal used to become an `update_goal` op that ran
+        // BEFORE the planner, so the review edited the user's targets to match a
+        // schedule it was about to invent. Run it a few times and the Goals page
+        // drifts away from what the user set.
+        //
+        // The Goals page is the source of truth; the calendar follows it, never
+        // the reverse. Accepted changes are applied to `schedule_blocks` for the
+        // target week only — see week-copy.ts. A change made here therefore
+        // lasts one week and no longer, which the confirm modal now says.
         const requestedIds = [...new Set(changes.map((c: any) => c?.goal_id).filter(Boolean))] as string[];
 
-        // Re-verify ownership and current state in one query. A stale proposal
-        // from a page left open must not resurrect or re-pause a goal.
+        // Ownership is still verified: a stale proposal from a page left open
+        // must not reach into a goal that is not the user's.
         const goalsById = new Map<string, any>();
         if (requestedIds.length > 0) {
             const { data: ownedGoals, error: goalsErr } = await supabase
@@ -55,77 +125,156 @@ export const POST = secureApiRoute(
             for (const g of ownedGoals || []) goalsById.set(g.id, g);
         }
 
+        /** The only proposal type there is. */
+        const CALENDAR_CHANGES = new Set(['reshape']);
+
+        const calendarChanges: any[] = [];
         for (const change of changes) {
-            const { goal_id, change_type, new_minutes_per_day, new_days_per_week } = change || {};
+            const { goal_id, change_type } = change || {};
             if (!goal_id) continue;
 
             const goal = goalsById.get(goal_id);
-            if (!goal) {
-                skipped.push({ goal_id, reason: 'not found for this user' });
-                continue;
-            }
+            if (!goal) { skipped.push({ goal_id, reason: 'not found for this user' }); continue; }
             if (goal.is_paused || goal.status === 'archived') {
                 skipped.push({ goal_id, reason: 'already paused or archived' });
                 continue;
             }
-
-            if (change_type === 'pause') {
-                goalOps.push({ op: 'update_goal', goal_id, fields: { is_paused: true } });
-                applied.push(change);
-            } else if (change_type === 'delete') {
-                // Never hard-delete. Automatic mode can apply a change the user
-                // never saw proposed, and destroying a goal on that basis is
-                // unrecoverable — pause and archive instead. (Nothing proposes
-                // `delete` any more; this stays as a guard for stale payloads.)
-                goalOps.push({ op: 'update_goal', goal_id, fields: { is_paused: true, status: 'archived' } });
-                applied.push(change);
-            } else if (change_type === 'update_time' || change_type === 'update_days') {
-                const updates: any = {};
-                if (typeof new_minutes_per_day === 'number' && Number.isFinite(new_minutes_per_day)) {
-                    updates.minutes_per_day = clampMinutes(new_minutes_per_day);
-                }
-                if (typeof new_days_per_week === 'number' && Number.isFinite(new_days_per_week)) {
-                    updates.days_per_week = clampDays(new_days_per_week);
-                }
-
-                if (Object.keys(updates).length > 0) {
-                    goalOps.push({ op: 'update_goal', goal_id, fields: updates });
-                    applied.push({ ...change, applied_values: updates });
-                } else {
-                    skipped.push({ goal_id, reason: 'no usable numeric value' });
-                }
-            } else {
-                skipped.push({ goal_id, reason: `unknown change_type "${change_type}"` });
+            // Prompt 38 §1: the review may never reduce a goal's hours, so
+            // pause/reduce/increase are not applicable changes at all. A stale
+            // page sending one gets a clear reason rather than a silent drop.
+            if (!CALENDAR_CHANGES.has(change_type)) {
+                skipped.push({
+                    goal_id,
+                    reason: LEGACY_CHANGE_TYPES.has(change_type)
+                        ? `"${change_type}" is no longer applied — the review only reshapes hours, never removes them`
+                        : `unknown change_type "${change_type}"`,
+                });
+                continue;
             }
+            calendarChanges.push(change);
+            applied.push(change);
         }
 
         if (skipped.length > 0) {
             console.warn(`[WeeklyReview] Skipped ${skipped.length} change(s): ${JSON.stringify(skipped)}`);
         }
 
-        // 2. Plan the week AHEAD — only when something actually changed.
+        // 2. Plan the week AHEAD.
         //
-        // This used to fire `replan_week`, which rewrites the week the user is
-        // currently living in and, run on a Sunday, deleted next week without
-        // inserting anything. A weekly review looks back at a finished week and
-        // sets up the one ahead, so `plan_next_week` is the correct semantic.
+        // Gated on the MODE, not the op count. Accepting the review is itself
+        // the decision to rebuild next week — a user who gets no goal edits, or
+        // ticks nothing in semi-auto, still asked for a fresh week built on
+        // their current goals. Manual never plans: "I'll handle it myself" and
+        // silently rewriting their week would be the opposite of that.
+        const shouldPlanNextWeek = willPlan;
+
         let replanned = false;
+        let planError: string | null = null;
+        let planSummary: {
+            week_start: string;
+            week_end: string;
+            blocks_created: number;
+            blocks_cleared: number;
+            /** Concrete outcome for the user: how many of each block type landed. */
+            blocks_by_type?: Record<string, number>;
+            blocks_skipped?: any[];
+            blocks_failed?: any[];
+            /** §5: goals the week genuinely could not hold, and by how much. */
+            goal_shortfalls?: Array<{
+                goal_id: string; title: string; target_mins: number;
+                placed_mins: number; short_by_mins: number; reason: string;
+            }>;
+        } | null = null;
+        let planMode: 'balanced' | 'momentum' = 'balanced';
         let undoToken: string | null = null;
-        if (goalOps.length > 0) {
-            // Goal edits first, so the generated plan reflects the new targets.
+
+        if (shouldPlanNextWeek) {
+            // §5: a tight week is planned in `momentum` — zero per-block buffers
+            // and a higher per-day cap, which buys real room. A loose week keeps
+            // `balanced`, because zero buffers on a half-empty week just means
+            // back-to-back everything for no reason.
+            //
+            // Measured with the goal edits applied, since those are exactly what
+            // changes how tight the week is. Explicit and logged, never implicit.
+            // No overrides: the goals are not being changed, so the week's
+            // tightness is measured exactly as it stands.
+            const modeDecision = await chooseWeekMode(supabase, userId, {});
+            planMode = modeDecision.mode;
+            console.log(`[WeeklyReview] Planning next week in "${planMode}" mode — ${modeDecision.reason}`);
+
+            // One op. There are no goal writes to sequence ahead of it any
+            // more — the accepted changes ride in the payload as calendar edits.
             const patchResult = await PatchService.applyPatch(
                 userId,
                 {
-                    ops: [...goalOps, { op: 'plan_next_week', payload: { mode: 'balanced', allow_weekend: true } }],
+                    ops: [
+                        {
+                            op: 'plan_current_week',
+                            // The accepted changes now reach the plan HERE,
+                            // as calendar edits — there is no goal write for
+                            // them to travel through any more.
+                            payload: {
+                                mode: planMode,
+                                allow_weekend: true,
+                                changes: calendarChanges,
+                            },
+                        },
+                    ],
                     scope: 'week',
                 },
                 supabase,
                 'coach'
             );
-            replanned = patchResult.success;
+
             undoToken = patchResult.undo_token;
-            if (!patchResult.success) {
-                console.error(`[WeeklyReview] apply failed: ${JSON.stringify(patchResult.errors)}`);
+
+            // `patchResult.success` means "at least one op worked" — the loop
+            // continues past a failure. Reporting that as `replanned` would
+            // tell the user next week is ready when only the goal writes
+            // landed. Derive it from the planning op itself.
+            const planOp = (patchResult.op_results || []).find((r) => r.op === 'plan_current_week');
+
+            if (!planOp) {
+                planError = 'Planning did not run.';
+            } else if (!planOp.ok) {
+                planError = planOp.error || 'Planning failed.';
+            } else {
+                planSummary = planOp.data ?? null;
+                const created = planSummary?.blocks_created ?? 0;
+                if (created > 0) {
+                    replanned = true;
+                } else {
+                    // An empty plan is a failure, not a success: every goal is
+                    // paused, or the generator returned only bio blocks.
+                    planError =
+                        'The planner produced no blocks for next week — every goal may be paused.';
+                }
+                if (planSummary) {
+                    console.log(
+                        `[WeeklyReview] planned ${planSummary.week_start}..${planSummary.week_end}: ` +
+                        `${planSummary.blocks_created} blocks ${JSON.stringify(planSummary.blocks_by_type || {})}`
+                    );
+                    if (planSummary.blocks_skipped?.length) {
+                        console.error(
+                            `[WeeklyReview] the writer dropped ${planSummary.blocks_skipped.length} ` +
+                            `block(s) the planner had placed: ${JSON.stringify(planSummary.blocks_skipped)}`
+                        );
+                    }
+                }
+            }
+
+            if (planError) {
+                console.error(
+                    `[WeeklyReview] plan_current_week did not complete: ${JSON.stringify({
+                        planError,
+                        calendar_changes: calendarChanges.length,
+                        errors: patchResult.errors,
+                    })}`
+                );
+            } else {
+                console.log(
+                    `[WeeklyReview] Next week planned: ${JSON.stringify(planSummary)}`
+                );
             }
         }
 
@@ -161,15 +310,32 @@ export const POST = secureApiRoute(
             }
         }
 
-        return apiSuccess({
+        const responseBody = {
             success: true,
             mode,
             applied_changes: applied.length,
             skipped_changes: skipped.length,
             replanned,
+            plan_error: planError,
+            plan: planSummary,
+            plan_mode: planMode,
+            // §5: the user is told which goals the week could not hold, rather
+            // than being handed a calendar with unexplained gaps.
+            goal_shortfalls: planSummary?.goal_shortfalls ?? [],
+            // §3: which triage branch fired for every missed block.
+            triage: (planSummary as any)?.triage ?? [],
+            path: (planSummary as any)?.path ?? null,
+            goals_written: 0, // §1: always zero. The review never edits goals.
+            blocks_dropped: planSummary?.blocks_skipped ?? [],
             undo_token: undoToken,
             review_saved: reviewSaved,
-        });
+        };
+
+        // Release anyone waiting on this run's result.
+        clearTimeout(failSafe);
+        settleFirstRun(responseBody);
+
+        return apiSuccess(responseBody);
     },
     { requireAuth: true, rateLimit: 'aiWeeklyReview', auditAction: 'weekly_review_execute' }
 );

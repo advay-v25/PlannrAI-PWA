@@ -1,23 +1,83 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
-import { Loader2, ArrowRight, ArrowLeft, Brain, Zap, Target, Star, AlertTriangle, MessageCircle, X, CheckCircle2, Circle, ArrowDownRight, ChevronLeft, ChevronRight, RefreshCw, CalendarX } from 'lucide-react';
+import { Loader2, ArrowRight, ArrowLeft, Brain, Zap, Target, Star, AlertTriangle, MessageCircle, X, CheckCircle2, Circle, ArrowDownRight, ChevronLeft, ChevronRight, RefreshCw, CalendarX, Shuffle } from 'lucide-react';
 import ProductivityProfile, { type ProfileAnalysis } from '@/components/weekly-review/productivity-profile';
 import { DayChain, type ChainResponse } from '@/components/weekly-review/day-chain';
 import { ConfirmChangesModal } from '@/components/weekly-review/confirm-changes-modal';
 
+/** Prompt 38: the same hours, arranged differently. There is nothing else. */
+type ChangeType = 'reshape';
+
 interface ProposedChange {
     goal_id: string;
     title: string;
-    change_type: "update_time" | "update_days" | "pause";
+    change_type: ChangeType;
     old_value: string;
     new_value: string;
+    /** Carries the principle: a reshape is not a downgrade. Rendered verbatim. */
+    headline: string;
+    new_minutes_per_day?: number;
+    new_days_per_week?: number;
+    new_time_of_day?: 'morning' | 'afternoon' | 'evening';
+    old_weekly_minutes?: number;
+    new_weekly_minutes?: number;
     rationale: string;
+    /** Why this goal. Every proposal carries it; see proposals.ts §4. */
+    evidence: {
+        missed_minutes: number;
+        missed_dates: string[];
+        completed_minutes: number;
+        target_minutes: number;
+    };
 }
+
+/**
+ * A reshape and a cut must not look alike.
+ *
+ * A user has to be able to tell at a glance whether they are being asked to
+ * change the shape of a week or to give something up. Same-total changes are
+ * primary-coloured and read as neutral; the one change type that lowers a
+ * target is amber and says so on the card.
+ */
+const CHANGE_STYLES: Record<
+    string,
+    { label: string; accent: string; chip: string; ring: string; givesUpHours: boolean }
+> = {
+    // One entry, because there is one change type. Nothing the review proposes
+    // can take hours away, so there is no "gives up hours" styling any more.
+    reshape: {
+        label: 'Reshape',
+        accent: 'text-[var(--color-primary-soft)] dark:text-[var(--color-primary)]',
+        chip: 'bg-[var(--color-primary)]/10 text-[var(--color-primary-soft)] dark:text-[var(--color-primary)] border-[var(--color-primary)]/30',
+        ring: 'border-[var(--color-primary)]/50 shadow-lg shadow-[var(--color-primary)]/10',
+        givesUpHours: false,
+    },
+};
+
+const styleFor = (t: ChangeType | string) => CHANGE_STYLES[t] ?? CHANGE_STYLES.reshape;
+
+/** Mirrors MISSED_FLOOR_MINS in src/lib/chain/proposals.ts. */
+const MISSED_FLOOR_MINS = 60;
+
+const WEEKDAY = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const namedDays = (dates: string[]) => {
+    const d = dates.map((x) => WEEKDAY[new Date(`${x}T12:00:00Z`).getUTCDay()]).filter(Boolean);
+    if (d.length <= 1) return d[0] || '';
+    return `${d.slice(0, -1).join(', ')} and ${d[d.length - 1]}`;
+};
+
+const formatMins = (m: number) => {
+    const v = Math.max(0, Math.round(m));
+    const h = Math.floor(v / 60);
+    const rem = v % 60;
+    if (h === 0) return `${rem}m`;
+    return rem === 0 ? `${h}h` : `${h}h ${rem}m`;
+};
 
 /** Deterministic half of the page. Comes from a route that cannot fail. */
 interface StatsResponse {
@@ -33,23 +93,62 @@ interface StatsResponse {
     chain: ChainResponse;
     /** Deterministic — computed from Postgres, never by the AI. */
     proposed_goal_changes: ProposedChange[];
+    /** Minutes planned and not done. Drives the §3 floor and the copy. */
+    total_missed_minutes?: number;
+    /** Facts about the week, computed from Postgres. Never AI-dependent. */
+    wins?: string[];
+    /** What the scheduler said when asked to place next week. */
+    scheduling?: {
+        week_start: string;
+        dry_run_ok: boolean;
+        dry_run_ms: number;
+        unplaceable_minutes: number;
+        available_hours: number | null;
+        targeted_hours: number | null;
+        headroom_hours: number | null;
+        is_overcommitted: boolean;
+    };
 }
 
 /** AI half. `available: false` is a normal outcome, never an error. */
+interface ProviderError {
+    provider: string;
+    model: string;
+    status: number | null;
+    message: string;
+}
+
 interface AiResponse {
     available: boolean;
     reason?: string;
+    /** True when any provider reported 429 — a longer, self-healing backoff. */
+    rate_limited?: boolean;
+    /** Dev-only, ordered so the actionable failure leads. */
+    provider_errors?: ProviderError[];
     summary: string | null;
     achievements: string[];
     struggles: string[];
 }
+
+/** Retry throttling. Five summaries in fifteen seconds exhausted Groq's 8000 TPM. */
+const COOLDOWN_MS = 20_000;
+const RATE_LIMIT_COOLDOWN_MS = 60_000;
 
 interface ExecuteResponse {
     success: boolean;
     applied_changes: number;
     skipped_changes?: number;
     replanned: boolean;
+    /** Why planning didn't happen, when it didn't. */
+    plan_error?: string | null;
+    plan?: {
+        week_start: string;
+        week_end: string;
+        blocks_created: number;
+        blocks_cleared: number;
+    } | null;
     undo_token?: string | null;
+    idempotent?: boolean;
 }
 
 const isDev = process.env.NODE_ENV !== 'production';
@@ -98,7 +197,31 @@ export default function WeeklyReviewPage() {
     const [ai, setAi] = useState<AiResponse | null>(null);
     const [aiLoading, setAiLoading] = useState(true);
 
+    // One request at a time, a cooldown after every attempt, and a per-week
+    // cache — the three ways the provider budget was being burned.
+    // The week currently in flight, not merely "something is in flight" — see
+    // fetchAi. A boolean here let a request for one week suppress another.
+    const aiInFlight = useRef<string | null>(null);
+    /** The week actually on screen, so a late response can be discarded. */
+    const selectedWeekRef = useRef<string>('');
+    const executeInFlight = useRef(false);
+    const summaryCache = useRef<Map<string, AiResponse>>(new Map());
+    const [cooldownUntil, setCooldownUntil] = useState(0);
+    const [now, setNow] = useState(() => Date.now());
+
+    // Tick only while a cooldown is actually running.
+    useEffect(() => {
+        if (cooldownUntil <= Date.now()) return;
+        const id = setInterval(() => setNow(Date.now()), 250);
+        return () => clearInterval(id);
+    }, [cooldownUntil]);
+
+    const cooldownLeft = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
+
     const [isExecuting, setIsExecuting] = useState(false);
+    // §5: a full week generation can take ~30s. After a few seconds, say what
+    // is actually happening so the wait doesn't read as a hang.
+    const [isPlanning, setIsPlanning] = useState(false);
     const [loadingMessage, setLoadingMessage] = useState('Gathering your weekly data...');
 
     // UI State
@@ -128,19 +251,57 @@ export default function WeeklyReviewPage() {
      * The AI summary. Isolated from the dashboard on purpose: this can fail, be
      * slow, or be rate-limited, and none of that may affect anything else.
      */
-    const fetchAi = useCallback(async (start: string, end: string) => {
+    const fetchAi = useCallback(async (start: string, end: string, force = false) => {
+        // A week already summarised this session costs nothing to revisit.
+        const cached = summaryCache.current.get(start);
+        if (!force && cached) {
+            setAi(cached);
+            setAiLoading(false);
+            return;
+        }
+
+        // Drop a duplicate of the SAME week; never a different one.
+        //
+        // This guard used to be a bare boolean, so a request for week B was
+        // dropped whenever week A's was still in flight — and `ai` kept week A's
+        // narrative while `stats` moved to week B. That is how a chip reading
+        // "38h Completed" ended up beside a summary describing 38 hours skipped:
+        // the two halves of the screen were describing different weeks.
+        if (aiInFlight.current === start) {
+            console.warn(`[WeeklyReview] Summary for ${start} already in flight; dropping duplicate.`);
+            return;
+        }
+
+        aiInFlight.current = start;
+        // Clear any residual countdown the moment a request actually starts, so
+        // the button can never show a stale "Retry in Ns" while one is in
+        // flight. A fresh cooldown is set when it settles.
+        setCooldownUntil(0);
         setAiLoading(true);
         try {
             const res = await apiClient.post<AiResponse>('/api/weekly-review/generate-report', {
                 weekStart: start,
                 weekEnd: end,
             });
+            // A response that arrives after the user moved on describes a week
+            // that is no longer on screen. Cache it, never render it.
+            if (res?.available) summaryCache.current.set(start, res);
+            if (selectedWeekRef.current !== start) {
+                console.warn(`[WeeklyReview] Discarding stale summary for ${start}; showing ${selectedWeekRef.current}.`);
+                return;
+            }
             setAi(res);
+            setCooldownUntil(Date.now() + (res?.rate_limited ? RATE_LIMIT_COOLDOWN_MS : COOLDOWN_MS));
         } catch (err) {
             // A missing paragraph is not worth a toast when the dashboard rendered.
             console.warn('[WeeklyReview] AI summary unavailable:', err);
-            setAi({ available: false, summary: null, achievements: [], struggles: [] });
+            if (selectedWeekRef.current === start) {
+                setAi({ available: false, summary: null, achievements: [], struggles: [] });
+            }
+            setCooldownUntil(Date.now() + COOLDOWN_MS);
         } finally {
+            aiInFlight.current = null;
+            setNow(Date.now());
             setAiLoading(false);
         }
     }, []);
@@ -155,6 +316,9 @@ export default function WeeklyReviewPage() {
      */
     const loadWeek = useCallback(async (start: string) => {
         const end = shift(start, 6);
+        // Recorded before either request goes out, so a summary that arrives
+        // after the user has moved on can be identified as stale.
+        selectedWeekRef.current = start;
         setStatsLoading(true);
         setAi(null);
         setAiLoading(true);
@@ -198,8 +362,48 @@ export default function WeeklyReviewPage() {
     const proposals: ProposedChange[] = stats?.proposed_goal_changes || [];
     const hasProposals = proposals.length > 0;
 
+    // §3: more than an hour missing across the week is enough to offer help,
+    // even when no single goal tripped a per-goal threshold.
+    const missedMins = stats?.total_missed_minutes ?? 0;
+    const missedOverFloor = missedMins > MISSED_FLOOR_MINS;
+    const canAct = hasProposals || missedOverFloor;
+
+    // Deterministic wins first — they are facts. Anything the model added that
+    // isn't already covered follows.
+    // §4: hours the scheduler could not place. Information, NOT something to
+    // accept — the remedies are the user's: edit the goal, or free up time.
+    const notices: Array<{ goal_id: string; title: string; minutes: number; of_minutes: number }> =
+        (stats as any)?.unplaceable_notices || [];
+    const untouched: Array<{ goal_id: string; title: string; weekly_minutes: number }> =
+        (stats as any)?.untouched_goals || [];
+
+    const derivedWins = stats?.wins || [];
+    const winsToShow = [...derivedWins, ...(ai?.achievements || [])].slice(0, 6);
+
     const handleExecute = async (mode: 'auto' | 'semi-auto' | 'manual', finalChanges?: ProposedChange[]) => {
+        // Route to the review screen BEFORE any in-flight bookkeeping — this
+        // path makes no request, so it must not look like an execution.
+        if (mode === 'semi-auto' && !finalChanges) {
+            setView('semi-auto');
+            return;
+        }
+
+        // §6: `isExecuting` is React state and does not update synchronously, so
+        // two rapid confirms could both pass the button's disabled check. A ref
+        // closes that window — generating next week twice would duplicate the
+        // whole schedule.
+        if (executeInFlight.current) {
+            console.warn('[WeeklyReview] Execute already in flight; ignoring duplicate.');
+            return;
+        }
+        executeInFlight.current = true;
         setIsExecuting(true);
+        const planningNotice = setTimeout(() => {
+            setIsPlanning(true);
+            // Past a few seconds the wait is the week generation, not the goal
+            // writes. Say which, so 30s doesn't read as a hang.
+            toast.loading('Planning next week…', { id: 'exec' });
+        }, 3000);
 
         // Every mode records a decision, whether or not the AI produced one.
         const reportPayload = {
@@ -222,16 +426,10 @@ export default function WeeklyReviewPage() {
                     weekStart,
                     weekEnd
                 });
-                toast.success('Goals updated!', { id: 'exec' });
+                reportOutcome(res);
                 offerUndo(res);
                 setView('done');
             } else if (mode === 'semi-auto') {
-                if (!finalChanges) {
-                    // Go to review screen
-                    setView('semi-auto');
-                    setIsExecuting(false);
-                    return;
-                }
                 toast.loading('Applying selected changes...', { id: 'exec' });
                 const res = await apiClient.post<ExecuteResponse>('/api/weekly-review/execute', {
                     mode: 'semi-auto',
@@ -240,7 +438,7 @@ export default function WeeklyReviewPage() {
                     weekStart,
                     weekEnd
                 });
-                toast.success('Selected changes applied!', { id: 'exec' });
+                reportOutcome(res);
                 offerUndo(res);
                 setView('done');
             } else {
@@ -260,9 +458,10 @@ export default function WeeklyReviewPage() {
         } catch (e) {
             toast.error('Failed to execute actions.', { id: 'exec' });
         } finally {
-            if (mode !== 'semi-auto' || finalChanges) {
-                setIsExecuting(false);
-            }
+            clearTimeout(planningNotice);
+            setIsPlanning(false);
+            executeInFlight.current = false;
+            setIsExecuting(false);
         }
     };
 
@@ -273,6 +472,30 @@ export default function WeeklyReviewPage() {
             else next.add(goalId);
             return next;
         });
+    };
+
+    /** Say what actually happened, using the counts the planner reported. */
+    const reportOutcome = (res?: ExecuteResponse | null) => {
+        const fmt = (iso?: string) => (iso ? prettyDate(iso) : '');
+        if (res?.replanned && res.plan) {
+            toast.success(
+                `Next week (${fmt(res.plan.week_start)}–${fmt(res.plan.week_end)}) has been rebuilt: ${res.plan.blocks_created} blocks.`,
+                { id: 'exec', duration: 8000 }
+            );
+            return;
+        }
+        if (res?.plan_error) {
+            // The goal changes are already committed and reverting them would be
+            // worse — but the user must not be told the week is ready.
+            toast.error(
+                res.applied_changes > 0
+                    ? `Your goals were updated, but next week couldn't be generated. ${res.plan_error}`
+                    : `Next week couldn't be generated. ${res.plan_error}`,
+                { id: 'exec', duration: 12000 }
+            );
+            return;
+        }
+        toast.success('Review applied.', { id: 'exec' });
     };
 
     /**
@@ -561,7 +784,11 @@ export default function WeeklyReviewPage() {
 
                             {/* 3. The AI summary — one optional card with three
                                 states. Its failure is contained here. */}
-                            {aiLoading ? (
+                            {/* Skeleton only on the FIRST attempt. Once a result
+                                exists, a retry keeps the card on screen so the
+                                button can show its own in-flight spinner —
+                                otherwise that branch is unreachable. */}
+                            {aiLoading && !ai ? (
                                 <div className="p-6 rounded-3xl bg-[var(--glass-bg)] border border-[var(--glass-border)] backdrop-blur-xl animate-pulse">
                                     <div className="flex items-center gap-3 mb-5">
                                         <div className="w-10 h-10 rounded-full bg-[var(--glass-border)]/50" />
@@ -599,35 +826,6 @@ export default function WeeklyReviewPage() {
                                         </div>
                                     </div>
 
-                                    {/* Achievements & Struggles */}
-                                    <div className="grid md:grid-cols-2 gap-4">
-                                        <div className="p-5 rounded-2xl bg-emerald-500/5 border border-emerald-500/20">
-                                            <div className="flex items-center gap-2 mb-3">
-                                                <Star className="w-5 h-5 text-emerald-500" />
-                                                <h3 className="font-bold text-emerald-500">Wins</h3>
-                                            </div>
-                                            <ul className="space-y-2">
-                                                {ai.achievements.map((ach, i) => (
-                                                    <li key={i} className="text-sm text-[var(--text-secondary)] flex items-start gap-2">
-                                                        <span className="text-emerald-500 mt-0.5">•</span> {ach}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                        <div className="p-5 rounded-2xl bg-red-500/5 border border-red-500/20">
-                                            <div className="flex items-center gap-2 mb-3">
-                                                <AlertTriangle className="w-5 h-5 text-red-500" />
-                                                <h3 className="font-bold text-red-500">Struggles</h3>
-                                            </div>
-                                            <ul className="space-y-2">
-                                                {ai.struggles.map((strug, i) => (
-                                                    <li key={i} className="text-sm text-[var(--text-secondary)] flex items-start gap-2">
-                                                        <span className="text-red-500 mt-0.5">•</span> {strug}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    </div>
                                 </>
                             ) : (
                                 /* Quiet and neutral. Your numbers above are fine;
@@ -635,34 +833,189 @@ export default function WeeklyReviewPage() {
                                 <div className="p-6 rounded-3xl bg-[var(--glass-bg)] border border-[var(--glass-border)] backdrop-blur-xl flex items-center justify-between gap-4 flex-wrap">
                                     <div>
                                         <h2 className="text-base font-bold text-[var(--text-primary)]">
-                                            Couldn&apos;t generate this week&apos;s summary
+                                            {ai?.rate_limited
+                                                ? 'Rate limit reached'
+                                                : "Couldn't generate this week's summary"}
                                         </h2>
                                         <p className="text-sm text-[var(--text-tertiary)] mt-1">
-                                            Your numbers above are all here. The written recap just didn&apos;t come through.
+                                            {ai?.rate_limited
+                                                ? 'The AI provider is busy. Try again in a minute — your numbers above are unaffected.'
+                                                : "Your numbers above are all here. The written recap just didn't come through."}
                                         </p>
-                                        {isDev && ai?.reason && (
+                                        {/* Dev-only: every provider failure we can observe,
+                                            ordered so the actionable one (a 429) leads rather
+                                            than whichever provider happened to be last. */}
+                                        {isDev && (ai?.provider_errors?.length ?? 0) > 0 && (
+                                            <ul className="mt-2 space-y-1">
+                                                {ai!.provider_errors!.map((e, i) => (
+                                                    <li
+                                                        key={`${e.provider}-${i}`}
+                                                        className="text-[11px] font-mono text-[var(--text-muted)] break-all"
+                                                    >
+                                                        <span className="font-bold">
+                                                            {e.provider}
+                                                            {e.status ? ` ${e.status}` : ''}
+                                                        </span>{' '}
+                                                        <span className="opacity-70">{e.model}</span> — {e.message}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        )}
+                                        {isDev && !ai?.provider_errors?.length && ai?.reason && (
                                             <p className="text-[11px] font-mono text-[var(--text-muted)] mt-2 break-all">
                                                 {ai.reason}
                                             </p>
                                         )}
                                     </div>
                                     <button
-                                        onClick={() => fetchAi(weekStart, weekEnd)}
-                                        className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--glass-bg)] hover:bg-[var(--glass-bg-hover)] border border-[var(--glass-border)] text-sm font-medium text-[var(--text-secondary)] transition-colors"
+                                        onClick={() => fetchAi(weekStart, weekEnd, true)}
+                                        disabled={aiLoading || cooldownLeft > 0}
+                                        title={
+                                            cooldownLeft > 0
+                                                ? 'Retrying too quickly exhausts the provider’s per-minute budget'
+                                                : undefined
+                                        }
+                                        className="shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--glass-bg)] hover:bg-[var(--glass-bg-hover)] border border-[var(--glass-border)] text-sm font-medium text-[var(--text-secondary)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        <RefreshCw className="w-4 h-4" /> Retry
+                                        {aiLoading ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin" /> Retrying…
+                                            </>
+                                        ) : cooldownLeft > 0 ? (
+                                            <>
+                                                <RefreshCw className="w-4 h-4" /> Retry in {cooldownLeft}s
+                                            </>
+                                        ) : (
+                                            <>
+                                                <RefreshCw className="w-4 h-4" /> Retry
+                                            </>
+                                        )}
                                     </button>
+                                </div>
+                            )}
+
+                            {/* Wins & Struggles.
+                                Deliberately OUTSIDE the AI branch. Wins are
+                                arithmetic — goals that hit target, hours done,
+                                clean days, the chain — and used to vanish
+                                entirely whenever a provider was rate-limited,
+                                even though every fact was already in the stats
+                                payload. Neither card may ever render as an
+                                empty box with a heading. */}
+                            {!statsLoading && (
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <div
+                                        style={{ background: 'var(--color-bg-primary)' }}
+                                        className="p-5 rounded-2xl border border-emerald-500/30"
+                                    >
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <Star className="w-5 h-5 text-emerald-600 dark:text-emerald-500" />
+                                            <h3 className="font-bold text-emerald-700 dark:text-emerald-500">Wins</h3>
+                                        </div>
+                                        {winsToShow.length > 0 ? (
+                                            <ul className="space-y-2">
+                                                {winsToShow.map((win, i) => (
+                                                    <li key={i} className="text-sm text-[var(--text-secondary)] flex items-start gap-2">
+                                                        <span className="text-emerald-600 dark:text-emerald-500 mt-0.5">•</span> {win}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <p className="text-sm text-[var(--text-tertiary)]">
+                                                Nothing was marked done this week, so there is nothing to
+                                                celebrate yet. Mark blocks as you finish them and this fills
+                                                itself in.
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div
+                                        style={{ background: 'var(--color-bg-primary)' }}
+                                        className="p-5 rounded-2xl border border-red-500/30"
+                                    >
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-500" />
+                                            <h3 className="font-bold text-red-700 dark:text-red-500">Struggles</h3>
+                                        </div>
+                                        {(ai?.struggles?.length ?? 0) > 0 ? (
+                                            <ul className="space-y-2">
+                                                {ai!.struggles.map((strug, i) => (
+                                                    <li key={i} className="text-sm text-[var(--text-secondary)] flex items-start gap-2">
+                                                        <span className="text-red-600 dark:text-red-500 mt-0.5">•</span> {strug}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <p className="text-sm text-[var(--text-tertiary)]">
+                                                {/* "The AI hasn't come through" is only true when it
+                                                    hasn't. A model that answered and found nothing to
+                                                    flag is a different — and much better — state. */}
+                                                {ai?.available
+                                                    ? missedMins > 0
+                                                        ? `${formatMins(missedMins)} of planned work didn't happen, but no single pattern stands out.`
+                                                        : 'Nothing stands out as a struggle this week.'
+                                                    : missedMins > 0
+                                                      ? `${formatMins(missedMins)} of planned work didn't happen. The written read on why needs the AI, which hasn't come through.`
+                                                      : 'No struggles to report — and the written recap has not come through.'}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* §4: a shortfall the scheduler could not place is a
+                                NOTICE. It has no checkbox and no Apply — the
+                                review may never respond to it by cutting the
+                                goal, so there is nothing here to accept. */}
+                            {(notices.length > 0 || untouched.length > 0) && (
+                                <div
+                                    style={{ background: 'var(--color-bg-primary)' }}
+                                    className="p-5 rounded-2xl border border-amber-500/30"
+                                >
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <AlertTriangle className="w-5 h-5 text-amber-700 dark:text-amber-400" />
+                                        <h3 className="font-bold text-amber-700 dark:text-amber-400">
+                                            Worth knowing
+                                        </h3>
+                                        <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border border-[var(--glass-border)] text-[var(--text-muted)]">
+                                            not a change
+                                        </span>
+                                    </div>
+                                    <ul className="space-y-2">
+                                        {notices.map((n) => (
+                                            <li key={n.goal_id} className="text-sm text-[var(--text-secondary)]">
+                                                <strong>{n.title}:</strong> {formatMins(n.minutes)} of your{' '}
+                                                {formatMins(n.of_minutes)} couldn&apos;t be placed next week.
+                                                Everything that fits is scheduled — to change this, edit the
+                                                goal on the Goals page or free up some time.
+                                            </li>
+                                        ))}
+                                        {untouched.map((u) => (
+                                            <li key={u.goal_id} className="text-sm text-[var(--text-secondary)]">
+                                                You haven&apos;t touched <strong>{u.title}</strong> in two weeks.
+                                                You can pause it on the Goals page if you want to.
+                                            </li>
+                                        ))}
+                                    </ul>
                                 </div>
                             )}
 
                             {/* 4. Actions. Manual never depends on the AI. */}
                             <div className="pt-8 border-t border-[var(--glass-border)]">
-                                <h3 className="text-lg font-bold mb-4 text-center">How would you like to proceed?</h3>
+                                <h3 className="text-lg font-bold mb-2 text-center">How would you like to proceed?</h3>
+                                {/* A greyed-out button with a hover-only tooltip reads as a
+                                    bug, and is invisible entirely on touch. */}
+                                <p className="text-sm text-center text-[var(--text-tertiary)] mb-4">
+                                    {hasProposals
+                                        ? `${formatMins(missedMins)} missed this week — ${proposals.length} ${proposals.length === 1 ? 'adjustment' : 'adjustments'} suggested.`
+                                        : missedOverFloor
+                                          ? `${formatMins(missedMins)} missed this week. Nothing to change goal-by-goal, but next week can still be rebuilt.`
+                                          : `You missed ${formatMins(missedMins)} this week — nothing worth changing.`}
+                                </p>
                                 <div className="grid md:grid-cols-3 gap-4">
                                     <button
                                         onClick={() => setPendingApply({ mode: 'auto', changes: proposals })}
-                                        disabled={isExecuting || !hasProposals}
-                                        title={!hasProposals ? 'No changes suggested — your goals matched your week.' : undefined}
+                                        disabled={isExecuting || !canAct}
+                                        title={!canAct ? `Only ${formatMins(missedMins)} missed — your goals matched your week.` : undefined}
                                         className="flex flex-col items-start p-5 rounded-2xl bg-[var(--color-primary)]/10 hover:bg-[var(--color-primary)]/20 border border-[var(--color-primary)]/30 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         <span className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2 mb-2">
@@ -675,8 +1028,8 @@ export default function WeeklyReviewPage() {
 
                                     <button
                                         onClick={() => handleExecute('semi-auto')}
-                                        disabled={isExecuting || !hasProposals}
-                                        title={!hasProposals ? 'No changes suggested — your goals matched your week.' : undefined}
+                                        disabled={isExecuting || !canAct}
+                                        title={!canAct ? `Only ${formatMins(missedMins)} missed — your goals matched your week.` : undefined}
                                         className="flex flex-col items-start p-5 rounded-2xl bg-[var(--glass-bg)] hover:bg-[var(--glass-bg-hover)] border border-[var(--glass-border)] transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         <span className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2 mb-2">
@@ -718,40 +1071,89 @@ export default function WeeklyReviewPage() {
                             <div className="space-y-4">
                                 {proposals.map(change => {
                                     const isApproved = approvedChanges.has(change.goal_id);
+                                    const st = styleFor(change.change_type);
+                                    const oldWeekly = change.old_weekly_minutes;
+                                    const newWeekly = change.new_weekly_minutes;
+                                    // A shape change keeps the hours. Say so on the
+                                    // card, in the same place a cut says the opposite.
+                                    const keepsHours =
+                                        !st.givesUpHours &&
+                                        typeof oldWeekly === 'number' &&
+                                        typeof newWeekly === 'number' &&
+                                        Math.abs(newWeekly - oldWeekly) <= 5;
                                     return (
                                         <div 
                                             key={change.goal_id}
                                             onClick={() => toggleChange(change.goal_id)}
+                                            style={{ background: 'var(--color-bg-primary)' }}
                                             className={`p-5 rounded-2xl border cursor-pointer transition-all ${
-                                                isApproved 
-                                                    ? 'bg-[var(--glass-bg)] border-[var(--color-primary)]/50 shadow-lg shadow-[var(--color-primary)]/10' 
-                                                    : 'bg-[var(--glass-bg)]/50 border-[var(--glass-border)] opacity-60'
+                                                isApproved
+                                                    ? st.ring
+                                                    : 'border-[var(--glass-border)] opacity-60'
                                             }`}
                                         >
                                             <div className="flex items-start gap-4">
                                                 <div className="mt-1">
                                                     {isApproved ? (
-                                                        <CheckCircle2 className="w-5 h-5 text-[var(--color-primary)]" />
+                                                        <CheckCircle2 className={`w-5 h-5 ${st.accent}`} />
                                                     ) : (
                                                         <Circle className="w-5 h-5 text-[var(--text-tertiary)]" />
                                                     )}
                                                 </div>
-                                                <div className="flex-1">
-                                                    <h4 className="font-bold text-[var(--text-primary)] mb-1 flex items-center gap-2">
+                                                <div className="flex-1 min-w-0">
+                                                    <h4 className="font-bold text-[var(--text-primary)] mb-1 flex items-center gap-2 flex-wrap">
                                                         {change.title}
-                                                        <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-[var(--glass-bg)] border border-[var(--glass-border)]">
-                                                            {change.change_type.replace('_', ' ')}
+                                                        <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full border ${st.chip}`}>
+                                                            {st.label}
                                                         </span>
                                                     </h4>
-                                                    <div className="flex items-center gap-3 text-sm font-medium my-3 p-3 bg-black/20 rounded-xl">
+
+                                                    {/* The principle, verbatim from the
+                                                        deterministic layer. */}
+                                                    <p className={`text-sm font-semibold ${st.accent} flex items-center gap-1.5`}>
+                                                        {st.givesUpHours
+                                                            ? <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                                                            : <Shuffle className="w-3.5 h-3.5 shrink-0" />}
+                                                        {change.headline}
+                                                    </p>
+
+                                                    <div className="flex items-center gap-3 text-sm font-medium my-3 p-3 bg-[var(--glass-bg)] border border-[var(--glass-border)] rounded-xl flex-wrap">
                                                         <span className="text-[var(--text-tertiary)] line-through">{change.old_value}</span>
-                                                        <ArrowRight className="w-4 h-4 text-[var(--color-primary)]" />
+                                                        <ArrowRight className={`w-4 h-4 ${st.accent}`} />
                                                         <span className="text-[var(--text-primary)]">{change.new_value}</span>
                                                     </div>
+
+                                                    {typeof oldWeekly === 'number' && typeof newWeekly === 'number' && (
+                                                        <p className="text-xs mb-2">
+                                                            {keepsHours ? (
+                                                                <span className="text-emerald-700 dark:text-emerald-400 font-medium">
+                                                                    Weekly total unchanged — still {formatMins(newWeekly)}.
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-amber-700 dark:text-amber-400 font-medium">
+                                                                    Weekly total {formatMins(oldWeekly)} → {formatMins(newWeekly)}
+                                                                    {' '}({formatMins(oldWeekly - newWeekly)} less).
+                                                                </span>
+                                                            )}
+                                                        </p>
+                                                    )}
+
                                                     <p className="text-sm text-[var(--text-secondary)] italic">
                                                         <ArrowDownRight className="inline w-3 h-3 mr-1 text-[var(--text-tertiary)]" />
                                                         {change.rationale}
                                                     </p>
+                                                    {/* The evidence, stated plainly. A user should
+                                                        be able to see why they are being asked to
+                                                        change something. */}
+                                                    {(change.evidence?.missed_minutes ?? 0) > 0 && (
+                                                        <p className="text-xs text-[var(--text-muted)] mt-2">
+                                                            {formatMins(change.evidence.completed_minutes)} of{' '}
+                                                            {formatMins(change.evidence.target_minutes)} done
+                                                            {change.evidence.missed_dates.length > 0 && (
+                                                                <> · missed on {namedDays(change.evidence.missed_dates)}</>
+                                                            )}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -796,6 +1198,8 @@ export default function WeeklyReviewPage() {
                 isOpen={!!pendingApply}
                 changes={pendingApply?.changes || []}
                 isApplying={isExecuting}
+                isPlanning={isPlanning}
+                targetWeekLabel={`${prettyDate(thisMonday())}–${prettyDate(shift(thisMonday(), 6))}`}
                 onCancel={() => setPendingApply(null)}
                 onConfirm={() => {
                     const p = pendingApply;

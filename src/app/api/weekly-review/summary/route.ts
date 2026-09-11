@@ -41,7 +41,10 @@ export const GET = secureApiRoute(
                 .lte('date', format(endDate, 'yyyy-MM-dd')),
 
             // 2. Active Goals (Context)
-            supabase.from('goals').select('*').eq('user_id', context.userId).eq('is_paused', false),
+            // Null-safe (Prompt 27 §1). `.eq('is_paused', false)` never matches
+            // NULL, so a goal predating the column vanishes from this route
+            // while remaining visible everywhere else.
+            supabase.from('goals').select('*').eq('user_id', context.userId).or('is_paused.is.null,is_paused.eq.false'),
 
             // 3. Daily Logs (Subjective Reality)
             supabase.from('daily_logs')

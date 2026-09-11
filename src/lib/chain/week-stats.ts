@@ -13,7 +13,8 @@ import {
 } from './chain-service';
 import { computeWindows, archetypeFor, pct, DAY_NAMES } from './productivity';
 import { dayCompletion, isPending, scoredBlocks, type DayCompletion } from './completion';
-import { buildProposals, type GoalUsage, type ProposedChange } from './proposals';
+import { buildProposals, untouchedGoals, type GoalUsage, type ProposedChange, type TimeOfDay } from './proposals';
+import { dryRunWeek, nextMondayAfter, type DryRunResult } from '@/lib/scheduling/dry-run';
 import { DEFAULT_TIMEZONE } from '@/lib/timezone';
 
 /**
@@ -149,9 +150,30 @@ export interface WeekMetrics {
             activeDays: number;
             eligibleBlocks: number;
             completedBlocks: number;
+            /** Dates where this goal had a block it did not finish. */
+            missedDates: string[];
             createdAt?: string | null;
         }
     >;
+}
+
+/**
+ * What the scheduler said when asked to place next week — the evidence behind
+ * any `reduce` proposal, surfaced so the page and any diagnostic can see it
+ * rather than having to infer it from the proposals themselves.
+ */
+export interface SchedulingEvidence {
+    /** The Monday the dry run planned. */
+    week_start: string;
+    /** False means the dry run failed — no reduction may be proposed. */
+    dry_run_ok: boolean;
+    dry_run_ms: number;
+    /** Minutes the generator could not place, after every relaxation pass. */
+    unplaceable_minutes: number;
+    available_hours: number | null;
+    targeted_hours: number | null;
+    headroom_hours: number | null;
+    is_overcommitted: boolean;
 }
 
 export interface WeekStats {
@@ -162,6 +184,19 @@ export interface WeekStats {
     chain: any;
     /** Computed here, never by the AI — see src/lib/chain/proposals.ts */
     proposed_goal_changes: ProposedChange[];
+    scheduling: SchedulingEvidence;
+    /** Minutes planned and not done. Drives the §3 floor and the copy. */
+    total_missed_minutes: number;
+    /**
+     * §4: hours the scheduler could not place. INFORMATION, not proposals —
+     * they are not selectable and nothing applies them. The two remedies are
+     * the user's: edit the goal on the Goals page, or free up time.
+     */
+    unplaceable_notices: Array<{ goal_id: string; title: string; minutes: number; of_minutes: number }>;
+    /** §1: goals worth mentioning in the prose. The review never pauses them. */
+    untouched_goals: Array<{ goal_id: string; title: string; weekly_minutes: number }>;
+    /** Facts about the week. Rendered whether or not the AI responds. */
+    wins: string[];
 }
 
 /** A well-formed, all-zero payload. Returned instead of ever throwing a 500. */
@@ -200,6 +235,20 @@ export function emptyWeekStats(weekStart: string, weekEnd: string): WeekStats {
             week_end: weekEnd,
         },
         proposed_goal_changes: [],
+        scheduling: {
+            week_start: weekStart,
+            dry_run_ok: false,
+            dry_run_ms: 0,
+            unplaceable_minutes: 0,
+            available_hours: null,
+            targeted_hours: null,
+            headroom_hours: null,
+            is_overcommitted: false,
+        },
+        total_missed_minutes: 0,
+        unplaceable_notices: [],
+        untouched_goals: [],
+        wins: [],
     };
 }
 
@@ -211,6 +260,10 @@ export function emptyWeekStats(weekStart: string, weekEnd: string): WeekStats {
 export function computeMetrics(blocks: BlockLike[], goals: any[], today: string): WeekMetrics {
     const goalStats: WeekMetrics['goalStats'] = {};
     const completedDates: Record<string, Set<string>> = {};
+    // §4: a proposal has to point at time the user actually missed, and name
+    // the days. Without this the review could offer to change a goal that lost
+    // nothing all week.
+    const missedDates: Record<string, Set<string>> = {};
 
     for (const g of goals) {
         goalStats[g.id] = {
@@ -225,9 +278,11 @@ export function computeMetrics(blocks: BlockLike[], goals: any[], today: string)
             activeDays: 0,
             eligibleBlocks: 0,
             completedBlocks: 0,
+            missedDates: [],
             createdAt: g.created_at ?? null,
         };
         completedDates[g.id] = new Set();
+        missedDates[g.id] = new Set();
     }
 
     let plannedMinutes = 0;
@@ -258,6 +313,7 @@ export function computeMetrics(blocks: BlockLike[], goals: any[], today: string)
                 if (b.date) completedDates[b.goal_id!].add(b.date);
             } else if (missed) {
                 stats.skipped += duration;
+                if (b.date) missedDates[b.goal_id!].add(b.date);
             }
         }
     }
@@ -265,8 +321,185 @@ export function computeMetrics(blocks: BlockLike[], goals: any[], today: string)
     for (const [goalId, dates] of Object.entries(completedDates)) {
         goalStats[goalId].activeDays = dates.size;
     }
+    for (const [goalId, dates] of Object.entries(missedDates)) {
+        goalStats[goalId].missedDates = [...dates].sort();
+    }
 
     return { plannedMinutes, completedMinutes, skippedMinutes, goalStats };
+}
+
+/**
+ * Which third of the day a block sits in, from its start time. These are the
+ * same three labels `preferred_windows.time_of_day` accepts, so a proposal to
+ * move a goal can be expressed directly as a goal field.
+ */
+export function timeOfDayBucket(startTime?: string | null): TimeOfDay | null {
+    const h = parseInt((startTime || '').split(':')[0], 10);
+    if (Number.isNaN(h) || h < 0 || h > 23) return null;
+    if (h < 12) return 'morning';
+    if (h < 17) return 'afternoon';
+    return 'evening';
+}
+
+const emptyTimeOfDay = (): Record<TimeOfDay, { total: number; complete: number }> => ({
+    morning: { total: 0, complete: 0 },
+    afternoon: { total: 0, complete: 0 },
+    evening: { total: 0, complete: 0 },
+});
+
+/**
+ * Per-goal completion split by time of day, over the blocks the Productivity
+ * Profile already scores. Lever 3 reads this: a goal completing at 70% in the
+ * morning and 20% in the evening is badly placed, not badly sized.
+ */
+export function completionByTimeOfDay(
+    scored: BlockLike[]
+): Record<string, Record<TimeOfDay, { total: number; complete: number }>> {
+    const out: Record<string, Record<TimeOfDay, { total: number; complete: number }>> = {};
+    for (const b of scored) {
+        if (!b.goal_id) continue;
+        const slot = timeOfDayBucket(b.start_time);
+        if (!slot) continue;
+        const buckets = (out[b.goal_id] ||= emptyTimeOfDay());
+        buckets[slot].total++;
+        if (isComplete(b)) buckets[slot].complete++;
+    }
+    return out;
+}
+
+/**
+ * The ONE goals query the weekly review uses.
+ *
+ * `/stats` and `/generate-report` each hand-wrote their own, over the same
+ * table, for the same screen — and they diverged: `/generate-report` filtered
+ * with `.eq('is_paused', false)`, which does NOT match NULL, so any goal
+ * predating that column was invisible to the narrative while `/stats` counted
+ * it. The totals would still look right (they accumulate from blocks) while
+ * every per-goal `completed` silently read zero.
+ *
+ * Null-safe, per Prompt 27 §1: a goal counts unless it is explicitly paused.
+ */
+export const REVIEW_GOAL_FIELDS =
+    'id, title, category, pillar, importance, minutes_per_day, days_per_week, is_paused, created_at, status, preferred_windows';
+
+export async function fetchReviewGoals(
+    supabase: SupabaseClient,
+    userId: string
+): Promise<{ all: any[]; active: any[] }> {
+    const { data, error } = await supabase
+        .from('goals')
+        .select(REVIEW_GOAL_FIELDS)
+        .eq('user_id', userId);
+    if (error) throw error;
+    const all = data || [];
+    const active = all.filter((g: any) => g.is_paused !== true && g.status !== 'archived');
+    return { all, active };
+}
+
+/**
+ * Minutes the user planned this week and did not do.
+ *
+ * Per-goal shortfall and block-level skipped time overlap almost entirely, so
+ * these are compared rather than summed — adding them would double-count the
+ * same missing hour and inflate the number the copy quotes.
+ */
+export function totalMissedMinutes(m: WeekMetrics): number {
+    const shortfall = Object.values(m.goalStats).reduce(
+        (sum, g) => sum + Math.max(0, g.weeklyTarget - g.completed),
+        0
+    );
+    return Math.round(Math.max(shortfall, m.skippedMinutes));
+}
+
+/**
+ * Wins, computed from the data rather than written by a model.
+ *
+ * A win is a fact — this goal beat its target, this day was clean, this many
+ * hours got done. Leaving them to the AI meant that when a provider was
+ * rate-limited (or, as in Prompt 29 §2, when the model simply returned an empty
+ * array) the entire Wins panel vanished, even though every fact needed to fill
+ * it was already sitting in the stats payload.
+ *
+ * Struggles stay AI-only on purpose: a good struggle needs interpretation.
+ */
+export function deriveWins(
+    metrics: WeekMetrics,
+    dayStats: DayCompletion[],
+    chain: { streak: number; longest: number }
+): string[] {
+    const wins: string[] = [];
+    const h = (mins: number) => {
+        const v = Math.round(mins);
+        return v >= 60 ? `${(v / 60).toFixed(v % 60 === 0 ? 0 : 1)}h` : `${v}m`;
+    };
+
+    // 1. Goals that hit or beat their target.
+    const hit = Object.values(metrics.goalStats)
+        .filter((g) => g.weeklyTarget > 0 && g.completed >= g.weeklyTarget)
+        .sort((a, b) => b.completed - a.completed);
+    for (const g of hit.slice(0, 3)) {
+        const over = g.completed - g.weeklyTarget;
+        wins.push(
+            over >= 15
+                ? `${g.title}: ${h(g.completed)} against a ${h(g.weeklyTarget)} target — ${h(over)} over.`
+                : `${g.title}: hit the full ${h(g.weeklyTarget)} target.`
+        );
+    }
+    if (hit.length > 3) wins.push(`${hit.length - 3} more goals also hit their target.`);
+
+    // 2. Total time actually done.
+    if (metrics.completedMinutes > 0) {
+        const rate =
+            metrics.plannedMinutes > 0
+                ? Math.round((metrics.completedMinutes / metrics.plannedMinutes) * 100)
+                : 0;
+        // "of what was on your calendar", not "of your targets" — a week can be
+        // 100% complete on blocks and still fall short of the weekly targets.
+        wins.push(`${h(metrics.completedMinutes)} completed — ${rate}% of what was on your calendar.`);
+    }
+
+    // 3. Clean days: every eligible block finished.
+    const past = dayStats.filter((d) => !d.is_future && d.total > 0);
+    const clean = past.filter((d) => d.complete === d.total);
+    if (clean.length > 0) {
+        wins.push(
+            clean.length === past.length && past.length > 1
+                ? `A clean sweep — every planned block finished on all ${past.length} days.`
+                : `${clean.length} of ${past.length} ${past.length === 1 ? 'day' : 'days'} finished with nothing left undone.`
+        );
+    }
+
+    // 4. Best day.
+    const best = [...past].sort((a, b) => b.completion - a.completion || b.total - a.total)[0];
+    if (best && best.completion > 0 && clean.length !== past.length) {
+        wins.push(
+            `Your strongest day was ${DAY_NAMES[dayStats.indexOf(best)]} — ${Math.round(best.completion * 100)}% of ${best.total} blocks done.`
+        );
+    }
+
+    // 5. The chain.
+    if (chain.streak > 1) {
+        wins.push(`A ${chain.streak}-day chain is running${chain.streak >= chain.longest ? ' — your longest yet' : ''}.`);
+    }
+
+    return wins;
+}
+
+/** One-line fingerprint of a metrics computation, for cross-route comparison. */
+export function describeMetrics(
+    m: WeekMetrics,
+    weekStart: string,
+    goalsFetched: number,
+    goalsCounted: number
+): string {
+    const h = (mins: number) => `${(mins / 60).toFixed(1)}h`;
+    const perGoal = Object.values(m.goalStats)
+        .map((g) => `${g.title}=${h(g.completed)}/${h(g.weeklyTarget)}`)
+        .join(' ');
+    return (
+        `week=${weekStart} goals_fetched=${goalsFetched} goals_counted=${goalsCounted} ` +
+        `planned=${h(m.plannedMinutes)} completed=${h(m.completedMinutes)} skipped=${h(m.skippedMinutes)} | ${perGoal}`
+    );
 }
 
 /** The user's local date, used to decide what counts as "not yet due". */
@@ -321,23 +554,27 @@ export async function computeWeekStats(
             .gte('date', shiftDate(weekStart, -1))
             .lte('date', shiftDate(weekEnd, 1))
             .order('date', { ascending: true }),
-        supabase
-            .from('goals')
-            .select('id, title, category, pillar, importance, minutes_per_day, days_per_week, is_paused, created_at, status')
-            .eq('user_id', userId),
+        fetchReviewGoals(supabase, userId),
     ]);
 
     if (blocksRes.error) throw blocksRes.error;
-    if (goalsRes.error) throw goalsRes.error;
 
     const allBlocks: BlockLike[] = blocksRes.data || [];
-    const goals = goalsRes.data || [];
+    const goals = goalsRes.all;
 
     const weekBlocks = allBlocks.filter((b) => (b.date || '') >= weekStart && (b.date || '') <= weekEnd);
 
     // ── Metrics ───────────────────────────────────────────────────────
-    const activeGoals = goals.filter((g: any) => !g.is_paused && g.status !== 'archived');
+    const activeGoals = goalsRes.active;
     const metrics = computeMetrics(weekBlocks, activeGoals, today);
+    const missedMins = totalMissedMinutes(metrics);
+
+    // The chip on screen and the AI narrative are written from two different
+    // computations of the same week. Fingerprint both so a disagreement is
+    // visible in the log instead of only on the user's screen.
+    console.log(
+        `[WeeklyReview/Stats] ${describeMetrics(metrics, weekStart, goals.length, activeGoals.length)} missed=${missedMins}m`
+    );
 
     // ── One shared per-day computation (§3) ───────────────────────────
     // Day Patterns and the Chain both read from `dayStats`. They used to derive
@@ -473,9 +710,42 @@ export async function computeWeekStats(
     const recovery = recoveryMins / 60;
     const round1 = (n: number) => Math.round(n * 10) / 10;
 
+    // ── The scheduler, asked whether the week can hold the hours ──────
+    //
+    // This is the ONLY thing that licenses proposing a smaller target. It runs
+    // exactly once per request (and is memoised per user+week), persists
+    // nothing, and a failure is a well-formed "we don't know" rather than a
+    // throw — see src/lib/scheduling/dry-run.ts.
+    const planWeekStart = nextMondayAfter(today);
+    let dry: DryRunResult;
+    try {
+        dry = await dryRunWeek(supabase, userId, planWeekStart);
+    } catch (e: any) {
+        console.error(`[WeeklyReview] Dry run threw: ${e?.message || e}`);
+        dry = {
+            ok: false,
+            weekStart: planWeekStart,
+            unscheduledByGoal: {},
+            totalUnscheduledMins: 0,
+            blocksPlanned: 0,
+            capacity: null,
+            ms: 0,
+            error: e?.message,
+        };
+    }
+
     // ── Deterministic goal proposals (§1) ─────────────────────────────
     // These used to arrive inside the LLM response, which meant a provider
     // outage disabled the entire recalibration half of the review.
+    const timeOfDayByGoal = completionByTimeOfDay(scored);
+    const preferredWindowByGoal = new Map<string, TimeOfDay | null>(
+        goals.map((g: any) => {
+            const raw = (g.preferred_windows as any)?.time_of_day;
+            const ok = raw === 'morning' || raw === 'afternoon' || raw === 'evening';
+            return [g.id, ok ? (raw as TimeOfDay) : null];
+        })
+    );
+
     const usage: Record<string, GoalUsage> = {};
     for (const [goalId, gs] of Object.entries(metrics.goalStats)) {
         usage[goalId] = {
@@ -488,9 +758,29 @@ export async function computeWeekStats(
             eligibleBlocks: gs.eligibleBlocks,
             completedBlocks: gs.completedBlocks,
             createdAt: gs.createdAt,
+            importance: gs.importance,
+            missedDates: gs.missedDates,
+            preferredTimeOfDay: preferredWindowByGoal.get(goalId) ?? null,
+            timeOfDay: timeOfDayByGoal[goalId],
         };
     }
-    const proposedGoalChanges = buildProposals(usage, today);
+    const proposedGoalChanges = buildProposals(usage, today, {
+        dryRun: dry.ok ? { ok: true, unscheduledByGoal: dry.unscheduledByGoal } : null,
+        capacity: dry.capacity,
+        totalMissedMins: missedMins,
+    });
+
+    const h1 = (m: number) => Math.round((m / 60) * 10) / 10;
+    const scheduling: SchedulingEvidence = {
+        week_start: planWeekStart,
+        dry_run_ok: dry.ok,
+        dry_run_ms: dry.ms,
+        unplaceable_minutes: dry.totalUnscheduledMins,
+        available_hours: dry.capacity ? h1(dry.capacity.availableMins) : null,
+        targeted_hours: dry.capacity ? h1(dry.capacity.targetedMins) : null,
+        headroom_hours: dry.capacity ? h1(dry.capacity.headroomMins) : null,
+        is_overcommitted: dry.capacity?.isOvercommitted ?? false,
+    };
 
     return {
         weekStart,
@@ -498,6 +788,22 @@ export async function computeWeekStats(
         metrics,
         profile,
         proposed_goal_changes: proposedGoalChanges,
+        scheduling,
+        total_missed_minutes: missedMins,
+        // §4: reported, never acted on.
+        unplaceable_notices: Object.entries(dry.unscheduledByGoal || {})
+            .filter(([, m]) => Number(m) > 0)
+            .map(([goalId, m]) => ({
+                goal_id: goalId,
+                title: metrics.goalStats[goalId]?.title || 'A goal',
+                minutes: Math.round(Number(m)),
+                of_minutes: metrics.goalStats[goalId]?.weeklyTarget || 0,
+            })),
+        untouched_goals: untouchedGoals(usage, today),
+        wins: deriveWins(metrics, dayStats, {
+            streak: chainState.current_streak,
+            longest: chainState.longest_streak,
+        }),
         chain: {
             days,
             streak: chainState.current_streak,

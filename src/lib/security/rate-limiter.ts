@@ -56,6 +56,11 @@ export interface RateLimitResult {
     remaining: number;
     resetAt: Date;
     retryAfter?: number;
+    /** WHICH limiter refused, so the 429 can name it instead of guessing. */
+    limiter?: RateLimitType;
+    /** That limiter's ceiling and window, for the message and the logs. */
+    limit?: number;
+    windowMs?: number;
 }
 
 /**
@@ -77,46 +82,59 @@ export async function checkRateLimit(
     
     if (upstashUrl && upstashToken) {
         try {
-            const pipeline = [
-                ["INCR", key]
-            ];
+            const ttlSeconds = Math.ceil(config.windowMs / 1000);
+
+            // INCR and EXPIRE in ONE pipeline.
+            //
+            // EXPIRE used to be a separate GET with the key interpolated into
+            // the URL PATH: `${url}/EXPIRE/${key}/${seconds}`. Endpoint keys
+            // contain the route — `endpoint:<uid>:/api/goals` — so the slashes
+            // became path separators and the command was malformed. The EXPIRE
+            // silently failed, the key was created with NO TTL, and the counter
+            // then climbed forever.
+            //
+            // Measured on the live instance: 241 keys with `ttl=-1`, including
+            // `endpoint:<user>:/api/goals` at **511** against a 500/min ceiling.
+            // That user's goals page was permanently 429 and would never have
+            // recovered on its own. `ip:` and `user:` keys were fine only
+            // because they happen to contain no slashes.
+            //
+            // The pipeline body is JSON, so arguments are transmitted verbatim
+            // and cannot be re-parsed as a path.
             const resp = await fetch(`${upstashUrl}/pipeline`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${upstashToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify(pipeline)
+                body: JSON.stringify([
+                    ['INCR', key],
+                    ['EXPIRE', key, String(ttlSeconds), 'NX'], // NX: only if no TTL yet
+                    ['PTTL', key],
+                ]),
             });
             const result = await resp.json();
-            
+
             let count = 1;
-            if (Array.isArray(result) && result[0] && !result[0].error) {
-                count = result[0].result;
+            let pttl = config.windowMs;
+            if (Array.isArray(result)) {
+                if (result[0] && !result[0].error) count = result[0].result;
+                if (result[2] && !result[2].error && result[2].result > 0) pttl = result[2].result;
             }
-            
-            if (count === 1) {
-                await fetch(`${upstashUrl}/EXPIRE/${key}/${Math.ceil(config.windowMs / 1000)}`, {
-                    headers: { 'Authorization': `Bearer ${upstashToken}` }
-                });
-            }
-            
+
             if (count <= config.maxRequests) {
                 return {
                     allowed: true,
                     remaining: config.maxRequests - count,
-                    resetAt: new Date(now + config.windowMs),
+                    resetAt: new Date(now + pttl),
                 };
             }
-            
-            const ttlResp = await fetch(`${upstashUrl}/PTTL/${key}`, {
-                headers: { 'Authorization': `Bearer ${upstashToken}` }
-            });
-            const ttlData = await ttlResp.json();
-            const pttl = ttlData.result > 0 ? ttlData.result : config.windowMs;
-            
+
             return {
                 allowed: false,
                 remaining: 0,
                 resetAt: new Date(now + pttl),
                 retryAfter: Math.ceil(pttl / 1000),
+                limiter: type,
+                limit: config.maxRequests,
+                windowMs: config.windowMs,
             };
         } catch (error) {
             console.error("Upstash Redis error, falling back to Map:", error);
@@ -163,21 +181,40 @@ export async function checkRateLimit(
         remaining: 0,
         resetAt: new Date(entry.resetAt),
         retryAfter: Math.ceil((entry.resetAt - now) / 1000),
+        limiter: type,
+        limit: config.maxRequests,
+        windowMs: config.windowMs,
     };
 }
 
 /**
  * Create a composite rate limit key
  */
+/**
+ * Keys are namespaced by environment. Without this, `.env.local` points local
+ * development at the SAME Upstash instance as production, so a developer
+ * reloading a page consumes a real user's budget and vice versa. Confirmed on
+ * the live instance: 243 keys, none prefixed.
+ */
+export const RATE_LIMIT_ENV =
+    process.env.RATE_LIMIT_NAMESPACE ||
+    (process.env.NODE_ENV === 'production' ? 'prod' : 'dev');
+
 export function createRateLimitKey(
     type: 'ip' | 'user' | 'endpoint',
     identifier: string,
     endpoint?: string
 ): string {
-    if (type === 'endpoint' && endpoint) {
-        return `${type}:${identifier}:${endpoint}`;
-    }
-    return `${type}:${identifier}`;
+    const base =
+        type === 'endpoint' && endpoint
+            ? `${type}:${identifier}:${endpoint}`
+            : `${type}:${identifier}`;
+    return `${RATE_LIMIT_ENV}:${base}`;
+}
+
+/** Loopback, where every local request shares one key. */
+function isLocalhost(ip: string): boolean {
+    return ip === '::1' || ip === '127.0.0.1' || ip === 'localhost' || ip === '::ffff:127.0.0.1';
 }
 
 /**
@@ -189,20 +226,22 @@ export async function checkMultipleRateLimits(
     endpoint?: string,
     endpointType?: RateLimitType
 ): Promise<RateLimitResult> {
-    // Check IP limit first
-    const ipKey = createRateLimitKey('ip', ip);
-    const ipResult = await checkRateLimit(ipKey, 'ip');
-    if (!ipResult.allowed) {
-        return ipResult;
-    }
-
-    // Check user limit if authenticated
+    // §2: the per-USER limit governs an authenticated request; the IP ceiling
+    // exists to stop UNauthenticated abuse.
+    //
+    // Checking IP first meant one identity capped the entire application at 200
+    // requests a minute across every endpoint. In local development every
+    // request arrives from ::1, so that was a single budget for the whole app —
+    // and one page load costs eight or more requests.
     if (userId) {
-        const userKey = createRateLimitKey('user', userId);
-        const userResult = await checkRateLimit(userKey, 'user');
-        if (!userResult.allowed) {
-            return userResult;
-        }
+        const userResult = await checkRateLimit(createRateLimitKey('user', userId), 'user');
+        if (!userResult.allowed) return userResult;
+    } else if (!(isLocalhost(ip) && process.env.NODE_ENV !== 'production')) {
+        // Anonymous traffic still faces the IP ceiling — except on loopback in
+        // development, where HMR and React StrictMode double-mounting make the
+        // production number meaningless.
+        const ipResult = await checkRateLimit(createRateLimitKey('ip', ip), 'ip');
+        if (!ipResult.allowed) return ipResult;
     }
 
     // Check endpoint-specific limit
@@ -248,7 +287,8 @@ export async function checkMultipleRateLimits(
         return endpointResult;
     }
 
-    return ipResult;
+    // Nothing refused it.
+    return { allowed: true, remaining: Number.MAX_SAFE_INTEGER, resetAt: new Date(Date.now() + 60_000) };
 }
 
 /**

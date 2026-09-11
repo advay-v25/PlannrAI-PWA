@@ -46,3 +46,5 @@ playwright/.auth/
 
 supabase/.temp/
 .next_old/
+*.log
+scratch-baseline.txt

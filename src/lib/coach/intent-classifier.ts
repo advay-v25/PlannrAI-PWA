@@ -440,6 +440,19 @@ function quickIntentMatch(message: string): IntentClassification | null {
     }
 
     // Reschedule / Missed Block
+    const moveMatch = lower.match(/(?:move|reschedule|shift|postpone|delay)\s+(?:my\s+)?([a-z0-9_-]+)(?:\s+(?:to|at|into|in)\s+(.+))?/i);
+    if (moveMatch) {
+        const blockRef = moveMatch[1] && !['the', 'this', 'everything', 'it', 'all', 'a'].includes(moveMatch[1].toLowerCase()) ? moveMatch[1] : undefined;
+        return {
+            primary_intent: CoachIntent.MOVE_BLOCK,
+            confidence: 0.95,
+            entities: {
+                block_reference: blockRef,
+                time: moveMatch[2] ? moveMatch[2].trim() : undefined,
+            },
+            requires_clarification: false,
+        };
+    }
     if (/(miss|missed|didn't|did not|reschedule|postpone|delay|shift|move|change.*time)/i.test(lower)) {
         return {
             primary_intent: CoachIntent.MOVE_BLOCK,

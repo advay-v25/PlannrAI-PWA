@@ -83,10 +83,10 @@ export function secureApiRoute(
                 'https://www.plannrai.com',
             ].filter(Boolean);
 
-            // Also allow any Vercel preview/branch deploy for this project
             const isVercelPreview = origin && /^https:\/\/plannr-ai.*\.vercel\.app$/.test(origin);
+            const isLocalhost = origin && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
 
-            if (origin && allowedOrigins.length > 0 && !allowedOrigins.includes(origin) && !isVercelPreview) {
+            if (origin && allowedOrigins.length > 0 && !allowedOrigins.includes(origin) && !isVercelPreview && !isLocalhost) {
                 await logSuspiciousActivity(undefined, `Blocked cross-origin request from ${origin}`, request, {
                     endpoint: request.url,
                     origin,
@@ -128,25 +128,48 @@ export function secureApiRoute(
                     const headers = createRateLimitHeaders(rateLimitResult);
 
                     const retryAfter = rateLimitResult.retryAfter || 0; // seconds
-                    let errorMsg = 'Too many requests. Please slow down.';
-                    if (retryAfter > 0) {
-                        const days = Math.floor(retryAfter / (24 * 3600));
-                        const hours = Math.floor((retryAfter % (24 * 3600)) / 3600);
-                        const mins = Math.floor((retryAfter % 3600) / 60);
-                        
-                        const timeStr = [];
-                        if (days > 0) timeStr.push(`${days}d`);
-                        if (hours > 0) timeStr.push(`${hours}h`);
-                        if (mins > 0 || timeStr.length === 0) timeStr.push(`${mins}m`);
-                        
-                        errorMsg = `AI limit reached. Refreshes in ${timeStr.join(' ')}.`;
-                    }
+                    const limiter = rateLimitResult.limiter || 'unknown';
+
+                    const days = Math.floor(retryAfter / (24 * 3600));
+                    const hours = Math.floor((retryAfter % (24 * 3600)) / 3600);
+                    const mins = Math.floor((retryAfter % 3600) / 60);
+                    const secs = retryAfter % 60;
+                    const parts: string[] = [];
+                    if (days > 0) parts.push(`${days}d`);
+                    if (hours > 0) parts.push(`${hours}h`);
+                    if (mins > 0) parts.push(`${mins}m`);
+                    if (parts.length === 0) parts.push(`${secs}s`);
+                    const when = retryAfter > 0 ? ` Try again in ${parts.join(' ')}.` : '';
+
+                    // §1: report the limiter that ACTUALLY tripped.
+                    //
+                    // This used to call every limit with a retryAfter an "AI
+                    // limit", including the default `user` tier that /api/goals
+                    // runs on — which sent the whole diagnosis in the wrong
+                    // direction. "AI limit reached" is now reserved for the ai*
+                    // limiters, because only those are an AI quota.
+                    const isAiLimiter = String(limiter).startsWith('ai');
+                    const errorMsg = isAiLimiter
+                        ? `AI limit reached.${when}`
+                        : `Too many requests — you've hit the ${limiter} limit.${when}`;
+
+                    console.warn(
+                        `[RateLimit] ${request.method} ${request.nextUrl.pathname} refused by "${limiter}" ` +
+                            `(${rateLimitResult.limit ?? '?'} per ${Math.round((rateLimitResult.windowMs ?? 0) / 1000)}s) ` +
+                            `user=${user?.id ?? 'anon'} ip=${ip} retryAfter=${retryAfter}s`
+                    );
 
                     return apiError(
                         errorMsg,
                         429,
                         'RATE_LIMITED',
-                        { retryAfter, resetAt: rateLimitResult.resetAt.toISOString() },
+                        {
+                            retryAfter,
+                            resetAt: rateLimitResult.resetAt.toISOString(),
+                            limiter,
+                            limit: rateLimitResult.limit,
+                            windowMs: rateLimitResult.windowMs,
+                        },
                         headers
                     );
                 }

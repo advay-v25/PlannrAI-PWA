@@ -19,7 +19,7 @@ export function SciFiEarthBackground() {
   const beamOpacity = useTransform(scrollY, [0, 400], [0.6, 0.05]);
 
   return (
-    <div className="fixed inset-0 w-full h-full z-[-1] bg-[#020106] overflow-hidden" style={{ willChange: 'transform' }}>
+    <div className="fixed inset-0 w-full h-full z-[-1] bg-[#020106] overflow-hidden pointer-events-none" style={{ willChange: 'transform' }}>
       {/* Deep space background */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(15,10,35,0.8)_0%,rgba(2,1,6,1)_100%)] pointer-events-none" />
       
@@ -67,14 +67,14 @@ export function SciFiEarthBackground() {
       
       {/* Interactive WebGL Globe */}
       {/* Removed scroll-linked scale/y transforms on the WebGL container. Transforming a WebGL context during scroll destroys frame rates. */}
-      <div className="absolute top-[15%] md:top-[12%] left-1/2 -translate-x-1/2 w-[160vw] h-[160vw] max-w-[1200px] max-h-[1200px] sm:w-[110vw] sm:h-[110vw] md:w-[1000px] md:h-[1000px] lg:w-[1100px] lg:h-[1100px] opacity-70">
+      <div className="absolute top-[15%] md:top-[12%] left-1/2 -translate-x-1/2 w-[160vw] h-[160vw] max-w-[1200px] max-h-[1200px] sm:w-[110vw] sm:h-[110vw] md:w-[1000px] md:h-[1000px] lg:w-[1100px] lg:h-[1100px] opacity-70 pointer-events-none">
         
         {/* Outer Atmospheric Glow */}
         <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle,rgba(59,130,246,0.15)_0%,transparent_70%)] pointer-events-none" />
         <div className="absolute inset-10 rounded-full bg-[radial-gradient(circle,rgba(99,102,241,0.1)_0%,transparent_60%)] pointer-events-none" />
         
         {/* Globe Container */}
-        <div className="relative w-full h-full flex items-center justify-center">
+        <div className="relative w-full h-full flex items-center justify-center pointer-events-none">
           <InteractiveGlobe />
         </div>
       </div>

@@ -3,7 +3,9 @@ import { secureApiRoute, apiSuccess, apiError, validateRequiredFields } from '@/
 import { validateGoalTitle, validateInput } from '@/lib/security/input-validator';
 import { createClient } from '@/lib/supabase/server';
 import { z } from 'zod';
+import { GoalWritableSchema } from '@/lib/goals/schema';
 import { zSanitizedString, validateWithZod } from '@/lib/security/zod-validator';
+import { computeWeekCapacity, computeDayCapacities, busiestDay } from '@/lib/scheduling/capacity';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +17,7 @@ export const GET = secureApiRoute(
         const parentId = searchParams.get('parent_id');
 
         // Parallel Fetch: Goals, Commitments (Anchors), User Preferences (if stored)
-        const [goalsRes, anchorsRes] = await Promise.all([
+        const [goalsRes, anchorsRes, profileRes] = await Promise.all([
             // 1. Goals
             (async () => {
                 let query = supabase
@@ -31,50 +33,30 @@ export const GET = secureApiRoute(
                 return query.order('sort_order', { ascending: true }).order('created_at', { ascending: false });
             })(),
             // 2. Anchors (Commitments)
-            supabase.from('commitments').select('days_of_week, start_time, end_time').eq('user_id', context.userId)
+            supabase.from('commitments').select('days_of_week, start_time, end_time').eq('user_id', context.userId),
+            // 3. Profile for capacity math
+            supabase.from('profiles').select('sleep_start, sleep_end, wind_down_mins, morning_routine_mins, meals_per_day').eq('id', context.userId).maybeSingle()
         ]);
 
         if (goalsRes.error) return apiError('Failed to fetch goals', 500);
 
         const goals = goalsRes.data || [];
         const anchors = anchorsRes.data || [];
+        const profile = profileRes.data || {};
 
         // --- Capacity Logic ---
-        // 1. Available Minutes Calculation
-        // Assumptions: Awake 16h (960m), Meals 3x30m (90m), Buffer 60m = Total deductions ~150m
-        // Base Available = 960 - 150 = 810m
-        // Anchors deduction = Average daily minutes of fixed commitments
+        // We use the precise generator logic that accounts for sleep, meals, 
+        // routines, buffers, and anchors to return an honest capacity.
+        const weekCapacity = computeWeekCapacity(profile, goals, anchors);
 
-        let weeklyAnchorMinutes = 0;
-        anchors.forEach((a: any) => {
-            const start = new Date(`1970-01-01T${a.start_time}`);
-            const end = new Date(`1970-01-01T${a.end_time}`);
-            const duration = (end.getTime() - start.getTime()) / 60000;
-            const daysCount = Array.isArray(a.days_of_week) ? a.days_of_week.length : 0;
-            weeklyAnchorMinutes += (duration * daysCount);
-        });
+        // §3: the weekly average hides the day that actually decides
+        // feasibility — 66% across seven days can be a 130% Tuesday. Same
+        // capacity model, resolved per day.
+        const dayCapacities = computeDayCapacities(profile, goals, anchors);
+        const busiest = busiestDay(dayCapacities);
 
-        const avgDailyAnchorMinutes = Math.round(weeklyAnchorMinutes / 7);
-        const baseAvailable = 810; // 13.5 hours active time logic
-        const available_min_per_day = Math.max(0, baseAvailable - avgDailyAnchorMinutes);
-
-        // 2. Committed Minutes Calculation
-        // Sum of active goals
-        let committed_min_per_day = 0;
-        goals.forEach((g: any) => {
-            if (g.status === 'paused' || g.is_paused) return; // Skip paused
-
-            let dailyMins = 0;
-            if (g.minutes_per_day) {
-                // If specific days aren't set, assume 7? Or use days_per_week
-                const days = g.days_per_week || 7;
-                // Average out: (mins * days) / 7
-                dailyMins = (g.minutes_per_day * days) / 7;
-            }
-            committed_min_per_day += dailyMins;
-        });
-
-        committed_min_per_day = Math.round(committed_min_per_day);
+        const available_min_per_day = Math.round(weekCapacity.availableMins / 7);
+        const committed_min_per_day = Math.round(weekCapacity.targetedMins / 7);
         const over_by_min_per_day = Math.max(0, committed_min_per_day - available_min_per_day);
         const percentage = available_min_per_day > 0 ? Math.round((committed_min_per_day / available_min_per_day) * 100) : 0;
 
@@ -90,7 +72,18 @@ export const GET = secureApiRoute(
                 committed_min_per_day,
                 over_by_min_per_day,
                 totalGoalMinutes: committed_min_per_day,
-                percentage
+                percentage,
+                // §3: the day that actually decides whether the week is
+                // deliverable, from the same model as the figures above.
+                busiest_day: {
+                    iso_day: busiest.isoDay,
+                    label: busiest.label,
+                    planned_minutes: busiest.plannedMins,
+                    free_minutes: busiest.freeMins,
+                    load_percentage: busiest.loadPercentage,
+                    is_over: busiest.isOver,
+                },
+                days: dayCapacities,
             }
         });
     },
@@ -209,27 +202,11 @@ export const POST = secureApiRoute(
 // PUT - Update a goal
 export const PUT = secureApiRoute(
     async (context, body) => {
-        const UpdateGoalSchema = z.object({
-            id: z.string().uuid(),
-            title: z.string().min(1).max(200).optional(),
-            category: z.enum(['mind', 'body', 'craft']).optional(),
-            minutes_per_day: z.number().min(5).max(1440).optional(),
-            days_per_week: z.number().min(1).max(7).optional(),
-            importance: z.enum(['low', 'medium', 'high']).optional(),
-            is_paused: z.boolean().optional(),
-            status: z.string().optional(),
-            weekly_target_minutes: z.number().optional(),
-            energy_demand: z.string().optional(),
-            constraints: z.record(z.string(), z.unknown()).optional(),
-            non_negotiables: z.array(z.string()).optional(),
-            time_commitment_mins: z.number().optional(),
-            milestone_progress: z.number().optional(),
-            sort_order: z.number().optional(),
-            ai_strategy: z.unknown().optional(),
-            preferred_windows: z.object({
-                time_of_day: z.enum(['morning', 'afternoon', 'evening', 'flexible'])
-            }).nullable().optional(),
-        });
+        // §5: the SAME schema PatchService.update_goal uses. Two hand-written
+        // contracts over one table is how a value one path accepts becomes a
+        // value the other refuses — and a refused save with no visible error
+        // reads to the user as a locked goal.
+        const UpdateGoalSchema = GoalWritableSchema.extend({ id: z.string().uuid() });
 
         const validation = validateWithZod(UpdateGoalSchema, body);
         if (!validation.valid) {
@@ -240,9 +217,21 @@ export const PUT = secureApiRoute(
         const updates: Record<string, unknown> = {};
 
         if (data.title !== undefined) updates.title = data.title;
-        if (data.category !== undefined) updates.category = data.category;
+        // `category` and `pillar` hold the same value in this schema; letting
+        // one change without the other is how they drift apart.
+        if (data.category !== undefined) { updates.category = data.category; updates.pillar = data.category; }
         if (data.importance !== undefined) updates.importance = data.importance;
         if (data.minutes_per_day !== undefined) updates.minutes_per_day = data.minutes_per_day;
+        // `days_per_week` was validated by the schema and then never copied into
+        // `updates` — so editing it alone always failed with "No valid updates
+        // provided". That is a goal that genuinely cannot be edited, and it has
+        // nothing to do with the weekly review.
+        if (data.days_per_week !== undefined) updates.days_per_week = data.days_per_week;
+        if (data.pillar !== undefined) updates.pillar = data.pillar;
+        if (data.description !== undefined) updates.description = data.description;
+        if (data.priority !== undefined) updates.priority = data.priority;
+        if (data.color !== undefined) updates.color = data.color;
+        if (data.emoji !== undefined) updates.emoji = data.emoji;
         
         if (data.is_paused !== undefined) updates.is_paused = data.is_paused;
         if (data.status !== undefined) updates.status = data.status;
@@ -271,7 +260,10 @@ export const PUT = secureApiRoute(
             .single();
 
         if (error) {
-            return apiError('Failed to update goal', 500);
+            // §5: a bare "Failed to update goal" with no detail is exactly what
+            // made a rejected write look like a frozen goal. Name the cause.
+            console.error(`[Goals] Update rejected: ${JSON.stringify({ id: data.id, updates, error })}`);
+            return apiError(`Could not save: ${error.message}`, 400);
         }
 
         // If paused or archived, remove future schedule blocks for this goal

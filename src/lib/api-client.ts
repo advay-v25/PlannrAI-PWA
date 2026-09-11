@@ -21,6 +21,34 @@ export class ApiError extends Error {
 const DEFAULT_TIMEOUT = 90000; // 90s — calendar AI needs 55s server + context building overhead
 const MAX_RETRIES = 1; // Only 1 retry to avoid cascading abort waits
 
+/**
+ * §3: identical GETs already in flight share one request.
+ *
+ * A single page load was firing `/api/goals` four times in 800ms, and
+ * `/api/home/state`, `/api/home/summary` and `/api/coach/proactive` twice each —
+ * React StrictMode double-mounting effects, unstable `useCallback`-less
+ * dependencies, and several components each fetching for themselves. Every one
+ * of those spent a rate-limit token.
+ *
+ * De-duplicating here fixes all of them at once and cannot be undone by the
+ * next component that forgets to memoise its effect.
+ */
+const inFlightGets = new Map<string, Promise<any>>();
+
+/**
+ * §4: when the server says 429 with a `retryAfter`, wait that long and try
+ * ONCE. Retrying immediately is what kept the window permanently exhausted —
+ * INCR runs on rejected requests too, so a client hammering a blocked endpoint
+ * re-exhausts it the instant it drains.
+ */
+/**
+ * A short wait is worth absorbing silently; a long one is not. Beyond this the
+ * error is surfaced immediately so the UI can show a real countdown and a
+ * working retry button, rather than leaving the page blank for a minute.
+ */
+const MAX_429_WAIT_MS = 10_000;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 const getBaseUrl = () => {
     if (typeof window !== 'undefined') {
         return '';
@@ -127,6 +155,25 @@ export const apiClient = {
                 });
 
                 if (!response.ok) {
+                    // §4: honour Retry-After, once, and never immediately.
+                    if (response.status === 429 && attempt < MAX_RETRIES) {
+                        let waitMs = 0;
+                        const header = Number(response.headers.get('retry-after'));
+                        if (Number.isFinite(header) && header > 0) waitMs = header * 1000;
+                        if (!waitMs) {
+                            try {
+                                const body = await response.clone().json();
+                                const ra = body?.error?.details?.retryAfter ?? body?.details?.retryAfter;
+                                if (Number.isFinite(Number(ra))) waitMs = Number(ra) * 1000;
+                            } catch { /* no body to read */ }
+                        }
+                        if (waitMs > 0 && waitMs <= MAX_429_WAIT_MS) {
+                            console.warn(`[apiClient] 429 on ${endpoint}; waiting ${Math.round(waitMs / 1000)}s before one retry.`);
+                            await sleep(waitMs + 250);
+                            attempt++;
+                            continue;
+                        }
+                    }
                     if (response.status >= 400 && response.status < 500) {
                         // Client error - do not retry
                         if (throwOnError) {
@@ -142,12 +189,39 @@ export const apiClient = {
                                     errorData = { message: await response.text() }; 
                                 }
                             } catch { errorData = { message: 'Unknown error' }; }
-                            throw new Error(errorData?.message || `${response.status} ${response.statusText}`);
+                            const err: any = new Error(errorData?.message || `${response.status} ${response.statusText}`);
+                            err.status = response.status;
+                            err.details = errorData?.error?.details ?? errorData?.details;
+                            throw err;
                         }
                         return {} as T;
                     }
-                    // 5xx error -> throw to retry
-                    throw new Error(`Server Error: ${response.status}`);
+                    // 5xx error -> throw to retry.
+                    //
+                    // Read the envelope first. This used to throw a bare
+                    // `Server Error: 500` and discard the body, so a route that
+                    // knew exactly what went wrong ("Planning failed: <cause>")
+                    // reached the UI as a status code and nothing else. The
+                    // message is carried on the error; `isRetryable` keys off
+                    // the flag below rather than off string-matching it.
+                    let serverMessage = '';
+                    let serverDetails: any;
+                    try {
+                        const body = await response.clone().json();
+                        serverMessage = typeof body?.error === 'string'
+                            ? body.error
+                            : (body?.error?.message || body?.message || '');
+                        serverDetails = body?.error?.details ?? body?.details;
+                    } catch {
+                        try { serverMessage = (await response.clone().text()).slice(0, 500); } catch { /* nothing readable */ }
+                    }
+                    const serverErr: any = new Error(
+                        serverMessage || `Server Error: ${response.status} ${response.statusText}`
+                    );
+                    serverErr.status = response.status;
+                    serverErr.details = serverDetails;
+                    serverErr.isServerError = true;
+                    throw serverErr;
                 }
 
                 if (response.status === 204) return {} as T;
@@ -166,7 +240,11 @@ export const apiClient = {
 
             } catch (error: any) {
                 lastError = error;
-                const isRetryable = error.message.includes('Server Error') || error.message.includes('fetch');
+                // Flag-based, not string-matched: the 5xx message is now the
+                // server's own text, which no longer contains "Server Error".
+                const isRetryable = error.isServerError === true
+                    || error.message.includes('Server Error')
+                    || error.message.includes('fetch');
                 // AbortError (timeout) is NOT retryable — the route is just slow, retrying wastes time
 
                 if (!isRetryable || attempt === MAX_RETRIES) {
@@ -188,7 +266,15 @@ export const apiClient = {
 
     // Shorthands
     async get<T>(endpoint: string, options?: ApiOptions) {
-        return this.fetch<T>(endpoint, { ...options, method: 'GET' });
+        // §3: concurrent identical GETs share one request. Four components
+        // asking for /api/goals in the same tick now cost one call, not four.
+        const existing = inFlightGets.get(endpoint);
+        if (existing) return existing as Promise<T>;
+
+        const p = this.fetch<T>(endpoint, { ...options, method: 'GET' })
+            .finally(() => { inFlightGets.delete(endpoint); });
+        inFlightGets.set(endpoint, p);
+        return p;
     },
 
     async post<T>(endpoint: string, body: any, options?: ApiOptions) {

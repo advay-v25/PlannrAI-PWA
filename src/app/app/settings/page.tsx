@@ -7,7 +7,7 @@ import {
     User, LogOut, Trash2, AlertTriangle, Loader2,
     Clock, Brain, Shield, Save, ChevronRight, Calendar, Download, Bell, Sparkles, Moon, Sun, Monitor, Type, Lock
 } from 'lucide-react';
-import { useTheme } from 'next-themes';
+import { useTheme } from '@/components/theme-provider';
 import { createClient } from '@/lib/supabase/client';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';

@@ -15,7 +15,7 @@ async function main() {
     try {
         console.log("\n[1] Testing Context Builder...");
         const calendarCtx = await buildCalendarContext(userId, supabase);
-        console.log(`Context Built. Schedule Blocks: ${calendarCtx.schedule.this_week.length}`);
+        console.log(`Context Built. Schedule Blocks: ${calendarCtx.schedule.target_week.length}`);
 
         console.log("\n[2] Testing Plan Week Generation (Balanced Mode)...");
         const variants = await generateWeekPlan(calendarCtx, '2026-05-25', 'balanced', true, {

@@ -16,6 +16,34 @@ interface WeekGridProps {
     onBlockSelect: (block: any) => void;
     onCellClick?: (date: string, hour: number) => void;
     viewMode?: 'day' | 'week';
+    /**
+     * §1: the calendar never goes away during planning. Instead of replacing
+     * the grid with a spinner, goal blocks become shimmering ghosts in place
+     * while the fixed scaffolding stays solid — so the user watches their own
+     * week being rebuilt rather than watching the app disappear.
+     */
+    planningPhase?: 'generating' | 'applying' | null;
+    /**
+     * §4b: during apply we already KNOW the new blocks — they are the chosen
+     * option's `create_event` payloads. Ghosting those instead of the old ones
+     * turns the longest, emptiest phase into the most informative one, and the
+     * settle is a transition rather than a swap.
+     */
+    incomingBlocks?: Array<{ date: string; start_time: string; end_time: string; title?: string; block_type?: string; pillar?: string }>;
+    /** Profile waking bounds, for Tier 3's plausible ghosts on an empty week. */
+    wakeTime?: string;
+    windDownTime?: string;
+}
+
+/**
+ * §2 Tier 1 — the fixed scaffolding a replan does not touch. `writeWeek`'s
+ * clear step spares all of these, so they are not unknown and must never be
+ * drawn as placeholders; showing them solid is what makes the ghosting of
+ * everything else legible.
+ */
+function isFixedScaffolding(b: any): boolean {
+    if (b.status === 'done') return true;
+    return ['anchor', 'meal', 'sleep', 'wind_down', 'routine'].includes(b.block_type);
 }
 
 const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 6am - 11pm
@@ -177,7 +205,7 @@ const STATUS_STYLES: Record<string, string> = {
     cancelled: 'opacity-25 saturate-0 line-through',
 };
 
-export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick, viewMode = 'week' }: WeekGridProps) {
+export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick, viewMode = 'week', planningPhase = null, incomingBlocks, wakeTime, windDownTime }: WeekGridProps) {
     const weekStart = startOfWeek(date, { weekStartsOn: 1 });
     const days = viewMode === 'week'
         ? Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
@@ -224,6 +252,88 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
         });
         return layouts;
     }, [blocks, days]);
+
+    // §3: ghost geometry comes from the SAME calculateLayout, the same
+    // CELL_HEIGHT and the same 06:00 offset as the real blocks. There are two
+    // ways to draw a rectangle at 14:30 on Wednesday, and a second layout
+    // function would drift the first time anyone touched either constant — the
+    // symptom being a jump at the exact moment the plan lands.
+    const ghostsByDay = useMemo(() => {
+        const out = new Map<number, Array<{ key: string; block: any; layout: LayoutBlock }>>();
+        if (!planningPhase) return out;
+
+        const toMins = (t: string) => {
+            const [h, m] = String(t).split(':').map(Number);
+            return (h || 0) * 60 + (m || 0);
+        };
+        const toTime = (m: number) =>
+            `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+        days.forEach((day, i) => {
+            const dayStr = format(day, 'yyyy-MM-dd');
+            const dayBlocks = blocks.filter(b => b.date === dayStr);
+            const fixed = dayBlocks.filter(isFixedScaffolding);
+
+            let source: any[];
+            if (planningPhase === 'applying' && incomingBlocks) {
+                // §4b Tier 2': ghosts of the NEW blocks, titles and all.
+                source = incomingBlocks
+                    .filter(b => b.date === dayStr && b.block_type === 'goal')
+                    .map((b, n) => ({ ...b, id: `incoming-${dayStr}-${n}` }));
+            } else {
+                // Tier 2: the goal blocks about to be replaced, at their
+                // existing positions, so the week keeps its familiar
+                // silhouette while the new plan is computed.
+                source = dayBlocks
+                    .filter(b => !isFixedScaffolding(b) && b.block_type === 'goal')
+                    .map(b => ({ ...b, ghostTitle: null }));
+            }
+
+            // §2 Tier 3: an empty target week would otherwise draw nothing and
+            // look broken. Sketch plausible ghosts inside the user's real
+            // waking bounds, avoiding the Tier 1 scaffolding. An impression,
+            // not a prediction.
+            if (source.length === 0 && planningPhase === 'generating') {
+                const wake = toMins(wakeTime || '07:00');
+                const end = toMins(windDownTime || '22:00');
+                const busy = fixed.map(b => ({ s: toMins(b.start_time), e: toMins(b.end_time) }));
+                const synthetic: any[] = [];
+                let cursor = wake;
+                let n = 0;
+                while (cursor < end - 60 && synthetic.length < 4) {
+                    const clash = busy.find(x => x.s < cursor + 90 && x.e > cursor);
+                    if (clash) { cursor = clash.e + 30; continue; }
+                    synthetic.push({
+                        id: `tier3-${dayStr}-${n++}`,
+                        date: dayStr,
+                        start_time: toTime(cursor),
+                        end_time: toTime(Math.min(cursor + 90, end)),
+                        block_type: 'goal',
+                        pillar: ['craft', 'mind', 'body'][n % 3],
+                        isTier3: true,
+                    });
+                    cursor += 90 + 75;
+                }
+                source = synthetic;
+            }
+
+            if (source.length === 0) { out.set(i, []); return; }
+
+            // Laid out against the fixed blocks too, so a ghost never lands on
+            // top of an anchor that is staying put.
+            const layoutMap = calculateLayout([...fixed, ...source], CELL_HEIGHT);
+            out.set(i, source.map(b => {
+                const l = layoutMap.get(b.id);
+                if (!l) return null;
+                return {
+                    key: b.id,
+                    block: b,
+                    layout: { ...l, top: l.top - (6 * CELL_HEIGHT) },
+                };
+            }).filter(Boolean) as Array<{ key: string; block: any; layout: LayoutBlock }>);
+        });
+        return out;
+    }, [planningPhase, incomingBlocks, blocks, days, wakeTime, windDownTime]);
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
@@ -332,7 +442,16 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                 </div>
 
                 {/* Grid Body */}
-                <div className="flex relative" style={{ minHeight: HOURS.length * CELL_HEIGHT }}>
+                <div
+                    className="flex relative"
+                    style={{ minHeight: HOURS.length * CELL_HEIGHT }}
+                    aria-busy={planningPhase ? 'true' : undefined}
+                >
+                    {planningPhase && (
+                        <span className="sr-only" role="status" aria-live="polite">
+                            {planningPhase === 'applying' ? 'Applying your plan' : 'Generating your week'}
+                        </span>
+                    )}
 
                     {/* Time Column */}
                     <div className="w-14 shrink-0 sticky left-0 z-10 bg-[var(--color-bg-primary)] border-r border-[var(--glass-border)]">
@@ -373,11 +492,16 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                                 {dayBlocks.map((block, index) => {
                                     const layout = layoutMap.get(block.id);
                                     if (!layout) return null;
+                                    // §2: while planning, the goal blocks in
+                                    // flux give way to ghosts; the fixed
+                                    // scaffolding stays rendered for real,
+                                    // dimmed, because it genuinely survives.
+                                    if (planningPhase && !isFixedScaffolding(block)) return null;
                                     const adjustedLayout = {
                                         ...layout,
                                         top: layout.top - (6 * CELL_HEIGHT)
                                     };
-                                    return (
+                                    const card = (
                                         <BlockCard
                                             key={block.id}
                                             block={block}
@@ -386,6 +510,60 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                                             isDayView={viewMode === 'day'}
                                             index={index}
                                         />
+                                    );
+                                    // Only wrapped while planning. `display:
+                                    // contents` keeps the card's absolute
+                                    // positioning resolving against the day
+                                    // column, and leaving the idle path
+                                    // completely untouched avoids putting a
+                                    // structural change anywhere near
+                                    // drag-and-drop for no reason.
+                                    return planningPhase ? (
+                                        <div key={block.id} className="contents plan-scaffold-dim">{card}</div>
+                                    ) : card;
+                                })}
+
+                                {/* §2/§3: the ghost layer. Same stacking
+                                    context as BlockCard, pointer-events: none,
+                                    and rendered WITHOUT unmounting the grid —
+                                    unmounting loses scroll position, which is
+                                    exactly where the user is looking. */}
+                                {(ghostsByDay.get(dayIndex) || []).map(({ key, block, layout }, gi) => {
+                                    const colors = getBlockColors(block);
+                                    return (
+                                        <div
+                                            key={key}
+                                            className="absolute pointer-events-none z-20 plan-ghost"
+                                            style={{
+                                                top: layout.top,
+                                                height: Math.max(layout.height - 4, 18),
+                                                left: `calc(${(layout.colIndex / layout.totalCols) * 100}% + 3px)`,
+                                                width: `calc(${(1 / layout.totalCols) * 100}% - 6px)`,
+                                                // §5: sweep Monday → Sunday so it
+                                                // reads as progress, not a stuck screen.
+                                                animationDelay: `${dayIndex * 60 + gi * 30}ms`,
+                                            }}
+                                        >
+                                            <div className={cn(
+                                                'relative w-full h-full rounded-lg overflow-hidden skeleton-shimmer',
+                                                colors.border,
+                                                colors.bg,
+                                            )}>
+                                                {/* §2: pillar colour at low opacity. A week of grey
+                                                    boxes would lose exactly the information this
+                                                    change exists to add — a Gym ghost must still
+                                                    read as a body block. */}
+                                                <div className={cn('absolute inset-0 opacity-[0.18]', colors.dot)} />
+                                                <div className={cn('absolute left-0 top-0 bottom-0 w-[3px] opacity-60', colors.dot)} />
+                                                {block.title ? (
+                                                    <div className="relative px-2 py-1 text-[10px] font-semibold text-[var(--text-secondary)] truncate opacity-80">
+                                                        {block.title}
+                                                    </div>
+                                                ) : (
+                                                    <div className={cn('relative m-2 h-2 w-2/3 rounded opacity-30', colors.dot)} />
+                                                )}
+                                            </div>
+                                        </div>
                                     );
                                 })}
 

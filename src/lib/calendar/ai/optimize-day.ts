@@ -139,9 +139,7 @@ class DayAllocator {
 function blocksForDate(context: CalendarContext, date: string): ScheduleBlock[] {
     const seen = new Set<string>();
     const out: ScheduleBlock[] = [];
-    const pools = date === context.current.date
-        ? [context.schedule.today, context.schedule.this_week]
-        : [context.schedule.this_week, context.schedule.today];
+    const pools = [context.schedule.target_week];
     for (const pool of pools) {
         for (const b of pool || []) {
             if (b.date !== date || seen.has(b.id)) continue;
@@ -339,7 +337,7 @@ export async function optimizeDayAI(
         const pullOps: PatchOp[] = [];
         const pulledTitles: string[] = [];
 
-        const futureCandidates = (context.schedule.this_week || [])
+        const futureCandidates = (context.schedule.target_week || [])
             .filter(b => b.date > date && b.status === 'planned' && !isProtectedBlock(b))
             .filter(b => {
                 const goal = context.goals.find(g => g.id === b.goal_id);
