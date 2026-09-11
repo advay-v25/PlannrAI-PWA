@@ -14,6 +14,7 @@ import { createClient } from '@/lib/supabase/client';
 import { QuickCaptureFAB } from '@/components/home/quick-capture-fab';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { RealtimeSync } from '@/components/realtime-sync';
+import { MondayReviewPrompt } from '@/components/weekly-review/monday-prompt';
 
 type NavItem = {
     href: string;
@@ -50,6 +51,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="flex h-screen h-dvh w-full overflow-hidden text-[var(--text-primary)]">
                 <RealtimeSync />
             <CommandMenu />
+            {/* Prompt 54 §2: on a Monday the review is the first thing seen,
+                on every /app route. A dismissible prompt, never a redirect. */}
+            <MondayReviewPrompt />
 
             {/* Desktop Sidebar */}
             <motion.aside 

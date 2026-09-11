@@ -192,6 +192,10 @@ export const apiClient = {
                             const err: any = new Error(errorData?.message || `${response.status} ${response.statusText}`);
                             err.status = response.status;
                             err.details = errorData?.error?.details ?? errorData?.details;
+                            // The envelope's machine-readable code (e.g.
+                            // REVIEW_WINDOW_CLOSED), so callers can branch on
+                            // it instead of on the message text.
+                            err.code = errorData?.error?.code ?? errorData?.code;
                             throw err;
                         }
                         return {} as T;
