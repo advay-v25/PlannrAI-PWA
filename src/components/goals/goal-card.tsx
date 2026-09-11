@@ -58,7 +58,12 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
         }
     };
 
-    const isPaused = goal.status === 'paused';
+    // A goal can be paused two ways: status='paused' from this card, or
+    // is_paused=true from an accepted weekly review (which deliberately leaves
+    // status as 'active'). Checking only status made a review-paused goal look
+    // active while the planner correctly refused to schedule it — a goal that
+    // silently stops appearing with no visible reason.
+    const isPaused = goal.status === 'paused' || goal.is_paused === true;
 
     return (
         <GlassCard
@@ -302,7 +307,13 @@ export function GoalCard({ goal, onUpdate, onDelete, onOpenStrategy, pillarColor
                             {/* Footer Actions */}
                             <div className="flex justify-between items-center pt-4 border-t border-[var(--glass-border)]">
                                 <button
-                                    onClick={() => onUpdate(goal.id, { status: isPaused ? 'active' : 'paused' })}
+                                    onClick={() =>
+                                        onUpdate(goal.id, isPaused
+                                            // Resuming is the one explicit user
+                                            // action allowed to clear is_paused.
+                                            ? { status: 'active', is_paused: false }
+                                            : { status: 'paused', is_paused: true })
+                                    }
                                     className={`flex items-center gap-2 text-xs font-bold transition-colors ${isPaused ? 'text-[var(--color-primary)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
                                 >
                                     {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}

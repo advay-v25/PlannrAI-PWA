@@ -160,9 +160,10 @@ function TaskCategories({ blocks }: { blocks: any[] }) {
     const categories = useMemo(() => {
         const map: Record<string, { count: number; color: string }> = {};
         const colorMap: Record<string, string> = {
-            goal: 'bg-orange-400', anchor: 'bg-zinc-400', meal: 'bg-emerald-400',
-            routine: 'bg-violet-400', buffer: 'bg-blue-400', flex: 'bg-amber-400',
-            sleep: 'bg-zinc-600', wind_down: 'bg-indigo-400',
+            goal: 'bg-[#B9954C] dark:bg-[#D6BB80]', anchor: 'bg-[#6E7889] dark:bg-[#9AA4B5]', meal: 'bg-[#B97F6E] dark:bg-[#D6A797]',
+            routine: 'bg-[#9782B5] dark:bg-[#BBA9D6]', buffer: 'bg-[#8F8C84] dark:bg-[#8B8B96]', flex: 'bg-[#7C6FC0] dark:bg-[#A99CE0]',
+            sleep: 'bg-[#6E7889] dark:bg-[#9AA4B5]', wind_down: 'bg-[#6E7889] dark:bg-[#9AA4B5]',
+            mind: 'bg-[#7C6FC0] dark:bg-[#A99CE0]', body: 'bg-[#5F9377] dark:bg-[#8FBFA3]', craft: 'bg-[#B9954C] dark:bg-[#D6BB80]',
         };
         blocks.forEach(b => {
             const type = b.block_type || 'other';
@@ -207,7 +208,7 @@ function CalendarPageInner() {
         addBlock, autoPlace, moveBlock, updateBlock, deleteBlock,
         createCommitment, refresh,
         planWeek, optimizeDay, applyOption,
-        isOptimizing, isPlanning,
+        isOptimizing, isPlanning, isApplying,
         lastUndoToken, undoLastCalendarAction,
         conflictError, dismissConflict
     } = useCalendar();
@@ -227,14 +228,35 @@ function CalendarPageInner() {
     // Saved "Weekend Work" preference (Settings → Structure) — Plan Week
     // must default to this instead of always scheduling weekends.
     const [allowWeekendPref, setAllowWeekendPref] = useState(true);
+    // §2 Tier 3 needs the user's real waking bounds so a fresh week's ghosts
+    // land where their day actually is.
+    const [wakeTime, setWakeTime] = useState<string>('07:00');
+    const [windDownTime, setWindDownTime] = useState<string>('22:00');
     useEffect(() => {
         apiClient.get<any>('/api/profile/me')
             .then(res => {
                 const pref = res?.preferences?.allow_weekend_work;
                 if (typeof pref === 'boolean') setAllowWeekendPref(pref);
+                if (res?.sleep_end) setWakeTime(String(res.sleep_end).slice(0, 5));
+                if (res?.sleep_start) setWindDownTime(String(res.sleep_start).slice(0, 5));
             })
-            .catch(() => { /* keep default */ });
+            .catch(() => { /* keep defaults */ });
     }, []);
+
+    // §4b: the chosen option already carries every new block's date, time,
+    // title and pillar, so the apply phase can show the ACTUAL incoming
+    // schedule settling into place rather than a generic shimmer.
+    const [incomingBlocks, setIncomingBlocks] = useState<any[] | undefined>(undefined);
+
+    // §4c: a hard ceiling. A skeleton that keeps shimmering after a failed
+    // request is worse than no skeleton at all.
+    const SKELETON_TIMEOUT_MS = 90_000;
+    const [skeletonExpired, setSkeletonExpired] = useState(false);
+    useEffect(() => {
+        if (!isPlanning && !isApplying) { setSkeletonExpired(false); return; }
+        const t = setTimeout(() => setSkeletonExpired(true), SKELETON_TIMEOUT_MS);
+        return () => clearTimeout(t);
+    }, [isPlanning, isApplying]);
 
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     const viewDateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -364,9 +386,18 @@ function CalendarPageInner() {
     };
 
     // ── Loading ──────────────────────────────────────────────────
+    // The full-page skeleton is for a genuine cold start only. A refresh in
+    // place keeps the week header and navigation stable and dims the grid
+    // instead — see `isBusy` below.
     if (isLoading && blocks.length === 0) {
         return <CalendarSkeleton />;
     }
+
+    // Prompt 53: the grid renders its own in-place skeleton instead of being
+    // covered by an overlay, so this is just which phase to draw. The
+    // page-level CalendarSkeleton above still handles the genuine cold start.
+    const planningPhase: 'generating' | 'applying' | null =
+        skeletonExpired ? null : isApplying ? 'applying' : isPlanning ? 'generating' : null;
 
     // ── Date title ───────────────────────────────────────────────
     const dateTitle = viewMode === 'week'
@@ -572,6 +603,10 @@ function CalendarPageInner() {
                         onBlockSelect={setSelectedBlock}
                         onCellClick={handleCellClick}
                         viewMode={viewMode}
+                        planningPhase={planningPhase}
+                        incomingBlocks={incomingBlocks}
+                        wakeTime={wakeTime}
+                        windDownTime={windDownTime}
                     />
                 </main>
 
@@ -639,7 +674,25 @@ function CalendarPageInner() {
                 {showPlanWeekModal && (
                     <PlanWeekModal
                         onClose={() => setShowPlanWeekModal(false)}
-                        onApply={(opt) => { applyOption(opt); setShowPlanWeekModal(false); }}
+                        onApply={async (opt: any) => {
+                            // §4b: ghost the NEW blocks from the option's own
+                            // create_event payloads, then take the modal down —
+                            // the grid is now the thing to look at.
+                            setIncomingBlocks(
+                                (opt?.patch?.ops || [])
+                                    .filter((o: any) => o.op === 'create_event' || o.op === 'create')
+                                    .map((o: any) => o.payload || o.event || {})
+                            );
+                            setShowPlanWeekModal(false);
+                            try {
+                                await applyOption(opt);
+                            } catch {
+                                /* toast surfaces the reason; skeleton clears below */
+                            } finally {
+                                setIncomingBlocks(undefined);
+                            }
+                        }}
+                        isApplying={isApplying}
                         planWeek={planWeek}
                         context={null}
                         defaultAllowWeekend={allowWeekendPref}

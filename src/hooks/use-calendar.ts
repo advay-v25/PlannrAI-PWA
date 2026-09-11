@@ -51,6 +51,12 @@ export function useCalendar(initialDate: Date = new Date()) {
     const [lastUndoToken, setLastUndoToken] = useState<string | null>(null);
     const [isOptimizing, setIsOptimizing] = useState(false);
     const [isPlanning, setIsPlanning] = useState(false);
+    // §5b: applying a plan writes ~40 blocks and refetches the whole week —
+    // the longest phase of the operation, and it used to run with no flag set
+    // anywhere, so the calendar sat unchanged with nothing on screen to say
+    // why. The modal closed the instant Apply was pressed, so the whole
+    // interaction read as "the button did nothing".
+    const [isApplying, setIsApplying] = useState(false);
 
 
 
@@ -304,7 +310,12 @@ export function useCalendar(initialDate: Date = new Date()) {
                 note: res.donna_note
             };
         } catch (e: any) {
-            showToast("Failed to generate plan", "error");
+            // Show what the server actually said. "Failed to generate plan" was
+            // the same six words for a refused past week, an exhausted weekly
+            // quota and a thrown exception, which made every failure a fresh
+            // investigation.
+            console.error('[planWeek] failed', { status: e?.status, message: e?.message, details: e?.details, error: e });
+            showToast(e?.message || "Failed to generate plan", "error");
             throw e;
         } finally {
             setIsPlanning(false);
@@ -360,6 +371,7 @@ export function useCalendar(initialDate: Date = new Date()) {
 
     // Apply User-Selected AI Option
     const applyOption = async (option: any) => {
+        setIsApplying(true);
         try {
             // Extract blocks from the patch ops
             const ops = option.patch?.ops || [];
@@ -415,8 +427,12 @@ export function useCalendar(initialDate: Date = new Date()) {
             const total = (result.added || 0);
             showToast(`✅ Plan applied! ${total} blocks created.`, 'success');
         } catch (e: any) {
-            showToast("Failed to apply option", "error");
+            showToast(e?.message || "Failed to apply option", "error");
             throw e;
+        } finally {
+            // Cleared only after loadData() has resolved, so the grid stays in
+            // its loading treatment until the NEW week is actually on screen.
+            setIsApplying(false);
         }
     };
 
@@ -495,6 +511,7 @@ export function useCalendar(initialDate: Date = new Date()) {
         applyOption,
         isOptimizing,
         isPlanning,
+        isApplying,
         lastUndoToken,
         undoLastCalendarAction,
         conflictError,

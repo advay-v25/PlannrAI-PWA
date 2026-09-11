@@ -15,13 +15,23 @@ import {
     Activity
 } from 'lucide-react';
 
-const TABS = [
+type Tab = {
+    id: string;
+    href: string;
+    icon: any;
+    label: string;
+    /** Marks a tab as not-yet-shipped. No tab sets this today; the rendering
+     *  below is kept for the next feature that needs it. */
+    soon?: boolean;
+};
+
+const TABS: Tab[] = [
     { id: 'home', href: '/app', icon: House, label: 'Today' },
     { id: 'goals', href: '/app/goals', icon: Target, label: 'Goals' },
     { id: 'calendar', href: '/app/calendar', icon: Calendar, label: 'Calendar' },
     { id: 'tasks', href: '/app/tasks', icon: ListTodo, label: 'Tasks' },
     { id: 'coach', href: '/app/coach', icon: Sparkles, label: 'Coach' },
-    { id: 'weekly-review', href: '/app/weekly-review', icon: Activity, label: 'Review', soon: true },
+    { id: 'weekly-review', href: '/app/weekly-review', icon: Activity, label: 'Review' },
     { id: 'settings', href: '/app/settings', icon: Settings, label: 'Settings' },
 ];
 

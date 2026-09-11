@@ -87,8 +87,8 @@ export const POST = secureApiRoute(
                 const bProgress = ctx.goalProgress.find(gp => gp.goal_id === b.id);
 
                 // Goals behind schedule come first
-                const aPctDone = aProgress ? (aProgress.completed_minutes_this_week / Math.max(1, aProgress.weekly_target_minutes)) : 0;
-                const bPctDone = bProgress ? (bProgress.completed_minutes_this_week / Math.max(1, bProgress.weekly_target_minutes)) : 0;
+                const aPctDone = aProgress ? (aProgress.completed_minutes_target_week / Math.max(1, aProgress.weekly_target_minutes)) : 0;
+                const bPctDone = bProgress ? (bProgress.completed_minutes_target_week / Math.max(1, bProgress.weekly_target_minutes)) : 0;
                 if (aPctDone < 0.5 && bPctDone >= 0.5) return -1;
                 if (bPctDone < 0.5 && aPctDone >= 0.5) return 1;
 
@@ -100,7 +100,7 @@ export const POST = secureApiRoute(
                 ? sortedGoals.map(g => {
                     const progress = ctx.goalProgress.find(gp => gp.goal_id === g.id);
                     const progressNote = progress
-                        ? ` | Weekly: ${progress.completed_minutes_this_week}/${progress.weekly_target_minutes}min${progress.daily_target_today > 0 ? ` → schedule ~${progress.daily_target_today}min today` : ' ✅ on track'}`
+                        ? ` | Weekly: ${progress.completed_minutes_target_week}/${progress.weekly_target_minutes}min${progress.daily_target_today > 0 ? ` → schedule ~${progress.daily_target_today}min today` : ' ✅ on track'}`
                         : '';
                     return `  - ${g.title} (Pillar: ${g.pillar.toUpperCase()}, Energy: ${g.energy_demand}, ${g.minutes_per_day}min/day) → ID: ${g.id}${progressNote}\n    AI Strategy: ${g.ai_strategy ? JSON.stringify(g.ai_strategy) : 'None'}`;
                 }).join('\n')
@@ -794,8 +794,8 @@ function generateFlowStateFallback(
         // Goals behind schedule come first
         const aProgress = ctx.goalProgress?.find((gp: any) => gp.goal_id === a.id);
         const bProgress = ctx.goalProgress?.find((gp: any) => gp.goal_id === b.id);
-        const aBehind = aProgress ? (aProgress.completed_minutes_this_week / Math.max(1, aProgress.weekly_target_minutes)) : 0;
-        const bBehind = bProgress ? (bProgress.completed_minutes_this_week / Math.max(1, bProgress.weekly_target_minutes)) : 0;
+        const aBehind = aProgress ? (aProgress.completed_minutes_target_week / Math.max(1, aProgress.weekly_target_minutes)) : 0;
+        const bBehind = bProgress ? (bProgress.completed_minutes_target_week / Math.max(1, bProgress.weekly_target_minutes)) : 0;
 
         if (aBehind < 0.5 && bBehind >= 0.5) return -1;
         if (bBehind < 0.5 && aBehind >= 0.5) return 1;

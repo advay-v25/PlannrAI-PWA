@@ -7,7 +7,7 @@ import {
     User, LogOut, Trash2, AlertTriangle, Loader2,
     Clock, Brain, Shield, Save, ChevronRight, Calendar, Download, Bell, Sparkles, Moon, Sun, Monitor, Type, Lock
 } from 'lucide-react';
-import { useTheme } from 'next-themes';
+import { useTheme } from '@/components/theme-provider';
 import { createClient } from '@/lib/supabase/client';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
@@ -17,7 +17,6 @@ import AIControls from './_components/ai-controls';
 import CommitmentsManager from './_components/commitments-manager';
 import BodyDiet from './_components/body-diet';
 import WorkPreferences from './_components/work-preferences';
-import ProductivityProfile from './_components/productivity-profile';
 import PersonalRulesManager from './_components/personal-rules-manager';
 import { ProfilePreferences } from '@/lib/types/settings';
 import { Switch } from '@/components/ui/switch';
@@ -188,7 +187,6 @@ export default function SettingsPage() {
                                 <div className="border border-[var(--glass-border)] bg-[var(--glass-bg)] p-6 rounded-2xl">
                                     <CommitmentsManager />
                                 </div>
-                                <ProductivityProfile />
                                 <AIControls preferences={preferences} onChange={handleUpdate} />
                                 <PersonalRulesManager />
                             </>

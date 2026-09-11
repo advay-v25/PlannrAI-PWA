@@ -3,6 +3,11 @@ import sanitizeHtml from 'sanitize-html';
 import { CalendarEngine } from '@/lib/calendar/calendar-engine';
 import { buildCalendarContext } from '@/lib/calendar/context-builder';
 import { generateWeekPlan } from '@/lib/calendar/ai/plan-week';
+import { writeWeek } from './week-writer';
+import { copyWeekForward, BIO_TYPES } from './week-copy';
+import { validateGoalFields } from '@/lib/goals/schema';
+import { AnchorService } from '@/lib/calendar/anchor-service';
+import { SchedulingProtocol } from '@/lib/scheduling/protocol';
 import { DEFAULT_TIMEZONE } from '@/lib/timezone';
 import crypto from 'crypto';
 
@@ -26,6 +31,7 @@ type PatchOpType =
     | 'update_habit_stack'
     | 'delete_habit_stack'
     | 'replan_week'
+    | 'plan_current_week'
     | 'replan_day'
     | 'update_memory';
 
@@ -62,11 +68,25 @@ export interface Patch {
 }
 
 
+export interface PatchOpResult {
+    op: PatchOpType;
+    ok: boolean;
+    error?: string;
+    /** Whatever the op chose to report (e.g. plan_next_week's counts). */
+    data?: any;
+}
+
 export interface PatchResult {
     success: boolean;
     undo_token: string | null;
     changes: number;
     errors: string[];
+    /**
+     * Per-op outcomes, in execution order. `success` alone is not enough: the
+     * loop below continues past a failing op, so a patch where the goal writes
+     * landed and plan_next_week threw still reports success === true.
+     */
+    op_results?: PatchOpResult[];
 }
 
 // --- Unified Patch Service ---
@@ -747,18 +767,21 @@ export class PatchService {
         }
 
         // 3. Execute Operations
+        const opResults: PatchOpResult[] = [];
         for (const op of patch.ops) {
             try {
-                await this.executeOp(userId, op, supabase, source);
+                const data = await this.executeOp(userId, op, supabase, source);
+                opResults.push({ op: op.op, ok: true, data });
                 changes++;
             } catch (e: any) {
                 errors.push(`${op.op}: ${e.message}`);
+                opResults.push({ op: op.op, ok: false, error: e.message });
                 console.error(`[PatchService] Op failed:`, op.op, e.message);
             }
         }
 
         if (changes === 0) {
-            return { success: false, undo_token: null, changes: 0, errors };
+            return { success: false, undo_token: null, changes: 0, errors, op_results: opResults };
         }
 
         // 4. Calculate Inverse Patch AFTER execution
@@ -781,6 +804,11 @@ export class PatchService {
                         inverse_patch: inversePatch as any,
                         applied: true,
                         source,
+                        // Ops like replan_week / plan_next_week deliberately
+                        // produce no inverse ops and rely on the snapshot.
+                        // Recording it here is what lets undoPatch fall back to
+                        // a restore instead of reporting "nothing to undo".
+                        schedule_version_id: versionId,
                         created_at: new Date().toISOString()
                     })
                     .select('id')
@@ -790,14 +818,14 @@ export class PatchService {
                     console.error('[PatchService] Failed to store patch run:', error);
                 } else {
                     undoToken = run.id;
-                    console.log(`[PatchService] Undo token created: ${undoToken} with ${inversePatch.ops.length} inverse ops`);
+                    console.log(`[PatchService] Undo token created: ${undoToken} with ${inversePatch.ops.length} inverse ops (snapshot ${versionId || 'none'})`);
                 }
             } catch (e: any) {
                 console.error('[PatchService] Undo storage failed:', e.message);
             }
         }
 
-        return { success: true, undo_token: undoToken, changes, errors };
+        return { success: true, undo_token: undoToken, changes, errors, op_results: opResults };
     }
 
     /**
@@ -827,14 +855,35 @@ export class PatchService {
         }
 
         const inverse = run.inverse_patch as Patch;
-        
+
+        // Whole-week regeneration ops emit no inverse ops by design — the
+        // snapshot taken before the patch IS their undo. A patch can mix them
+        // with ops that DO have inverses (weekly review edits goals and
+        // regenerates the week in one patch), so both halves must run:
+        // the snapshot restores schedule_blocks, the inverse ops restore goals.
+        const REGEN_OPS = ['replan_week', 'plan_next_week', 'replan_day'];
+        const originalOps = ((run.patch as Patch)?.ops || []) as PatchOp[];
+        const needsSnapshot = originalOps.some((o) => REGEN_OPS.includes(o.op));
+
+        let snapshotChanges = 0;
+        if (needsSnapshot && run.schedule_version_id) {
+            console.log(`[PatchService] Restoring snapshot ${run.schedule_version_id} for regeneration op`);
+            const restored = await this.restoreFromSnapshot(userId, run.schedule_version_id, supabase);
+            if (restored) snapshotChanges = 1;
+            else console.error('[PatchService] Snapshot restore failed');
+        }
+
         if (!inverse || !inverse.ops || inverse.ops.length === 0) {
+            if (snapshotChanges > 0) {
+                await supabase.from('patch_runs').update({ applied: false }).eq('id', undoToken);
+                return { success: true, changes: snapshotChanges };
+            }
             console.error('[PatchService] Undo failed: No inverse operations available');
             return { success: false, changes: 0 };
         }
 
         console.log(`[PatchService] Undoing patch ${undoToken} with ${inverse.ops.length} inverse ops`);
-        let changes = 0;
+        let changes = snapshotChanges;
 
         // 2. Apply Inverse
         for (const op of inverse.ops) {
@@ -1323,17 +1372,20 @@ export class PatchService {
                 const id = op.goal_id;
                 const fields = op.fields || op.payload;
                 if (!id) throw new Error('Update goal requires goal_id');
-                const allowedGoalFields = ['title', 'pillar', 'category', 'importance', 'days_per_week', 'minutes_per_day', 'energy_demand', 'weekly_target_minutes', 'status', 'is_active', 'priority', 'description', 'color', 'emoji', 'is_archived', 'start_date', 'target_date', 'preferred_windows'];
-                const sanitizedFields: any = {};
-                for (const key of allowedGoalFields) {
-                    if (fields[key] !== undefined) {
-                        if (key === 'description' && typeof fields[key] === 'string') {
-                            sanitizedFields[key] = sanitizeHtml(fields[key]);
-                        } else {
-                            sanitizedFields[key] = fields[key];
-                        }
-                    }
+                // §5: the SAME contract api/goals/route.ts uses. This path used
+                // to validate nothing and write whatever it was handed, so the
+                // coach could put a value in a goal that the goals page's own
+                // schema then refused — and the database would reject it anyway,
+                // failing the whole patch with an opaque error.
+                const candidate: Record<string, unknown> = { ...fields };
+                if (typeof candidate.description === 'string') {
+                    candidate.description = sanitizeHtml(candidate.description as string);
                 }
+                const checked = validateGoalFields(candidate);
+                if (!checked.ok) {
+                    throw new Error(`Update goal rejected: ${checked.errors.join('; ')}`);
+                }
+                const sanitizedFields: any = checked.data;
 
                 const { error } = await supabase
                     .from('goals')
@@ -1524,13 +1576,11 @@ export class PatchService {
                 const now = new Date();
                 
                 const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
-                const timeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false });
-                
+
                 const todayStr = dateFormatter.format(now);
-                const timeStr = timeFormatter.format(now);
-                const [h, m] = timeStr.split(':').map(Number);
-                const nowTime = h * 60 + m;
-                
+                // No clock arithmetic here: replan_week starts at tomorrow, so
+                // time-of-day never enters into it.
+
                 // Timezone-safe Monday calculation
                 const [yr, mo, dy] = todayStr.split('-').map(Number);
                 const localToday = new Date(yr, mo - 1, dy, 12, 0, 0); // Noon to avoid shift
@@ -1538,83 +1588,272 @@ export class PatchService {
                 const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
                 const localMonday = new Date(localToday.getTime() + mondayOffset * 24 * 60 * 60 * 1000);
                 const weekStartStr = `${localMonday.getFullYear()}-${String(localMonday.getMonth() + 1).padStart(2, '0')}-${String(localMonday.getDate()).padStart(2, '0')}`;
-                
+
                 // Calculate tomorrowStr relative to user timezone
                 const localTomorrow = new Date(localToday.getTime() + 24 * 60 * 60 * 1000);
                 const tomorrowStr = `${localTomorrow.getFullYear()}-${String(localTomorrow.getMonth() + 1).padStart(2, '0')}-${String(localTomorrow.getDate()).padStart(2, '0')}`;
                 
                 console.log(`[PatchService] User Timezone: ${timezone}, Week start: ${weekStartStr}, today: ${todayStr}, tomorrow: ${tomorrowStr}`);
 
-                // 3. Generate new plan using the CORRECT week start (Monday) and tomorrowStr as replanFromDate
+                // This week's Sunday. `replan_week` owns tomorrow..Sunday and
+                // nothing else — see the delete below.
+                const localSunday = new Date(localMonday.getTime() + 6 * 24 * 60 * 60 * 1000);
+                const weekEndStr = `${localSunday.getFullYear()}-${String(localSunday.getMonth() + 1).padStart(2, '0')}-${String(localSunday.getDate()).padStart(2, '0')}`;
+
+                // 3. Generate. protocolConfig was `undefined`, so the mode's
+                //    configured caps fell back to internal defaults and a coach
+                //    replan packed days differently from the Plan Week button at
+                //    the very same mode. replanFromDate is correct here: unlike
+                //    plan_next_week, the replan point is genuinely inside the
+                //    week being planned, which is the case that arithmetic is for.
                 const mode = op.payload?.mode || 'balanced';
                 const allowWeekend = op.payload?.allow_weekend !== false;
-                const variants = await generateWeekPlan(calendarCtx, weekStartStr, mode, allowWeekend, undefined, tomorrowStr);
-                
+                const modeConfig = SchedulingProtocol.getModeConfig(mode);
+                const variants = await generateWeekPlan(calendarCtx, weekStartStr, mode, allowWeekend, {
+                    maxGoalBlocksPerDay: modeConfig.maxGoalBlocksPerDay,
+                    maxDeepWorkMins: modeConfig.maxDeepWorkMins,
+                }, tomorrowStr);
+
                 if (!variants || variants.length === 0) {
                     throw new Error('Replan failed to generate any variants');
                 }
-                
-                // We just take the first variant (which is the selected mode)
+
                 const newPlan = variants[0];
                 console.log(`[PatchService] Generated ${newPlan.blocks.length} blocks for variant "${newPlan.label}"`);
-                
-                // 4. Delete future non-immutable blocks strictly from TOMORROW onwards (date > todayStr)
-                const { data: futureBlocks } = await supabase
-                    .from('schedule_blocks')
-                    .select('id, block_type, start_time, status, date')
+
+                // 4. Clear and rewrite ONLY tomorrow..Sunday, through the one
+                //    shared writer.
+                //
+                //    The delete this replaces was `.gt('date', todayStr)` with no
+                //    upper bound: it removed EVERY future block the user had —
+                //    including the next week the weekly review had just planned —
+                //    and then reinserted only the current week. One coach message
+                //    wiped next week and put nothing back.
+                //
+                //    Dropping the BIO_TYPES filter and switching to writeWeek are
+                //    a single change on purpose. The old pairing was internally
+                //    consistent — the delete preserved sleep/meals/wind-down and
+                //    the insert skipped them precisely because they survived.
+                //    writeWeek uses the opposite model: it clears them and expects
+                //    the caller to supply them. Either half alone breaks the day
+                //    (duplicated meals, or genuinely empty mornings).
+                const bounded = newPlan.blocks.filter(
+                    (b: any) => b.date > todayStr && b.date <= weekEndStr
+                );
+
+                const write = await writeWeek({
+                    userId,
+                    supabase,
+                    action: 'replan',
+                    clearRange: { start: tomorrowStr, end: weekEndStr },
+                    notBefore: todayStr,
+                    add: bounded,
+                    filterCommitmentOverlaps: true,
+                    enforceGoalDailyLimits: true,
+                    // applyPatch already snapshots scope:'week' patches, and
+                    // REGEN_OPS undo depends on that specific version id.
+                    snapshot: false,
+                });
+
+                console.log(
+                    `[PatchService] replan_week ${tomorrowStr}..${weekEndStr}: ` +
+                    `+${write.added} -${write.removed} skipped=${write.skipped.length} failed=${write.failed.length}`
+                );
+
+                // Reported rather than swallowed — the coach can now say "3 blocks
+                // couldn't be placed" instead of claiming a clean success.
+                return {
+                    window_start: tomorrowStr,
+                    window_end: weekEndStr,
+                    blocks_created: write.added,
+                    blocks_cleared: write.removed,
+                    blocks_skipped: write.skipped,
+                    blocks_failed: write.failed,
+                };
+            }
+
+            case 'plan_current_week': {
+                // Plans the CURRENT Monday–Sunday with the SAME pipeline as the
+                // Plan Week button. The weekly review's only job is deciding
+                // what changes about the goals; all scheduling belongs to the
+                // planner that already works.
+                //
+                // The accepted change reaches the plan through the `goals`
+                // table, not through the scheduler: ops execute sequentially,
+                // so the `update_goal` ops in this same patch have already
+                // written e.g. minutes_per_day = 35 before buildCalendarContext
+                // runs below. The planner reads 35 and plans 35. Nothing has to
+                // tell it a weekly review happened.
+                console.log('[PatchService] Starting plan_current_week...');
+
+                const { data: profile } = await supabase.from('profiles').select('timezone').eq('id', userId).single();
+                const timezone = profile?.timezone || DEFAULT_TIMEZONE;
+                const now = new Date();
+
+                const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
+                const todayStr = dateFormatter.format(now);
+
+                // Timezone-safe Monday calculation (noon avoids DST shifts)
+                const [yr, mo, dy] = todayStr.split('-').map(Number);
+                const localToday = new Date(yr, mo - 1, dy, 12, 0, 0);
+                const dayOfWeek = localToday.getDay(); // 0=Sun, 1=Mon
+                const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+                const localMonday = new Date(localToday.getTime() + mondayOffset * 24 * 60 * 60 * 1000);
+                const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+                const currentMondayStr = fmt(localMonday);
+                const currentSundayStr = fmt(new Date(localMonday.getTime() + 6 * 24 * 60 * 60 * 1000));
+
+                console.log(`[PatchService] plan_current_week — tz=${timezone} today=${todayStr} window=${currentMondayStr}..${currentSundayStr}`);
+
+                // Guard: don't plan if the whole week is in the past.
+                if (currentSundayStr < todayStr) {
+                    throw new Error(`plan_current_week refused: computed window ${currentMondayStr}..${currentSundayStr} is in the past compared to today ${todayStr}`);
+                }
+
+                const mode = op.payload?.mode || 'balanced';
+                const allowWeekend = op.payload?.allow_weekend !== false;
+
+                // Commitments become exclusion WINDOWS inside the generator, not
+                // blocks, so the target week gets its anchors from the anchor
+                // service. Idempotent per commitment, so this also repairs a week
+                // beyond the 30-day horizon /api/anchors materialises on create.
+                const { data: commitments } = await supabase
+                    .from('commitments')
+                    .select('id, title, start_time, end_time, days_of_week')
                     .eq('user_id', userId)
-                    .gt('date', todayStr); // STRICTLY TOMORROW ONWARDS
-                    
-                if (futureBlocks) {
-                    const IMMUTABLE = ['sleep', 'meal', 'wind_down', 'anchor'];
-                    const idsToDelete = futureBlocks.filter((b: any) => {
-                        if (IMMUTABLE.includes(b.block_type)) return false;
-                        if (b.is_locked) return false;
-                        if (b.status === 'done') return false;
-                        return true;
-                    }).map((b: any) => b.id);
-                    
-                    console.log(`[PatchService] Deleting ${idsToDelete.length} future non-immutable blocks from tomorrow onwards`);
-                    if (idsToDelete.length > 0) {
-                        const { error: delErr } = await supabase
-                            .from('schedule_blocks')
-                            .delete()
-                            .eq('user_id', userId)
-                            .in('id', idsToDelete);
-                        if (delErr) throw new Error(`Replan failed to clear old blocks: ${delErr.message}`);
+                    .eq('is_active', true);
+                for (const c of commitments || []) {
+                    try {
+                        await AnchorService.materialize(
+                            userId, c,
+                            new Date(`${currentMondayStr}T12:00:00`),
+                            new Date(`${currentSundayStr}T12:00:00`),
+                            supabase
+                        );
+                    } catch (e: any) {
+                        console.error(`[PatchService] Anchor "${c.title}" failed to materialise: ${e?.message || e}`);
                     }
                 }
-                
-                // 5. Insert new generated blocks strictly from TOMORROW onwards (date > todayStr)
-                const blocksToInsert = newPlan.blocks.filter((b: any) => {
-                    if (b.date <= todayStr) return false; // STRICTLY TOMORROW ONWARDS
-                    
-                    // Skip bio blocks (sleep, meal, wind_down) — they already exist as immutables
-                    const BIO_TYPES = ['sleep', 'meal', 'wind_down'];
-                    if (BIO_TYPES.includes(b.block_type)) return false;
-                    return true;
-                }).map((b: any) => ({
-                    user_id: userId,
-                    title: b.title,
-                    start_time: b.start_time,
-                    end_time: b.end_time,
-                    date: b.date,
-                    status: 'planned',
-                    block_type: b.block_type,
-                    pillar: b.pillar || null,
-                    goal_id: b.goal_id || null,
-                    checklist: b.checklist || null,
-                }));
-                
-                console.log(`[PatchService] Inserting ${blocksToInsert.length} new blocks strictly from tomorrow onwards`);
-                if (blocksToInsert.length > 0) {
-                    const { error: insErr } = await supabase
-                        .from('schedule_blocks')
-                        .insert(blocksToInsert);
-                    if (insErr) throw new Error(`Replan failed to insert new blocks: ${insErr.message}`);
+
+                const calendarCtx = await buildCalendarContext(userId, supabase, currentMondayStr);
+
+                const modeConfig = SchedulingProtocol.getModeConfig(mode);
+
+                // The generator is still run — but ONLY for the bio scaffolding
+                // (sleep, meals, morning routine, wind-down), which is a
+                // deterministic function of the profile. Goal blocks come from
+                // the week that already works.
+                const variants = await generateWeekPlan(calendarCtx, currentMondayStr, mode, allowWeekend, {
+                    maxGoalBlocksPerDay: modeConfig.maxGoalBlocksPerDay,
+                    maxDeepWorkMins: modeConfig.maxDeepWorkMins,
+                });
+                if (!variants || variants.length === 0) {
+                    throw new Error('plan_current_week failed to generate any variants');
                 }
-                
-                break;
+                const generated = variants[0];
+
+                const bioBlocks = generated.blocks.filter(
+                    (b: any) => BIO_TYPES.has(b.block_type) && b.date >= currentMondayStr && b.date <= currentSundayStr
+                );
+
+                // §2: the source week is LAST week, because we are planning THIS week.
+                const lastMonday = new Date(localMonday.getTime() - 7 * 24 * 60 * 60 * 1000);
+                const sourceWeekStart = op.payload?.source_week_start || fmt(lastMonday);
+                const acceptedChanges = op.payload?.changes || [];
+                const windDownMins = (() => {
+                    const [h, m] = String(calendarCtx.user.sleep_start || '23:00').split(':').map(Number);
+                    return (h || 0) * 60 + (m || 0);
+                })();
+
+                const wakeMins = (() => {
+                    const [h, m] = String(calendarCtx.user.sleep_end || '07:00').split(':').map(Number);
+                    return (h || 0) * 60 + (m || 0);
+                })();
+                const copy = await copyWeekForward({
+                    supabase, userId,
+                    sourceWeekStart,
+                    targetWeekStart: currentMondayStr,
+                    changes: acceptedChanges,
+                    weekIsOvercommitted: !!calendarCtx.capacity?.is_overcommitted,
+                    windDownMins,
+                    wakeMins,
+                    bioBlocks,
+                    bufferMins: (calendarCtx.user as any).default_buffer_duration || 15,
+                });
+
+                let path: 'copy_forward' | 'full_generation' = 'copy_forward';
+                let goalBlocksToWrite = copy.blocks;
+                if (!copy.usable) {
+                    // Nothing to copy — fall back to a full generation and say so.
+                    path = 'full_generation';
+                    goalBlocksToWrite = generated.blocks.filter(
+                        (b: any) => !BIO_TYPES.has(b.block_type) && b.date >= currentMondayStr && b.date <= currentSundayStr
+                    );
+                }
+
+                for (const n of copy.notes) console.log(`[PlanCurrentWeek] ${n}`);
+                for (const t of copy.triage) {
+                    console.log(`[PlanCurrentWeek] triage ${t.branch}: "${t.title}" ${t.date} ${t.time} — ${t.reason}`);
+                }
+
+                const write = await writeWeek({
+                    userId,
+                    supabase,
+                    action: 'weekly_review',
+                    clearRange: { start: currentMondayStr, end: currentSundayStr },
+                    notBefore: todayStr,
+                    add: [...bioBlocks, ...goalBlocksToWrite],
+                    filterCommitmentOverlaps: true,
+                    enforceGoalDailyLimits: true,
+                    snapshot: false, // applyPatch records its own version
+                });
+
+                const byType: Record<string, number> = {};
+                for (const b of [...bioBlocks, ...goalBlocksToWrite]) {
+                    byType[b.block_type] = (byType[b.block_type] || 0) + 1;
+                }
+
+                // §5: sometimes the week genuinely cannot hold the goals. Say
+                // which goal, how many minutes and why, rather than handing over
+                // a calendar with silent gaps.
+                const shortfalls = (path === 'full_generation' ? (generated.stats.goal_placements || []) : [])
+                    .filter((p) => !p.already_met && p.placed_mins < p.target_mins)
+                    .map((p) => ({
+                        goal_id: p.goal_id,
+                        title: p.title,
+                        target_mins: p.target_mins,
+                        placed_mins: p.placed_mins,
+                        short_by_mins: p.target_mins - p.placed_mins,
+                        reason: p.skipped_reason || 'no window could hold it',
+                    }));
+                for (const sf of shortfalls) {
+                    console.warn(
+                        `[PatchService] ${sf.title} is ${sf.short_by_mins}m short next week ` +
+                        `(${sf.placed_mins}/${sf.target_mins}m): ${sf.reason}`
+                    );
+                }
+
+                console.log(
+                    `[PatchService] plan_current_week: +${write.added} -${write.removed} ` +
+                    `skipped=${write.skipped.length} failed=${write.failed.length} | ${JSON.stringify(byType)}`
+                );
+
+                return {
+                    week_end: currentSundayStr,
+                    blocks_created: write.added,
+                    blocks_cleared: write.removed,
+                    blocks_by_type: byType,
+                    blocks_skipped: write.skipped,
+                    blocks_failed: write.failed,
+                    goal_shortfalls: shortfalls,
+                    path,
+                    source_week_start: sourceWeekStart,
+                    triage: copy.triage,
+                    notes: copy.notes,
+                    source_goal_hours: Math.round((copy.sourceGoalMinutes / 60) * 10) / 10,
+                    copied_goal_hours: Math.round((copy.copiedGoalMinutes / 60) * 10) / 10,
+                };
             }
 
             case 'replan_day': {
@@ -1645,89 +1884,103 @@ export class PatchService {
                 
                 console.log(`[PatchService] User Timezone: ${timezone}, Week start: ${weekStartStr}, today: ${todayStr}, nowTime: ${nowTime} mins`);
 
-                // 3. Generate new plan from today onwards
+                // 3. Generate. protocolConfig was `undefined`; see replan_week.
+                //    replanFromDate = todayStr is correct — the replan point is
+                //    inside the week being planned.
                 const mode = op.payload?.mode || 'balanced';
                 const allowWeekend = op.payload?.allow_weekend !== false;
-                const variants = await generateWeekPlan(calendarCtx, weekStartStr, mode, allowWeekend, undefined, todayStr);
-                
+                const modeConfig = SchedulingProtocol.getModeConfig(mode);
+                const variants = await generateWeekPlan(calendarCtx, weekStartStr, mode, allowWeekend, {
+                    maxGoalBlocksPerDay: modeConfig.maxGoalBlocksPerDay,
+                    maxDeepWorkMins: modeConfig.maxDeepWorkMins,
+                }, todayStr);
+
                 if (!variants || variants.length === 0) {
                     throw new Error('Replan failed to generate any variants');
                 }
-                
+
                 const newPlan = variants[0];
                 console.log(`[PatchService] Generated ${newPlan.blocks.length} blocks for variant "${newPlan.label}"`);
-                
-                // 4. Delete future non-immutable blocks strictly from TODAY onwards
-                const { data: futureBlocks } = await supabase
+
+                /**
+                 * Everything this op is allowed to touch: TODAY, at or after the
+                 * current time. Applied identically to what is removed and what
+                 * is added, which is what keeps the day internally consistent —
+                 * a bio block earlier today is neither deleted nor re-inserted,
+                 * so it simply survives.
+                 */
+                const withinToday = (date: string, startTime: string): boolean => {
+                    if (date !== todayStr) return false;
+                    const [bh, bm] = String(startTime).split(':').map(Number);
+                    return (bh || 0) * 60 + (bm || 0) >= nowTime;
+                };
+
+                // 4. Compute the removals explicitly.
+                //
+                //    `clearRange` cannot express this: `notBefore` is date-
+                //    granular, and "today, but only after 14:30" is not a date.
+                //
+                //    The delete this replaces was `.gte('date', todayStr)` with no
+                //    upper bound — it removed every future block the user had,
+                //    then reinserted only the current week, so a coach message
+                //    asking to fix TODAY wiped next week. It also filtered on
+                //    `is_locked` without ever selecting it, so that check has
+                //    never once fired.
+                const { data: todayBlocks, error: readErr } = await supabase
                     .from('schedule_blocks')
-                    .select('id, block_type, start_time, status, date')
+                    .select('id, block_type, start_time, status, date, is_locked')
                     .eq('user_id', userId)
-                    .gte('date', todayStr); // STRICTLY TODAY ONWARDS
-                    
-                if (futureBlocks) {
-                    const IMMUTABLE = ['sleep', 'meal', 'wind_down', 'anchor'];
-                    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-                    const idsToDelete = futureBlocks.filter((b: any) => {
-                        if (IMMUTABLE.includes(b.block_type)) return false;
-                        if (b.is_locked) return false;
-                        if (b.status === 'done') return false;
-                        if (b.date === todayStr) {
-                            const [h, m] = b.start_time.split(':').map(Number);
-                            const startMins = h * 60 + m;
-                            if (startMins < nowTime) return false; // past blocks today are safe
-                        }
-                        return true;
-                    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-                    }).map((b: any) => b.id);
-                    
-                    console.log(`[PatchService] Deleting ${idsToDelete.length} future non-immutable blocks for today onwards`);
-                    if (idsToDelete.length > 0) {
-                        const { error: delErr } = await supabase
-                            .from('schedule_blocks')
-                            .delete()
-                            .eq('user_id', userId)
-                            .in('id', idsToDelete);
-                        if (delErr) throw new Error(`Replan failed to clear old blocks: ${delErr.message}`);
-                    }
-                }
-                
-                // 5. Insert new generated blocks from TODAY onwards
-                /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-                const blocksToInsert = newPlan.blocks.filter((b: any) => {
-                    if (b.date < todayStr) return false; // STRICTLY TODAY ONWARDS
-                    if (b.date === todayStr) {
-                        const [h, m] = b.start_time.split(':').map(Number);
-                        const startMins = h * 60 + m;
-                        if (startMins < nowTime) return false;
-                    }
-                    
-                    // Skip bio blocks
-                    const BIO_TYPES = ['sleep', 'meal', 'wind_down'];
-                    if (BIO_TYPES.includes(b.block_type)) return false;
+                    .eq('date', todayStr);
+                if (readErr) throw new Error(`Replan failed to read today: ${readErr.message}`);
+
+                const idsToRemove = (todayBlocks || []).filter((b: any) => {
+                    if (!withinToday(b.date, b.start_time)) return false; // earlier today is safe
+                    if (b.is_locked) return false;
+                    if (b.block_type === 'anchor') return false;
+                    if (b.status === 'done' || b.status === 'in_progress') return false;
                     return true;
-                /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
-                }).map((b: any) => ({
-                    user_id: userId,
-                    title: b.title,
-                    start_time: b.start_time,
-                    end_time: b.end_time,
-                    date: b.date,
-                    status: 'planned',
-                    block_type: b.block_type,
-                    pillar: b.pillar || null,
-                    goal_id: b.goal_id || null,
-                    checklist: b.checklist || null,
-                }));
-                
-                console.log(`[PatchService] Inserting ${blocksToInsert.length} new blocks for today`);
-                if (blocksToInsert.length > 0) {
-                    const { error: insErr } = await supabase
-                        .from('schedule_blocks')
-                        .insert(blocksToInsert);
-                    if (insErr) throw new Error(`Replan failed to insert new blocks: ${insErr.message}`);
-                }
-                
-                break;
+                }).map((b: any) => b.id);
+
+                // 5. The replacement set, under the SAME predicate. Bio blocks
+                //    are included now (the BIO_TYPES filter is gone) because the
+                //    removals above no longer spare them — the two halves have to
+                //    change together or the day ends up with duplicated meals or
+                //    no evening at all.
+                const dayBlocks = newPlan.blocks.filter((b: any) => withinToday(b.date, b.start_time));
+
+                const bioToday = dayBlocks.filter((b: any) =>
+                    ['sleep', 'meal', 'wind_down', 'routine'].includes(b.block_type)).length;
+                console.log(
+                    `[PatchService] replan_day ${todayStr} from ${String(Math.floor(nowTime / 60)).padStart(2, '0')}:` +
+                    `${String(nowTime % 60).padStart(2, '0')} — removing ${idsToRemove.length}, adding ${dayBlocks.length} ` +
+                    `(${bioToday} of them bio)`
+                );
+
+                const write = await writeWeek({
+                    userId,
+                    supabase,
+                    action: 'replan',
+                    clearRange: null,
+                    remove: idsToRemove,
+                    add: dayBlocks,
+                    filterCommitmentOverlaps: true,
+                    enforceGoalDailyLimits: true,
+                    snapshot: false,
+                });
+
+                console.log(
+                    `[PatchService] replan_day: +${write.added} -${write.removed} ` +
+                    `skipped=${write.skipped.length} failed=${write.failed.length}`
+                );
+
+                return {
+                    date: todayStr,
+                    from_minute: nowTime,
+                    blocks_created: write.added,
+                    blocks_cleared: write.removed,
+                    blocks_skipped: write.skipped,
+                    blocks_failed: write.failed,
+                };
             }
 
             default:
@@ -1821,7 +2074,7 @@ export class PatchService {
                 // We don't have pre-exec state for todos in this path,
                 // so we'd need to extend preExecState. For now, skip.
                 // We delete the created blocks and then recreate the old blocks.
-            } else if (opType === 'replan_week' || opType === 'replan_day') {
+            } else if (opType === 'replan_week' || opType === 'plan_current_week' || opType === 'replan_day') {
                 // To undo a replan_week, the system will rely entirely on the snapshot
                 // created in step 1. Because the snapshot covers the whole week, 
                 // the undo function in restoreFromSnapshot will wipe and restore.

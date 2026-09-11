@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useGoalsStore, useUserStore } from '@/stores'; // Assuming these exist
 import { apiClient } from '@/lib/api-client';
 import { useToast } from '@/components/ui/toast';
@@ -10,6 +10,7 @@ export interface GoalCapacity {
     used_minutes: number;
     available_minutes: number;
     load_percentage: number;
+    over_by_min_per_day: number;
 }
 
 export function useGoalsManager() {
@@ -18,6 +19,10 @@ export function useGoalsManager() {
     const { showToast } = useToast();
     const [isSyncing, setIsSyncing] = useState(false);
     const [capacity, setCapacity] = useState<GoalCapacity | null>(null);
+    /** §4: a load failure, kept apart from "you have no goals". */
+    const [loadError, setLoadError] = useState<
+        { message: string; rateLimited: boolean; retryAfter: number } | null
+    >(null);
 
     // CRUD Operations
     const handleUpdateGoal = async (id: string, updates: Partial<Goal>) => {
@@ -48,9 +53,13 @@ export function useGoalsManager() {
             import('@/hooks/use-coach').then(({ useCoach }) => {
                 useCoach.getState().refreshContext().catch(console.error);
             });
-        } catch (error) {
+        } catch (error: any) {
+            // §5: show WHAT failed. A generic message here is why a rejected
+            // write read as a locked goal rather than an error.
             console.error('Failed to update goal:', error);
-            showToast('Failed to save changes. Please try again.', 'error');
+            const detail = error?.message || error?.error || '';
+            showToast(detail ? `Couldn't save: ${detail}` : 'Failed to save changes. Please try again.', 'error');
+            fetchGoals(); // roll the optimistic edit back to what is actually stored
         } finally {
             setIsSyncing(false);
         }
@@ -100,28 +109,49 @@ export function useGoalsManager() {
         }
     }
 
-    const fetchGoals = async () => {
+    /**
+     * §3: memoised. It was recreated on every render, and
+     * `app/goals/[id]/page.tsx` lists it in an effect's dependency array — so
+     * every render scheduled another fetch.
+     *
+     * §4: a load FAILURE is recorded separately from an empty result. "No goals
+     * set yet — add your first goal" after a failed fetch is the one message
+     * that must never appear: the obvious response is to recreate goals that
+     * already exist.
+     */
+    const fetchGoals = useCallback(async () => {
         setLoading(true);
+        setLoadError(null);
         try {
             const data = await apiClient.get<{ goals: Goal[], capacity: GoalCapacity }>('/api/goals');
-            if (data?.goals) {
-                setGoals(data.goals);
-            }
-            if (data?.capacity) {
-                setCapacity(data.capacity);
-            }
-        } catch (error) {
+            if (data?.goals) setGoals(data.goals);
+            if (data?.capacity) setCapacity(data.capacity);
+        } catch (error: any) {
             console.error('Failed to fetch goals:', error);
-            showToast('Failed to load goals.', 'error');
+            const rateLimited = error?.status === 429;
+            const retryAfter = Number(error?.details?.retryAfter) || 0;
+            setLoadError({
+                message: error?.message || 'Failed to load goals.',
+                rateLimited,
+                retryAfter,
+            });
+            showToast(
+                rateLimited
+                    ? `Too many requests — retrying in ${retryAfter || 60}s.`
+                    : "Couldn't load your goals. They're safe — this is a loading problem.",
+                'error'
+            );
         } finally {
             setLoading(false);
         }
-    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     return {
         goals,
         capacity,
         isSyncing,
+        loadError,
         updateGoal: handleUpdateGoal,
         deleteGoal: handleDeleteGoal,
         createGoal: handleCreateGoal,

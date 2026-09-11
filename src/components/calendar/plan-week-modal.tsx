@@ -23,7 +23,9 @@ export interface CalendarOption {
 
 interface PlanWeekModalProps {
     onClose: () => void;
-    onApply: (option: CalendarOption) => void;
+    onApply: (option: CalendarOption) => void | Promise<void>;
+    /** True while the chosen plan is being written and the week refetched. */
+    isApplying?: boolean;
     planWeek: (options: { mode: 'balanced' | 'momentum' | 'recovery', allow_weekend?: boolean }) => Promise<{ summary: string, options: CalendarOption[], warnings: string[], note: string | undefined }>;
     context: any;
     /** The user's saved "Weekend Work" preference (Settings → Structure). Used
@@ -32,7 +34,7 @@ interface PlanWeekModalProps {
     defaultAllowWeekend?: boolean;
 }
 
-export function PlanWeekModal({ onClose, onApply, planWeek, context, defaultAllowWeekend = true }: PlanWeekModalProps) {
+export function PlanWeekModal({ onClose, onApply, planWeek, context, defaultAllowWeekend = true, isApplying = false }: PlanWeekModalProps) {
     const [step, setStep] = useState<'mode' | 'generating' | 'selection'>('mode');
     const [selectedMode, setSelectedMode] = useState<'balanced' | 'momentum' | 'recovery'>('balanced');
     const [options, setOptions] = useState<CalendarOption[]>([]);
@@ -59,9 +61,15 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context, defaultAllo
     // separately by the calendar page) until the user explicitly overrides it
     // for this run, at which point the override wins regardless of prop changes.
     const [weekendOverride, setWeekendOverride] = useState<boolean | null>(null);
+    // §5c: the failure used to close the modal and leave a red toast, so the
+    // whole interaction read as "the button did nothing". The error belongs in
+    // the dialog, next to the Try again that acts on it.
+    const [genError, setGenError] = useState<string | null>(null);
+    const isGenerating = step === 'generating';
     const allowWeekend = weekendOverride === null ? defaultAllowWeekend : weekendOverride;
 
     const handleGenerate = async () => {
+        setGenError(null);
         setStep('generating');
         try {
             // Call API via the passed hook function
@@ -76,18 +84,24 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context, defaultAllo
                 setStep('selection');
             } else {
                 console.warn("No options returned", result);
-                onClose();
+                setGenError('The planner returned no schedule options for this week.');
+                setStep('mode');
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error("Plan Week Failed", e);
-            onClose();
+            // Keep the modal open on the mode step with the real reason from
+            // the API. Closing the dialog is the user's decision, not the
+            // error handler's.
+            setGenError(e?.message || 'Something went wrong generating your plan.');
+            setStep('mode');
         }
     };
 
-    const handleApply = () => {
-        if (selectedOption) {
-            onApply(selectedOption); // Pass the entire option back to the hook
-        }
+    const handleApply = async () => {
+        if (!selectedOption) return;
+        // §5b: awaited so the button can show an applying state until the new
+        // week is actually on screen. The parent closes the modal on success.
+        await onApply(selectedOption);
     };
 
     const ModeCard = ({ mode, icon: Icon, title, desc }: any) => (
@@ -109,17 +123,30 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context, defaultAllo
     );
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xl" onClick={onClose}>
+        // §4a: while generating, the modal stops being a wall — no backdrop, no
+        // blur, and it sinks to the bottom of the screen as a compact status
+        // strip so the grid skeleton behind it is the thing being watched. It
+        // stays MOUNTED throughout and expands back into the selection step
+        // when options arrive; it is never closed and reopened.
+        <div
+            className={`fixed inset-0 z-50 flex p-4 ${isGenerating
+                ? 'items-end justify-center pointer-events-none bg-transparent'
+                : 'items-center justify-center bg-black/60 backdrop-blur-xl'}`}
+            onClick={isGenerating ? undefined : onClose}
+        >
             <motion.div
+                layout
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="w-full max-w-lg"
+                className={isGenerating ? 'w-auto pointer-events-auto' : 'w-full max-w-lg'}
                 onClick={e => e.stopPropagation()}
             >
-                <div className="glass-panel-elevated p-6 space-y-6 rounded-2xl">
+                <div className={isGenerating
+                    ? 'glass-panel-elevated px-4 py-2.5 rounded-full shadow-xl'
+                    : 'glass-panel-elevated p-6 space-y-6 rounded-2xl'}>
                     {/* Header */}
-                    <div className="flex items-center justify-between">
+                    <div className={`flex items-center justify-between ${isGenerating ? 'hidden' : ''}`}>
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl bg-[var(--color-future)]/20 flex items-center justify-center">
                                 <Sparkles className="w-5 h-5 text-[var(--color-future)]" />
@@ -146,6 +173,26 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context, defaultAllo
                                 <p className="text-sm text-[var(--text-secondary)]">
                                     How do you want to approach this week?
                                 </p>
+
+                                {/* §5c: the reason, in the dialog, with the
+                                    Try again that acts on it. */}
+                                {genError && (
+                                    <div
+                                        role="alert"
+                                        className="text-xs px-3 py-2.5 rounded-lg bg-red-500/10 text-red-300 border border-red-500/20 flex flex-col gap-2"
+                                    >
+                                        <div className="flex gap-2 items-start">
+                                            <AlertTriangle className="w-4 h-4 shrink-0 mt-px" />
+                                            <span className="leading-relaxed">{genError}</span>
+                                        </div>
+                                        <button
+                                            onClick={handleGenerate}
+                                            className="self-start px-2.5 py-1 rounded-md bg-red-500/20 hover:bg-red-500/30 font-semibold transition-colors"
+                                        >
+                                            Try again
+                                        </button>
+                                    </div>
+                                )}
 
                                 {/* Energy-aware mode suggestion */}
                                 {context?.user_state?.energy_level && (
@@ -227,15 +274,10 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context, defaultAllo
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                className="py-12 text-center space-y-4"
+                                className="flex items-center gap-2.5 whitespace-nowrap"
                             >
-                                <div className="relative w-20 h-20 mx-auto">
-                                    <div className="absolute inset-0 rounded-full border border-purple-500/30 ring-loader-1" />
-                                    <div className="absolute inset-2 rounded-full border border-[#d90479]/25 ring-loader-2" />
-                                    <div className="absolute inset-4 rounded-full border border-amber-500/20 ring-loader-3" />
-                                    <Sparkles className="absolute inset-0 m-auto w-5 h-5 text-purple-400 animate-pulse" />
-                                </div>
-                                <motion.p 
+                                <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)] shrink-0" />
+                                <motion.span
                                     key={loadingStage}
                                     initial={{ opacity: 0, y: 5 }}
                                     animate={{ opacity: 1, y: 0 }}
@@ -243,7 +285,7 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context, defaultAllo
                                     className="text-sm font-medium animate-crossfade-in"
                                 >
                                     {loadingTexts[loadingStage]}
-                                </motion.p>
+                                </motion.span>
                             </motion.div>
                         )}
 
@@ -303,8 +345,12 @@ export function PlanWeekModal({ onClose, onApply, planWeek, context, defaultAllo
                                     <LiquidGlassButton variant="ghost" size="md" className="flex-1" onClick={() => setStep('mode')}>
                                         Back
                                     </LiquidGlassButton>
-                                    <LiquidGlassButton variant="primary" size="md" className="flex-[2]" onClick={handleApply} disabled={!selectedOption}>
-                                        Apply Plan
+                                    <LiquidGlassButton variant="primary" size="md" className="flex-[2]" onClick={handleApply} disabled={!selectedOption || isApplying}>
+                                        {isApplying ? (
+                                            <span className="flex items-center gap-2">
+                                                <Loader2 className="w-4 h-4 animate-spin" /> Applying…
+                                            </span>
+                                        ) : 'Apply Plan'}
                                     </LiquidGlassButton>
                                 </div>
                             </motion.div>

@@ -36,7 +36,7 @@ export function OrbitalScheduleEngine({ className }: { className?: string }) {
 
                 {/* 3D Rotated Plane */}
                 <motion.div 
-                    className="relative w-full h-full flex items-center justify-center pointer-events-auto"
+                    className="relative w-full h-full flex items-center justify-center pointer-events-none"
                     animate={{ rotateX: 60, rotateZ: -10 }}
                     transition={{ duration: 0 }}
                     style={{ transformStyle: 'preserve-3d' }}
@@ -129,7 +129,7 @@ export function OrbitalScheduleEngine({ className }: { className?: string }) {
                 
                 {/* Deep Indigo Energy Core */}
                 <div 
-                    className="absolute rounded-full flex items-center justify-center z-30"
+                    className="absolute rounded-full flex items-center justify-center z-30 pointer-events-none"
                     style={{ 
                         width: 140, 
                         height: 140,

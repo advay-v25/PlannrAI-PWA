@@ -84,9 +84,17 @@ export interface CoachContext {
     }>;
 
     current: {
+        /** The user's LOGICAL day — still "yesterday" at 01:20 if they have not ended it. */
         date: string;
         time: string;
+        /** Always the weekday of `date`, never of the raw clock. */
         day_of_week: string;
+        /**
+         * The wall-clock calendar date, which differs from `date` during an
+         * active wake cycle past midnight. Anything the USER would call "today"
+         * must accept either — they are looking at their phone's date.
+         */
+        calendar_date?: string;
         exact_iso_timestamp?: string;
         exact_timezone?: string;
         in_active_wake_cycle: boolean;
@@ -385,7 +393,16 @@ export async function buildCoachContext(
         current: {
             date: today,
             time: currentTime,
-            day_of_week: now.toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone }),
+            // §3a: derived from logicalNow, NOT now. `date` above uses
+            // logicalNow (shifted back a day between 00:00–05:59 when the user
+            // has not yet logged the end of their day), so deriving the weekday
+            // from the raw clock made the two disagree by a full day just after
+            // midnight. That is what produced a reschedule option labelled
+            // "Wednesday 02/09" for a day the coach itself considered today,
+            // and it is why a "today" slot was computed against Tuesday's
+            // anchors while the user was looking at Wednesday's.
+            day_of_week: logicalNow.toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone }),
+            calendar_date: dateFormatter.format(now),
             exact_iso_timestamp: clientIsoTimestamp || now.toISOString(),
             exact_timezone: timezone,
             in_active_wake_cycle: in_active_wake_cycle

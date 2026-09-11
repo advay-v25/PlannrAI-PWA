@@ -1186,3 +1186,60 @@ textarea::placeholder {
 [data-sonner-toaster] button:not([aria-label="Close"]):hover {
   background: var(--color-primary)/30 !important;
 }
+
+/* ── Plan Week in-place skeleton (Prompt 53) ───────────────────────
+ *
+ * The calendar never goes away during planning. Goal blocks become ghosts in
+ * their own positions while the fixed scaffolding — anchors, meals, sleep,
+ * completed work — stays solid but dimmed, so the user can see at a glance
+ * that Tuesday's lecture is staying put and it is only the goal blocks that
+ * are in flux.
+ */
+.plan-ghost {
+  animation: plan-ghost-in 220ms ease-out both;
+}
+
+@keyframes plan-ghost-in {
+  from { opacity: 0; transform: scale(0.985); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Tier 1 scaffolding: real titles and times, visibly receded. */
+.plan-scaffold-dim > * {
+  opacity: 0.45;
+  filter: saturate(0.8);
+  transition: opacity 200ms ease-out;
+}
+
+/* ── Reduced motion ────────────────────────────────────────────────
+ *
+ * There was no prefers-reduced-motion rule anywhere in this file, and the app
+ * carries a lot of motion. A full-week shimmer sweep is a reasonable prompt to
+ * add it properly rather than only for this feature: under it the ghosts are a
+ * flat dimmed fill, the sweep is gone, and the staggered per-column delays are
+ * dropped so nothing arrives late.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer::after,
+  .dark .skeleton-shimmer::after {
+    animation: none !important;
+    background: none !important;
+  }
+
+  .plan-ghost {
+    animation: none !important;
+    animation-delay: 0ms !important;
+  }
+
+  .skeleton-shimmer {
+    background: var(--glass-bg-active, var(--glass-bg));
+  }
+
+  /* App-wide, not only for the skeleton: honour the preference everywhere. */
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

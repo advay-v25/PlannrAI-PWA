@@ -16,6 +16,34 @@ interface WeekGridProps {
     onBlockSelect: (block: any) => void;
     onCellClick?: (date: string, hour: number) => void;
     viewMode?: 'day' | 'week';
+    /**
+     * §1: the calendar never goes away during planning. Instead of replacing
+     * the grid with a spinner, goal blocks become shimmering ghosts in place
+     * while the fixed scaffolding stays solid — so the user watches their own
+     * week being rebuilt rather than watching the app disappear.
+     */
+    planningPhase?: 'generating' | 'applying' | null;
+    /**
+     * §4b: during apply we already KNOW the new blocks — they are the chosen
+     * option's `create_event` payloads. Ghosting those instead of the old ones
+     * turns the longest, emptiest phase into the most informative one, and the
+     * settle is a transition rather than a swap.
+     */
+    incomingBlocks?: Array<{ date: string; start_time: string; end_time: string; title?: string; block_type?: string; pillar?: string }>;
+    /** Profile waking bounds, for Tier 3's plausible ghosts on an empty week. */
+    wakeTime?: string;
+    windDownTime?: string;
+}
+
+/**
+ * §2 Tier 1 — the fixed scaffolding a replan does not touch. `writeWeek`'s
+ * clear step spares all of these, so they are not unknown and must never be
+ * drawn as placeholders; showing them solid is what makes the ghosting of
+ * everything else legible.
+ */
+function isFixedScaffolding(b: any): boolean {
+    if (b.status === 'done') return true;
+    return ['anchor', 'meal', 'sleep', 'wind_down', 'routine'].includes(b.block_type);
 }
 
 const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 6am - 11pm
@@ -44,7 +72,7 @@ const CELL_HEIGHT = 120;
 // raw arbitrary `[background:...]` property it is NOT valid CSS and
 // silently drops the whole declaration, so those use color-mix() instead
 // (the same technique Tailwind itself compiles that shorthand down to).
-const PILLAR_COLORS: Record<string, { bg: string; border: string; borderWidth: string; text: string; metaText: string; dot: string; glow: string; edge: string }> = {
+const PILLAR_COLORS: Record<string, { bg: string; border: string; borderWidth?: string; text: string; metaText: string; dot: string; glow: string; edge: string }> = {
     // A full-perimeter saturated color ring around a near-white card reads
     // as a coloring-book sticker, not a premium app — so every block type
     // now shares the SAME thin, mostly-neutral border, and each pillar's
@@ -54,107 +82,94 @@ const PILLAR_COLORS: Record<string, { bg: string; border: string; borderWidth: s
     // depth. One consistent border language across all types = "unified";
     // color as an accent rather than an outline = "clean" instead of loud.
     mind: {
-        bg: 'bg-[var(--glass-bg)] dark:bg-white/[0.04]',
-        border: 'border-[var(--glass-border)] dark:border-white/10',
-        borderWidth: 'border',
-        text: 'text-[var(--text-primary)] dark:text-white',
-        metaText: 'text-[var(--text-secondary)] dark:text-white/70',
-        dot: 'bg-[var(--color-mind)] dark:bg-[var(--color-mind)]',
-        edge: 'shadow-[inset_3px_0_0_0_var(--color-mind),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-mind)_40%,_black),0_0_10px_-5px_var(--color-mind-glow)] dark:shadow-[inset_3px_0_0_0_var(--color-mind),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-mind)_40%,_black),0_0_12px_-5px_var(--color-mind-glow)]',
-        glow: 'block-glow-mind dark:block-glow-mind',
-    },
-    body: {
-        bg: 'bg-[var(--glass-bg)] dark:bg-white/[0.04]',
-        border: 'border-[var(--glass-border)] dark:border-white/10',
-        borderWidth: 'border',
-        text: 'text-[var(--text-primary)] dark:text-white',
-        metaText: 'text-[var(--text-secondary)] dark:text-white/70',
-        dot: 'bg-[var(--color-body)] dark:bg-[var(--color-body)]',
-        edge: 'shadow-[inset_3px_0_0_0_var(--color-body),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-body)_40%,_black),0_0_10px_-5px_var(--color-body-glow)] dark:shadow-[inset_3px_0_0_0_var(--color-body),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-body)_40%,_black),0_0_12px_-5px_var(--color-body-glow)]',
-        glow: 'block-glow-body dark:block-glow-body',
-    },
-    craft: {
-        bg: 'bg-[var(--glass-bg)] dark:bg-white/[0.04]',
-        border: 'border-[var(--glass-border)] dark:border-white/10',
-        borderWidth: 'border',
-        text: 'text-[var(--text-primary)] dark:text-white',
-        metaText: 'text-[var(--text-secondary)] dark:text-white/70',
-        dot: 'bg-[var(--color-craft)] dark:bg-[var(--color-craft)]',
-        edge: 'shadow-[inset_3px_0_0_0_var(--color-craft),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-craft)_40%,_black),0_0_10px_-5px_var(--color-craft-glow)] dark:shadow-[inset_3px_0_0_0_var(--color-craft),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-craft)_40%,_black),0_0_12px_-5px_var(--color-craft-glow)]',
-        glow: 'block-glow-craft dark:block-glow-craft',
-    },
-    anchor: {
-        bg: '[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.4)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_rgba(113,113,122,0.30)_0%,_rgba(113,113,122,0.14)_100%)] dark:[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.08)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_rgba(113,113,122,0.24)_0%,_rgba(113,113,122,0.10)_100%)]',
-        border: 'border-[var(--glass-border)] dark:border-white/10',
-        borderWidth: 'border',
-        text: 'text-[var(--text-primary)] dark:text-white',
-        metaText: 'text-[var(--text-secondary)] dark:text-white/70',
-        dot: 'bg-zinc-500 dark:bg-zinc-500',
-        edge: 'shadow-[inset_3px_0_0_0_rgba(113,113,122,0.9),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_rgba(63,63,70,0.35),0_0_10px_-5px_rgba(113,113,122,0.3)] dark:shadow-[inset_3px_0_0_0_rgba(113,113,122,0.7),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_rgba(0,0,0,0.4),0_0_12px_-5px_rgba(113,113,122,0.25)]',
-        glow: 'block-glow-anchor dark:block-glow-anchor',
-    },
-    routine: {
-        bg: '[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.4)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_rgba(113,113,122,0.30)_0%,_rgba(113,113,122,0.14)_100%)] dark:[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.08)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_rgba(113,113,122,0.24)_0%,_rgba(113,113,122,0.10)_100%)]',
-        border: 'border-[var(--glass-border)] dark:border-white/10',
-        borderWidth: 'border',
-        text: 'text-[var(--text-primary)] dark:text-white',
-        metaText: 'text-[var(--text-secondary)] dark:text-white/70',
-        dot: 'bg-zinc-500 dark:bg-zinc-500',
-        edge: 'shadow-[inset_3px_0_0_0_rgba(113,113,122,0.9),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_rgba(63,63,70,0.35),0_0_10px_-5px_rgba(113,113,122,0.3)] dark:shadow-[inset_3px_0_0_0_rgba(113,113,122,0.7),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_rgba(0,0,0,0.4),0_0_12px_-5px_rgba(113,113,122,0.25)]',
-        glow: 'block-glow-anchor dark:block-glow-anchor',
-    },
-    wind_down: {
-        bg: '[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.4)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_rgba(113,113,122,0.30)_0%,_rgba(113,113,122,0.14)_100%)] dark:[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.08)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_rgba(113,113,122,0.24)_0%,_rgba(113,113,122,0.10)_100%)]',
-        border: 'border-[var(--glass-border)] dark:border-white/10',
-        borderWidth: 'border',
-        text: 'text-[var(--text-primary)] dark:text-white',
-        metaText: 'text-[var(--text-secondary)] dark:text-white/70',
-        dot: 'bg-zinc-500 dark:bg-zinc-500',
-        edge: 'shadow-[inset_3px_0_0_0_rgba(113,113,122,0.9),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_rgba(63,63,70,0.35),0_0_10px_-5px_rgba(113,113,122,0.3)] dark:shadow-[inset_3px_0_0_0_rgba(113,113,122,0.7),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_rgba(0,0,0,0.4),0_0_12px_-5px_rgba(113,113,122,0.25)]',
-        glow: 'block-glow-anchor dark:block-glow-anchor',
-    },
-    meal: {
-        // Slate/steel scheme sleep used to have — swapped so sleep can own
-        // the blue metallic identity below.
-        bg: 'bg-slate-400/35 dark:bg-[var(--glass-bg)]',
-        border: 'border-[var(--glass-border)] dark:border-white/10',
-        borderWidth: 'border',
-        text: 'text-[var(--text-primary)] dark:text-[var(--text-tertiary)]',
-        metaText: 'text-[var(--text-secondary)] dark:text-[var(--text-tertiary)]',
-        dot: 'bg-slate-500 dark:bg-slate-400',
-        edge: 'shadow-[inset_3px_0_0_0_rgba(100,116,139,0.9),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_rgba(51,65,85,0.3),0_0_10px_-5px_rgba(100,116,139,0.35)] dark:shadow-[inset_3px_0_0_0_rgba(148,163,184,0.7),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_rgba(0,0,0,0.4),0_0_12px_-5px_rgba(148,163,184,0.3)]',
-        glow: 'block-glow-meal dark:block-glow-meal',
-    },
-    sleep: {
-        // New blue metallic identity (previously plain slate/gray).
-        bg: '[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.55)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-sleep)_36%,_transparent)_0%,_color-mix(in_oklab,_var(--color-sleep)_16%,_transparent)_100%)] dark:[background:linear-gradient(125deg,_rgba(255,255,255,0)_0%,_rgba(255,255,255,0.10)_16%,_rgba(255,255,255,0)_38%),_linear-gradient(135deg,_color-mix(in_oklab,_var(--color-sleep)_16%,_transparent)_0%,_color-mix(in_oklab,_var(--color-sleep)_7%,_transparent)_100%)]',
-        border: 'border-[var(--glass-border)] dark:border-white/10',
-        borderWidth: 'border',
-        text: 'text-[var(--text-primary)] dark:text-white',
-        metaText: 'text-[var(--text-secondary)] dark:text-white/70',
-        dot: 'bg-[var(--color-sleep)] dark:bg-[var(--color-sleep)]',
-        edge: 'shadow-[inset_3px_0_0_0_var(--color-sleep),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_rgba(30,58,138,0.3),0_0_10px_-5px_var(--color-sleep-glow)] dark:shadow-[inset_3px_0_0_0_var(--color-sleep),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_rgba(0,0,0,0.4),0_0_12px_-5px_var(--color-sleep-glow)]',
-        glow: 'block-glow-sleep dark:block-glow-sleep',
-    },
-    break: {
-        bg: 'bg-transparent dark:bg-transparent',
-        border: 'border-[var(--glass-border)]',
-        borderWidth: 'border',
-        text: 'text-[var(--text-secondary)] dark:text-[var(--text-tertiary)]',
-        metaText: 'text-[var(--text-tertiary)] dark:text-[var(--text-tertiary)]',
-        dot: 'bg-zinc-400 dark:bg-white/20',
-        edge: 'shadow-[inset_2px_0_0_0_#a1a1aa]',
+        bg: 'bg-[#FFFFFF] dark:bg-[#1B1B20]',
+        border: 'border border-[#E7E4DC] dark:border-[#2A2A31]',
+        text: 'text-[#7C6FC0] dark:text-[#A99CE0]',
+        metaText: 'text-[#7C6FC0] dark:text-[#A99CE0]',
+        dot: 'bg-[#7C6FC0] dark:bg-[#A99CE0]',
+        edge: '',
         glow: '',
     },
+    body: {
+        bg: 'bg-[#FFFFFF] dark:bg-[#1B1B20]',
+        border: 'border border-[#E7E4DC] dark:border-[#2A2A31]',
+        text: 'text-[#5F9377] dark:text-[#8FBFA3]',
+        metaText: 'text-[#5F9377] dark:text-[#8FBFA3]',
+        dot: 'bg-[#5F9377] dark:bg-[#8FBFA3]',
+        edge: '',
+        glow: '',
+    },
+    craft: {
+        bg: 'bg-[#FFFFFF] dark:bg-[#1B1B20]',
+        border: 'border border-[#E7E4DC] dark:border-[#2A2A31]',
+        text: 'text-[#B9954C] dark:text-[#D6BB80]',
+        metaText: 'text-[#B9954C] dark:text-[#D6BB80]',
+        dot: 'bg-[#B9954C] dark:bg-[#D6BB80]',
+        edge: '',
+        glow: '',
+    },
+    anchor: {
+        bg: 'bg-[#FFFFFF] dark:bg-[#1B1B20]',
+        border: 'border border-[#E7E4DC] dark:border-[#2A2A31]',
+        text: 'text-[#6E7889] dark:text-[#9AA4B5]',
+        metaText: 'text-[#6E7889] dark:text-[#9AA4B5]',
+        dot: 'bg-[#6E7889] dark:bg-[#9AA4B5]',
+        edge: '',
+        glow: '',
+    },
+    routine: {
+        bg: 'bg-[#FFFFFF] dark:bg-[#1B1B20]',
+        border: 'border border-[#E7E4DC] dark:border-[#2A2A31]',
+        text: 'text-[#6E7889] dark:text-[#9AA4B5]',
+        metaText: 'text-[#6E7889] dark:text-[#9AA4B5]',
+        dot: 'bg-[#6E7889] dark:bg-[#9AA4B5]',
+        edge: '',
+        glow: '',
+    },
+    wind_down: {
+        bg: 'bg-[#FFFFFF] dark:bg-[#1B1B20]',
+        border: 'border border-[#E7E4DC] dark:border-[#2A2A31]',
+        text: 'text-[#6E7889] dark:text-[#9AA4B5]',
+        metaText: 'text-[#6E7889] dark:text-[#9AA4B5]',
+        dot: 'bg-[#6E7889] dark:bg-[#9AA4B5]',
+        edge: '',
+        glow: '',
+    },
+    meal: {
+        bg: 'bg-[#FFFFFF] dark:bg-[#1B1B20]',
+        border: 'border border-[#E7E4DC] dark:border-[#2A2A31]',
+        text: 'text-[#B97F6E] dark:text-[#D6A797]',
+        metaText: 'text-[#B97F6E] dark:text-[#D6A797]',
+        dot: 'bg-[#B97F6E] dark:bg-[#D6A797]',
+        edge: '',
+        glow: '',
+    },
+    sleep: {
+        bg: 'bg-[#FFFFFF] dark:bg-[#1B1B20]',
+        border: 'border border-[#E7E4DC] dark:border-[#2A2A31]',
+        text: 'text-[#6E7889] dark:text-[#9AA4B5]',
+        metaText: 'text-[#6E7889] dark:text-[#9AA4B5]',
+        dot: 'bg-[#6E7889] dark:bg-[#9AA4B5]',
+        glow: '',
+        edge: '',
+    },
+    break: {
+        bg: 'bg-[#FFFFFF] dark:bg-[#1B1B20]',
+        border: 'border border-[#E7E4DC] dark:border-[#2A2A31]',
+        text: 'text-[#8F8C84] dark:text-[#8B8B96]',
+        metaText: 'text-[#8F8C84] dark:text-[#8B8B96]',
+        dot: 'bg-[#8F8C84] dark:bg-[#8B8B96]',
+        glow: '',
+        edge: '',
+    },
     default: {
-        bg: 'bg-[var(--glass-bg)] dark:bg-white/[0.04]',
-        border: 'border-[var(--glass-border)] dark:border-white/10',
-        borderWidth: 'border',
-        text: 'text-[var(--text-primary)] dark:text-white',
-        metaText: 'text-[var(--text-secondary)] dark:text-white/70',
-        dot: 'bg-[var(--color-mind)] dark:bg-[var(--color-mind)]',
-        edge: 'shadow-[inset_3px_0_0_0_var(--color-mind),inset_0_1px_0_0_rgba(255,255,255,0.5),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-mind)_40%,_black),0_0_10px_-5px_var(--color-mind-glow)] dark:shadow-[inset_3px_0_0_0_var(--color-mind),inset_0_1px_0_0_rgba(255,255,255,0.12),inset_0_-1px_0_0_color-mix(in_oklab,_var(--color-mind)_40%,_black),0_0_12px_-5px_var(--color-mind-glow)]',
-        glow: 'block-glow-mind dark:block-glow-mind',
+        bg: 'bg-[#FFFFFF] dark:bg-[#1B1B20]',
+        border: 'border border-[#E7E4DC] dark:border-[#2A2A31]',
+        text: 'text-[#7C6FC0] dark:text-[#A99CE0]',
+        metaText: 'text-[#7C6FC0] dark:text-[#A99CE0]',
+        dot: 'bg-[#7C6FC0] dark:bg-[#A99CE0]',
+        edge: '',
+        glow: '',
     },
 };
 
@@ -190,7 +205,7 @@ const STATUS_STYLES: Record<string, string> = {
     cancelled: 'opacity-25 saturate-0 line-through',
 };
 
-export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick, viewMode = 'week' }: WeekGridProps) {
+export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick, viewMode = 'week', planningPhase = null, incomingBlocks, wakeTime, windDownTime }: WeekGridProps) {
     const weekStart = startOfWeek(date, { weekStartsOn: 1 });
     const days = viewMode === 'week'
         ? Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
@@ -237,6 +252,88 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
         });
         return layouts;
     }, [blocks, days]);
+
+    // §3: ghost geometry comes from the SAME calculateLayout, the same
+    // CELL_HEIGHT and the same 06:00 offset as the real blocks. There are two
+    // ways to draw a rectangle at 14:30 on Wednesday, and a second layout
+    // function would drift the first time anyone touched either constant — the
+    // symptom being a jump at the exact moment the plan lands.
+    const ghostsByDay = useMemo(() => {
+        const out = new Map<number, Array<{ key: string; block: any; layout: LayoutBlock }>>();
+        if (!planningPhase) return out;
+
+        const toMins = (t: string) => {
+            const [h, m] = String(t).split(':').map(Number);
+            return (h || 0) * 60 + (m || 0);
+        };
+        const toTime = (m: number) =>
+            `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+        days.forEach((day, i) => {
+            const dayStr = format(day, 'yyyy-MM-dd');
+            const dayBlocks = blocks.filter(b => b.date === dayStr);
+            const fixed = dayBlocks.filter(isFixedScaffolding);
+
+            let source: any[];
+            if (planningPhase === 'applying' && incomingBlocks) {
+                // §4b Tier 2': ghosts of the NEW blocks, titles and all.
+                source = incomingBlocks
+                    .filter(b => b.date === dayStr && b.block_type === 'goal')
+                    .map((b, n) => ({ ...b, id: `incoming-${dayStr}-${n}` }));
+            } else {
+                // Tier 2: the goal blocks about to be replaced, at their
+                // existing positions, so the week keeps its familiar
+                // silhouette while the new plan is computed.
+                source = dayBlocks
+                    .filter(b => !isFixedScaffolding(b) && b.block_type === 'goal')
+                    .map(b => ({ ...b, ghostTitle: null }));
+            }
+
+            // §2 Tier 3: an empty target week would otherwise draw nothing and
+            // look broken. Sketch plausible ghosts inside the user's real
+            // waking bounds, avoiding the Tier 1 scaffolding. An impression,
+            // not a prediction.
+            if (source.length === 0 && planningPhase === 'generating') {
+                const wake = toMins(wakeTime || '07:00');
+                const end = toMins(windDownTime || '22:00');
+                const busy = fixed.map(b => ({ s: toMins(b.start_time), e: toMins(b.end_time) }));
+                const synthetic: any[] = [];
+                let cursor = wake;
+                let n = 0;
+                while (cursor < end - 60 && synthetic.length < 4) {
+                    const clash = busy.find(x => x.s < cursor + 90 && x.e > cursor);
+                    if (clash) { cursor = clash.e + 30; continue; }
+                    synthetic.push({
+                        id: `tier3-${dayStr}-${n++}`,
+                        date: dayStr,
+                        start_time: toTime(cursor),
+                        end_time: toTime(Math.min(cursor + 90, end)),
+                        block_type: 'goal',
+                        pillar: ['craft', 'mind', 'body'][n % 3],
+                        isTier3: true,
+                    });
+                    cursor += 90 + 75;
+                }
+                source = synthetic;
+            }
+
+            if (source.length === 0) { out.set(i, []); return; }
+
+            // Laid out against the fixed blocks too, so a ghost never lands on
+            // top of an anchor that is staying put.
+            const layoutMap = calculateLayout([...fixed, ...source], CELL_HEIGHT);
+            out.set(i, source.map(b => {
+                const l = layoutMap.get(b.id);
+                if (!l) return null;
+                return {
+                    key: b.id,
+                    block: b,
+                    layout: { ...l, top: l.top - (6 * CELL_HEIGHT) },
+                };
+            }).filter(Boolean) as Array<{ key: string; block: any; layout: LayoutBlock }>);
+        });
+        return out;
+    }, [planningPhase, incomingBlocks, blocks, days, wakeTime, windDownTime]);
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
@@ -345,7 +442,16 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                 </div>
 
                 {/* Grid Body */}
-                <div className="flex relative" style={{ minHeight: HOURS.length * CELL_HEIGHT }}>
+                <div
+                    className="flex relative"
+                    style={{ minHeight: HOURS.length * CELL_HEIGHT }}
+                    aria-busy={planningPhase ? 'true' : undefined}
+                >
+                    {planningPhase && (
+                        <span className="sr-only" role="status" aria-live="polite">
+                            {planningPhase === 'applying' ? 'Applying your plan' : 'Generating your week'}
+                        </span>
+                    )}
 
                     {/* Time Column */}
                     <div className="w-14 shrink-0 sticky left-0 z-10 bg-[var(--color-bg-primary)] border-r border-[var(--glass-border)]">
@@ -386,11 +492,16 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                                 {dayBlocks.map((block, index) => {
                                     const layout = layoutMap.get(block.id);
                                     if (!layout) return null;
+                                    // §2: while planning, the goal blocks in
+                                    // flux give way to ghosts; the fixed
+                                    // scaffolding stays rendered for real,
+                                    // dimmed, because it genuinely survives.
+                                    if (planningPhase && !isFixedScaffolding(block)) return null;
                                     const adjustedLayout = {
                                         ...layout,
                                         top: layout.top - (6 * CELL_HEIGHT)
                                     };
-                                    return (
+                                    const card = (
                                         <BlockCard
                                             key={block.id}
                                             block={block}
@@ -399,6 +510,60 @@ export function WeekGrid({ date, blocks, onBlockMove, onBlockSelect, onCellClick
                                             isDayView={viewMode === 'day'}
                                             index={index}
                                         />
+                                    );
+                                    // Only wrapped while planning. `display:
+                                    // contents` keeps the card's absolute
+                                    // positioning resolving against the day
+                                    // column, and leaving the idle path
+                                    // completely untouched avoids putting a
+                                    // structural change anywhere near
+                                    // drag-and-drop for no reason.
+                                    return planningPhase ? (
+                                        <div key={block.id} className="contents plan-scaffold-dim">{card}</div>
+                                    ) : card;
+                                })}
+
+                                {/* §2/§3: the ghost layer. Same stacking
+                                    context as BlockCard, pointer-events: none,
+                                    and rendered WITHOUT unmounting the grid —
+                                    unmounting loses scroll position, which is
+                                    exactly where the user is looking. */}
+                                {(ghostsByDay.get(dayIndex) || []).map(({ key, block, layout }, gi) => {
+                                    const colors = getBlockColors(block);
+                                    return (
+                                        <div
+                                            key={key}
+                                            className="absolute pointer-events-none z-20 plan-ghost"
+                                            style={{
+                                                top: layout.top,
+                                                height: Math.max(layout.height - 4, 18),
+                                                left: `calc(${(layout.colIndex / layout.totalCols) * 100}% + 3px)`,
+                                                width: `calc(${(1 / layout.totalCols) * 100}% - 6px)`,
+                                                // §5: sweep Monday → Sunday so it
+                                                // reads as progress, not a stuck screen.
+                                                animationDelay: `${dayIndex * 60 + gi * 30}ms`,
+                                            }}
+                                        >
+                                            <div className={cn(
+                                                'relative w-full h-full rounded-lg overflow-hidden skeleton-shimmer',
+                                                colors.border,
+                                                colors.bg,
+                                            )}>
+                                                {/* §2: pillar colour at low opacity. A week of grey
+                                                    boxes would lose exactly the information this
+                                                    change exists to add — a Gym ghost must still
+                                                    read as a body block. */}
+                                                <div className={cn('absolute inset-0 opacity-[0.18]', colors.dot)} />
+                                                <div className={cn('absolute left-0 top-0 bottom-0 w-[3px] opacity-60', colors.dot)} />
+                                                {block.title ? (
+                                                    <div className="relative px-2 py-1 text-[10px] font-semibold text-[var(--text-secondary)] truncate opacity-80">
+                                                        {block.title}
+                                                    </div>
+                                                ) : (
+                                                    <div className={cn('relative m-2 h-2 w-2/3 rounded opacity-30', colors.dot)} />
+                                                )}
+                                            </div>
+                                        </div>
                                     );
                                 })}
 

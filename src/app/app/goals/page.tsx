@@ -9,7 +9,9 @@ import {
     Brain,
     Dumbbell,
     Briefcase,
-    Zap
+    Zap,
+    AlertTriangle,
+    RefreshCw
 } from 'lucide-react';
 import { GlassButton } from '@/components/ui/glass-button';
 import { GlassCard } from '@/components/ui/glass-card';
@@ -21,7 +23,7 @@ import type { Goal } from '@/types/database';
 import { isPreviewEnabled } from '@/lib/featureFlags';
 
 export default function GoalsPage() {
-    const { goals, capacity, updateGoal, deleteGoal, fetchGoals } = useGoalsManager();
+    const { goals, capacity, updateGoal, deleteGoal, fetchGoals, loadError } = useGoalsManager();
 
     // Fetch goals on mount
     useEffect(() => {
@@ -41,8 +43,20 @@ export default function GoalsPage() {
     ];
 
     // Capacity Logic Helpers
-    const isOverload = (capacity?.load_percentage || 0) > 100;
-    const isCritical = (capacity?.load_percentage || 0) > 120;
+    const loadPercent = capacity?.load_percentage || 0;
+    // §3: busiest-day figures, from the same capacity model as the bar.
+    const busiest = (capacity as any)?.busiest_day as
+        | { label: string; planned_minutes: number; free_minutes: number; is_over: boolean }
+        | undefined;
+    const busiestIsOver = !!busiest?.is_over;
+    const formatHm = (mins: number) => {
+        const h = Math.floor(Math.max(0, mins) / 60);
+        const m = Math.max(0, mins) % 60;
+        return h > 0 ? `${h}h${m > 0 ? ` ${m}m` : ''}` : `${m}m`;
+    };
+    const isOverload = loadPercent > 70;
+    const isCritical = loadPercent > 90;
+    const isOverCapacity = loadPercent > 100;
 
     return (
         <div className="w-full min-h-full relative">
@@ -183,20 +197,50 @@ export default function GoalsPage() {
                     <div className="h-2 w-full bg-[var(--glass-border)] rounded-full overflow-hidden">
                         <motion.div
                             initial={{ width: 0 }}
-                            animate={{ width: `${Math.min(capacity?.load_percentage || 0, 100)}%` }}
+                            animate={{ width: `${Math.min(loadPercent, 100)}%` }}
                             className={`h-full ${isCritical ? 'bg-red-500' : isOverload ? 'bg-amber-500' : 'bg-green-500'}`}
                             transition={{ duration: 1, ease: 'easeOut' }}
                         />
                     </div>
 
+                    {/* §3: the busiest day, not the weekly average. A 66%
+                        average can hide a 130% Tuesday, and it is the Tuesday
+                        that makes the week undeliverable. Both figures come
+                        from the same shared capacity model as the bar above. */}
+                    {busiest && (
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                            <span className="text-[var(--text-secondary)]">
+                                Busiest day:{' '}
+                                <span className={`font-semibold ${busiestIsOver ? 'text-red-400' : 'text-[var(--text-primary)]'}`}>
+                                    {formatHm(busiest.planned_minutes)} planned
+                                </span>
+                                {' '}of {formatHm(busiest.free_minutes)} free ({busiest.label})
+                            </span>
+                            {busiestIsOver && (
+                                <span className="px-2 py-0.5 rounded-full bg-red-500/15 text-red-300 font-semibold whitespace-nowrap">
+                                    over by {formatHm(busiest.planned_minutes - busiest.free_minutes)}
+                                </span>
+                            )}
+                        </div>
+                    )}
+
                     {isOverload && (
                         <div className={`mt-2 p-3 rounded-lg text-xs flex gap-2 items-start ${isCritical ? 'bg-red-500/10 text-red-200' : 'bg-amber-500/10 text-amber-200'}`}>
                             <Zap className="w-4 h-4 flex-shrink-0" />
-                            <p>
-                                {isCritical
-                                    ? "CRITICAL: You are committing to more time than you physically have available. Burnout is mathematical certainty."
-                                    : "Warning: Your plan exceeds your daily capacity. Some habits may slip."}
-                            </p>
+                            <div className="flex flex-col gap-1">
+                                <p>
+                                    {isOverCapacity
+                                        ? `CRITICAL: You are over your daily capacity by ${capacity?.over_by_min_per_day} minutes per day.`
+                                        : isCritical
+                                        ? `Warning: Your schedule is highly congested (${loadPercent}%).`
+                                        : `Notice: Your schedule is filling up (${loadPercent}%).`}
+                                </p>
+                                {isOverCapacity && (
+                                    <p className="opacity-80">
+                                        To generate a feasible schedule, you must lower your goal targets by at least {capacity?.over_by_min_per_day}m/day, or pause/archive some goals.
+                                    </p>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -232,8 +276,38 @@ export default function GoalsPage() {
                 })}
             </div>
 
-            {/* Empty State */}
-            {goals.length === 0 && (
+            {/* §4: a LOAD FAILURE, kept visually distinct from an empty account.
+                "No goals set yet — add your first goal" after a failed fetch is
+                the one message that must never appear: the obvious response is
+                to start recreating goals that already exist. */}
+            {goals.length === 0 && loadError && (
+                <div className="mx-auto max-w-md text-center py-10 md:py-16 flex flex-col items-center gap-4">
+                    <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
+                        <AlertTriangle className="w-8 h-8 text-amber-700 dark:text-amber-400" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-bold text-[var(--text-primary)]">
+                            Couldn&apos;t load your goals
+                        </h3>
+                        <p className="text-sm text-[var(--text-secondary)] mt-2">
+                            <strong>Your goals are safe</strong> — this is a loading problem, not an empty
+                            account. Don&apos;t re-create them.
+                        </p>
+                        <p className="text-xs text-[var(--text-muted)] mt-2 font-mono break-words">
+                            {loadError.message}
+                        </p>
+                    </div>
+                    <GlassButton variant="primary" onClick={() => fetchGoals()}>
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        {loadError.rateLimited && loadError.retryAfter
+                            ? `Try again (wait ~${loadError.retryAfter}s)`
+                            : 'Try again'}
+                    </GlassButton>
+                </div>
+            )}
+
+            {/* Empty State — only when the fetch actually succeeded. */}
+            {goals.length === 0 && !loadError && (
                 <div className="text-center py-10 md:py-20 flex flex-col items-center justify-center space-y-4">
                     <div className="w-16 h-16 rounded-full bg-[var(--glass-bg)] border border-[var(--glass-border)] flex items-center justify-center mb-2 shadow-inner">
                         <Anchor className="w-8 h-8 text-[var(--text-tertiary)]" />

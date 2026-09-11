@@ -11,20 +11,25 @@ import { z } from 'zod';
 
 const StatusTransitionSchema = z.object({
     block_id: z.string().uuid('Invalid block ID'),
-    status: z.enum(['planned', 'in_progress', 'done', 'missed', 'cancelled', 'partial']),
+    status: z.enum(['planned', 'in_progress', 'done', 'missed', 'cancelled', 'partial', 'skipped']),
     actual_start_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).optional(),
     actual_end_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).optional(),
     notes: z.string().max(500).optional(),
 });
 
 // Valid transitions — prevents going backwards, but allows manual corrections
+// `skipped` is a deliberate decision not to do something; `missed` is it not
+// happening. They are different signals and are counted differently downstream
+// (skipped leaves the completion denominator entirely), so every state that can
+// be marked by hand can reach it.
 const VALID_TRANSITIONS: Record<string, string[]> = {
-    planned: ['in_progress', 'done', 'cancelled', 'missed'],
-    in_progress: ['done', 'partial', 'missed', 'cancelled'],
-    done: ['missed'],  // allow manual correction (user tapped wrong button)
-    missed: ['planned', 'done'],  // allow retry or manual correction
+    planned: ['in_progress', 'done', 'partial', 'cancelled', 'missed', 'skipped'],
+    in_progress: ['done', 'partial', 'missed', 'cancelled', 'skipped'],
+    done: ['missed', 'partial', 'skipped'],  // allow manual correction (user tapped wrong button)
+    missed: ['planned', 'done', 'partial', 'skipped'],  // allow retry or manual correction
     cancelled: ['planned', 'done'], // allow retry or manual correction
-    partial: ['in_progress', 'done', 'missed'],
+    partial: ['in_progress', 'done', 'missed', 'skipped'],
+    skipped: ['planned', 'done', 'partial', 'missed'], // allow manual correction
 };
 
 export const POST = secureApiRoute(

@@ -20,7 +20,14 @@ export interface AICallOptions {
     useNvidia?: boolean; // Use dedicated CALENDAR_NVIDIA_API_KEY for Coach & Calendar
     skipOpenRouter?: boolean; // When true, skip OpenRouter and go straight to NVIDIA 70B (for MOVE_BLOCK — avoids OpenRouter latency eating into the budget)
     strictNvidia?: boolean; // When true, ONLY uses NVIDIA endpoints, skipping OpenRouter, Gemini, and Groq entirely.
-    groqOnly?: boolean; // When true, use ONLY Groq llama-3.3-70b-versatile with the FULL remaining time budget. No NVIDIA/Gemini/OpenRouter fallback. Used by the deterministic reschedule narrator. On failure, returns a clean error (hard fail).
+    /**
+     * Weekly-review / batch chain: Gemini → Groq → OpenRouter.
+     * Latency is irrelevant here (it loads behind an already-rendered
+     * dashboard) but JSON correctness matters, so Gemini Flash leads.
+     * Deliberately does NOT share the coach engine's providers or limits.
+     */
+    batchReview?: boolean;
+    groqOnly?: boolean; // When true, use ONLY Groq (GROQ_MODEL_LARGE) with the FULL remaining time budget. No NVIDIA/Gemini/OpenRouter fallback. Used by the deterministic reschedule narrator. On failure, returns a clean error (hard fail).
     userId?: string; // Optional user ID for logging/auditing
     clientDate?: string; // Exact ISO string from the client
     clientTimezone?: string; // Browser's timezone string
@@ -46,6 +53,51 @@ interface ProviderConfig {
     getHeaders: () => Record<string, string>;
     supportsResponseFormat: boolean;
 }
+
+/**
+ * NVIDIA model IDs, configurable so the next retirement is a config change
+ * rather than a code change.
+ *
+ * The previous defaults — meta/llama-3.1-70b-instruct, meta/llama-3.1-8b-instruct
+ * and meta/llama-3.3-70b-instruct — are all gone: none appear in
+ * GET https://integrate.api.nvidia.com/v1/models, and the 3.3 returned
+ * "410 Gone ... end of life on 2026-08-26T09:00:00Z".
+ *
+ * Defaults below were verified with a live completion on this account AND
+ * benchmarked on a realistic (~1.5k token) scheduling prompt, because the
+ * coach caps each provider at 15s:
+ *
+ *   nvidia/nemotron-3-super-120b-a12b   7.2s   <- fastest accessible
+ *   openai/gpt-oss-20b                 27.7s   exceeds the cap
+ *   nvidia/nemotron-3.5-lightning-30b  27.7s   exceeds the cap
+ *   openai/gpt-oss-120b                47.8s   exceeds the cap
+ *   meta/*, ibm/*, mistralai/*         404      not entitled on this account
+ *
+ * Both tiers therefore point at the one model that answers inside the cap.
+ * Set NVIDIA_MODEL_SMALL to a genuinely small model once the account has
+ * access to one — that is exactly what these env vars are for.
+ */
+/**
+ * Groq model IDs, configurable for the same reason as the NVIDIA ones below.
+ *
+ * `llama-3.3-70b-versatile` and `llama-3.1-8b-instant` are BOTH absent from
+ * this key's catalogue (GET https://api.groq.com/openai/v1/models returns 14
+ * models, neither among them), which is why every Groq call — the first hop in
+ * almost every chain — was 404ing.
+ *
+ * Defaults benchmarked on a realistic ~1.5k-token prompt in json_object mode:
+ *
+ *   openai/gpt-oss-120b   2.05s  valid JSON  <- large
+ *   qwen/qwen3.8-27b      1.07s  valid JSON  <- small (fastest overall)
+ *   groq/compound-mini    5.64s  valid JSON
+ *   openai/gpt-oss-20b    400 "Failed to validate JSON"
+ *   qwen/qwen3.6-27b      400 "Failed to validate JSON"
+ */
+const GROQ_MODEL_LARGE = process.env.GROQ_MODEL_LARGE ?? 'openai/gpt-oss-120b';
+const GROQ_MODEL_SMALL = process.env.GROQ_MODEL_SMALL ?? 'qwen/qwen3.8-27b';
+
+const NVIDIA_MODEL_LARGE = process.env.NVIDIA_MODEL_LARGE ?? 'nvidia/nemotron-3-super-120b-a12b';
+const NVIDIA_MODEL_SMALL = process.env.NVIDIA_MODEL_SMALL ?? 'nvidia/nemotron-3-super-120b-a12b';
 
 function getOpenRouterConfig(model: string): ProviderConfig {
     return {
@@ -129,22 +181,22 @@ function getProviderChain(options: AICallOptions): ProviderConfig[] {
         case 'smart':
         case 'creative': {
             const chain: ProviderConfig[] = [];
-            chain.push(getGroqConfig('llama-3.3-70b-versatile'));
+            chain.push(getGroqConfig(GROQ_MODEL_LARGE));
             if (useOpenRouter) chain.push(getOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'));
             if (useCerebras) chain.push(getCerebrasConfig('llama3.1-70b'));
-            chain.push(getNvidiaConfig('meta/llama-3.1-70b-instruct', process.env.CALENDAR_NVIDIA_API_KEY));
-            if (useTertiary) chain.push(getNvidiaConfig('meta/llama-3.1-70b-instruct', process.env.NVIDIA_API_KEY_TERTIARY));
+            chain.push(getNvidiaConfig(NVIDIA_MODEL_LARGE, process.env.CALENDAR_NVIDIA_API_KEY));
+            if (useTertiary) chain.push(getNvidiaConfig(NVIDIA_MODEL_LARGE, process.env.NVIDIA_API_KEY_TERTIARY));
             if (useGemini) chain.push(getGeminiConfig('gemini-2.5-flash'));
             return chain;
         }
         case 'fast':
         default: {
             const chain: ProviderConfig[] = [];
-            chain.push(getGroqConfig('llama-3.1-8b-instant'));
+            chain.push(getGroqConfig(GROQ_MODEL_SMALL));
             if (useOpenRouter) chain.push(getOpenRouterConfig('openai/gpt-4o-mini'));
             if (useCerebras) chain.push(getCerebrasConfig('llama3.1-8b'));
             if (useGemini) chain.push(getGeminiConfig('gemini-2.5-flash'));
-            if (useTertiary) chain.push(getNvidiaConfig('meta/llama-3.1-8b-instruct', process.env.NVIDIA_API_KEY_TERTIARY));
+            if (useTertiary) chain.push(getNvidiaConfig(NVIDIA_MODEL_SMALL, process.env.NVIDIA_API_KEY_TERTIARY));
             return chain;
         }
     }
@@ -241,6 +293,17 @@ function recordFailure(providerName: string, statusCode?: number) {
         breaker.state = 'OPEN';
         console.warn(`\x1b[31m[CIRCUIT BREAKER] 🔴 ${providerName} returned to OPEN state.\x1b[0m`);
     }
+}
+
+/**
+ * Read-only view of the circuit breakers, for diagnostics. Changes no state.
+ */
+export function getCircuitStates(): Record<string, { state: string; failures: number }> {
+    const out: Record<string, { state: string; failures: number }> = {};
+    for (const [name, b] of circuitBreakers.entries()) {
+        out[name] = { state: b.state, failures: b.failures };
+    }
+    return out;
 }
 
 function recordSuccess(providerName: string) {
@@ -419,9 +482,9 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
     // No NVIDIA / Gemini / OpenRouter fallback. Hard fail with a clean error.
     if (options.groqOnly) {
         if (!process.env.GROQ_API_KEY) {
-            return { success: false, error: 'GROQ_API_KEY not configured', provider: 'groq', model: 'llama-3.3-70b-versatile', latency_ms: 0 };
+            return { success: false, error: 'GROQ_API_KEY not configured', provider: 'groq', model: GROQ_MODEL_LARGE, latency_ms: 0 };
         }
-        const provider = getGroqConfig('llama-3.3-70b-versatile');
+        const provider = getGroqConfig(GROQ_MODEL_LARGE);
         console.log(`\x1b[36m[AI ✨]\x1b[0m Groq-only mode → ${provider.model} (full ${getRemainingTime()}ms budget)...`);
         const result = await callProvider<T>(provider, { ...options, timeout: getRemainingTime() });
         if (result.success) return result;
@@ -434,9 +497,51 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
         };
     }
 
-    // Coach/Calendar dedicated engine: NVIDIA (primary) → NVIDIA (tertiary) → Groq → Gemini
+    // Weekly-review / batch engine: Gemini → Groq → OpenRouter.
+    // Kept separate from the coach engine on purpose — a once-a-week batch job
+    // must not compete with the real-time coach for providers or rate limits.
+    if (options.batchReview) {
+        const batchChain: ProviderConfig[] = [];
+        if (process.env.GEMINI_API_KEY) batchChain.push(getGeminiConfig('gemini-2.5-flash'));
+        if (process.env.GROQ_API_KEY) batchChain.push(getGroqConfig(GROQ_MODEL_LARGE));
+        if (process.env.OPENROUTER_API_KEY) {
+            batchChain.push(getOpenRouterConfig('meta-llama/llama-3.3-70b-instruct'));
+        }
+
+        let lastBatch: AIResponse<T> | null = null;
+        for (const provider of batchChain) {
+            const remaining = getRemainingTime();
+            if (remaining < 3000) break;
+            console.log(`\x1b[35m[AI 📋]\x1b[0m Batch review trying ${provider.name}/${provider.model}...`);
+            const result = await callProvider<T>(provider, {
+                ...options,
+                timeout: Math.min(MAX_PROVIDER_TIME, remaining),
+            });
+            lastBatch = result;
+            if (result.success) return result;
+        }
+        return (
+            lastBatch ?? {
+                success: false,
+                error: 'All batch review providers failed',
+                provider: 'gemini',
+                model: 'none',
+                latency_ms: Date.now() - totalStartTime,
+            }
+        );
+    }
+
+    // Coach/Calendar dedicated engine:
+    //   Groq → OpenRouter → Gemini → NVIDIA primary → NVIDIA tertiary
+    //
+    // Ordered by OBSERVED latency, not by intent. NVIDIA used to sit above
+    // Gemini, which was harmless only while its models 410'd in 40ms. Once the
+    // model IDs were corrected it became valid-but-slow, and two 15s NVIDIA
+    // attempts ate 30s of a 40s budget before Gemini was ever tried — so a
+    // healthy provider was starved by a slow one. Benchmarked on a realistic
+    // ~1.5k-token prompt: groq 0.58s, gemini ~1s, nvidia 7.2s.
     if (options.useNvidia) {
-        const nvidiaModel = tier === 'fast' ? 'meta/llama-3.1-8b-instruct' : 'meta/llama-3.3-70b-instruct';
+        const nvidiaModel = tier === 'fast' ? NVIDIA_MODEL_SMALL : NVIDIA_MODEL_LARGE;
         const useOpenRouter = !!process.env.OPENROUTER_API_KEY;
         const useGemini    = !!process.env.GEMINI_API_KEY;
         const useTertiary  = !!process.env.NVIDIA_API_KEY_TERTIARY;
@@ -447,15 +552,17 @@ export async function callAI<T = any>(options: AICallOptions): Promise<AIRespons
             nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.CALENDAR_NVIDIA_API_KEY));
             if (useTertiary) nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.NVIDIA_API_KEY_TERTIARY));
         } else {
-            nvidiaChain.push(getGroqConfig(tier === 'fast' ? 'llama-3.1-8b-instant' : 'llama-3.3-70b-versatile'));
+            nvidiaChain.push(getGroqConfig(tier === 'fast' ? GROQ_MODEL_SMALL : GROQ_MODEL_LARGE));
             if (useOpenRouter && !options.skipOpenRouter) {
                 nvidiaChain.push(getOpenRouterConfig(
                     tier === 'fast' ? 'openai/gpt-4o-mini' : 'meta-llama/llama-3.3-70b-instruct'
                 ));
             }
+            // Gemini ahead of NVIDIA: same providers, ordered so the slow one
+            // cannot consume the budget the fast one needs.
+            if (useGemini) nvidiaChain.push(getGeminiConfig('gemini-2.5-flash'));
             nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.CALENDAR_NVIDIA_API_KEY));
             if (useTertiary) nvidiaChain.push(getNvidiaConfig(nvidiaModel, process.env.NVIDIA_API_KEY_TERTIARY));
-            if (useGemini) nvidiaChain.push(getGeminiConfig('gemini-2.5-flash'));
         }
 
         for (const provider of nvidiaChain) {

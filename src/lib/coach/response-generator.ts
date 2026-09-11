@@ -765,30 +765,80 @@ function findReplaceableBlock(missedBlock: any, duration: number, coachCtx: Coac
     return block;
 }
 
-function computeRescheduleOptions(missedBlock: any, duration: number, coachCtx: CoachContext) {
+export function computeRescheduleOptions(missedBlock: any, duration: number, coachCtx: CoachContext) {
     const wakeTime = coachCtx.user.sleep_end || '07:00';
     const sleepTime = coachCtx.user.sleep_start || '23:00';
     const weekBlocks = coachCtx.schedule.this_week || [];
     const now = coachCtx.current;
 
-    // OPTION 1 — same day, only AFTER the prompt time
-    let opt1: ComputedReschedule | null = null;
-    const todaySlot = findSlotOnDay(weekBlocks, now.date, duration, wakeTime, sleepTime, now.time);
-    if (todaySlot) opt1 = { kind: 'today', date: now.date, ...todaySlot };
+    // §3a: log both before doing anything with them. They are derived from
+    // different reference points (logical day vs wall clock) and used to
+    // disagree by a day just after midnight, which is what put a "today" slot
+    // on the wrong date and let it collide with an anchor it never saw.
+    console.log(
+        `[Coach] reschedule: current.date=${now.date} day_of_week=${now.day_of_week} ` +
+        `calendar_date=${now.calendar_date ?? '(unset)'} time=${now.time} ` +
+        `in_active_wake_cycle=${now.in_active_wake_cycle} | missed block on ${missedBlock?.date}`
+    );
+    const expectedDow = new Date(`${now.date}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long' });
+    if (expectedDow !== now.day_of_week) {
+        console.error(
+            `[Coach] DATE MISMATCH: current.date=${now.date} is a ${expectedDow} but ` +
+            `day_of_week says ${now.day_of_week}. Reschedule dates will be wrong.`
+        );
+    }
 
-    // OPTION 2 — rest of the week (tomorrow → Sunday, INCLUDING weekends)
+    // §3b: Option 1 is anchored to the MISSED BLOCK's day, not to whichever day
+    // the coach's clock resolved to — those differ during an active wake cycle,
+    // and using `now.date` computed the slot against the wrong day's anchors.
+    const sameDayDate = missedBlock?.date || now.date;
+    const notBefore = sameDayDate === now.date ? now.time : undefined;
+
+    // Largest contiguous slot, not the first one found. `findAvailableSlots`
+    // returns gaps in chronological order, so taking [0] gave the earliest
+    // opening (right after the morning routine) while hours sat free later.
+    const largestSlotOn = (date: string, minDuration: number, notBeforeTime?: string) => {
+        const slots = findAvailableSlots(weekBlocks, date, minDuration, wakeTime, sleepTime, 24, notBeforeTime, true);
+        if (slots.length === 0) return null;
+        return slots.reduce((best, s) => (s.duration_mins > best.duration_mins ? s : best));
+    };
+
+    // OPTION 1 — same day as the missed block, largest free slot, exact duration
+    let opt1: ComputedReschedule | null = null;
+    const todayBest = largestSlotOn(sameDayDate, duration, notBefore);
+    if (todayBest) {
+        opt1 = {
+            kind: 'today', date: sameDayDate,
+            start: todayBest.start,
+            end: minutesToTime(timeToMinutes(todayBest.start) + duration),
+            shrunk: false,
+        };
+    } else {
+        // Nothing holds it whole today — fall back to a shortened slot.
+        const shrunk = findSlotOnDay(weekBlocks, sameDayDate, duration, wakeTime, sleepTime, notBefore);
+        if (shrunk) opt1 = { kind: 'today', date: sameDayDate, ...shrunk };
+    }
+
+    // OPTION 2 — a DIFFERENT, LATER day, largest free slot on that day.
+    // §3c: it must never resolve to Option 1's day.
     let opt2: ComputedReschedule | null = null;
-    const weekDays = getWeekDaysFrom(addDays(now.date, 1));
-    for (const d of weekDays) { // pass 1: try the full block, earliest day wins
-        const full = findAvailableSlots(weekBlocks, d, duration, wakeTime, sleepTime, 8, undefined, true);
-        if (full.length > 0) {
-            const s = full[0];
-            opt2 = { kind: 'week', date: d, start: s.start, end: minutesToTime(timeToMinutes(s.start) + duration), shrunk: false };
-            break;
+    const laterDays = getWeekDaysFrom(addDays(sameDayDate, 1)).filter(d => d !== opt1?.date && d > sameDayDate);
+    let bestLater: { date: string; slot: FreeSlot } | null = null;
+    for (const d of laterDays) {
+        const best = largestSlotOn(d, duration);
+        if (best && (!bestLater || best.duration_mins > bestLater.slot.duration_mins)) {
+            bestLater = { date: d, slot: best };
         }
     }
-    if (!opt2) { // pass 2: only if the full block fits NOWHERE this week, shrink (min 30)
-        for (const d of weekDays) {
+    if (bestLater) {
+        opt2 = {
+            kind: 'week', date: bestLater.date,
+            start: bestLater.slot.start,
+            end: minutesToTime(timeToMinutes(bestLater.slot.start) + duration),
+            shrunk: false,
+        };
+    } else { // only if the full block fits NOWHERE later this week, shrink (min 30)
+        for (const d of laterDays) {
             const slot = findSlotOnDay(weekBlocks, d, duration, wakeTime, sleepTime);
             if (slot) { opt2 = { kind: 'week', date: d, ...slot }; break; }
         }
@@ -868,7 +918,13 @@ function buildCoachOption(
     const targetDate = opt.targetDate || opt.date;
     const start = opt.slot ? opt.slot.start : opt.start;
     const end = opt.slot ? opt.slot.end : opt.end;
-    const sameDay = targetDate === coachCtx.current.date;
+    // §3a: "today" must mean today to the USER. During an active wake cycle
+    // past midnight the coach's logical date and the wall-clock date differ by
+    // a day, and an option on either one is still today as far as the person
+    // reading it is concerned — showing them "Wednesday 02/09" for the day
+    // they are currently living in is simply wrong.
+    const sameDay = targetDate === coachCtx.current.date
+        || (!!coachCtx.current.calendar_date && targetDate === coachCtx.current.calendar_date);
 
     const [yyyy, mm, dd] = targetDate.split('-');
     const dateObj = new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd));

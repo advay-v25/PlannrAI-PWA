@@ -1,5 +1,6 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { DEFAULT_TIMEZONE, nowInTimezone } from '@/lib/timezone';
+import { isScored, shiftDate } from '@/lib/chain/chain-service';
 
 /**
  * V1 Mission Control State Machine Logic
@@ -64,12 +65,23 @@ export const GET = secureApiRoute(
 
             // 2. Fetch Today's Blocks and Anchors
             let blocks: any[] = [];
+            // Yesterday is fetched in the SAME query as today so the end-of-day
+            // sweep (§1) never costs an extra round trip. We only ever look back
+            // one day — someone returning after a week away must not be handed
+            // 60 blocks to triage.
+            const yesterdayIso = shiftDate(isoDate, -1);
+            let yesterdayBlocks: any[] = [];
+            let todayBlocks: any[] = [];
             try {
-                const { data: scheduleBlocks } = await supabase
+                const { data: fetchedBlocks } = await supabase
                     .from('schedule_blocks')
                     .select('*')
                     .eq('user_id', userId)
-                    .eq('date', isoDate);
+                    .in('date', [yesterdayIso, isoDate]);
+
+                const scheduleBlocks = (fetchedBlocks || []).filter((b: any) => b.date === isoDate);
+                todayBlocks = scheduleBlocks;
+                yesterdayBlocks = (fetchedBlocks || []).filter((b: any) => b.date === yesterdayIso);
                 
                 const { data: commitments } = await supabase
                     .from('commitments')
@@ -79,7 +91,7 @@ export const GET = secureApiRoute(
                 // Filter commitments by dayOfWeek
                 const activeCommitments = (commitments || []).filter(c => 
                     c.days_of_week && c.days_of_week.includes(dayOfWeek) && c.is_active !== false &&
-                    !scheduleBlocks?.some(sb => sb.commitment_id === c.id) // Avoid duplicates
+                    !scheduleBlocks.some((sb: any) => sb.commitment_id === c.id) // Avoid duplicates
                 ).map(c => ({
                     ...c,
                     title: c.name || c.title || 'Commitment',
@@ -87,7 +99,7 @@ export const GET = secureApiRoute(
                     date: isoDate
                 }));
 
-                blocks = [...(scheduleBlocks || []), ...activeCommitments].sort((a, b) => {
+                blocks = [...scheduleBlocks, ...activeCommitments].sort((a, b) => {
                     if (a.start_time < b.start_time) return -1;
                     if (a.start_time > b.start_time) return 1;
                     return 0;
@@ -209,6 +221,62 @@ export const GET = secureApiRoute(
                 }
             }
 
+            // 4. End-of-day completion sweep (§1a)
+            // Block status is 100% user-entered — nothing in this codebase ever
+            // sweeps it — so we have to ask. Two triggers, one day of lookback.
+            const UNMARKED_STATUSES = new Set(['planned', 'in_progress']);
+            // The sweep asks only about goal work, using the SAME predicate the
+            // stats score by (chain-service.isScored) rather than a local copy —
+            // a second definition here would drift exactly the way Day Patterns
+            // and the Chain did. Sleep, meals, anchors, morning routine,
+            // wind-down and buffers are scaffolding the user did not choose,
+            // nothing scores them, and asking about them is pure friction.
+            const sweepable = (b: any) => isScored(b) && UNMARKED_STATUSES.has(b.status || 'planned');
+            const toSweepShape = (b: any) => ({
+                id: b.id,
+                title: b.title || b.context || 'Untitled block',
+                start_time: b.start_time,
+                end_time: b.end_time,
+                block_type: b.block_type,
+                pillar: b.pillar,
+            });
+            const bySweepTime = (a: any, b: any) => (a.start_time || '').localeCompare(b.start_time || '');
+
+            let unmarked: {
+                date: string;
+                is_yesterday: boolean;
+                blocks: ReturnType<typeof toSweepShape>[];
+            } | null = null;
+
+            // Yesterday takes priority — it is the older debt, and today may
+            // still be in progress.
+            const unmarkedYesterday = yesterdayBlocks.filter(sweepable);
+            if (unmarkedYesterday.length > 0) {
+                unmarked = {
+                    date: yesterdayIso,
+                    is_yesterday: true,
+                    blocks: unmarkedYesterday.map(toSweepShape).sort(bySweepTime),
+                };
+            } else {
+                // Same day: only once the last GOAL block has ended. Anchoring
+                // on goal work rather than on the last block of any kind means
+                // the prompt arrives when the user's actual work is done,
+                // instead of waiting behind a late dinner or evening anchor.
+                const goalBlocksToday = todayBlocks.filter(isScored);
+                const lastEndMins = goalBlocksToday.reduce(
+                    (max: number, b: any) => Math.max(max, timeToMinutes(b.end_time || '00:00')),
+                    -1
+                );
+                const unmarkedToday = goalBlocksToday.filter(sweepable);
+                if (lastEndMins >= 0 && timeToMinutes(currentTimeStr) >= lastEndMins && unmarkedToday.length > 0) {
+                    unmarked = {
+                        date: isoDate,
+                        is_yesterday: false,
+                        blocks: unmarkedToday.map(toSweepShape).sort(bySweepTime),
+                    };
+                }
+            }
+
             const insights: Record<HomeState, string> = {
                 'MORNING_ROUTINE': "Morning routine active. Your first block is coming up — get ready.",
                 'BETWEEN_BLOCKS': nextBlock ? `Break time. Next: "${nextBlock.title || 'the next block'}" in ${timeUntilNextBlock}m.` : "Break time. You have free space.",
@@ -239,7 +307,8 @@ export const GET = secureApiRoute(
                     time_remaining_in_block: timeRemainingInBlock,
                     time_until_next_block: timeUntilNextBlock
                 },
-                proactive_insight: insights[currentState]
+                proactive_insight: insights[currentState],
+                unmarked
             });
         } catch (error: any) {
             console.error('[HomeState] Unexpected error:', error);
@@ -257,6 +326,7 @@ export const GET = secureApiRoute(
                     time_until_next_block: null
                 },
                 proactive_insight: "System degraded. Displaying fallback schedule.",
+                unmarked: null,
                 is_fallback: true,
                 error_message: error?.message || 'Unknown error'
             });

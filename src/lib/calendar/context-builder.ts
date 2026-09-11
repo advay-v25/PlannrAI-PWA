@@ -5,6 +5,7 @@
  */
 
 import { createClient } from '@/lib/supabase/server';
+import { computeWeekCapacity, describeCapacity, type WeekCapacity } from '@/lib/scheduling/capacity';
 import { format, startOfWeek, endOfWeek, addWeeks, subDays, addDays } from 'date-fns';
 import { DEFAULT_TIMEZONE, nowInTimezone } from '@/lib/timezone';
 
@@ -21,6 +22,26 @@ const IMPORTANCE_MAP: Record<string, number> = { low: 2, medium: 5, high: 9 };
 function normalizeImportance(raw: unknown): number {
     if (typeof raw === 'number' && !Number.isNaN(raw)) return raw;
     return IMPORTANCE_MAP[String(raw ?? 'medium').toLowerCase()] ?? 5;
+}
+
+/**
+ * Where a user's day actually starts and ends.
+ *
+ * Onboarding writes some of these to `profile_preferences` and some to
+ * `profiles`, with preferences winning. Anything that computes capacity has to
+ * apply the SAME precedence or it measures a different week than the generator
+ * plans — which is exactly how the weekly review came to choose a scheduling
+ * mode from a nine-hour night while the planner was building an eight-hour one.
+ */
+export function resolveDaySettings(profileRaw: any = {}, prefs: any = {}) {
+    return {
+        sleep_start: prefs.sleep_start || profileRaw.sleep_start || '23:00',
+        sleep_end: prefs.wake_time || profileRaw.sleep_end || '07:00',
+        wind_down_mins:
+            prefs.wind_down_min || profileRaw.wind_down_mins || profileRaw.wind_down_minutes || 30,
+        morning_routine_mins: prefs.morning_routine_min || profileRaw.morning_routine_mins || 0,
+        meals_per_day: profileRaw.meals_per_day || prefs.meals_per_day || 3,
+    };
 }
 
 const ENERGY_DEMAND_MAP: Record<string, 'low' | 'medium' | 'high'> = {
@@ -90,7 +111,7 @@ export interface CalendarContext {
 
     schedule: {
         today: ScheduleBlock[];
-        this_week: ScheduleBlock[];
+        target_week: ScheduleBlock[];
     };
 
     capacity: {
@@ -100,6 +121,14 @@ export interface CalendarContext {
         weekly_goal_hours_needed: number;
         is_overcommitted: boolean;
     };
+
+    /**
+     * The full, unrounded capacity breakdown from the single shared
+     * implementation. `capacity` above is the rounded, hours-based summary the
+     * AI prompts have always read; anything that needs to reason about the
+     * numbers (the weekly-review dry run, the mode choice) should use this.
+     */
+    weekCapacity?: WeekCapacity;
 
     performance: {
         last_7_days_completion_rate: number;
@@ -139,7 +168,7 @@ export interface CalendarContext {
         goal_title: string;
         pillar: string;
         weekly_target_minutes: number;
-        completed_minutes_this_week: number;
+        completed_minutes_target_week: number;
         remaining_minutes: number;
         days_remaining_in_week: number;
         daily_target_today: number;
@@ -174,23 +203,50 @@ function getDayOfWeek(date: Date): string {
     return days[date.getDay()];
 }
 
+
+
 // ── Main Builder ─────────────────────────────────────────────────
 
-export async function buildCalendarContext(userId: string, supabase?: any): Promise<CalendarContext> {
+export async function buildCalendarContext(userId: string, supabase?: any, targetWeekStart?: string): Promise<CalendarContext> {
     // Use provided supabase or create a new client
     const db = supabase || await createClient();
 
     // "Today" is computed in the app's default timezone (Asia/Kolkata) rather
     // than the server's local clock — Vercel runs UTC, which would otherwise
-    // put the date/weekday up to 5.5h behind the user's actual IST day.
     const nowIst = nowInTimezone(DEFAULT_TIMEZONE);
     const todayStr = nowIst.date;
     const currentTimeStr = nowIst.time;
     const now = new Date(`${todayStr}T00:00:00`); // anchor for pure calendar-day arithmetic below
-    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-    const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
-    const weekStartStr = format(weekStart, 'yyyy-MM-dd');
+    
+    const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 });
+    const currentWeekStartStr = format(currentWeekStart, 'yyyy-MM-dd');
+    
+    // Both sides of the guard below, on every call. When Plan Week refuses a
+    // week, this is the line that says whether the client sent the wrong Monday
+    // or the server computed the wrong "today".
+    console.log(
+        `[CalendarContext] targetWeekStart=${targetWeekStart ?? '(none → current)'} ` +
+        `currentWeekStartStr=${currentWeekStartStr} today=${todayStr} (${DEFAULT_TIMEZONE})`
+    );
+
+    if (targetWeekStart && !/^\d{4}-\d{2}-\d{2}$/.test(targetWeekStart)) {
+        throw new Error(`Invalid targetWeekStart "${targetWeekStart}": expected YYYY-MM-DD`);
+    }
+
+    if (targetWeekStart && targetWeekStart < currentWeekStartStr) {
+        throw new Error(`Planning a past week is refused: ${targetWeekStart} is before current week ${currentWeekStartStr}`);
+    }
+
+    const weekStartStr = targetWeekStart || currentWeekStartStr;
+    const weekStart = new Date(`${weekStartStr}T00:00:00`);
+    if (Number.isNaN(weekStart.getTime())) {
+        // Otherwise this reaches date-fns and comes back as a bare
+        // `RangeError: Invalid time value` from whichever format() call runs first.
+        throw new Error(`Invalid week start "${weekStartStr}" — could not be parsed as a date`);
+    }
+    const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
     const weekEndStr = format(weekEnd, 'yyyy-MM-dd');
+    
     const sevenDaysAgo = format(subDays(now, 7), 'yyyy-MM-dd');
 
     // ── Parallel Fetch ───────────────────────────────────────────
@@ -198,7 +254,13 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
     const [profileRes, profilePrefsRes, goalsRes, commitmentsRes, habitStacksRes, todayBlocksRes, weekBlocksRes, perfBlocksRes, coachLearningsRes, behaviorPatternsRes, energyStateRes] = await Promise.all([
         // 1. Profile
         db.from('profiles')
-            .select('id, first_name, preferred_name, sleep_start, sleep_end, wind_down_mins, wind_down_minutes, morning_routine_mins, energy_level, stress_level, meals_per_day, meal_windows, meal_times, body_preferences, bio_data, peak_windows, low_windows, weekend_intensity, timezone')
+            // `full_name`, not `first_name` — the latter does not exist on this
+            // table, and PostgREST rejects the WHOLE select when one column is
+            // unknown. That failure was invisible: `profileRes.data` came back
+            // null and the `||` fallback below quietly substituted 23:00–07:00
+            // defaults, so every plan was built against a profile that wasn't
+            // the user's.
+            .select('id, full_name, preferred_name, sleep_start, sleep_end, wind_down_mins, wind_down_minutes, morning_routine_mins, energy_level, stress_level, meals_per_day, meal_windows, meal_times, body_preferences, bio_data, peak_windows, low_windows, weekend_intensity, timezone')
             .eq('id', userId)
             .maybeSingle(),
 
@@ -209,10 +271,20 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
             .maybeSingle(),
 
         // 2. Active Goals
+        //
+        // is_paused MUST be filtered here. Pausing a goal (from the goals page
+        // or an accepted weekly review) sets is_paused and leaves status as
+        // 'active', so a status-only filter scheduled paused goals anyway —
+        // the planner was the one place in the app that didn't check it.
+        //
+        // The null branch is deliberate: rows predating the column would be
+        // excluded outright by .eq('is_paused', false), silently emptying a
+        // user's whole plan.
         db.from('goals')
-            .select('id, title, pillar, category, importance, minutes_per_day, days_per_week, energy_demand, status, ai_strategy, preferred_windows')
+            .select('id, title, pillar, category, importance, minutes_per_day, days_per_week, energy_demand, status, is_paused, ai_strategy, preferred_windows')
             .eq('user_id', userId)
             .eq('status', 'active')
+            .or('is_paused.is.null,is_paused.eq.false')
             .limit(20),
 
         // 3. Active Commitments
@@ -277,13 +349,37 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
 
     // ── Process Results ──────────────────────────────────────────
 
+    // A query error and "this user has no profile row" are not the same thing,
+    // and collapsing both into the defaults below is how a bad column name went
+    // unnoticed. A broken query is a bug; say so rather than planning the week
+    // for a fictional user.
+    if (profileRes.error) {
+        throw new Error(`Profile query failed: ${profileRes.error.message}`);
+    }
+    if (profilePrefsRes.error) {
+        console.warn(`[CalendarContext] profile_preferences query failed: ${profilePrefsRes.error.message}`);
+    }
+    if (goalsRes.error) {
+        throw new Error(`Goals query failed: ${goalsRes.error.message}`);
+    }
+    if (!profileRes.data) {
+        console.warn(`[CalendarContext] no profile row for ${userId} — using defaults`);
+    }
+
     const profileRaw = profileRes.data || {
         id: userId,
-        first_name: 'User',
+        full_name: 'User',
         sleep_start: '23:00',
         sleep_end: '07:00',
         wind_down_mins: 30,
     };
+
+    // The context exposes `first_name`; the table stores `full_name`. Prefer the
+    // name the user asked to be called by.
+    const displayFirstName =
+        (profileRaw as any).preferred_name?.trim() ||
+        String((profileRaw as any).full_name || '').trim().split(/\s+/)[0] ||
+        'User';
 
     // Merge profile_preferences (onboarding may write here)
     const prefs = profilePrefsRes.data || {};
@@ -293,11 +389,7 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
     const profile = {
         ...profileRaw,
         // profile_preferences overrides when they exist
-        sleep_start: prefs.sleep_start || profileRaw.sleep_start || '23:00',
-        sleep_end: prefs.wake_time || profileRaw.sleep_end || '07:00',
-        wind_down_mins: prefs.wind_down_min || profileRaw.wind_down_mins || profileRaw.wind_down_minutes || 30,
-        morning_routine_mins: prefs.morning_routine_min || profileRaw.morning_routine_mins || 0,
-        meals_per_day: profileRaw.meals_per_day || prefs.meals_per_day || 3,
+        ...resolveDaySettings(profileRaw, prefs),
         meal_windows: profileRaw.meal_windows || prefs.meal_windows || null,
         // Extract from bio_data
         meal_timing: (profileRaw.bio_data as any)?.meal_timing || 'normal',
@@ -316,7 +408,9 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
         days_per_week: g.days_per_week || 5,
         weekly_target_minutes: (g.minutes_per_day || 60) * (g.days_per_week || 5),
         energy_demand: normalizeEnergyDemand(g.energy_demand),
-        is_active: true,
+        is_paused: g.is_paused === true,
+        // Derived, not hardcoded: a paused goal is not active.
+        is_active: g.is_paused !== true && g.status === 'active',
         ai_strategy: g.ai_strategy,
         preferred_time_of_day: (g.preferred_windows as any)?.time_of_day || undefined,
     }));
@@ -343,22 +437,33 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
 
     // ── Capacity ─────────────────────────────────────────────────
 
-    const sleepStartMins = timeToMinutes(profile.sleep_start || '23:00');
-    const sleepEndMins = timeToMinutes(profile.sleep_end || '07:00');
-    const sleepDuration = sleepEndMins < sleepStartMins
-        ? (1440 - sleepStartMins) + sleepEndMins
-        : sleepEndMins - sleepStartMins;
-    const dailyAwakeHours = (1440 - sleepDuration) / 60;
-    const windDownHoursDaily = (profile.wind_down_mins || 30) / 60;
-    const bufferHoursDaily = dailyAwakeHours * 0.1; // 10% buffer
+    // Computed by the single shared implementation, so the generator, the
+    // plan-week route and the weekly-review proposals all describe the same
+    // week. The old inline version omitted meals and the morning routine and
+    // guessed buffers at 10% of the waking day.
+    const weekCapacity = computeWeekCapacity(
+        {
+            sleep_start: profile.sleep_start,
+            sleep_end: profile.sleep_end,
+            wind_down_mins: profile.wind_down_mins,
+            morning_routine_mins: profile.morning_routine_mins,
+            meals_per_day: profile.meals_per_day,
+        },
+        goals.map((g: any) => ({
+            minutes_per_day: g.minutes_per_day,
+            days_per_week: g.days_per_week,
+            is_paused: g.is_paused,
+            status: 'active',
+        })),
+        commitments
+    );
 
-    const weeklyCommittedHours = commitments.reduce((sum: number, c: { start_time: string; end_time: string; days_of_week: string[] }) => {
-        const duration = timeToMinutes(c.end_time) - timeToMinutes(c.start_time);
-        return sum + (Math.max(0, duration) / 60) * (c.days_of_week?.length || 0);
-    }, 0);
+    const dailyAwakeHours = weekCapacity.awakeMinsPerWeek / 7 / 60;
+    const weeklyCommittedHours = weekCapacity.commitmentMins / 60;
+    const weeklyGoalHours = weekCapacity.targetedMins / 60;
+    const weeklyAvailable = weekCapacity.availableMins / 60;
 
-    const weeklyGoalHours = goals.reduce((sum: number, g: { weekly_target_minutes: number }) => sum + g.weekly_target_minutes / 60, 0);
-    const weeklyAvailable = (dailyAwakeHours - windDownHoursDaily - bufferHoursDaily) * 7 - weeklyCommittedHours;
+    console.log(`[Capacity] ${describeCapacity(weekCapacity)}`);
 
     // ── Performance ──────────────────────────────────────────────
 
@@ -384,10 +489,14 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
     } : null;
 
     const energyStateRaw = energyStateRes.data;
-    const dailyEnergyState = energyStateRaw ? {
+    const isFutureWeek = targetWeekStart && targetWeekStart > currentWeekStartStr;
+    const dailyEnergyState = (energyStateRaw && !isFutureWeek) ? {
         energy_level: energyStateRaw.energy_level || 3,
         emotional_state: energyStateRaw.emotional_state || 'neutral',
-    } : null;
+    } : {
+        energy_level: profile.energy_level || 3,
+        emotional_state: 'neutral',
+    };
 
 
     // ── New: Goal Progress (weekly tracking) ─────────────────────
@@ -410,8 +519,13 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
     }
 
     // Calculate days remaining in the week (Mon=1 start)
-    const todayDow = now.getDay(); // 0=Sun
-    const daysRemainingInWeek = todayDow === 0 ? 0 : 7 - todayDow; // Sun=0 remaining, Mon=6, etc.
+    let daysRemainingInWeek = 7;
+    if (isFutureWeek) {
+        daysRemainingInWeek = 7;
+    } else {
+        const todayDow = now.getDay(); // 0=Sun
+        daysRemainingInWeek = todayDow === 0 ? 0 : 7 - todayDow; // Sun=0 remaining, Mon=6, etc.
+    }
 
     const goalProgress = goals.map((g: any) => {
         const completed = completedMinutesByGoal.get(g.id) || 0;
@@ -422,7 +536,7 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
             goal_title: g.title,
             pillar: g.pillar,
             weekly_target_minutes: g.weekly_target_minutes,
-            completed_minutes_this_week: completed,
+            completed_minutes_target_week: completed,
             remaining_minutes: remaining,
             days_remaining_in_week: daysRemainingInWeek,
             daily_target_today: Math.ceil(remaining / daysLeft),
@@ -434,7 +548,7 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
     return {
         user: {
             id: userId,
-            first_name: profile.first_name || 'User',
+            first_name: displayFirstName,
             sleep_start: profile.sleep_start || '23:00',
             sleep_end: profile.sleep_end || '07:00',
             wind_down_mins: profile.wind_down_mins || 30,
@@ -459,15 +573,16 @@ export async function buildCalendarContext(userId: string, supabase?: any): Prom
         habitStacks,
         schedule: {
             today: todayBlocks,
-            this_week: weekBlocks,
+            target_week: weekBlocks,
         },
         capacity: {
             daily_awake_hours: Math.round(dailyAwakeHours * 10) / 10,
             weekly_available_hours: Math.round(Math.max(0, weeklyAvailable) * 10) / 10,
             weekly_committed_hours: Math.round(weeklyCommittedHours * 10) / 10,
             weekly_goal_hours_needed: Math.round(weeklyGoalHours * 10) / 10,
-            is_overcommitted: weeklyGoalHours > weeklyAvailable,
+            is_overcommitted: weekCapacity.isOvercommitted,
         },
+        weekCapacity,
         performance: {
             last_7_days_completion_rate: Math.round(completionRate),
             total_blocks_last_7: totalBlocks,

@@ -319,13 +319,13 @@ export function buildGoalProgressFragment(ctx: CalendarContext): string {
 
     for (const gp of ctx.goalProgress) {
         const pctComplete = gp.weekly_target_minutes > 0
-            ? Math.round((gp.completed_minutes_this_week / gp.weekly_target_minutes) * 100)
+            ? Math.round((gp.completed_minutes_target_week / gp.weekly_target_minutes) * 100)
             : 0;
         const status = pctComplete >= 100 ? '✅ ON TRACK'
             : pctComplete >= 60 ? '🔶 CLOSE'
             : '🔴 BEHIND';
 
-        fragment += `  ${status} ${gp.goal_title}: ${gp.completed_minutes_this_week}/${gp.weekly_target_minutes}min done`;
+        fragment += `  ${status} ${gp.goal_title}: ${gp.completed_minutes_target_week}/${gp.weekly_target_minutes}min done`;
         if (gp.daily_target_today > 0 && pctComplete < 100) {
             fragment += ` → needs ~${gp.daily_target_today}min today`;
         }
