@@ -9,6 +9,16 @@ import { Loader2, ArrowRight, ArrowLeft, Brain, Zap, Target, Star, AlertTriangle
 import ProductivityProfile, { type ProfileAnalysis } from '@/components/weekly-review/productivity-profile';
 import { DayChain, type ChainResponse } from '@/components/weekly-review/day-chain';
 import { ConfirmChangesModal } from '@/components/weekly-review/confirm-changes-modal';
+import { ReviewStatePanel, type ServerRefusal } from '@/components/weekly-review/review-state-panel';
+import {
+    REVIEW_WEEK_NOT_REVIEWABLE,
+    REVIEW_WINDOW_CLOSED,
+    logReviewWindow,
+    mondayOfIso,
+    shiftIsoDate,
+    type ReviewWindow,
+} from '@/lib/weekly-review/window';
+import type { WeekReviewInfo } from '@/app/api/weekly-review/status/route';
 
 /** Prompt 38: the same hours, arranged differently. There is nothing else. */
 type ChangeType = 'reshape';
@@ -154,24 +164,34 @@ interface ExecuteResponse {
 const isDev = process.env.NODE_ENV !== 'production';
 
 /** yyyy-MM-dd maths that never touches the local timezone. */
-const shift = (iso: string, days: number) => {
-    const [y, m, d] = iso.split('-').map(Number);
-    const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
-    dt.setUTCDate(dt.getUTCDate() + days);
-    return dt.toISOString().slice(0, 10);
-};
+const shift = shiftIsoDate;
 
-/** Monday of the week containing `iso`. */
-const mondayOf = (iso: string) => {
-    const [y, m, d] = iso.split('-').map(Number);
-    const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
-    const offset = (dt.getUTCDay() + 6) % 7; // Monday = 0
-    return shift(iso, -offset);
-};
+/**
+ * Prompt 54 §1: "which Monday is it?" is NOT decided here any more.
+ *
+ * The old `thisMonday()`/`lastMonday()` used `getUTCDay()` on the browser
+ * clock, so an Asia/Kolkata user at Monday 04:00 local was on Sunday and a
+ * Los Angeles user at Sunday 17:00 was already on Monday. The page now asks
+ * `/api/weekly-review/status`, which resolves the day in `profiles.timezone`,
+ * and renders from that answer. Where the two would disagree, the server wins.
+ */
 
-const thisMonday = () => mondayOf(new Date().toISOString().slice(0, 10));
-/** The review defaults to the *previous* Mon–Sun, matching the API. */
-const lastMonday = () => shift(thisMonday(), -7);
+/** Shape of /api/weekly-review/status. */
+interface StatusResponse {
+    window: ReviewWindow;
+    onboarding_complete: boolean;
+    has_prior_week_data: boolean;
+    last_week_reviewed: boolean;
+    should_prompt: boolean;
+    week: WeekReviewInfo | null;
+}
+
+/** The `?week=` deep link, snapped to a Monday. Null when absent or malformed. */
+const weekFromUrl = (): string | null => {
+    if (typeof window === 'undefined') return null;
+    const raw = new URLSearchParams(window.location.search).get('week');
+    return raw && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? mondayOfIso(raw) : null;
+};
 
 const prettyDate = (iso: string) => {
     const [y, m, d] = iso.split('-').map(Number);
@@ -186,8 +206,18 @@ export default function WeeklyReviewPage() {
     const router = useRouter();
 
     // Which week is on screen. The two fetches below both key off this.
-    const [weekStart, setWeekStart] = useState<string>(lastMonday);
-    const weekEnd = shift(weekStart, 6);
+    // Null until the server has said which Monday it is (§1) — nothing is
+    // fetched for a week the browser clock guessed.
+    const [weekStart, setWeekStart] = useState<string | null>(null);
+    const weekEnd = weekStart ? shift(weekStart, 6) : '';
+
+    // §1/§5: the server's resolution of "is the review open" and the state of
+    // the selected week. Both come from /status; neither is derived locally.
+    const [reviewWindow, setReviewWindow] = useState<ReviewWindow | null>(null);
+    const [weekInfo, setWeekInfo] = useState<WeekReviewInfo | null>(null);
+    // A REVIEW_WINDOW_CLOSED (or week-scope) refusal from generate-report or
+    // execute. Once set, the closed state renders from the server's answer.
+    const [serverRefusal, setServerRefusal] = useState<ServerRefusal | null>(null);
 
     // Deterministic data — drives the whole page and its loading state.
     const [stats, setStats] = useState<StatsResponse | null>(null);
@@ -292,7 +322,19 @@ export default function WeeklyReviewPage() {
             }
             setAi(res);
             setCooldownUntil(Date.now() + (res?.rate_limited ? RATE_LIMIT_COOLDOWN_MS : COOLDOWN_MS));
-        } catch (err) {
+        } catch (err: any) {
+            // §5: the server refused because the window is closed (or the week
+            // is not last week). That is not a provider failure and must not
+            // render as one, nor be retried — show the closed state from the
+            // server's own next-open date.
+            if (err?.code === REVIEW_WINDOW_CLOSED || err?.code === REVIEW_WEEK_NOT_REVIEWABLE) {
+                console.warn(`[WeeklyReview] Server refused summary for ${start}: ${err.code}`, err?.details);
+                if (selectedWeekRef.current === start) {
+                    setServerRefusal({ code: err.code, next_open_date: err?.details?.next_open_date, message: err?.message });
+                    setAi(null);
+                }
+                return;
+            }
             // A missing paragraph is not worth a toast when the dashboard rendered.
             console.warn('[WeeklyReview] AI summary unavailable:', err);
             if (selectedWeekRef.current === start) {
@@ -322,33 +364,86 @@ export default function WeeklyReviewPage() {
         setStatsLoading(true);
         setAi(null);
         setAiLoading(true);
+        setServerRefusal(null);
         setApprovedChanges(new Set());
 
+        // Stats (always allowed) and the week's review state (§4) load in
+        // parallel. The AI decision below waits for BOTH, because it is the
+        // server's `ai_allowed` — not this page's clock — that decides.
         let loaded: StatsResponse | null = null;
-        try {
-            loaded = await apiClient.get<StatsResponse>(
-                `/api/weekly-review/stats?weekStart=${start}&weekEnd=${end}`
-            );
+        let status: StatusResponse | null = null;
+        const [statsRes, statusRes] = await Promise.allSettled([
+            apiClient.get<StatsResponse>(`/api/weekly-review/stats?weekStart=${start}&weekEnd=${end}`),
+            apiClient.get<StatusResponse>(`/api/weekly-review/status?weekStart=${start}`),
+        ]);
+        if (statsRes.status === 'fulfilled') {
+            loaded = statsRes.value;
             setStats(loaded);
             // Proposals come from /stats, so they are ready before the AI is —
             // and stay ready even if the AI never arrives.
             setApprovedChanges(new Set((loaded?.proposed_goal_changes || []).map(c => c.goal_id)));
-        } catch (err) {
-            console.error('[WeeklyReview] Stats fetch failed:', err);
+        } else {
+            console.error('[WeeklyReview] Stats fetch failed:', statsRes.reason);
             setStats(null);
-        } finally {
-            setStatsLoading(false);
         }
+        if (statusRes.status === 'fulfilled') {
+            status = statusRes.value;
+            setReviewWindow(status.window);
+            setWeekInfo(status.week);
+        } else {
+            // Without the server's answer the review is treated as CLOSED. A
+            // missing status must never open the AI path.
+            console.error('[WeeklyReview] Status fetch failed:', statusRes.reason);
+            setWeekInfo(null);
+        }
+        setStatsLoading(false);
 
-        if ((loaded?.profile?.data_points ?? 0) > 0) {
+        // Prompt 54 §5: the gate in front of the in-flight guard, cooldown and
+        // cache. Monday AND last week AND unreviewed — as decided by the server
+        // — or fetchAi is not called at all. Not called-and-discarded, not
+        // called-and-cached: not called.
+        const aiAllowed = status?.week?.ai_allowed === true;
+        if (aiAllowed && (loaded?.profile?.data_points ?? 0) > 0) {
             fetchAi(start, end);
         } else {
             setAiLoading(false);
         }
     }, [fetchAi]);
 
+    // §1: resolve "which Monday" from the server ONCE per page load, then log
+    // it. Until this settles nothing is fetched — the browser clock is not
+    // consulted for the default week.
     useEffect(() => {
-        loadWeek(weekStart);
+        let cancelled = false;
+        (async () => {
+            const deepLink = weekFromUrl();
+            try {
+                const status = await apiClient.get<StatusResponse>('/api/weekly-review/status');
+                if (cancelled) return;
+                logReviewWindow('page', status.window);
+                setReviewWindow(status.window);
+                // §3a: the current week is reachable by deep link only. The
+                // picker stops at last week; a `?week=` at or past this Monday
+                // is clamped to this Monday, which renders the closed state.
+                const wanted = deepLink && deepLink > status.window.this_monday ? status.window.this_monday : deepLink;
+                setWeekStart(wanted || status.window.last_monday);
+            } catch (err) {
+                // The page must still load (§3). Fall back to the deep link or
+                // to a locally-guessed last Monday for the STATS only; the AI
+                // path stays shut because `weekInfo.ai_allowed` is never set.
+                console.error('[WeeklyReview] Status fetch failed on load:', err);
+                if (cancelled) return;
+                const guess = shift(mondayOfIso(new Date().toISOString().slice(0, 10)), -7);
+                setWeekStart(deepLink || guess);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (weekStart) loadWeek(weekStart);
     }, [weekStart, loadWeek]);
 
     // Nothing is written until this is confirmed. Automatic and Semi-Automated
@@ -357,6 +452,14 @@ export default function WeeklyReviewPage() {
         mode: 'auto' | 'semi-auto';
         changes: ProposedChange[];
     } | null>(null);
+
+    /**
+     * Prompt 54: is the review OPEN for the week on screen? True only when the
+     * server said `ai_allowed` (Monday, last week, unreviewed) and has not
+     * since refused. Everything actionable — the AI card, the proposals, the
+     * three execution buttons — hangs off this one boolean.
+     */
+    const reviewOpen = weekInfo?.ai_allowed === true && !serverRefusal;
 
     /** The deterministic proposals. Never sourced from the AI. */
     const proposals: ProposedChange[] = stats?.proposed_goal_changes || [];
@@ -455,8 +558,16 @@ export default function WeeklyReviewPage() {
                 toast.success('Continuing in manual mode.', { id: 'exec' });
                 router.push('/app/goals');
             }
-        } catch (e) {
-            toast.error('Failed to execute actions.', { id: 'exec' });
+        } catch (e: any) {
+            if (e?.code === REVIEW_WINDOW_CLOSED || e?.code === REVIEW_WEEK_NOT_REVIEWABLE) {
+                // §5: the server wins. Show its closed state; nothing was written.
+                setServerRefusal({ code: e.code, next_open_date: e?.details?.next_open_date, message: e?.message });
+                setPendingApply(null);
+                setView('report');
+                toast.error(e?.message || 'The weekly review is closed today.', { id: 'exec', duration: 8000 });
+            } else {
+                toast.error('Failed to execute actions.', { id: 'exec' });
+            }
         } finally {
             clearTimeout(planningNotice);
             setIsPlanning(false);
@@ -513,7 +624,7 @@ export default function WeeklyReviewPage() {
                     try {
                         await apiClient.post('/api/calendar/undo', { token: res.undo_token });
                         toast.success('Reverted.', { id: 'wr-undo' });
-                        loadWeek(weekStart);
+                        if (weekStart) loadWeek(weekStart);
                     } catch (e) {
                         toast.error('Could not undo automatically.', { id: 'wr-undo' });
                     }
@@ -597,26 +708,39 @@ export default function WeeklyReviewPage() {
             <header className="mb-8 flex items-start justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">AI Weekly Review</h1>
-                    <p className="text-sm text-[var(--text-tertiary)]">Reflect and recalibrate with PlannrAI</p>
+                    <p className="text-sm text-[var(--text-tertiary)]">
+                        {reviewWindow && !reviewWindow.is_open
+                            ? 'A Monday ritual — past weeks are read-only until then'
+                            : 'Reflect and recalibrate with PlannrAI'}
+                    </p>
                 </div>
                 <div className="flex items-center gap-2">
                     {/* Week switcher — without it there is no way to reach a
                         week that actually has data. */}
                     <div className="flex items-center gap-1 rounded-xl bg-[var(--glass-bg)] border border-[var(--glass-border)] p-1">
                         <button
-                            onClick={() => setWeekStart(w => shift(w, -7))}
-                            disabled={statsLoading}
+                            onClick={() => setWeekStart(w => (w ? shift(w, -7) : w))}
+                            disabled={statsLoading || !weekStart}
                             aria-label="Previous week"
                             className="p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--glass-bg-hover)] disabled:opacity-40 transition-colors"
                         >
                             <ChevronLeft className="w-4 h-4" />
                         </button>
                         <span className="px-1 text-xs font-medium tabular-nums text-[var(--text-secondary)] whitespace-nowrap">
-                            {prettyDate(weekStart)} – {prettyDate(weekEnd)}
+                            {weekStart ? `${prettyDate(weekStart)} – ${prettyDate(weekEnd)}` : '…'}
                         </span>
+                        {/* §3a: the picker stops at LAST week. The current week
+                            is in progress and its review is not due; it is
+                            reachable by deep link only, where it renders the
+                            closed state rather than a half-populated dashboard. */}
                         <button
-                            onClick={() => setWeekStart(w => shift(w, 7))}
-                            disabled={statsLoading || weekStart >= thisMonday()}
+                            onClick={() => setWeekStart(w => (w ? shift(w, 7) : w))}
+                            disabled={
+                                statsLoading ||
+                                !weekStart ||
+                                !reviewWindow ||
+                                weekStart >= reviewWindow.last_monday
+                            }
                             aria-label="Next week"
                             className="p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--glass-bg-hover)] disabled:opacity-40 transition-colors"
                         >
@@ -750,22 +874,42 @@ export default function WeeklyReviewPage() {
                     {/* EMPTY WEEK — the default week is last week, which on a
                         fresh database is very often empty. Say so plainly
                         instead of rendering a dashboard of zeros. */}
-                    {!statsLoading && (stats?.profile?.data_points ?? 0) === 0 && view === 'report' && (
+                    {/* §3a: the current week is in progress. Whether or not it
+                        has data yet, what renders where the review would be is
+                        the closed-state message — never "no data", never a
+                        half-populated dashboard with actions. */}
+                    {!statsLoading && reviewWindow && weekInfo && (weekInfo.is_current_week || weekInfo.is_future_week) && (stats?.profile?.data_points ?? 0) === 0 && view === 'report' && (
+                        <motion.div key="current-empty" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="w-full space-y-6">
+                            <ReviewStatePanel window={reviewWindow} week={weekInfo} refusal={serverRefusal} hasStats={false} />
+                            {weekStart !== reviewWindow.last_monday && (
+                                <div className="flex justify-center">
+                                    <button
+                                        onClick={() => setWeekStart(reviewWindow.last_monday)}
+                                        className="px-5 py-2.5 rounded-xl bg-[var(--color-primary)] text-white text-sm font-bold hover:brightness-110 transition-all"
+                                    >
+                                        View last week instead
+                                    </button>
+                                </div>
+                            )}
+                        </motion.div>
+                    )}
+
+                    {!statsLoading && !(reviewWindow && weekInfo && (weekInfo.is_current_week || weekInfo.is_future_week)) && (stats?.profile?.data_points ?? 0) === 0 && view === 'report' && (
                         <motion.div key="empty" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="w-full flex flex-col items-center justify-center text-center py-16 md:py-24 space-y-4">
                             <div className="w-16 h-16 rounded-full bg-[var(--glass-bg)] border border-[var(--glass-border)] flex items-center justify-center">
                                 <CalendarX className="w-7 h-7 text-[var(--text-tertiary)]" />
                             </div>
-                            <h2 className="text-xl font-bold">No data for the week of {prettyDate(weekStart)}</h2>
+                            <h2 className="text-xl font-bold">No data for the week of {weekStart ? prettyDate(weekStart) : ''}</h2>
                             <p className="text-sm text-[var(--text-tertiary)] max-w-sm">
                                 The review looks at last week by default. Nothing was scheduled or marked in
                                 that window, so there is nothing to summarise yet.
                             </p>
-                            {weekStart !== thisMonday() && (
+                            {reviewWindow && weekStart !== reviewWindow.last_monday && (
                                 <button
-                                    onClick={() => setWeekStart(thisMonday())}
+                                    onClick={() => setWeekStart(reviewWindow.last_monday)}
                                     className="mt-2 px-5 py-2.5 rounded-xl bg-[var(--color-primary)] text-white text-sm font-bold hover:brightness-110 transition-all"
                                 >
-                                    View this week instead
+                                    View last week instead
                                 </button>
                             )}
                         </motion.div>
@@ -788,7 +932,21 @@ export default function WeeklyReviewPage() {
                                 exists, a retry keeps the card on screen so the
                                 button can show its own in-flight spinner —
                                 otherwise that branch is unreachable. */}
-                            {aiLoading && !ai ? (
+                            {!reviewOpen && reviewWindow ? (
+                                /* Prompt 54 §3/§4: closed today, the current
+                                   week, or a past week's terminal state. No AI
+                                   was requested for this week and none will be. */
+                                <ReviewStatePanel window={reviewWindow} week={weekInfo} refusal={serverRefusal} />
+                            ) : !reviewOpen ? (
+                                /* Status never arrived: the page still loads
+                                   (§3) but the review is treated as closed. */
+                                <div className="p-6 rounded-3xl bg-[var(--glass-bg)] border border-[var(--glass-border)] backdrop-blur-xl">
+                                    <h2 className="text-lg font-bold">The weekly review opens on Mondays</h2>
+                                    <p className="text-sm text-[var(--text-tertiary)] mt-1">
+                                        Couldn&apos;t confirm today&apos;s review status. Your numbers above are unaffected.
+                                    </p>
+                                </div>
+                            ) : aiLoading && !ai ? (
                                 <div className="p-6 rounded-3xl bg-[var(--glass-bg)] border border-[var(--glass-border)] backdrop-blur-xl animate-pulse">
                                     <div className="flex items-center gap-3 mb-5">
                                         <div className="w-10 h-10 rounded-full bg-[var(--glass-border)]/50" />
@@ -868,7 +1026,7 @@ export default function WeeklyReviewPage() {
                                         )}
                                     </div>
                                     <button
-                                        onClick={() => fetchAi(weekStart, weekEnd, true)}
+                                        onClick={() => weekStart && fetchAi(weekStart, weekEnd, true)}
                                         disabled={aiLoading || cooldownLeft > 0}
                                         title={
                                             cooldownLeft > 0
@@ -953,9 +1111,13 @@ export default function WeeklyReviewPage() {
                                                     ? missedMins > 0
                                                         ? `${formatMins(missedMins)} of planned work didn't happen, but no single pattern stands out.`
                                                         : 'Nothing stands out as a struggle this week.'
-                                                    : missedMins > 0
-                                                      ? `${formatMins(missedMins)} of planned work didn't happen. The written read on why needs the AI, which hasn't come through.`
-                                                      : 'No struggles to report — and the written recap has not come through.'}
+                                                    : !reviewOpen
+                                                      ? missedMins > 0
+                                                          ? `${formatMins(missedMins)} of planned work didn't happen.`
+                                                          : 'Nothing was missed this week.'
+                                                      : missedMins > 0
+                                                        ? `${formatMins(missedMins)} of planned work didn't happen. The written read on why needs the AI, which hasn't come through.`
+                                                        : 'No struggles to report — and the written recap has not come through.'}
                                             </p>
                                         )}
                                     </div>
@@ -966,7 +1128,7 @@ export default function WeeklyReviewPage() {
                                 NOTICE. It has no checkbox and no Apply — the
                                 review may never respond to it by cutting the
                                 goal, so there is nothing here to accept. */}
-                            {(notices.length > 0 || untouched.length > 0) && (
+                            {reviewOpen && (notices.length > 0 || untouched.length > 0) && (
                                 <div
                                     style={{ background: 'var(--color-bg-primary)' }}
                                     className="p-5 rounded-2xl border border-amber-500/30"
@@ -999,7 +1161,11 @@ export default function WeeklyReviewPage() {
                                 </div>
                             )}
 
-                            {/* 4. Actions. Manual never depends on the AI. */}
+                            {/* 4. Actions. Manual never depends on the AI.
+                                Prompt 54: rendered ONLY while the review is
+                                open for this week. A closed week has no
+                                execution controls at all. */}
+                            {reviewOpen && (
                             <div className="pt-8 border-t border-[var(--glass-border)]">
                                 <h3 className="text-lg font-bold mb-2 text-center">How would you like to proceed?</h3>
                                 {/* A greyed-out button with a hover-only tooltip reads as a
@@ -1056,10 +1222,11 @@ export default function WeeklyReviewPage() {
                                     </button>
                                 </div>
                             </div>
+                            )}
                         </motion.div>
                     )}
 
-                    {!statsLoading && hasProposals && view === 'semi-auto' && (
+                    {!statsLoading && reviewOpen && hasProposals && view === 'semi-auto' && (
                         <motion.div key="semi-auto" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="w-full space-y-6">
                             <div className="flex items-center gap-4 mb-6">
                                 <button onClick={() => setView('report')} className="p-2 bg-[var(--glass-bg)] rounded-xl border border-[var(--glass-border)] text-[var(--text-secondary)] hover:text-white transition-colors">
@@ -1199,7 +1366,11 @@ export default function WeeklyReviewPage() {
                 changes={pendingApply?.changes || []}
                 isApplying={isExecuting}
                 isPlanning={isPlanning}
-                targetWeekLabel={`${prettyDate(thisMonday())}–${prettyDate(shift(thisMonday(), 6))}`}
+                targetWeekLabel={
+                    reviewWindow
+                        ? `${prettyDate(reviewWindow.this_monday)}–${prettyDate(shift(reviewWindow.this_monday, 6))}`
+                        : 'this week'
+                }
                 onCancel={() => setPendingApply(null)}
                 onConfirm={() => {
                     const p = pendingApply;

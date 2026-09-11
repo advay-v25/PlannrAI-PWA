@@ -2,7 +2,6 @@ import { callAI, getCircuitStates } from '@/lib/ai/unified-client';
 import { secureApiRoute, apiSuccess } from '@/lib/security/api-protection';
 import {
     computeMetrics,
-    defaultWeek,
     describeMetrics,
     fetchReviewGoals,
     todayFor,
@@ -10,6 +9,7 @@ import {
 } from '@/lib/chain/week-stats';
 import { buildProposals, type GoalUsage } from '@/lib/chain/proposals';
 import { dryRunWeek, nextMondayAfter } from '@/lib/scheduling/dry-run';
+import { gateReviewWindow } from '@/lib/weekly-review/server-gate';
 
 export const maxDuration = 60;
 
@@ -20,9 +20,14 @@ export const maxDuration = 60;
  * /api/weekly-review/stats, which cannot fail.
  *
  * This route is incapable of returning a non-2xx except for genuine auth and
- * rate-limit rejections. An unavailable AI summary is a normal outcome — it
- * returns `{ available: false }` at HTTP 200 so one provider outage can never
- * blank a page full of perfectly good Postgres data again.
+ * rate-limit rejections — and, since Prompt 54, the review-window refusal. An
+ * unavailable AI summary is a normal outcome — it returns `{ available: false }`
+ * at HTTP 200 so one provider outage can never blank a page full of perfectly
+ * good Postgres data again.
+ *
+ * Prompt 54 §5: the summary is generated ONLY on a Monday (user's timezone)
+ * and ONLY for last week. Anything else is refused with REVIEW_WINDOW_CLOSED /
+ * REVIEW_WEEK_NOT_REVIEWABLE before a single token is spent.
  */
 
 const isDev = process.env.NODE_ENV !== 'production';
@@ -86,11 +91,16 @@ export const POST = secureApiRoute(
     async (context, bodyData) => {
         const { userId, supabase } = context;
 
+        const body = (bodyData as any) || {};
+        // §5: refuse before any work. Outside the gate's own errors this is
+        // the only non-2xx the route produces on purpose.
+        const gate = await gateReviewWindow(supabase, userId, 'generate-report', body.weekStart);
+        if (!gate.ok) return gate.response;
+        const userTimezone = gate.window.timezone;
+
         try {
-            const body = (bodyData as any) || {};
-            const fallback = defaultWeek();
-            const weekStart = body.weekStart || fallback.weekStart;
-            const weekEnd = body.weekEnd || fallback.weekEnd;
+            const weekStart = gate.weekStart;
+            const weekEnd = gate.weekEnd;
 
             // The prompt's inputs are computed here rather than sent by the
             // client, so this request never has to wait on /stats.
@@ -103,7 +113,7 @@ export const POST = secureApiRoute(
             let todayIso = todayFor(null);
 
             try {
-                const [blocksRes, goalsRes, profileRes] = await Promise.all([
+                const [blocksRes, goalsRes] = await Promise.all([
                     supabase
                         .from('schedule_blocks')
                         .select('id, date, start_time, end_time, status, block_type, pillar, goal_id, title')
@@ -114,12 +124,11 @@ export const POST = secureApiRoute(
                     // that lived here filtered `.eq('is_paused', false)`, which
                     // never matches NULL — see fetchReviewGoals.
                     fetchReviewGoals(supabase, userId),
-                    supabase.from('profiles').select('timezone').eq('id', userId).single(),
                 ]);
 
                 if (blocksRes.error) throw blocksRes.error;
 
-                todayIso = todayFor(profileRes.data?.timezone);
+                todayIso = todayFor(userTimezone);
                 metrics = computeMetrics(blocksRes.data || [], goalsRes.active, todayIso);
                 console.log(
                     `[WeeklyReview/Report] ${describeMetrics(metrics, weekStart, goalsRes.all.length, goalsRes.active.length)}`

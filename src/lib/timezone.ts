@@ -14,13 +14,18 @@ export function getUserTimezone(profileTimezone?: string | null): string {
 /**
  * Returns "now" as wall-clock date/time components in the given IANA timezone,
  * using native Intl (no date-fns-tz dependency needed).
+ *
+ * `instant` defaults to the real current time. It exists so callers that must
+ * be *testable* against a fixed moment — the weekly-review window in
+ * `@/lib/weekly-review/window`, whose every gate turns on which weekday it is
+ * locally — can pass one in rather than reaching for a second date system.
  */
-export function nowInTimezone(timezone: string = DEFAULT_TIMEZONE): {
+export function nowInTimezone(timezone: string = DEFAULT_TIMEZONE, instant?: Date): {
     date: string;      // yyyy-MM-dd
     time: string;       // HH:mm
     dayOfWeek: number;  // 0 (Sun) - 6 (Sat), matches Date#getDay()
 } {
-    const now = new Date();
+    const now = instant ?? new Date();
     const parts = new Intl.DateTimeFormat('en-US', {
         timeZone: timezone,
         year: 'numeric',

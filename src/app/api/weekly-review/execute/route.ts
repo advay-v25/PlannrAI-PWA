@@ -1,6 +1,7 @@
 import { secureApiRoute, apiSuccess, apiError } from '@/lib/security/api-protection';
 import { PatchService } from '@/lib/services/patch-service';
 import { chooseWeekMode } from '@/lib/scheduling/dry-run';
+import { gateReviewWindow } from '@/lib/weekly-review/server-gate';
 
 // Every accepted review now runs a full week AI generation (generateWeekPlan)
 // after the goal writes, in series. 60s is the Vercel Hobby ceiling and matches
@@ -48,13 +49,22 @@ const RESPONSE_BY_MODE: Record<ExecutionMode, 'accepted' | 'partial' | 'ignored'
 
 export const POST = secureApiRoute(
     async (context, body) => {
-        const { mode, changes = [], report, weekStart, weekEnd } = (body as any) || {};
+        const { mode, changes = [], report, weekStart: requestedWeekStart } = (body as any) || {};
         const { userId, supabase } = context;
 
         if (!mode) return apiError('Missing execution mode', 400);
         if (!['auto', 'semi-auto', 'manual'].includes(mode)) {
             return apiError(`Unknown execution mode "${mode}"`, 400);
         }
+
+        // Prompt 54 §5: this is the path that writes plans and records
+        // decisions, so it is refused off-window and for any week other than
+        // last week BEFORE the idempotency claim and before any write. A stale
+        // Monday tab submitted on Thursday must change nothing.
+        const gate = await gateReviewWindow(supabase, userId, 'execute', requestedWeekStart);
+        if (!gate.ok) return gate.response;
+        const weekStart = gate.weekStart;
+        const weekEnd = gate.weekEnd;
 
         // §6: a duplicate submit for the same week returns the first result
         // rather than generating next week a second time.
